@@ -1,0 +1,62 @@
+.windowControls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  -webkit-app-region: no-drag;
+}
+
+.windowButton {
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: transparent;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.minimizeButton {
+  color: #333;
+}
+
+.maximizeButton {
+  color: #333;
+}
+
+.closeButton {
+  color: #333;
+}
+
+.minimizeButton:hover {
+  background-color: rgba(0, 0, 0, 0.1);
+}
+
+.maximizeButton:hover {
+  background-color: rgba(0, 0, 0, 0.1);
+}
+
+.closeButton:hover {
+  background-color: #e81123;
+  color: white;
+}
+
+/* 다크 모드 */
+:global(.dark-mode) .minimizeButton,
+:global(.dark-mode) .maximizeButton,
+:global(.dark-mode) .closeButton {
+  color: #e0e0e0;
+}
+
+:global(.dark-mode) .minimizeButton:hover,
+:global(.dark-mode) .maximizeButton:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+:global(.dark-mode) .closeButton:hover {
+  background-color: #e81123;
+  color: white;
+}

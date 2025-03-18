@@ -1,0 +1,114 @@
+.appHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 1rem;
+  -webkit-app-region: drag;
+  user-select: none;
+}
+
+.leftSection {
+  display: flex;
+  align-items: center;
+  -webkit-app-region: drag;
+}
+
+.rightSection {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  -webkit-app-region: no-drag;
+}
+
+.logo {
+  -webkit-app-region: drag;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  -webkit-app-region: no-drag;
+}
+
+/* 버튼은 드래그 영역에서 제외 */
+.appHeader button {
+  -webkit-app-region: no-drag;
+}
+
+/* 커스텀 헤더를 숨기거나 삭제하고 기본 운영체제 헤더를 사용합니다 */
+.header {
+  display: none; /* 커스텀 헤더를 숨김 */
+}
+
+.darkMode {
+  background-color: #1e1e1e;
+  border-bottom: 1px solid #333;
+  color: #e0e0e0;
+}
+
+.appTitle {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.appTitle h1 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.appIcon {
+  width: 24px;
+  height: 24px;
+}
+
+.windowControls {
+  display: flex;
+  -webkit-app-region: no-drag; /* 컨트롤은 드래그 불가능하게 설정 */
+  transition: opacity 0.3s ease;
+}
+
+.windowControlBtn {
+  background: none;
+  border: none;
+  font-size: 14px;
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #555;
+}
+
+.darkMode .windowControlBtn {
+  color: #ccc;
+}
+
+.windowControlBtn:hover {
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+.darkMode .windowControlBtn:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.closeBtn:hover {
+  background-color: #e81123;
+  color: white;
+}
+
+.darkMode .closeBtn:hover {
+  background-color: #e81123;
+  color: white;
+}
+
+.visible {
+  opacity: 1;
+}
+
+.hidden {
+  opacity: 0;
+}
