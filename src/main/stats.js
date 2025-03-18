@@ -60,20 +60,25 @@ function updateAndSendStats() {
     
   // 평균 단어 수 추정 (약 5타 = 1단어로 가정)
   const estimatedWords = Math.round(appState.currentStats.keyCount / 5);
-  appState.currentStats.totalWords = estimatedWords;
   
-  // 추정 문자 수 (약 1타 = 1문자로 가정)
-  appState.currentStats.totalChars = appState.currentStats.keyCount;
+  // 총 단어 수와 글자 수 업데이트 (구글 문서 기준)
+  if (!appState.currentStats.totalWords) {
+    appState.currentStats.totalWords = estimatedWords;
+  }
   
-  // 공백 제외 문자 수 추정 (약 80%가 공백 아닌 글자로 가정)
-  appState.currentStats.totalCharsNoSpace = Math.round(appState.currentStats.keyCount * 0.8);
+  if (!appState.currentStats.totalChars) {
+    appState.currentStats.totalChars = appState.currentStats.keyCount;
+  }
   
-  // 페이지 수 추정 (1페이지 = 약 1800자로 가정)
-  appState.currentStats.pages = appState.currentStats.totalChars > 0 
-    ? Math.max(0.1, Math.round((appState.currentStats.totalChars / 1800) * 10) / 10) 
-    : 0;
+  // 공백 제외 글자 수 (문서 기준)
+  if (!appState.currentStats.totalCharsNoSpace) {
+    appState.currentStats.totalCharsNoSpace = Math.round(appState.currentStats.keyCount * 0.8); // 약 80%로 추정
+  }
   
-  // UI에 통계 데이터 전송
+  // 페이지 수 계산 (약 1800자 = 1페이지로 가정)
+  appState.currentStats.pages = appState.currentStats.totalChars ? appState.currentStats.totalChars / 1800 : 0;
+  
+  // UI에 통계 전송
   if (appState.mainWindow && appState.mainWindow.webContents) {
     appState.mainWindow.webContents.send('typing-stats-update', {
       keyCount: appState.currentStats.keyCount,
@@ -88,13 +93,20 @@ function updateAndSendStats() {
     });
   }
   
+  // 트레이 메뉴도 갱신
+  const { updateTrayMenu } = require('./tray');
+  if (typeof updateTrayMenu === 'function') {
+    updateTrayMenu();
+  }
+  
   // 디버깅용 로그
   const isDev = process.env.NODE_ENV === 'development';
   if (isDev && appState.currentStats.keyCount % 50 === 0) {
     debugLog('통계 업데이트:', {
       keyCount: appState.currentStats.keyCount,
-      typingTime: formatTime(appState.currentStats.typingTime),
-      kpm: kpm
+      typingTime: formatTime(typingTime),
+      kpm,
+      window: appState.currentStats.currentWindow
     });
   }
 }

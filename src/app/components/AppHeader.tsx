@@ -71,22 +71,22 @@ export const AppHeader = memo(function AppHeader({ api }: AppHeaderProps) {
     const handleMouseMove = (e: MouseEvent) => {
       const { clientY } = e;
       
-      // 마우스가 화면 상단 20px 이내에 있으면 도구모음 표시
-      if (clientY < 20) {
+      // 마우스가 화면 상단 100px 이내에 있으면 도구모음 표시 (훨씬 더 넓은 영역으로 확장)
+      if (clientY < 100) {
         setIsVisible(true);
         if (timeoutRef.current) {
           clearTimeout(timeoutRef.current);
           timeoutRef.current = null;
         }
-      } else if (clientY > 100 && isVisible && !mouseInsideHeader.current) {
-        // 마우스가 헤더 영역을 벗어났고, 아래로 이동한 경우 타이머 설정
+      } else if (clientY > 150 && isVisible && !mouseInsideHeader.current) {
+        // 마우스가 헤더 영역을 벗어나고 더 아래로 이동한 경우 타이머 설정
         if (!timeoutRef.current) {
           timeoutRef.current = setTimeout(() => {
             if (!mouseInsideHeader.current) {
               setIsVisible(false);
             }
             timeoutRef.current = null;
-          }, 800); // 더 짧은 시간으로 조정
+          }, 1500); // 시간을 더 길게 설정 (1000ms → 1500ms)
         }
       }
       
@@ -114,7 +114,8 @@ export const AppHeader = memo(function AppHeader({ api }: AppHeaderProps) {
       }
     };
     
-    window.addEventListener('mousemove', handleMouseMove);
+    // passive와 capture 모두 true로 설정하여 이벤트를 우선적으로 감지
+    window.addEventListener('mousemove', handleMouseMove, { passive: true, capture: true });
     
     if (headerRef.current) {
       headerRef.current.addEventListener('mouseenter', handleMouseEnter);
@@ -122,7 +123,7 @@ export const AppHeader = memo(function AppHeader({ api }: AppHeaderProps) {
     }
     
     return () => {
-      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mousemove', handleMouseMove, { capture: true });
       
       if (headerRef.current) {
         headerRef.current.removeEventListener('mouseenter', handleMouseEnter);
@@ -138,8 +139,15 @@ export const AppHeader = memo(function AppHeader({ api }: AppHeaderProps) {
   return (
     <header 
       ref={headerRef}
+      style={{ pointerEvents: 'auto' }} // 인라인 스타일로 명시적 설정
       className={`${styles.appHeader} ${theme === 'dark' ? styles.darkMode : ''} ${isVisible ? styles.visible : styles.hidden} ${isAutoHide ? styles.autoHide : ''}`}
     >
+      {/* 헤더 감지 영역 추가 (더 큰 높이로) */}
+      <div 
+        className={styles.headerDetectionArea} 
+        style={{ pointerEvents: 'auto' }} // 인라인 스타일로 명시적 설정
+      ></div>
+      
       <div className={styles.leftSection}>
         <div className={styles.iconOnly}>
           <Image 

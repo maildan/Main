@@ -50,6 +50,12 @@ interface DebugInfo {
 
 type WindowModeType = 'windowed' | 'fullscreen' | 'fullscreen-auto-hide';
 
+interface TraySettings {
+  minimizeToTray: boolean;
+  showTrayNotifications: boolean;
+  reduceMemoryInBackground: boolean;
+}
+
 interface SettingsState {
   enabledCategories: {
     docs: boolean;
@@ -60,6 +66,12 @@ interface SettingsState {
   autoStartMonitoring: boolean;
   darkMode: boolean;
   windowMode: WindowModeType;
+  // 트레이 관련 설정 추가
+  minimizeToTray: boolean;
+  showTrayNotifications: boolean;
+  reduceMemoryInBackground: boolean;
+  // 미니뷰 설정 추가
+  enableMiniView: boolean;
 }
 
 interface ElectronAPI {
@@ -80,7 +92,10 @@ interface ElectronAPI {
   setDarkMode: (enabled: boolean) => Promise<any>;
   setWindowMode: (mode: WindowModeType) => Promise<any>;
   getWindowMode: () => Promise<WindowModeType>;
-  windowControl: (command: 'minimize' | 'maximize' | 'close') => void;
+  windowControl: (
+    command: 'minimize' | 'maximize' | 'close' | 'showHeader' | 'hideHeader' | 'setTitle',
+    param?: string
+  ) => void;
   checkAutoStart: (shouldAutoStart: boolean) => void;
   onAutoTrackingStarted: (callback: (data: any) => void) => () => void;
 }

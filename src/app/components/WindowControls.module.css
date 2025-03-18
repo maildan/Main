@@ -24,7 +24,7 @@
   margin: 0;
 }
 
-/* 버튼 내부 컨텐츠 스타일링 */
+/* 버튼 내부 컨텐츠 스타일링 */ 
 .buttonContent {
   position: absolute;
   top: 0;
@@ -75,17 +75,22 @@
   font-size: 20px; /* 18px에서 20px로 증가 */
 }
 
-/* 다크 모드 */
+/* 다크 모드 - 더 강력하게 스타일 적용 */
+:global(body.dark-mode) .minimizeButton,
+:global(body.dark-mode) .maximizeButton,
+:global(body.dark-mode) .closeButton,
 :global(.dark-mode) .minimizeButton,
 :global(.dark-mode) .maximizeButton,
 :global(.dark-mode) .closeButton {
   color: #E0E0E0; /* 가이드의 기본 텍스트 */
 }
 
+:global(body.dark-mode) .windowButton:hover,
 :global(.dark-mode) .windowButton:hover {
   background-color: rgba(255, 255, 255, 0.1);
 }
 
+:global(body.dark-mode) .closeButton:hover,
 :global(.dark-mode) .closeButton:hover {
   background-color: #CF6679; /* 가이드의 에러 색상 */
   color: #121212; /* 어두운 배경에 맞는 텍스트 색상 */

@@ -135,15 +135,15 @@ export const CustomHeader = memo(function CustomHeader({
           <div className={styles.leftSection}>
             <div className={styles.iconOnly}>
               <Image 
-                src="/app-icon.svg" 
-                alt=""
-                width={32}
-                height={32}
+                src="/loop-icon.svg" 
+                alt="Loop 아이콘"
+                width={24}
+                height={24}
                 priority 
                 loading="eager"
               />
             </div>
-            <h4 className={styles.appTitle}>타이핑 통계</h4>
+            <h4 className={styles.appTitle}>loop</h4>
           </div>
         </div>
         

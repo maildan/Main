@@ -211,9 +211,9 @@ function setupIpcHandlers() {
     }
   });
 
-  // 윈도우 제어 처리 (minimize, maximize, close)
-  ipcMain.on('window-control', (event, command) => {
-    debugLog('창 제어 요청 받음:', command);
+  // 윈도우 제어 처리 (minimize, maximize, close, showHeader, hideHeader, setTitle)
+  ipcMain.on('window-control', (event, command, param) => {
+    debugLog('창 제어 요청 받음:', command, param);
     
     try {
       if (!appState.mainWindow) {
@@ -235,11 +235,22 @@ function setupIpcHandlers() {
         case 'close':
           appState.mainWindow.close();
           break;
+        case 'showHeader':
+          // 프레임 있는(네이티브) 헤더 모드에서는 무시
+          break;
+        case 'hideHeader':
+          // 프레임 있는(네이티브) 헤더 모드에서는 무시
+          break;
+        case 'setTitle':
+          if (param) {
+            appState.mainWindow.setTitle(param);
+          }
+          break;
         default:
-          console.error('지원되지 않는 창 제어 명령:', command);
+          console.warn('알 수 없는 창 제어 명령:', command);
       }
     } catch (error) {
-      console.error('창 제어 중 오류:', error);
+      console.error('창 제어 중 오류 발생:', error);
     }
   });
 
@@ -257,6 +268,26 @@ function setupIpcHandlers() {
     }
   });
   
+  // 트레이에서 타겟 탭으로 이동하는 이벤트 핸들러
+  ipcMain.on('switch-to-tab-handled', (event, tab) => {
+    // 탭 전환 완료 알림을 받으면 트레이 메뉴 업데이트
+    debugLog(`탭 전환 완료: ${tab}`);
+    const { updateTrayMenu } = require('./tray');
+    updateTrayMenu();
+  });
+  
+  // 통계 저장 다이얼로그 열기 요청 처리
+  ipcMain.on('save-stats-dialog-opened', (event) => {
+    // 통계 저장 대화상자가 열렸음을 확인
+    debugLog('통계 저장 대화상자 열림');
+  });
+  
+  // 주기적인 통계 업데이트를 위한 핸들러
+  ipcMain.on('request-stats-update', (event) => {
+    const { updateTrayMenu } = require('./tray');
+    updateTrayMenu();
+  });
+
   // 윈도우 모드 변경 핸들러 수정
   ipcMain.on('change-window-mode', (event, mode) => {
     try {
@@ -288,6 +319,82 @@ function setupIpcHandlers() {
     } catch (error) {
       console.error('윈도우 모드 변경 중 오류:', error);
       event.reply('window-mode-change-result', { success: false, error: error.message });
+    }
+  });
+  
+  // 트레이 설정 업데이트 처리
+  ipcMain.on('update-tray-settings', (event, settings) => {
+    debugLog('트레이 설정 업데이트 요청:', settings);
+    
+    try {
+      if (settings.minimizeToTray !== undefined) {
+        appState.settings.minimizeToTray = settings.minimizeToTray;
+      }
+      
+      if (settings.showTrayNotifications !== undefined) {
+        appState.settings.showTrayNotifications = settings.showTrayNotifications;
+      }
+      
+      if (settings.reduceMemoryInBackground !== undefined) {
+        appState.settings.reduceMemoryInBackground = settings.reduceMemoryInBackground;
+      }
+      
+      // 설정 저장 시도
+      const { setupTray, destroyTray } = require('./tray');
+      
+      // 트레이 옵션이 꺼졌는데 트레이가 활성화된 경우 제거
+      if (!appState.settings.minimizeToTray && appState.tray) {
+        destroyTray();
+      } else if (appState.settings.minimizeToTray && !appState.tray) {
+        // 트레이 옵션이 켜졌는데 트레이가 없는 경우 생성
+        setupTray();
+      }
+      
+      // 설정 업데이트 후 저장
+      const saveResult = saveSettings();
+      
+      event.reply('tray-settings-updated', { 
+        success: true, 
+        settings: appState.settings
+      });
+      
+    } catch (error) {
+      console.error('트레이 설정 업데이트 오류:', error);
+      event.reply('tray-settings-updated', { 
+        success: false, 
+        error: String(error)
+      });
+    }
+  });
+  
+  // 앱 종료 요청 처리 (트레이 메뉴에서 호출)
+  ipcMain.on('quit-app', () => {
+    debugLog('앱 종료 요청 받음');
+    appState.allowQuit = true;
+    app.quit();
+  });
+  
+  // 창 표시/숨김 토글 요청 처리
+  ipcMain.on('toggle-window', (event) => {
+    if (!appState.mainWindow) return;
+    
+    if (appState.mainWindow.isVisible()) {
+      appState.mainWindow.hide();
+    } else {
+      appState.mainWindow.show();
+      appState.mainWindow.focus();
+    }
+  });
+  
+  // 미니뷰 토글 요청 처리
+  ipcMain.on('toggle-mini-view', () => {
+    debugLog('미니뷰 토글 요청 받음');
+    
+    try {
+      const { toggleMiniView } = require('./window');
+      toggleMiniView();
+    } catch (error) {
+      console.error('미니뷰 토글 중 오류:', error);
     }
   });
   

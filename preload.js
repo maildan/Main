@@ -178,6 +178,94 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => {
       ipcRenderer.removeListener('auto-tracking-started', handler);
     };
+  },
+
+  /**
+   * 트레이에서 특정 탭으로 이동
+   * @param {Function} callback - 탭 전환 콜백 함수
+   * @returns {Function} - 이벤트 리스너 제거 함수
+   */
+  onSwitchTab: (callback) => {
+    if (!callback || typeof callback !== 'function') {
+      console.error('유효한 콜백 함수가 필요합니다');
+      return () => {};
+    }
+
+    const handler = (_event, tabName) => {
+      console.log('탭 전환 요청 수신:', tabName);
+      callback(tabName);
+      
+      // 탭 전환 완료 알림
+      setTimeout(() => {
+        ipcRenderer.send('switch-to-tab-handled', tabName);
+      }, 100);
+    };
+
+    ipcRenderer.on('switch-to-tab', handler);
+
+    return () => {
+      ipcRenderer.removeListener('switch-to-tab', handler);
+    };
+  },
+
+  /**
+   * 통계 저장 다이얼로그 열기 요청
+   * @param {Function} callback - 저장 다이얼로그 열기 콜백
+   * @returns {Function} - 이벤트 리스너 제거 함수
+   */
+  onOpenSaveStatsDialog: (callback) => {
+    if (!callback || typeof callback !== 'function') {
+      console.error('유효한 콜백 함수가 필요합니다');
+      return () => {};
+    }
+
+    const handler = () => {
+      console.log('통계 저장 다이얼로그 열기 요청 수신');
+      callback();
+    };
+
+    ipcRenderer.on('open-save-stats-dialog', handler);
+
+    return () => {
+      ipcRenderer.removeListener('open-save-stats-dialog', handler);
+    };
+  },
+
+  /**
+   * 통계 업데이트 요청
+   */
+  requestStatsUpdate: () => {
+    console.log('통계 업데이트 요청');
+    ipcRenderer.send('request-stats-update');
+  },
+
+  /**
+   * 미니뷰 통계 업데이트 이벤트 수신
+   * @param {Function} callback - 미니뷰 통계 업데이트 콜백
+   * @returns {Function} - 이벤트 리스너 제거 함수
+   */
+  onMiniViewStatsUpdate: (callback) => {
+    if (!callback || typeof callback !== 'function') {
+      console.error('유효한 콜백 함수가 필요합니다');
+      return () => {};
+    }
+
+    const handler = (_event, data) => {
+      callback(data);
+    };
+    
+    ipcRenderer.on('mini-view-stats-update', handler);
+    
+    return () => {
+      ipcRenderer.removeListener('mini-view-stats-update', handler);
+    };
+  },
+  
+  /**
+   * 미니뷰 토글 (열기/닫기)
+   */
+  toggleMiniView: () => {
+    ipcRenderer.send('toggle-mini-view');
   }
 });
 

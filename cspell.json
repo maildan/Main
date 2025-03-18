@@ -1,28 +1,31 @@
 {
-    "version": "0.2",
-    "language": "en,ko",
-    "words": [
-      "operaair",
-      "onenote",
-      "evernote",
-      "hancom",
-      "codesandbox",
-      "codepen",
-      "replit",
-      "operagx",
-      "zenbrowser",
-      "maxthon",
-      "chartjs",
-      "iohook",
-      "recharts",
-      "unmaximize",
-      "ALTGR",
-      "linecap"
-    ],
-    "ignorePaths": [
-      "node_modules/**",
-      ".git/**",
-      ".next/**",
-      "dist/**"
-    ]
-  }
+  "version": "0.2",
+  "language": "en,ko",
+  "words": [
+    "operaair",
+    "onenote",
+    "evernote",
+    "hancom",
+    "codesandbox",
+    "codepen",
+    "replit",
+    "operagx",
+    "zenbrowser",
+    "maxthon",
+    "chartjs",
+    "iohook",
+    "recharts",
+    "unmaximize",
+    "ALTGR",
+    "linecap",
+    "darkmode", // Added "darkmode" to the list
+    "hdpi",
+    "miniview"
+  ],
+  "ignorePaths": [
+    "node_modules/**",
+    ".git/**",
+    ".next/**",
+    "dist/**"
+  ]
+}

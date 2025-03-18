@@ -55,7 +55,7 @@ export const TypingChart = React.memo(function TypingChart({ logs }: TypingChart
   // 다크 모드 상태 추적
   const [isDarkMode, setIsDarkMode] = useState(false);
   
-  // 다크 모드 감지
+  // 다크 모드 감지 함수 개선
   useEffect(() => {
     const checkDarkMode = () => {
       const isDark = document.documentElement.classList.contains('dark-mode') || 
@@ -65,6 +65,13 @@ export const TypingChart = React.memo(function TypingChart({ logs }: TypingChart
     
     // 초기 확인
     checkDarkMode();
+    
+    // 커스텀 이벤트 리스너 추가
+    const handleDarkModeChange = (event: CustomEvent<{darkMode: boolean}>) => {
+      setIsDarkMode(event.detail.darkMode);
+    };
+    
+    window.addEventListener('darkmode-changed', handleDarkModeChange as EventListener);
     
     // DOM 변화 관찰
     const observer = new MutationObserver(checkDarkMode);
@@ -77,7 +84,10 @@ export const TypingChart = React.memo(function TypingChart({ logs }: TypingChart
       attributeFilter: ['class'] 
     });
     
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('darkmode-changed', handleDarkModeChange as EventListener);
+    };
   }, []);
 
   // 필터링된 로그 데이터 메모이제이션

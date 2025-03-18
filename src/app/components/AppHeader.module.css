@@ -3,21 +3,25 @@
   top: 0;
   left: 0;
   right: 0;
-  z-index: 1000;
+  z-index: 9999; /* 1999에서 9999로 크게 증가 */
   padding: 0 16px;
   height: 45px;
-  background-color: transparent;
+  background-color: rgba(255, 255, 255, 0.97); /* 배경 더 진하게 설정 */
   display: flex;
   align-items: center;
   justify-content: space-between;
-  box-shadow: none;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15); /* 그림자 추가로 가시성 개선 */
   transition: transform 0.3s ease, opacity 0.3s ease, background-color 0.2s ease;
   -webkit-app-region: drag;
   backdrop-filter: blur(10px);
+  pointer-events: auto !important; /* 포인터 이벤트 강제 활성화 */
 }
 
 .appHeader:hover {
   background-color: rgba(255, 255, 255, 0.8);
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
 }
 
 .leftSection {
@@ -105,14 +109,27 @@
 .visible {
   transform: translateY(0);
   opacity: 1;
+  pointer-events: auto !important; /* 강제 활성화로 변경 */
 }
 
 .hidden {
   transform: translateY(-100%);
   opacity: 0;
-  pointer-events: none;
+  pointer-events: none !important; /* 강제 비활성화 */
 }
 
 .autoHide {
-  transition: transform 0.25s ease, opacity 0.25s ease;
+  transition: transform 0.2s ease-out, opacity 0.2s ease-out;
+}
+
+/* 헤더 감지 영역 크게 증가 */
+.headerDetectionArea {
+  position: absolute;
+  top: -30px; /* -20px에서 -30px로 더 넓게 */
+  left: 0;
+  right: 0;
+  height: 40px; /* 25px에서 40px로 증가 */
+  z-index: 10000; /* 2000에서 10000으로 증가하여 다른 모든 요소보다 우선 */
+  -webkit-app-region: drag;
+  pointer-events: auto !important; /* 포인터 이벤트 강제 활성화 */
 }

@@ -26,13 +26,13 @@
 .leftSection {
   display: flex;
   align-items: center;
-  gap: 12px; /* 아이콘과 제목 사이 간격 추가 */
+  gap: 8px; /* 아이콘과 제목 사이 간격 축소 (12px → 8px) */
   -webkit-app-region: drag; /* 왼쪽 영역도 드래그 영역으로 지정 */
 }
 
 .appTitle {
-  font-size: 14px;
-  font-weight: 500;
+  font-size: 16px; /* 텍스트 크기 증가 (14px → 16px) */
+  font-weight: 600; /* 더 두껍게 변경 (500 → 600) */
   color: #333;
   margin: 0;
   display: block; /* 제목 표시 */

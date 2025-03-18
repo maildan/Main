@@ -6,10 +6,10 @@ import { TypingMonitor } from './components/TypingMonitor';
 import { TypingHistory } from './components/TypingHistory';
 import { TypingChart } from './components/TypingChart';
 import { AppFooter } from './components/AppFooter';
+import { AppHeader } from './components/AppHeader'; // AppHeader 컴포넌트 import 추가
 import { ThemeProvider } from './components/ThemeProvider';
 import { Settings } from './components/Settings';
 import { ToastProvider, useToast } from './components/ToastContext';
-import { CustomHeader } from './components/CustomHeader';
 import styles from './page.module.css';
 
 // ElectronAPI, WindowModeType 등의 타입은 global.d.ts에서 가져옵니다
@@ -41,19 +41,52 @@ const createDummyElectronAPI = (): ElectronAPI => ({
     electronVersion: 'N/A',
     nodeVersion: 'N/A'
   }),
-  saveSettings: (settings) => Promise.resolve({ success: true, settings }),
+  saveSettings: (settings: SettingsState) => Promise.resolve({ success: true, settings }),
   loadSettings: () => Promise.resolve({
     enabledCategories: { docs: true, office: true, coding: true, sns: true },
     autoStartMonitoring: true,
     darkMode: false,
-    windowMode: 'windowed'
+    windowMode: 'windowed',
+    minimizeToTray: true,
+    showTrayNotifications: true,
+    reduceMemoryInBackground: true,
+    enableMiniView: true
   }),
-  setDarkMode: (enabled) => Promise.resolve({ success: true, enabled }),
-  setWindowMode: (mode) => Promise.resolve({ success: true, mode }),
-  getWindowMode: () => Promise.resolve('windowed'),
+  setDarkMode: (enabled: boolean) => Promise.resolve({ success: true, enabled }),
+  setWindowMode: (mode: WindowModeType) => Promise.resolve({ success: true, mode }),
+  getWindowMode: () => Promise.resolve('windowed' as WindowModeType),
   windowControl: () => console.log('개발용 windowControl 호출'),
   checkAutoStart: () => console.log('개발용 checkAutoStart 호출'),
-  onAutoTrackingStarted: () => () => {}
+  onAutoTrackingStarted: () => () => {},
+  // 트레이 관련 누락된 메서드 추가
+  updateTraySettings: (settings: { minimizeToTray?: boolean; showTrayNotifications?: boolean; reduceMemoryInBackground?: boolean }) => Promise.resolve({ 
+    success: true, 
+    settings: {
+      minimizeToTray: settings.minimizeToTray ?? true,
+      showTrayNotifications: settings.showTrayNotifications ?? true,
+      reduceMemoryInBackground: settings.reduceMemoryInBackground ?? true
+    }
+  }),
+  quitApp: () => console.log('개발용 quitApp 호출'),
+  toggleWindow: () => console.log('개발용 toggleWindow 호출'),
+  onBackgroundModeChange: () => () => {},
+  onTrayCommand: () => () => {},
+  // 새로 추가된 메서드들
+  onSwitchTab: (callback: (tab: string) => void) => {
+    console.log('개발용 onSwitchTab 등록');
+    return () => console.log('개발용 onSwitchTab 해제');
+  },
+  onOpenSaveStatsDialog: (callback: () => void) => {
+    console.log('개발용 onOpenSaveStatsDialog 등록');
+    return () => console.log('개발용 onOpenSaveStatsDialog 해제');
+  },
+  requestStatsUpdate: () => console.log('개발용 requestStatsUpdate 호출'),
+  // 누락된 메서드 추가
+  onMiniViewStatsUpdate: (callback: (data: TypingStatsUpdate) => void) => {
+    console.log('개발용 onMiniViewStatsUpdate 등록');
+    return () => console.log('개발용 onMiniViewStatsUpdate 해제');
+  },
+  toggleMiniView: () => console.log('개발용 toggleMiniView 호출')
 });
 
 // HomeContent 컴포넌트를 메모이제이션
@@ -108,7 +141,11 @@ const HomeContent = React.memo(function HomeContent() {
     },
     autoStartMonitoring: true,
     darkMode: false,
-    windowMode: 'windowed'
+    windowMode: 'windowed',
+    minimizeToTray: true,
+    showTrayNotifications: true,
+    reduceMemoryInBackground: true,
+    enableMiniView: true // 미니뷰 설정 추가
   });
   
   const [darkMode, setDarkMode] = useState(false);
@@ -124,7 +161,7 @@ const HomeContent = React.memo(function HomeContent() {
       return window.electronAPI;
     }
     
-    // 더미 API 반환
+    // 더미 API 반환 - 누락된 메서드 추가
     return {
       onTypingStatsUpdate: () => () => {},
       onStatsSaved: () => () => {},
@@ -151,20 +188,51 @@ const HomeContent = React.memo(function HomeContent() {
         electronVersion: 'N/A',
         nodeVersion: 'N/A'
       }),
-      saveSettings: (settings) => Promise.resolve({ success: true, settings }),
+      saveSettings: (settings: SettingsState) => Promise.resolve({ success: true, settings }),
       loadSettings: () => Promise.resolve({
         enabledCategories: { docs: true, office: true, coding: true, sns: true },
         autoStartMonitoring: true,
         darkMode: false,
-        windowMode: 'windowed'
+        windowMode: 'windowed',
+        minimizeToTray: true,
+        showTrayNotifications: true,
+        reduceMemoryInBackground: true
       }),
-      setDarkMode: (enabled) => Promise.resolve({ success: true, enabled }),
-      setWindowMode: (mode) => Promise.resolve({ success: true, mode }),
+      setDarkMode: (enabled: boolean) => Promise.resolve({ success: true, enabled }),
+      setWindowMode: (mode: WindowModeType) => Promise.resolve({ success: true, mode }),
       getWindowMode: () => Promise.resolve('windowed'),
       windowControl: () => console.log('개발용 windowControl 호출'),
       checkAutoStart: () => console.log('개발용 checkAutoStart 호출'),
-      onAutoTrackingStarted: () => () => {}
-    } as ElectronAPI;
+      onAutoTrackingStarted: () => () => {},
+      updateTraySettings: (settings: { minimizeToTray?: boolean; showTrayNotifications?: boolean; reduceMemoryInBackground?: boolean }) => Promise.resolve({ 
+        success: true, 
+        settings: {
+          minimizeToTray: settings.minimizeToTray ?? true,
+          showTrayNotifications: settings.showTrayNotifications ?? true,
+          reduceMemoryInBackground: settings.reduceMemoryInBackground ?? true
+        }
+      }),
+      quitApp: () => console.log('개발용 quitApp 호출'),
+      toggleWindow: () => console.log('개발용 toggleWindow 호출'),
+      onBackgroundModeChange: () => () => {},
+      onTrayCommand: () => () => {},
+      // 누락된 메서드들 추가
+      onSwitchTab: (callback: (tab: string) => void) => {
+        console.log('개발용 onSwitchTab 등록');
+        return () => console.log('개발용 onSwitchTab 해제');
+      },
+      onOpenSaveStatsDialog: (callback: () => void) => {
+        console.log('개발용 onOpenSaveStatsDialog 등록');
+        return () => console.log('개발용 onOpenSaveStatsDialog 해제');
+      },
+      requestStatsUpdate: () => console.log('개발용 requestStatsUpdate 호출'),
+      // 미니뷰 관련 메서드 추가
+      onMiniViewStatsUpdate: (callback: (data: TypingStatsUpdate) => void) => {
+        console.log('개발용 onMiniViewStatsUpdate 등록');
+        return () => console.log('개발용 onMiniViewStatsUpdate 해제');
+      },
+      toggleMiniView: () => console.log('개발용 toggleMiniView 호출')
+    };
   }, []);
 
   // 탭 전환 핸들러
@@ -349,7 +417,11 @@ const HomeContent = React.memo(function HomeContent() {
           },
           autoStartMonitoring: parsedSettings.autoStartMonitoring ?? true,
           darkMode: parsedSettings.darkMode ?? false,
-          windowMode: parsedSettings.windowMode ?? 'windowed'
+          windowMode: parsedSettings.windowMode ?? 'windowed',
+          minimizeToTray: parsedSettings.minimizeToTray ?? true,
+          showTrayNotifications: parsedSettings.showTrayNotifications ?? true,
+          reduceMemoryInBackground: parsedSettings.reduceMemoryInBackground ?? true,
+          enableMiniView: parsedSettings.enableMiniView ?? true // 미니뷰 기본값 추가
         };
         
         setSettings(completeSettings);
@@ -400,13 +472,33 @@ const HomeContent = React.memo(function HomeContent() {
     }
   }, [saveSettingsToLocalStorage, electronAPI, showToast]);
 
-  // 다크 모드 변경 핸들러
-  const handleDarkModeChange = useCallback((enabled: boolean) => {
-    setDarkMode(enabled);
-    if (electronAPI) {
-      electronAPI.setDarkMode(enabled);
+  // 다크 모드 클래스 관리 함수 추가
+  const applyDarkModeToAllElements = useCallback((isDark: boolean) => {
+    if (isDark) {
+      document.body.classList.add('dark-mode');
+      document.documentElement.classList.add('dark-mode');
+      // 주요 컨테이너에도 클래스 추가
+      document.querySelectorAll('.tab-content, .chart-container, .history-table').forEach(el => {
+        el.classList.add('dark-mode');
+      });
+    } else {
+      document.body.classList.remove('dark-mode');
+      document.documentElement.classList.remove('dark-mode');
+      // 주요 컨테이너에서도 클래스 제거
+      document.querySelectorAll('.tab-content, .chart-container, .history-table').forEach(el => {
+        el.classList.remove('dark-mode');
+      });
     }
-  }, [electronAPI]);
+  }, []);
+
+  // useEffect를 수정하여 전역 다크 모드 클래스를 설정
+  useEffect(() => {
+    applyDarkModeToAllElements(darkMode);
+    
+    // 다크 모드 변경 이벤트 발생
+    const darkModeEvent = new CustomEvent('darkmode-changed', { detail: { darkMode } });
+    window.dispatchEvent(darkModeEvent);
+  }, [darkMode, applyDarkModeToAllElements]);
 
   // 창 모드 변경 핸들러 수정 - 오류 처리 추가 및 API 일관성 확보
 // 다른 부분에서도 null 체크 추가
@@ -583,6 +675,40 @@ useEffect(() => {
     };
   }, [electronAPI, createDummyAPI, isTracking, fetchLogs]);
 
+  // 트레이 메뉴에서 탭 전환 이벤트 처리
+  useEffect(() => {
+    const api = electronAPI || createDummyAPI;
+    
+    // 트레이 메뉴에서 특정 탭으로 이동하는 이벤트 처리
+    const unsubscribeSwitchTab = api.onSwitchTab((tab: string) => {
+      console.log(`트레이 메뉴에서 ${tab} 탭으로 이동 요청`);
+      handleTabChange(tab);
+    });
+    
+    // 트레이 메뉴에서 통계 저장 다이얼로그 열기 요청 처리
+    const unsubscribeOpenSaveDialog = api.onOpenSaveStatsDialog(() => {
+      console.log('트레이 메뉴에서 통계 저장 다이얼로그 열기 요청');
+      handleTabChange('monitor'); // 모니터링 탭으로 전환
+      // 여기에 통계 저장 다이얼로그를 여는 로직 추가 (필요시)
+    });
+    
+    // 주기적으로 트레이 통계 업데이트 요청 (필요시)
+    const statsUpdateInterval = setInterval(() => {
+      if (isTracking && api.requestStatsUpdate) {
+        api.requestStatsUpdate();
+      }
+    }, 30000); // 30초마다 업데이트 (부하 방지)
+    
+    intervalsRef.current.push(statsUpdateInterval);
+    
+    // 이벤트 리스너 정리
+    return () => {
+      unsubscribeSwitchTab();
+      unsubscribeOpenSaveDialog();
+      clearInterval(statsUpdateInterval);
+    };
+  }, [electronAPI, createDummyAPI, handleTabChange, isTracking]);
+
   // 앱이 종료되거나 페이지가 새로고침될 때 설정 저장
   useEffect(() => {
     const handleBeforeUnload = () => {
@@ -626,14 +752,92 @@ useEffect(() => {
     };
   }, []);
 
-  // useEffect를 추가하여 전역 다크 모드 클래스를 설정
+  // handleDarkModeChange 함수 수정
+const handleDarkModeChange = useCallback((enabled: boolean) => {
+  setDarkMode(enabled);
+  
+  // 즉시 전역 요소에 다크 모드 적용
+  applyDarkModeToAllElements(enabled);
+  
+  if (electronAPI) {
+    electronAPI.setDarkMode(enabled);
+  }
+}, [electronAPI, applyDarkModeToAllElements]);
+
+  // 자동 숨김 모드 상태 추가
+  const [isHeaderVisible, setIsHeaderVisible] = useState(true);
+  const headerDetectionRef = useRef<HTMLDivElement>(null);
+  const autoHideTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // 자동 숨김 기능 처리 (윈도우 기본 헤더용)
   useEffect(() => {
-    if (darkMode) {
-      document.body.classList.add('dark-mode');
-    } else {
-      document.body.classList.remove('dark-mode');
+    const isAutoHideMode = windowMode === 'fullscreen-auto-hide';
+    
+    if (!isAutoHideMode) {
+      // 자동 숨김이 아닌 경우 항상 표시
+      if (electronAPI && typeof electronAPI.windowControl === 'function') {
+        // TypeScript 오류 해결 - 타입 단언(type assertion) 사용
+        (electronAPI.windowControl as Function)('showHeader');
+      }
+      return;
     }
-  }, [darkMode]);
+    
+    const handleMouseMove = (e: MouseEvent) => {
+      const { clientY } = e;
+      
+      // 마우스가 화면 상단 100px 이내에 있을 때 헤더 표시 (60px에서 100px로 증가)
+      if (clientY < 100) {
+        setIsHeaderVisible(true);
+        if (electronAPI && typeof electronAPI.windowControl === 'function') {
+          // TypeScript 오류 해결 - 타입 단언 사용
+          (electronAPI.windowControl as Function)('showHeader');
+        }
+        
+        if (autoHideTimeoutRef.current) {
+          clearTimeout(autoHideTimeoutRef.current);
+          autoHideTimeoutRef.current = null;
+        }
+      } else if (clientY > 150 && isHeaderVisible) {
+        // 마우스가 아래로 이동했을 때 타이머 설정 - 거리와 시간 증가
+        if (!autoHideTimeoutRef.current) {
+          autoHideTimeoutRef.current = setTimeout(() => {
+            setIsHeaderVisible(false);
+            if (electronAPI && typeof electronAPI.windowControl === 'function') {
+              (electronAPI.windowControl as Function)('hideHeader');
+            }
+            autoHideTimeoutRef.current = null;
+          }, 1500); // 1000ms에서 1500ms로 증가
+        }
+      }
+    };
+    
+    // 캡처 옵션과 우선순위 높임
+    window.addEventListener('mousemove', handleMouseMove, { 
+      passive: true, 
+      capture: true 
+    });
+    
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove, { capture: true });
+      if (autoHideTimeoutRef.current) {
+        clearTimeout(autoHideTimeoutRef.current);
+      }
+    };
+  }, [windowMode, isHeaderVisible, electronAPI]);
+  
+  // window 제목 설정 (loop)
+  useEffect(() => {
+    // Electron API를 통해 앱 제목 설정 (window 이름을 'loop'로 변경)
+    if (electronAPI && typeof electronAPI.windowControl === 'function') {
+      // TypeScript 오류 해결 - 타입 단언 사용
+      (electronAPI.windowControl as Function)('setTitle', 'loop');
+    }
+    
+    // 기본 Window API로도 제목 설정
+    if (typeof document !== 'undefined') {
+      document.title = 'loop';
+    }
+  }, [electronAPI]);
 
   // 메모이제이션된 컴포넌트 렌더링 - 의존성 최적화
   const renderActiveTab = useMemo(() => {
@@ -697,38 +901,59 @@ useEffect(() => {
   ]);
 
   return (
-    <div className={`${styles.container} ${darkMode ? 'dark-mode' : ''} ${windowMode === 'fullscreen-auto-hide' ? styles.zenMode : ''}`}>
-      <CustomHeader darkMode={darkMode} windowMode={windowMode} />
-        
+    <div 
+      className={`${styles.container} ${darkMode ? 'dark-mode' : ''} ${windowMode === 'fullscreen-auto-hide' ? styles.zenMode : ''}`}
+      style={{ position: 'relative', zIndex: 1 }}
+    >
+      {/* AppHeader 컴포넌트 추가 */}
+      <AppHeader api={electronAPI} />
+      
+      {/* 자동 숨김 모드일 때 감지 영역 추가 */}
+      {windowMode === 'fullscreen-auto-hide' && (
+        <div 
+          ref={headerDetectionRef}
+          className={styles.headerDetectionArea}
+          aria-hidden="true"
+          style={{ pointerEvents: 'auto' }} 
+        />
+      )}
+      
       <main className={styles.mainContent}>
-        <div className={styles.appTabs}>
+        <div className={styles.appTabs} style={{ pointerEvents: 'auto' }}>
           <button 
             className={`${styles.tabButton} ${activeTab === 'monitor' ? styles.activeTab : ''}`}
             onClick={() => handleTabChange('monitor')}
+            style={{ pointerEvents: 'auto' }}
           >
             모니터링
           </button>
+          
+          {/* 다른 탭 버튼들에도 동일한 style 속성 추가 */}
           <button 
             className={`${styles.tabButton} ${activeTab === 'history' ? styles.activeTab : ''}`}
             onClick={() => handleTabChange('history')}
+            style={{ pointerEvents: 'auto' }}
           >
             히스토리
           </button>
           <button 
             className={`${styles.tabButton} ${activeTab === 'stats' ? styles.activeTab : ''}`}
             onClick={() => handleTabChange('stats')}
+            style={{ pointerEvents: 'auto' }}
           >
             통계
           </button>
           <button 
             className={`${styles.tabButton} ${activeTab === 'chart' ? styles.activeTab : ''}`}
             onClick={() => handleTabChange('chart')}
+            style={{ pointerEvents: 'auto' }}
           >
             차트
           </button>
           <button 
             className={`${styles.tabButton} ${activeTab === 'settings' ? styles.activeTab : ''}`}
             onClick={() => handleTabChange('settings')}
+            style={{ pointerEvents: 'auto' }}
           >
             설정
           </button>
@@ -738,6 +963,7 @@ useEffect(() => {
             className={`${styles.tabButton} ${styles.debugButton} ${debugMode ? styles.debugActive : ''}`}
             onClick={toggleDebugMode}
             title="디버그 모드 토글"
+            style={{ pointerEvents: 'auto' }}
           >
             🐞
           </button>

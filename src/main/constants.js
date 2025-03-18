@@ -7,11 +7,16 @@ const isDev = process.env.NODE_ENV === 'development';
 // 앱 상태 관리
 const appState = {
   mainWindow: null,
+  miniViewWindow: null, // 미니뷰 창 참조
+  miniViewStatsInterval: null, // 미니뷰 통계 전송 인터벌
   isTracking: false,
   keyboardListener: null,
   windowMode: 'windowed',
   autoHideToolbar: false,
   autoHideCssKey: null, // CSS 키 저장을 위해 추가
+  backgroundCssKey: null, // 백그라운드 모드 CSS 키
+  allowQuit: false, // 완전히 종료할지 여부
+  tray: null, // 트레이 객체 참조
   currentStats: {
     keyCount: 0,
     typingTime: 0,
@@ -34,7 +39,11 @@ const appState = {
     },
     autoStartMonitoring: true,
     darkMode: false,
-    windowMode: 'windowed'
+    windowMode: 'windowed',
+    minimizeToTray: true, // 트레이로 최소화 설정 (기본값 true)
+    showTrayNotifications: true, // 트레이 알림 표시 여부
+    reduceMemoryInBackground: true, // 백그라운드에서 메모리 사용 감소
+    enableMiniView: true // 미니뷰 활성화 기본값
   }
 };
 

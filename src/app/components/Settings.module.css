@@ -126,3 +126,42 @@
 .darkMode .saveButton:hover {
   background: #4b7bfb;
 }
+
+.disabledNote {
+  font-size: 0.8rem;
+  color: #777;
+  margin-left: 0.5rem;
+  font-style: italic;
+}
+
+.darkMode .disabledNote {
+  color: #999;
+}
+
+.settingDescription {
+  font-size: 0.9rem;
+  color: #666;
+  margin-top: 1rem;
+  padding: 1rem;
+  background-color: #f5f5f5;
+  border-left: 3px solid #ddd;
+  border-radius: 4px;
+  line-height: 1.5;
+}
+
+.darkMode .settingDescription {
+  color: #b0b0b0;
+  background-color: #2c2c2c;
+  border-left-color: #444;
+}
+
+/* 비활성화된 체크박스 스타일 */
+.toggleItem input[type="checkbox"]:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.toggleItem input[type="checkbox"]:disabled + span {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
