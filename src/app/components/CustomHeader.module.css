@@ -1,0 +1,114 @@
+.customHeader {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  padding: 0 20px; /* 패딩 증가 (16px → 20px) */
+  height: 52px; /* 높이 증가 (48px → 52px) */
+  background-color: rgba(255, 255, 255, 0.95); /* 더 진하게 만들어 가시성 향상 */
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.2); /* 그림자 강화 */
+  transition: transform 0.3s ease-in-out, opacity 0.3s ease; /* 애니메이션 시간 늘림 */
+  -webkit-app-region: drag; /* 전체 헤더를 드래그 영역으로 설정 */
+  backdrop-filter: blur(10px);
+}
+
+.dragArea {
+  display: flex;
+  flex: 1;
+  height: 100%;
+  -webkit-app-region: drag; /* 드래그 영역으로 명시적 지정 */
+}
+
+.leftSection {
+  display: flex;
+  align-items: center;
+  gap: 12px; /* 아이콘과 제목 사이 간격 추가 */
+  -webkit-app-region: drag; /* 왼쪽 영역도 드래그 영역으로 지정 */
+}
+
+.appTitle {
+  font-size: 14px;
+  font-weight: 500;
+  color: #333;
+  margin: 0;
+  display: block; /* 제목 표시 */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 180px; /* 제목 최대 너비 설정 */
+  -webkit-app-region: drag;
+}
+
+.rightSection {
+  display: flex;
+  align-items: center;
+  -webkit-app-region: no-drag; /* 컨트롤 버튼은 드래그에서 제외 */
+}
+
+.iconOnly {
+  width: 36px; /* 32px에서 키움 */
+  height: 36px; /* 32px에서 키움 */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  -webkit-app-region: drag;
+}
+
+/* 다크모드 - 가시성 크게 향상 */
+.darkMode {
+  background-color: rgba(24, 24, 24, 0.98); /* 가이드에 맞춰 #181818 사용 */
+  color: #e0e0e0; /* 가이드의 기본 텍스트 색상 */
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5); /* 그림자 강화 */
+}
+
+.darkMode:hover {
+  background-color: rgba(30, 30, 30, 1); /* 호버 시 약간 밝게 */
+}
+
+.darkMode .appTitle {
+  color: #e0e0e0;
+}
+
+.visible {
+  transform: translateY(0);
+  opacity: 1;
+}
+
+.hidden {
+  transform: translateY(-100%);
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* 상단에 마우스를 가져다 대면 헤더가 나타나도록 감지 영역 추가 */
+.headerDetectionArea {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 8px;
+  z-index: 999;
+}
+
+/* 드래그 기능이 적용되지 않을 영역에 대한 명시적 설정 */
+.customHeader button,
+.customHeader a,
+.customHeader input,
+.customHeader select {
+  -webkit-app-region: no-drag;
+}
+
+/* 나머지 헤더 영역은 항상 드래그 가능하도록 */
+.customHeader * {
+  -webkit-app-region: drag;
+}
+
+/* 명시적으로 no-drag가 설정된 요소들은 예외 처리 */
+.customHeader [data-no-drag],
+.customHeader *[data-no-drag] {
+  -webkit-app-region: no-drag;
+}

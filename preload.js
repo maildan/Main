@@ -97,20 +97,40 @@ contextBridge.exposeInMainWorld('electronAPI', {
     });
   },
   
+  /**
+   * 창 모드 설정
+   * @param {string} mode - 창 모드 ('windowed', 'fullscreen', 'fullscreen-auto-hide')
+   * @returns {Promise<object>} - 설정 결과
+   */
   setWindowMode: (mode) => {
     console.log('창 모드 설정 요청:', mode);
     return new Promise((resolve) => {
+      // 응답 핸들러 등록
       ipcRenderer.once('window-mode-changed', (_event, result) => {
+        console.log('창 모드 변경 결과:', result);
+        
+        // 이벤트 발생
+        if (result.success) {
+          // 다른 컴포넌트에 알리기 위해 커스텀 이벤트 발생
+          window.dispatchEvent(new CustomEvent('window-mode-changed', { 
+            detail: result.mode 
+          }));
+        }
+        
         resolve(result);
       });
+      
+      // 요청 보내기
       ipcRenderer.send('set-window-mode', mode);
     });
   },
   
+  // 창 모드 상태 확인 (Promise 반환으로 업데이트)
   getWindowMode: () => {
     return new Promise((resolve) => {
-      ipcRenderer.once('window-mode-status', (_event, mode) => {
-        resolve(mode);
+      ipcRenderer.once('window-mode-status', (_event, result) => {
+        console.log('창 모드 상태:', result);
+        resolve(result.mode || 'windowed');
       });
       ipcRenderer.send('get-window-mode');
     });

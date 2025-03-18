@@ -57,33 +57,38 @@
 }
 
 .statsPanel {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 1rem;
-  margin-bottom: 2rem;
-  padding: 1rem;
-  background-color: #f5f5f5;
-  border-radius: 6px;
+  display: none;
 }
 
 .statItem {
   display: flex;
   flex-direction: column;
-  padding: 1rem;
+  align-items: center; /* 내용 가운데 정렬 */
+  justify-content: center; /* 내용 가운데 정렬 */
+  padding: 1.5rem 1rem;
   background-color: white;
-  border-radius: 4px;
+  border-radius: 8px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  aspect-ratio: 1 / 1; /* 정사각형 비율 유지 */
+  text-align: center;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.statItem:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 }
 
 .statLabel {
   font-size: 0.9rem;
   color: #666;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.75rem;
+  font-weight: 500;
 }
 
 .statValue {
-  font-size: 1.5rem;
-  font-weight: 500;
+  font-size: 1.3rem;
+  font-weight: 600;
   word-break: break-word;
 }
 
@@ -270,6 +275,10 @@
   
   .websiteLinks {
     grid-template-columns: 1fr;
+  }
+
+  .statsPanel {
+    grid-template-columns: repeat(2, 1fr); /* 모바일에서는 2열로 변경 */
   }
 }
 
@@ -481,4 +490,282 @@
   justify-content: space-between;
   align-items: center;
   margin-bottom: 1.5rem;
+}
+
+/* 기존 스타일은 유지하면서 새로운 레이아웃 추가 */
+.container {
+  padding: 1.5rem;
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+  margin-bottom: 2rem;
+}
+
+/* 새로운 레이아웃 스타일 */
+.contentWrapper {
+  display: flex;
+  gap: 1.5rem;
+  margin-top: 1.5rem;
+}
+
+.leftPanel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.rightPanel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+/* 통계 탭 스타일 */
+.statsTabs {
+  display: flex;
+  border-bottom: 1px solid #e9ecef;
+}
+
+.statsTabButton {
+  padding: 0.75rem 1rem;
+  border: none;
+  background: none;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #495057;
+  cursor: pointer;
+  transition: all 0.2s;
+  flex: 1;
+  text-align: center;
+}
+
+.activeStatsTab {
+  color: #0070f3;
+  border-bottom: 2px solid #0070f3;
+}
+
+.statsTabButton:hover:not(.activeStatsTab) {
+  background-color: #f8f9fa;
+}
+
+.statsTabContent {
+  margin-top: 1rem;
+}
+
+.statsGroup {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.statCard {
+  flex: 1;
+  min-width: 150px;
+  padding: 1.5rem;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  text-align: center;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.statCard:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.statLabel {
+  font-size: 0.9rem;
+  color: #666;
+  margin-bottom: 0.75rem;
+  font-weight: 500;
+}
+
+.statValue {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #0070f3;
+}
+
+/* 다크 모드 지원 */
+:global(.dark-mode) .statsTabButton {
+  color: #aaa;
+}
+
+:global(.dark-mode) .activeStatsTab {
+  color: #5e8efe;
+  border-bottom-color: #5e8efe;
+}
+
+:global(.dark-mode) .statCard {
+  background-color: #2c2c2c;
+}
+
+:global(.dark-mode) .statLabel {
+  color: #aaa;
+}
+
+:global(.dark-mode) .statValue {
+  color: #5e8efe;
+}
+
+/* 반응형 디자인 */
+@media (max-width: 768px) {
+  .contentWrapper {
+    flex-direction: column;
+  }
+  
+  .leftPanel, .rightPanel {
+    width: 100%;
+  }
+}
+
+/* 다크 모드 지원 추가 */
+:global(.dark-mode) .container {
+  background-color: #1E1E1E; /* 가이드의 카드 배경 */
+  color: #E0E0E0; /* 가이드의 기본 텍스트 */
+  border: 1px solid #303030; /* 가이드의 경계선 */
+}
+
+:global(.dark-mode) .statusIndicator {
+  background-color: #222222; /* 가이드의 카드 배경보다 약간 밝게 */
+  border-color: #303030; /* 가이드의 경계선 */
+}
+
+:global(.dark-mode) .browserStatus,
+:global(.dark-mode) .statsPanel {
+  background-color: #222222;
+  color: #E0E0E0;
+  border-color: #303030;
+}
+
+:global(.dark-mode) .statItem {
+  background-color: #252525; /* 가이드의 강조 영역 */
+  color: #E0E0E0;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+}
+
+:global(.dark-mode) .statLabel {
+  color: #B0B0B0; /* 가이드의 보조 텍스트 */
+}
+
+:global(.dark-mode) .statValue {
+  color: #03DAC6; /* 가이드의 활성 버튼 색상을 강조 색상으로 */
+  font-weight: 600;
+}
+
+:global(.dark-mode) .saveSection {
+  background-color: #222222;
+  border: 1px solid #303030;
+}
+
+:global(.dark-mode) .descriptionInput {
+  background-color: #252525;
+  color: #E0E0E0;
+  border-color: #424242; /* 가이드의 입력 필드 테두리 */
+}
+
+:global(.dark-mode) .descriptionInput:focus {
+  border-color: #1E88E5; /* 가이드의 링크/액션 색상 */
+  box-shadow: 0 0 2px #1E88E5;
+}
+
+:global(.dark-mode) .browserInfo .browserRow {
+  border-color: #303030;
+}
+
+:global(.dark-mode) .websiteTabHeader {
+  background-color: #222222;
+  border-color: #303030;
+}
+
+:global(.dark-mode) .websiteTabButton {
+  color: #B0B0B0;
+  border-color: #303030;
+}
+
+:global(.dark-mode) .websiteTabButton:hover {
+  background-color: #2D2D2D;
+}
+
+:global(.dark-mode) .activeWebsiteTab {
+  background-color: #2D2D2D;
+  color: #E0E0E0;
+}
+
+:global(.dark-mode) .activeWebsiteTab::after {
+  background-color: #03DAC6; /* 가이드의 활성 버튼 색상 */
+}
+
+:global(.dark-mode) .websiteTabContent {
+  background-color: #1E1E1E;
+}
+
+:global(.dark-mode) .websiteLink {
+  background-color: #252525;
+  color: #B0B0B0;
+  border-color: #303030;
+}
+
+:global(.dark-mode) .websiteLink:hover {
+  background-color: #2D2D2D;
+  border-color: #424242;
+  color: #E0E0E0;
+}
+
+:global(.dark-mode) .helpSection {
+  background-color: #222222;
+  color: #E0E0E0;
+  border-left: 3px solid #03DAC6;
+}
+
+:global(.dark-mode) .helpSection h3 {
+  color: #03DAC6;
+}
+
+:global(.dark-mode) .detectedBadge {
+  background-color: #0D3320; /* 어두운 초록 배경 */
+  color: #4CAF50; /* 가이드의 성공 색상 */
+}
+
+:global(.dark-mode) .notDetectedBadge {
+  background-color: #311B1B; /* 어두운 빨강 배경 */
+  color: #CF6679; /* 가이드의 에러 색상 */
+}
+
+:global(.dark-mode) .trackingButton {
+  background-color: #424242; /* 가이드의 비활성 버튼 */
+  color: #E0E0E0;
+}
+
+:global(.dark-mode) .trackingButton:hover {
+  background-color: #505050;
+}
+
+:global(.dark-mode) .trackingActive {
+  background-color: #03DAC6; /* 가이드의 활성 버튼 색상 */
+  color: #121212; /* 어두운 텍스트 */
+}
+
+:global(.dark-mode) .trackingActive:hover {
+  background-color: #03DAC6;
+  opacity: 0.8;
+}
+
+:global(.dark-mode) .saveButton {
+  background-color: #1E88E5; /* 가이드의 링크/액션 색상 */
+  color: #E0E0E0;
+}
+
+:global(.dark-mode) .saveButton:hover {
+  background-color: #1E88E5;
+  opacity: 0.8;
+}
+
+:global(.dark-mode) .saveButton:disabled {
+  background-color: #424242; /* 가이드의 비활성 버튼 */
+  color: #777777; /* 가이드의 비활성 텍스트 */
+  opacity: 0.7;
 }

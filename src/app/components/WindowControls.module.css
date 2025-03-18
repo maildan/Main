@@ -1,42 +1,46 @@
 .windowControls {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 6px; /* 간격 증가 (4px → 6px) */
   -webkit-app-region: no-drag;
 }
 
 .windowButton {
-  width: 28px;
-  height: 28px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 32px; /* 28px에서 32px로 증가 */
+  height: 32px; /* 28px에서 32px로 증가 */
   border: none;
   background: transparent;
-  font-size: 14px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 4px;
   cursor: pointer;
   transition: background-color 0.2s;
+  user-select: none;
+  border-radius: 4px; /* 3px에서 4px로 증가 */
+}
+
+.windowButton:hover {
+  background-color: rgba(0, 0, 0, 0.05);
 }
 
 .minimizeButton {
-  color: #333;
+  color: #555;
 }
 
 .maximizeButton {
-  color: #333;
+  color: #555;
 }
 
 .closeButton {
-  color: #333;
+  color: #555;
 }
 
 .minimizeButton:hover {
-  background-color: rgba(0, 0, 0, 0.1);
+  background-color: rgba(0, 0, 0, 0.05);
 }
 
 .maximizeButton:hover {
-  background-color: rgba(0, 0, 0, 0.1);
+  background-color: rgba(0, 0, 0, 0.05);
 }
 
 .closeButton:hover {
@@ -44,19 +48,27 @@
   color: white;
 }
 
+.minimizeIcon, .maximizeIcon {
+  font-size: 16px; /* 14px에서 16px로 증가 */
+  line-height: 1;
+}
+
+.closeIcon {
+  font-size: 20px; /* 18px에서 20px로 증가 */
+}
+
 /* 다크 모드 */
 :global(.dark-mode) .minimizeButton,
 :global(.dark-mode) .maximizeButton,
 :global(.dark-mode) .closeButton {
-  color: #e0e0e0;
+  color: #E0E0E0; /* 가이드의 기본 텍스트 */
 }
 
-:global(.dark-mode) .minimizeButton:hover,
-:global(.dark-mode) .maximizeButton:hover {
+:global(.dark-mode) .windowButton:hover {
   background-color: rgba(255, 255, 255, 0.1);
 }
 
 :global(.dark-mode) .closeButton:hover {
-  background-color: #e81123;
-  color: white;
+  background-color: #CF6679; /* 가이드의 에러 색상 */
+  color: #121212; /* 어두운 배경에 맞는 텍스트 색상 */
 }

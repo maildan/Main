@@ -1,34 +1,92 @@
 .appHeader {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  padding: 0 16px;
+  height: 45px;
+  background-color: transparent;
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  padding: 0.5rem 1rem;
+  justify-content: space-between;
+  box-shadow: none;
+  transition: transform 0.3s ease, opacity 0.3s ease, background-color 0.2s ease;
   -webkit-app-region: drag;
-  user-select: none;
+  backdrop-filter: blur(10px);
+}
+
+.appHeader:hover {
+  background-color: rgba(255, 255, 255, 0.8);
 }
 
 .leftSection {
   display: flex;
   align-items: center;
-  -webkit-app-region: drag;
 }
 
 .rightSection {
   display: flex;
   align-items: center;
-  gap: 16px;
   -webkit-app-region: no-drag;
 }
 
-.logo {
+/* 아이콘 전용 스타일 */
+.iconOnly {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   -webkit-app-region: drag;
 }
 
-.actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  -webkit-app-region: no-drag;
+/* 앱 제목과 관련된 모든 스타일 제거 - 로컬 클래스와 함께 사용 */
+.appHeader :global(.appTitle) {
+  display: none !important;
+  height: 0 !important;
+  width: 0 !important;
+  overflow: hidden !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.appHeader :global(.appIcon) {
+  display: none !important;
+  height: 0 !important;
+  width: 0 !important;
+  overflow: hidden !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.appHeader :global(.header) {
+  display: none !important;
+  height: 0 !important;
+  width: 0 !important;
+  overflow: hidden !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.appHeader :global(.title) {
+  display: none !important;
+  height: 0 !important;
+  width: 0 !important;
+  overflow: hidden !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.appHeader :global(h1),
+.appHeader :global(h2),
+.appHeader :global(h3) {
+  display: none !important;
+  height: 0 !important;
+  width: 0 !important;
+  overflow: hidden !important;
+  margin: 0 !important;
+  padding: 0 !important;
 }
 
 /* 버튼은 드래그 영역에서 제외 */
@@ -36,79 +94,25 @@
   -webkit-app-region: no-drag;
 }
 
-/* 커스텀 헤더를 숨기거나 삭제하고 기본 운영체제 헤더를 사용합니다 */
-.header {
-  display: none; /* 커스텀 헤더를 숨김 */
-}
-
 .darkMode {
-  background-color: #1e1e1e;
-  border-bottom: 1px solid #333;
-  color: #e0e0e0;
+  background-color: transparent;
 }
 
-.appTitle {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-.appTitle h1 {
-  font-size: 1.25rem;
-  font-weight: 600;
-  margin: 0;
-}
-
-.appIcon {
-  width: 24px;
-  height: 24px;
-}
-
-.windowControls {
-  display: flex;
-  -webkit-app-region: no-drag; /* 컨트롤은 드래그 불가능하게 설정 */
-  transition: opacity 0.3s ease;
-}
-
-.windowControlBtn {
-  background: none;
-  border: none;
-  font-size: 14px;
-  width: 34px;
-  height: 34px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  color: #555;
-}
-
-.darkMode .windowControlBtn {
-  color: #ccc;
-}
-
-.windowControlBtn:hover {
-  background-color: rgba(0, 0, 0, 0.05);
-}
-
-.darkMode .windowControlBtn:hover {
-  background-color: rgba(255, 255, 255, 0.1);
-}
-
-.closeBtn:hover {
-  background-color: #e81123;
-  color: white;
-}
-
-.darkMode .closeBtn:hover {
-  background-color: #e81123;
-  color: white;
+.darkMode:hover {
+  background-color: rgba(25, 25, 25, 0.8);
 }
 
 .visible {
+  transform: translateY(0);
   opacity: 1;
 }
 
 .hidden {
+  transform: translateY(-100%);
   opacity: 0;
+  pointer-events: none;
+}
+
+.autoHide {
+  transition: transform 0.25s ease, opacity 0.25s ease;
 }

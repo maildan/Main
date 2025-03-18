@@ -6,7 +6,7 @@ export function AppFooter() {
   return (
     <footer className="footer">
       <div className="copyright">
-        © {year} 타이핑 통계 앱
+        © {year} notion
       </div>
     </footer>
   );

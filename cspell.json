@@ -16,7 +16,8 @@
       "iohook",
       "recharts",
       "unmaximize",
-      "ALTGR"
+      "ALTGR",
+      "linecap"
     ],
     "ignorePaths": [
       "node_modules/**",

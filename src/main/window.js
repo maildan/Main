@@ -14,7 +14,10 @@ function createWindow() {
     height: 800,
     minWidth: 800,
     minHeight: 600,
-    frame: true,
+    frame: false, // 기본 창 프레임 사용
+    autoHideMenuBar: true, // 메뉴바를 항상 자동 숨김으로 설정
+    title: '', // 창 제목을 비워둠
+    icon: path.join(__dirname, '../../public/app-icon.svg'), // 아이콘 설정
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -41,12 +44,12 @@ function createWindow() {
     .catch(err => {
       console.error('URL 로드 실패:', err);
       
-      // 오류 화면 표시
+      // 오류 화면 표시 - 타이틀 제거
       const errorHtml = `
         <!DOCTYPE html>
         <html>
         <head>
-          <title>타이핑 통계 앱</title>
+          <title></title>
           <meta charset="UTF-8">
           <style>
             body { font-family: Arial; padding: 20px; color: #333; background: #f0f0f0; }
@@ -59,7 +62,7 @@ function createWindow() {
         </head>
         <body>
           <div class="container">
-            <h1>타이핑 통계 앱</h1>
+            <h1></h1>
             <p>Next.js 서버에 연결할 수 없습니다.</p>
             <p class="error">오류: Next.js 서버가 실행 중인지 확인하세요.</p>
             <div class="solution">

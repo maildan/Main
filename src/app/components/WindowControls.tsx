@@ -1,52 +1,49 @@
 'use client';
 
-import React from 'react';
+import React, { useCallback } from 'react';
 import styles from './WindowControls.module.css';
 
 export function WindowControls() {
-  // 창 최소화
-  const handleMinimize = () => {
+  const handleMinimize = useCallback(() => {
     if (window.electronAPI) {
       window.electronAPI.windowControl('minimize');
     }
-  };
+  }, []);
 
-  // 창 최대화/복원
-  const handleMaximize = () => {
+  const handleMaximize = useCallback(() => {
     if (window.electronAPI) {
       window.electronAPI.windowControl('maximize');
     }
-  };
+  }, []);
 
-  // 창 닫기
-  const handleClose = () => {
+  const handleClose = useCallback(() => {
     if (window.electronAPI) {
       window.electronAPI.windowControl('close');
     }
-  };
+  }, []);
 
   return (
     <div className={styles.windowControls}>
       <button 
-        className={`${styles.windowButton} ${styles.minimizeButton}`}
+        className={`${styles.windowButton} ${styles.minimizeButton}`} 
         onClick={handleMinimize}
         title="최소화"
       >
-        &#x2500;
+        <span className={styles.minimizeIcon}>―</span>
       </button>
       <button 
-        className={`${styles.windowButton} ${styles.maximizeButton}`}
+        className={`${styles.windowButton} ${styles.maximizeButton}`} 
         onClick={handleMaximize}
         title="최대화"
       >
-        &#x25A1;
+        <span className={styles.maximizeIcon}>□</span>
       </button>
       <button 
-        className={`${styles.windowButton} ${styles.closeButton}`}
+        className={`${styles.windowButton} ${styles.closeButton}`} 
         onClick={handleClose}
         title="닫기"
       >
-        &#x2715;
+        <span className={styles.closeIcon}>×</span>
       </button>
     </div>
   );

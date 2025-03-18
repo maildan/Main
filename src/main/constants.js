@@ -11,6 +11,7 @@ const appState = {
   keyboardListener: null,
   windowMode: 'windowed',
   autoHideToolbar: false,
+  autoHideCssKey: null, // CSS 키 저장을 위해 추가
   currentStats: {
     keyCount: 0,
     typingTime: 0,

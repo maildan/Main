@@ -1,10 +1,11 @@
-const { ipcMain } = require('electron');
+const { ipcMain, BrowserWindow } = require('electron'); // BrowserWindow import 추가
 const activeWin = require('active-win');
 const { appState } = require('./constants');
 const { detectBrowserName, isGoogleDocsWindow } = require('./browser');
 const { startTracking, stopTracking, saveStats } = require('./stats');
 const { debugLog } = require('./utils');
 const { applyWindowMode } = require('./settings');
+const { saveSettings, getSettings } = require('./settings');
 
 /**
  * IPC 이벤트 핸들러 등록
@@ -154,7 +155,24 @@ function setupIpcHandlers() {
       appState.settings.windowMode = mode;
       
       // 설정 저장
-      event.reply('window-mode-changed', { success: true, mode });
+      const saveResult = saveSettings();
+      
+      // 더 자세한 응답 제공
+      event.reply('window-mode-changed', { 
+        success: true, 
+        mode,
+        autoHideToolbar: appState.autoHideToolbar,
+        isFullScreen: appState.mainWindow?.isFullScreen() || false,
+        saveResult 
+      });
+      
+      // 모든 사용자에게 창 모드 변경 알림
+      if (appState.mainWindow && appState.mainWindow.webContents) {
+        appState.mainWindow.webContents.send('window-mode-status', {
+          mode: mode,
+          autoHideToolbar: appState.autoHideToolbar
+        });
+      }
       
       debugLog('윈도우 모드 변경 완료:', mode);
     } catch (error) {
@@ -236,6 +254,40 @@ function setupIpcHandlers() {
           message: '모니터링이 자동으로 시작되었습니다.'
         });
       }
+    }
+  });
+  
+  // 윈도우 모드 변경 핸들러 수정
+  ipcMain.on('change-window-mode', (event, mode) => {
+    try {
+      // 로그 추가
+      console.debug(`윈도우 모드 변경 요청 받음: ${mode}`);
+      
+      const mainWindow = BrowserWindow.getAllWindows().find(w => !w.isDestroyed());
+      if (!mainWindow) {
+        event.reply('window-mode-change-result', { success: false, error: '윈도우를 찾을 수 없음' });
+        return;
+      }
+      
+      console.debug(`창 모드 적용: ${mode}`);
+      
+      if (mode === 'fullscreen') {
+        mainWindow.setFullScreen(true);
+      } else if (mode === 'maximized') {
+        mainWindow.setFullScreen(false);
+        mainWindow.maximize();
+      } else if (mode === 'windowed') {
+        mainWindow.setFullScreen(false);
+        mainWindow.unmaximize();
+      }
+      
+      // 설정 저장
+      const success = saveSettings({ windowMode: mode });
+      
+      event.reply('window-mode-change-result', { success });
+    } catch (error) {
+      console.error('윈도우 모드 변경 중 오류:', error);
+      event.reply('window-mode-change-result', { success: false, error: error.message });
     }
   });
   

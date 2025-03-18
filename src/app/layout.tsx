@@ -1,24 +1,28 @@
 import './globals.css';
-import { Inter } from 'next/font/google';
 import type { Metadata } from 'next';
-import { ThemeProviderWrapper } from './components/ThemeProviderWrapper';
+import { Inter } from 'next/font/google';
 
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: '타이핑 통계 앱',
-  description: '타이핑 속도와 효율성을 측정하고 추적하는 앱',
+  title: '',
+  description: '',
 };
 
 export default function RootLayout({
   children,
 }: {
-  children: React.ReactNode;
+  children: React.ReactNode
 }) {
   return (
     <html lang="ko">
+      <head>
+        <meta charSet="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <link rel="icon" href="/favicon.ico" />
+      </head>
       <body className={inter.className}>
-        <ThemeProviderWrapper>{children}</ThemeProviderWrapper>
+        {children}
       </body>
     </html>
   );

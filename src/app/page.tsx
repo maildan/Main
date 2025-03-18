@@ -5,11 +5,11 @@ import { TypingStats } from './components/TypingStats';
 import { TypingMonitor } from './components/TypingMonitor';
 import { TypingHistory } from './components/TypingHistory';
 import { TypingChart } from './components/TypingChart';
-import { AppHeader } from './components/AppHeader';
 import { AppFooter } from './components/AppFooter';
 import { ThemeProvider } from './components/ThemeProvider';
 import { Settings } from './components/Settings';
 import { ToastProvider, useToast } from './components/ToastContext';
+import { CustomHeader } from './components/CustomHeader';
 import styles from './page.module.css';
 
 // ElectronAPI, WindowModeType 등의 타입은 global.d.ts에서 가져옵니다
@@ -90,6 +90,9 @@ function HomeContent() {
   const [darkMode, setDarkMode] = useState(false);
   const [electronAPI, setElectronAPI] = useState<ElectronAPI>(createDummyElectronAPI());
   const { showToast } = useToast();
+  
+  // 창 모드 상태 관리 (Zen Browser 스타일 구현)
+  const [windowMode, setWindowMode] = useState<WindowModeType>('windowed');
 
   // 탭 전환 핸들러 (메모이제이션)
   const handleTabChange = useCallback((tab: string) => {
@@ -319,22 +322,32 @@ function HomeContent() {
     }
   }, [electronAPI]);
 
-  // 창 모드 변경 핸들러
-  const handleWindowModeChange = useCallback((mode: WindowModeType) => {
-    if (electronAPI) {
-      electronAPI.setWindowMode(mode)
-        .then((result: any) => { // 명시적 타입 지정
-          if (result && result.success) {
-            console.log('창 모드 변경 성공:', mode);
-          } else {
-            console.error('창 모드 변경 실패:', result);
-          }
-        })
-        .catch((error: any) => { // 명시적 타입 지정
-          console.error('창 모드 변경 오류:', error);
-        });
+  // 창 모드 변경 핸들러 수정 - 오류 처리 추가 및 API 일관성 확보
+  const handleWindowModeChange = useCallback(async (mode: WindowModeType) => {
+    try {
+      // Electron API가 있는지 확인 (window.electronAPI 또는 window.electron 둘 중 하나)
+      const api = window.electronAPI;
+
+      if (api && typeof api.setWindowMode === 'function') {
+        // electronAPI가 있는 경우 직접 사용
+        const result = await api.setWindowMode(mode);
+        if (!result.success) {
+          console.error(`창 모드 변경 실패: ${result.error || JSON.stringify(result)}`);
+          showToast('창 모드 변경에 실패했습니다.', 'error');
+        } else {
+          // 성공적으로 변경됨
+          setWindowMode(mode);
+        }
+      } else {
+        // API가 없는 경우 로컬에서만 설정 변경
+        console.warn('Electron API를 찾을 수 없습니다. 로컬에서만 창 모드를 변경합니다.');
+        setWindowMode(mode);
+      }
+    } catch (error) {
+      console.error('창 모드 변경 실패:', error);
+      showToast('창 모드 변경 중 오류가 발생했습니다.', 'error');
     }
-  }, [electronAPI]);
+  }, [showToast]);
 
   // 초기 로그 데이터 및 설정 로딩
   useEffect(() => {
@@ -363,8 +376,9 @@ function HomeContent() {
           console.log('자동 시작 설정이 활성화되어 있음');
           try {
             // 함수 존재 여부 확인 후 호출
-            if (electronAPI && typeof electronAPI.checkAutoStart === 'function') {
-              electronAPI.checkAutoStart(true);
+            const customWindow = window as typeof window;
+            if (customWindow?.electronAPI && typeof customWindow.electronAPI.checkAutoStart === 'function') {
+              customWindow.electronAPI.checkAutoStart(true);
             } else {
               console.warn('checkAutoStart 함수를 찾을 수 없습니다. 자동으로 모니터링을 시작합니다.');
             }
@@ -382,6 +396,33 @@ function HomeContent() {
     
     initApp();
   }, [loadSettingsFromLocalStorage, handleStartTracking, electronAPI]);
+
+  // 창 모드 상태 이벤트 리스너
+  useEffect(() => {
+    const handleWindowModeStatus = (event: CustomEvent<{mode: WindowModeType, autoHideToolbar: boolean}>) => {
+      setWindowMode(event.detail.mode);
+    };
+    
+    window.addEventListener('window-mode-status' as any, handleWindowModeStatus);
+    
+    // 초기 창 모드 확인
+    const checkWindowMode = async () => {
+      if (electronAPI.getWindowMode) {
+        try {
+          const mode = await electronAPI.getWindowMode();
+          setWindowMode(mode);
+        } catch (err) {
+          console.error('창 모드 확인 오류:', err);
+        }
+      }
+    };
+    
+    checkWindowMode();
+    
+    return () => {
+      window.removeEventListener('window-mode-status' as any, handleWindowModeStatus);
+    };
+  }, [electronAPI]);
 
   // Electron API 이벤트 구독
   useEffect(() => {
@@ -477,9 +518,19 @@ function HomeContent() {
     }
   }, []);
 
+  // useEffect를 추가하여 전역 다크 모드 클래스를 설정
+  useEffect(() => {
+    if (darkMode) {
+      document.body.classList.add('dark-mode');
+    } else {
+      document.body.classList.remove('dark-mode');
+    }
+  }, [darkMode]);
+
   return (
-    <div className={`${styles.container} ${darkMode ? styles.darkMode : ''}`}>
-      <AppHeader api={electronAPI} />
+    <div className={`${styles.container} ${darkMode ? 'dark-mode' : ''} ${windowMode === 'fullscreen-auto-hide' ? styles.zenMode : ''}`}>
+      {/* 커스텀 헤더만 유지하고 불필요한 주석은 제거 */}
+      <CustomHeader darkMode={darkMode} windowMode={windowMode} />
         
       <main className={styles.mainContent}>
         <div className={styles.appTabs}>
@@ -574,6 +625,7 @@ function HomeContent() {
             <div><strong>Current keyCount:</strong> {currentStats.keyCount}</div>
             <div><strong>Browser:</strong> {currentStats.browserName || 'N/A'}</div>
             <div><strong>Window:</strong> {currentStats.windowTitle || 'N/A'}</div>
+            <div><strong>Window Mode:</strong> {windowMode}</div>
           </div>
         </div>
       )}

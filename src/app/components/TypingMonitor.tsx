@@ -54,6 +54,7 @@ export function TypingMonitor({
   const [description, setDescription] = useState('');
   const [lastAction, setLastAction] = useState<string>('');
   const [activeWebsiteTab, setActiveWebsiteTab] = useState<string>('docs');
+  const [activeStatsTab, setActiveStatsTab] = useState<string>('typing'); // 통계 탭 상태 추가
   const [browserCheckResult, setBrowserCheckResult] = useState<{
     name: string | null;
     isGoogleDocs: boolean;
@@ -128,245 +129,235 @@ export function TypingMonitor({
         )}
       </div>
       
-      <div className={styles.browserStatus}>
-        <h3>브라우저 상태</h3>
-        <div className={styles.browserInfo}>
-          <div className={styles.browserRow}>
-            <span>감지된 브라우저:</span>
-            <span className={styles.browserValue}>
-              {stats.browserName || browserCheckResult?.name || '없음'}
-            </span>
+      <div className={styles.contentWrapper}>
+        <div className={styles.leftPanel}>
+          <div className={styles.browserStatus}>
+            <h3>브라우저 상태</h3>
+            <div className={styles.browserInfo}>
+              <div className={styles.browserRow}>
+                <span>감지된 브라우저:</span>
+                <span className={styles.browserValue}>
+                  {stats.browserName || browserCheckResult?.name || '없음'}
+                </span>
+              </div>
+              
+              <div className={styles.browserRow}>
+                <span>구글 문서 감지:</span>
+                <span className={styles.browserValue}>
+                  {browserCheckResult?.isGoogleDocs ? (
+                    <span className={styles.detectedBadge}>감지됨 ✓</span>
+                  ) : (
+                    <span className={styles.notDetectedBadge}>아님 ⨯</span>
+                  )}
+                </span>
+              </div>
+              
+              <div className={styles.browserRow}>
+                <span>현재 창:</span>
+                <span className={styles.browserValue} title={stats.windowTitle || browserCheckResult?.title || ''}>
+                  {(stats.windowTitle || browserCheckResult?.title || '없음').substring(0, 60)}
+                  {(stats.windowTitle || browserCheckResult?.title || '').length > 60 ? '...' : ''}
+                </span>
+              </div>
+            </div>
           </div>
           
-          <div className={styles.browserRow}>
-            <span>구글 문서 감지:</span>
-            <span className={styles.browserValue}>
-              {browserCheckResult?.isGoogleDocs ? (
-                <span className={styles.detectedBadge}>감지됨 ✓</span>
-              ) : (
-                <span className={styles.notDetectedBadge}>아님 ⨯</span>
+          <div className={styles.websiteTabs}>
+            <div className={styles.websiteTabHeader}>
+              <button 
+                className={`${styles.websiteTabButton} ${activeWebsiteTab === 'docs' ? styles.activeWebsiteTab : ''}`}
+                onClick={() => setActiveWebsiteTab('docs')}
+              >
+                구글 문서
+              </button>
+              <button 
+                className={`${styles.websiteTabButton} ${activeWebsiteTab === 'office' ? styles.activeWebsiteTab : ''}`}
+                onClick={() => setActiveWebsiteTab('office')}
+              >
+                오피스
+              </button>
+              <button 
+                className={`${styles.websiteTabButton} ${activeWebsiteTab === 'coding' ? styles.activeWebsiteTab : ''}`}
+                onClick={() => setActiveWebsiteTab('coding')}
+              >
+                코딩
+              </button>
+              <button 
+                className={`${styles.websiteTabButton} ${activeWebsiteTab === 'sns' ? styles.activeWebsiteTab : ''}`}
+                onClick={() => setActiveWebsiteTab('sns')}
+              >
+                SNS/메신저
+              </button>
+            </div>
+            
+            <div className={styles.websiteTabContent}>
+              {activeWebsiteTab === 'docs' && (
+                <div className={styles.websiteLinks}>
+                  <a href="https://docs.google.com/document/" target="_blank" rel="noopener noreferrer" className={styles.websiteLink}>
+                    구글 문서 열기
+                  </a>
+                  <a href="https://docs.google.com/spreadsheets/" target="_blank" rel="noopener noreferrer" className={styles.websiteLink}>
+                    구글 스프레드시트 열기
+                  </a>
+                  <a href="https://docs.google.com/presentation/" target="_blank" rel="noopener noreferrer" className={styles.websiteLink}>
+                    구글 프레젠테이션 열기
+                  </a>
+                  <a href="https://www.notion.so/" target="_blank" rel="noopener noreferrer" className={styles.websiteLink}>
+                    Notion 열기
+                  </a>
+                </div>
               )}
-            </span>
-          </div>
-          
-          <div className={styles.browserRow}>
-            <span>현재 창:</span>
-            <span className={styles.browserValue} title={stats.windowTitle || browserCheckResult?.title || ''}>
-              {(stats.windowTitle || browserCheckResult?.title || '없음').substring(0, 60)}
-              {(stats.windowTitle || browserCheckResult?.title || '').length > 60 ? '...' : ''}
-            </span>
+              
+              {activeWebsiteTab === 'office' && (
+                <div className={styles.websiteLinks}>
+                  <a href="https://www.office.com/launch/word" target="_blank" rel="noopener noreferrer" className={styles.websiteLink}>
+                    Word 온라인 열기
+                  </a>
+                  <a href="https://www.office.com/launch/excel" target="_blank" rel="noopener noreferrer" className={styles.websiteLink}>
+                    Excel 온라인 열기
+                  </a>
+                  <a href="https://www.office.com/launch/powerpoint" target="_blank" rel="noopener noreferrer" className={styles.websiteLink}>
+                    PowerPoint 온라인 열기
+                  </a>
+                  <a href="https://www.hancom.com/main/main.do" target="_blank" rel="noopener noreferrer" className={styles.websiteLink}>
+                    한글과컴퓨터 열기
+                  </a>
+                </div>
+              )}
+              
+              {activeWebsiteTab === 'coding' && (
+                <div className={styles.websiteLinks}>
+                  <a href="https://github.com/" target="_blank" rel="noopener noreferrer" className={styles.websiteLink}>
+                    GitHub 열기
+                  </a>
+                  <a href="https://gitlab.com/" target="_blank" rel="noopener noreferrer" className={styles.websiteLink}>
+                    GitLab 열기
+                  </a>
+                  <a href="https://codesandbox.io/" target="_blank" rel="noopener noreferrer" className={styles.websiteLink}>
+                    CodeSandbox 열기
+                  </a>
+                  <a href="https://codepen.io/" target="_blank" rel="noopener noreferrer" className={styles.websiteLink}>
+                    CodePen 열기
+                  </a>
+                </div>
+              )}
+              
+              {activeWebsiteTab === 'sns' && (
+                <div className={styles.websiteLinks}>
+                  <a href="https://slack.com/" target="_blank" rel="noopener noreferrer" className={styles.websiteLink}>
+                    Slack 열기
+                  </a>
+                  <a href="https://discord.com/" target="_blank" rel="noopener noreferrer" className={styles.websiteLink}>
+                    Discord 열기
+                  </a>
+                  <a href="https://www.messenger.com/" target="_blank" rel="noopener noreferrer" className={styles.websiteLink}>
+                    Messenger 열기
+                  </a>
+                  <a href="https://mail.google.com/" target="_blank" rel="noopener noreferrer" className={styles.websiteLink}>
+                    Gmail 열기
+                  </a>
+                </div>
+              )}
+            </div>
           </div>
         </div>
         
-        <div className={styles.websiteTabs}>
-          <div className={styles.websiteTabHeader}>
-            <button 
-              className={`${styles.websiteTabButton} ${activeWebsiteTab === 'docs' ? styles.activeWebsiteTab : ''}`}
-              onClick={() => setActiveWebsiteTab('docs')}
+        <div className={styles.rightPanel}>
+          {/* 통계 패널을 탭 형식으로 변경 */}
+          <div className={styles.statsTabs}>
+            <button
+              className={`${styles.statsTabButton} ${activeStatsTab === 'typing' ? styles.activeStatsTab : ''}`}
+              onClick={() => setActiveStatsTab('typing')}
             >
-              구글 문서
+              타이핑 정보
             </button>
-            <button 
-              className={`${styles.websiteTabButton} ${activeWebsiteTab === 'office' ? styles.activeWebsiteTab : ''}`}
-              onClick={() => setActiveWebsiteTab('office')}
+            <button
+              className={`${styles.statsTabButton} ${activeStatsTab === 'document' ? styles.activeStatsTab : ''}`}
+              onClick={() => setActiveStatsTab('document')}
             >
-              오피스
+              문서 정보
             </button>
-            <button 
-              className={`${styles.websiteTabButton} ${activeWebsiteTab === 'coding' ? styles.activeWebsiteTab : ''}`}
-              onClick={() => setActiveWebsiteTab('coding')}
+            <button
+              className={`${styles.statsTabButton} ${activeStatsTab === 'accuracy' ? styles.activeStatsTab : ''}`}
+              onClick={() => setActiveStatsTab('accuracy')}
             >
-              코딩
-            </button>
-            <button 
-              className={`${styles.websiteTabButton} ${activeWebsiteTab === 'sns' ? styles.activeWebsiteTab : ''}`}
-              onClick={() => setActiveWebsiteTab('sns')}
-            >
-              SNS/메신저
+              정확도 & 속도
             </button>
           </div>
           
-          <div className={styles.websiteTabContent}>
-            {activeWebsiteTab === 'docs' && (
-              <div className={styles.websiteLinks}>
-                <a href="https://docs.google.com/document/" target="_blank" rel="noopener noreferrer" className={styles.websiteLink}>
-                  구글 문서 열기
-                </a>
-                <a href="https://docs.google.com/spreadsheets/" target="_blank" rel="noopener noreferrer" className={styles.websiteLink}>
-                  구글 스프레드시트 열기
-                </a>
-                <a href="https://docs.google.com/presentation/" target="_blank" rel="noopener noreferrer" className={styles.websiteLink}>
-                  구글 프레젠테이션 열기
-                </a>
-                <a href="https://www.notion.so/" target="_blank" rel="noopener noreferrer" className={styles.websiteLink}>
-                  Notion 열기
-                </a>
+          <div className={styles.statsTabContent}>
+            {activeStatsTab === 'typing' && (
+              <div className={styles.statsGroup}>
+                <div className={styles.statCard}>
+                  <div className={styles.statLabel}>타자 수</div>
+                  <div className={styles.statValue}>{stats.keyCount.toLocaleString()}</div>
+                </div>
+                
+                <div className={styles.statCard}>
+                  <div className={styles.statLabel}>타이핑 시간</div>
+                  <div className={styles.statValue}>{formatTime(stats.typingTime)}</div>
+                </div>
+                
+                <div className={styles.statCard}>
+                  <div className={styles.statLabel}>평균 속도</div>
+                  <div className={styles.statValue}>{getAverageSpeed(stats.keyCount, stats.typingTime)}</div>
+                </div>
               </div>
             )}
             
-            {activeWebsiteTab === 'office' && (
-              <div className={styles.websiteLinks}>
-                <a href="https://www.office.com/launch/word" target="_blank" rel="noopener noreferrer" className={styles.websiteLink}>
-                  Word 온라인 열기
-                </a>
-                <a href="https://www.office.com/launch/excel" target="_blank" rel="noopener noreferrer" className={styles.websiteLink}>
-                  Excel 온라인 열기
-                </a>
-                <a href="https://www.office.com/launch/powerpoint" target="_blank" rel="noopener noreferrer" className={styles.websiteLink}>
-                  PowerPoint 온라인 열기
-                </a>
-                <a href="https://www.hancom.com/main/main.do" target="_blank" rel="noopener noreferrer" className={styles.websiteLink}>
-                  한글과컴퓨터 열기
-                </a>
+            {activeStatsTab === 'document' && (
+              <div className={styles.statsGroup}>
+                <div className={styles.statCard}>
+                  <div className={styles.statLabel}>페이지 수</div>
+                  <div className={styles.statValue}>{stats.pages?.toFixed(1) || '0.0'}</div>
+                </div>
+                
+                <div className={styles.statCard}>
+                  <div className={styles.statLabel}>단어 수</div>
+                  <div className={styles.statValue}>{stats.totalWords?.toLocaleString() || '0'}</div>
+                </div>
+                
+                <div className={styles.statCard}>
+                  <div className={styles.statLabel}>글자 수</div>
+                  <div className={styles.statValue}>{stats.totalChars?.toLocaleString() || '0'}</div>
+                </div>
               </div>
             )}
             
-            {activeWebsiteTab === 'coding' && (
-              <div className={styles.websiteLinks}>
-                <a href="https://github.com/" target="_blank" rel="noopener noreferrer" className={styles.websiteLink}>
-                  GitHub 열기
-                </a>
-                <a href="https://gitlab.com/" target="_blank" rel="noopener noreferrer" className={styles.websiteLink}>
-                  GitLab 열기
-                </a>
-                <a href="https://codesandbox.io/" target="_blank" rel="noopener noreferrer" className={styles.websiteLink}>
-                  CodeSandbox 열기
-                </a>
-                <a href="https://codepen.io/" target="_blank" rel="noopener noreferrer" className={styles.websiteLink}>
-                  CodePen 열기
-                </a>
-              </div>
-            )}
-            
-            {activeWebsiteTab === 'sns' && (
-              <div className={styles.websiteLinks}>
-                <a href="https://slack.com/" target="_blank" rel="noopener noreferrer" className={styles.websiteLink}>
-                  Slack 열기
-                </a>
-                <a href="https://discord.com/" target="_blank" rel="noopener noreferrer" className={styles.websiteLink}>
-                  Discord 열기
-                </a>
-                <a href="https://www.messenger.com/" target="_blank" rel="noopener noreferrer" className={styles.websiteLink}>
-                  Messenger 열기
-                </a>
-                <a href="https://mail.google.com/" target="_blank" rel="noopener noreferrer" className={styles.websiteLink}>
-                  Gmail 열기
-                </a>
+            {activeStatsTab === 'accuracy' && (
+              <div className={styles.statsGroup}>
+                <div className={styles.statCard}>
+                  <div className={styles.statLabel}>글자 수 (공백 제외)</div>
+                  <div className={styles.statValue}>{stats.totalCharsNoSpace?.toLocaleString() || '0'}</div>
+                </div>
+                
+                <div className={styles.statCard}>
+                  <div className={styles.statLabel}>정확도</div>
+                  <div className={styles.statValue}>{stats.accuracy || 100}%</div>
+                </div>
               </div>
             )}
           </div>
-        </div>
-      </div>
-      
-      <div className={styles.helpSection}>
-        <h3>지원되는 브라우저</h3>
-        <div className={styles.browserList}>
-          <div className={styles.browserColumn}>
-            <ul>
-              <li>Google Chrome</li>
-              <li>Mozilla Firefox</li>
-              <li>Microsoft Edge</li>
-              <li>Safari</li>
-              <li>Opera</li>
-            </ul>
-          </div>
-          <div className={styles.browserColumn}>
-            <ul>
-              <li>Opera GX</li>
-              <li>Brave</li>
-              <li>Vivaldi</li>
-              <li>Arc Browser</li>
-              <li>Zen Browser</li>
-            </ul>
-          </div>
-          <div className={styles.browserColumn}>
-            <ul>
-              <li>네이버 웨일</li>
-              <li>네이버 브라우저</li>
-              <li>Chromium</li>
-              <li>Comodo Dragon</li>
-              <li>기타 Chromium 기반</li>
-            </ul>
+          
+          <div className={styles.saveSection}>
+            <h3>세션 저장</h3>
+            <p>작업한 내용에 대한 설명을 입력하세요</p>
+            <textarea
+              className={styles.descriptionInput}
+              value={description}
+              onChange={handleDescriptionChange}
+              placeholder="작업 내용 (예: 보고서 작성, 논문 작성 등)"
+              rows={4}
+            />
+            <button 
+              className={styles.saveButton} 
+              onClick={handleSave}
+              disabled={stats.keyCount === 0 || !description.trim()}
+            >
+              통계 저장
+            </button>
           </div>
         </div>
-      </div>
-      
-      <div className={styles.statsPanel}>
-        <h3>타이핑 통계</h3>
-        <div className={styles.statsGrid}>
-          <div className={styles.statItem}>
-            <span className={styles.statLabel}>타자 수:</span>
-            <span className={styles.statValue}>{stats.keyCount.toLocaleString()}</span>
-          </div>
-          
-          <div className={styles.statItem}>
-            <span className={styles.statLabel}>타이핑 시간:</span>
-            <span className={styles.statValue}>
-              {formatTime(stats.typingTime)}
-            </span>
-          </div>
-          
-          <div className={styles.statItem}>
-            <span className={styles.statLabel}>평균 속도:</span>
-            <span className={styles.statValue}>
-              {getAverageSpeed(stats.keyCount, stats.typingTime)}
-            </span>
-          </div>
-          
-          <div className={styles.statItem}>
-            <span className={styles.statLabel}>페이지 수:</span>
-            <span className={styles.statValue}>
-              {stats.pages?.toFixed(1) || '0.0'}
-            </span>
-          </div>
-          
-          <div className={styles.statItem}>
-            <span className={styles.statLabel}>단어 수:</span>
-            <span className={styles.statValue}>
-              {stats.totalWords?.toLocaleString() || '0'}
-            </span>
-          </div>
-          
-          <div className={styles.statItem}>
-            <span className={styles.statLabel}>글자 수:</span>
-            <span className={styles.statValue}>
-              {stats.totalChars?.toLocaleString() || '0'}
-            </span>
-          </div>
-          
-          <div className={styles.statItem}>
-            <span className={styles.statLabel}>글자 수 (공백 제외):</span>
-            <span className={styles.statValue}>
-              {stats.totalCharsNoSpace?.toLocaleString() || '0'}
-            </span>
-          </div>
-          
-          <div className={styles.statItem}>
-            <span className={styles.statLabel}>정확도:</span>
-            <span className={styles.statValue}>
-              {stats.accuracy || 100}%
-            </span>
-          </div>
-        </div>
-      </div>
-
-      <div className={styles.saveSection}>
-        <h3>세션 저장</h3>
-        <p>작업한 내용에 대한 설명을 입력하세요</p>
-        <textarea
-          className={styles.descriptionInput}
-          value={description}
-          onChange={handleDescriptionChange}
-          placeholder="작업 내용 (예: 보고서 작성, 논문 작성 등)"
-          rows={4}
-        />
-        <button 
-          className={styles.saveButton} 
-          onClick={handleSave}
-          disabled={stats.keyCount === 0 || !description.trim()}
-        >
-          통계 저장
-        </button>
       </div>
     </div>
   );

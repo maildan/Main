@@ -1,7 +1,6 @@
 import { contextBridge, ipcRenderer } from 'electron';
 
-contextBridge.exposeInMainWorld('electronAPI', {
-
+const electronAPI = {
   /**
    * 타이핑 통계 업데이트 이벤트 수신
    * @param {Function} callback - 타이핑 통계를 받아서 처리할 콜백 함수
@@ -146,5 +145,25 @@ contextBridge.exposeInMainWorld('electronAPI', {
   windowControl: (command) => {
     console.log('창 제어 요청:', command);
     ipcRenderer.send('window-control', command);
+  },
+
+  /**
+   * 윈도우 모드 변경
+   * @param {string} mode - 윈도우 모드 ('windowed' 또는 'fullscreen')
+   * @returns {Promise<any>} - 윈도우 모드 변경 결과
+   */
+  changeWindowMode: (mode) => {
+    return new Promise((resolve) => {
+      ipcRenderer.send('change-window-mode', mode);
+      ipcRenderer.once('window-mode-change-result', (_, result) => {
+        resolve(result);
+      });
+    });
   }
-}); 
+};
+
+// electronAPI 객체를 window.electronAPI로 노출
+contextBridge.exposeInMainWorld('electronAPI', electronAPI);
+
+// 동일한 API를 window.electron으로도 노출 (하위 호환성을 위해)
+contextBridge.exposeInMainWorld('electron', electronAPI);

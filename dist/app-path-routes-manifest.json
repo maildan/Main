@@ -1,0 +1,9 @@
+{
+  "/api/db-test/route": "/api/db-test",
+  "/_not-found/page": "/_not-found",
+  "/favicon.ico/route": "/favicon.ico",
+  "/api/saveLogs/route": "/api/saveLogs",
+  "/api/init-db/route": "/api/init-db",
+  "/page": "/",
+  "/api/getLogs/route": "/api/getLogs"
+}

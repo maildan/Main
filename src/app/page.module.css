@@ -15,6 +15,7 @@
   width: 100%;
   padding: 1rem 0;
   margin-bottom: 150px; /* 디버그 패널 공간 확보 */
+  padding-top: 52px; /* 헤더 높이와 동일하게 설정 (48px → 52px) */
 }
 
 .appTabs {
@@ -153,4 +154,28 @@
   .debugInfo {
     grid-template-columns: 1fr;
   }
+}
+
+/* Zen Mode 스타일 수정 - Notion 스타일에 맞춤 */
+.zenMode {
+  margin-top: 0; /* 기본 Electron 창 프레임과 함께 작동하도록 수정 */
+}
+
+/* Zen Mode 스타일 수정 - 커스텀 헤더 CSS 제거 */
+.zenMode {
+  margin-top: 0; /* 기본 Electron 창 프레임과 함께 작동하도록 수정 */
+}
+
+/* 불필요한 자동 숨김 CSS 제거 */
+.zenMode .mainContent {
+  padding-top: 0; /* 상단 패딩 완전 제거 */
+}
+
+/* 디버그 패널은 유지 */
+.debugPanel {
+  margin-top: 1rem;
+  padding: 1rem;
+  background-color: #f5f5f5;
+  border-radius: 8px;
+  border-left: 4px solid #f44336;
 }

@@ -103,5 +103,6 @@ interface LogEntry {
 declare global {
   interface Window {
     electronAPI?: ElectronAPI;
+    electron?: ElectronAPI; // 명시적으로 추가
   }
 }

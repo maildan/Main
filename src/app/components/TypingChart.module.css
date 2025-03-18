@@ -32,3 +32,30 @@
   color: #666;
   font-style: italic;
 }
+
+/* 다크 모드 스타일 추가 */
+:global(.dark-mode) .chartContainer {
+  background-color: #1E1E1E; /* 가이드의 카드 배경 색상 */
+  color: #E0E0E0; /* 가이드의 기본 텍스트 색상 */
+  border: 1px solid #303030; /* 가이드의 경계선 색상 */
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+}
+
+:global(.dark-mode) .chartItem {
+  background-color: #252525; /* 가이드의 강조 영역 */
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  border: 1px solid #303030; /* 가이드의 경계선 */
+}
+
+:global(.dark-mode) .chartItem h3 {
+  color: #B0B0B0; /* 가이드의 보조 텍스트 색상 */
+}
+
+:global(.dark-mode) .noData {
+  color: #B0B0B0; /* 가이드의 보조 텍스트 색상 */
+}
+
+/* 차트 내부 요소 다크 모드 스타일링 */
+:global(.dark-mode) .chartWrapper canvas {
+  filter: brightness(0.85) contrast(1.1); /* 차트 캔버스 밝기/대비 조정 */
+}
