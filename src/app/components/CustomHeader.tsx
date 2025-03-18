@@ -1,6 +1,6 @@
 'use client';
 
-import { memo, useState, useEffect, useRef } from 'react';
+import React, { memo, useState, useEffect, useRef, useCallback } from 'react';
 import { WindowControls } from './WindowControls';
 import styles from './CustomHeader.module.css';
 import Image from 'next/image';
@@ -29,65 +29,67 @@ export const CustomHeader = memo(function CustomHeader({
     }
   }, [windowMode]);
   
-  // 마우스 움직임 감지 및 도구모음 표시/숨김 처리
+  // 마우스 감지 영역 이벤트 핸들러를 메모이제이션
+  const handleDetectionAreaEnter = useCallback(() => {
+    if (isAutoHide) {
+      setIsVisible(true);
+    }
+  }, [isAutoHide]);
+  
+  // 헤더 마우스 이벤트 핸들러를 메모이제이션
+  const handleMouseEnter = useCallback(() => {
+    mouseInsideHeader.current = true;
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+    setIsVisible(true);
+  }, []);
+  
+  const handleMouseLeave = useCallback(() => {
+    mouseInsideHeader.current = false;
+    // 마우스가 헤더를 떠나면 타이머 설정
+    if (isAutoHide && !timeoutRef.current) {
+      timeoutRef.current = setTimeout(() => {
+        setIsVisible(false);
+        timeoutRef.current = null;
+      }, 600);
+    }
+  }, [isAutoHide]);
+
+  // 마우스 움직임 감지 함수를 메모이제이션
+  const handleMouseMove = useCallback((e: MouseEvent) => {
+    const { clientY } = e;
+    
+    // 마우스가 화면 상단 10px 이내에 있으면 도구모음 표시
+    if (clientY < 10) {
+      setIsVisible(true);
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
+    } else if (clientY > 100 && isVisible && !mouseInsideHeader.current) {
+      // 마우스가 헤더 영역을 벗어났고, 아래로 이동한 경우 타이머 설정
+      if (!timeoutRef.current) {
+        timeoutRef.current = setTimeout(() => {
+          if (!mouseInsideHeader.current) {
+            setIsVisible(false);
+          }
+          timeoutRef.current = null;
+        }, 600);
+      }
+    }
+  }, [isVisible]);
+  
+  // 마우스 움직임 감지 및 도구모음 표시/숨김 처리 최적화
   useEffect(() => {
     if (!isAutoHide) {
       setIsVisible(true);
       return;
     }
     
-    const handleMouseMove = (e: MouseEvent) => {
-      const { clientY } = e;
-      
-      // 마우스가 화면 상단 10px 이내에 있으면 도구모음 표시
-      if (clientY < 10) {
-        setIsVisible(true);
-        if (timeoutRef.current) {
-          clearTimeout(timeoutRef.current);
-          timeoutRef.current = null;
-        }
-      } else if (clientY > 100 && isVisible && !mouseInsideHeader.current) {
-        // 마우스가 헤더 영역을 벗어났고, 아래로 이동한 경우 타이머 설정
-        if (!timeoutRef.current) {
-          timeoutRef.current = setTimeout(() => {
-            if (!mouseInsideHeader.current) {
-              setIsVisible(false);
-            }
-            timeoutRef.current = null;
-          }, 600); // 더 짧은 시간으로 조정
-        }
-      }
-    };
-    
-    // 감지 영역에 마우스가 들어올 때 헤더 표시
-    const handleDetectionAreaEnter = () => {
-      if (isAutoHide) {
-        setIsVisible(true);
-      }
-    };
-    
-    // 헤더 위에 마우스가 있을 때 상태 관리
-    const handleMouseEnter = () => {
-      mouseInsideHeader.current = true;
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-        timeoutRef.current = null;
-      }
-      setIsVisible(true);
-    };
-    
-    const handleMouseLeave = () => {
-      mouseInsideHeader.current = false;
-      // 마우스가 헤더를 떠나면 타이머 설정
-      if (isAutoHide && !timeoutRef.current) {
-        timeoutRef.current = setTimeout(() => {
-          setIsVisible(false);
-          timeoutRef.current = null;
-        }, 600);
-      }
-    };
-    
-    window.addEventListener('mousemove', handleMouseMove);
+    // passive 옵션을 true로 설정하여 성능 향상
+    window.addEventListener('mousemove', handleMouseMove, { passive: true });
     
     if (headerRef.current) {
       headerRef.current.addEventListener('mouseenter', handleMouseEnter);
@@ -114,15 +116,15 @@ export const CustomHeader = memo(function CustomHeader({
         clearTimeout(timeoutRef.current);
       }
     };
-  }, [isAutoHide, isVisible]);
+  }, [isAutoHide, handleMouseMove, handleMouseEnter, handleMouseLeave, handleDetectionAreaEnter]);
 
-  // 감지 영역은 항상 렌더링
   return (
     <>
       {isAutoHide && (
         <div 
           ref={detectionAreaRef}
           className={styles.headerDetectionArea}
+          aria-hidden="true"
         />
       )}
       <header 
@@ -138,6 +140,7 @@ export const CustomHeader = memo(function CustomHeader({
                 width={32}
                 height={32}
                 priority 
+                loading="eager"
               />
             </div>
             <h4 className={styles.appTitle}>타이핑 통계</h4>

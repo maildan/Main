@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useCallback } from 'react';
+import React, { memo, useCallback } from 'react';
 import styles from './WindowControls.module.css';
 
-export function WindowControls() {
+export const WindowControls = memo(function WindowControls() {
+  // 이벤트 핸들러를 메모이제이션하여 성능 최적화
   const handleMinimize = useCallback(() => {
     if (window.electronAPI) {
       window.electronAPI.windowControl('minimize');
@@ -28,23 +29,26 @@ export function WindowControls() {
         className={`${styles.windowButton} ${styles.minimizeButton}`} 
         onClick={handleMinimize}
         title="최소화"
+        aria-label="최소화"
       >
-        <span className={styles.minimizeIcon}>―</span>
+        <div className={styles.buttonContent}>―</div>
       </button>
       <button 
-        className={`${styles.windowButton} ${styles.maximizeButton}`} 
+        className={`${styles.windowButton} ${styles.maximizeButton}`}
         onClick={handleMaximize}
         title="최대화"
+        aria-label="최대화"
       >
-        <span className={styles.maximizeIcon}>□</span>
+        <div className={styles.buttonContent}>□</div>
       </button>
       <button 
-        className={`${styles.windowButton} ${styles.closeButton}`} 
+        className={`${styles.windowButton} ${styles.closeButton}`}
         onClick={handleClose}
         title="닫기"
+        aria-label="닫기"
       >
-        <span className={styles.closeIcon}>×</span>
+        <div className={styles.buttonContent}>×</div>
       </button>
     </div>
   );
-}
+});

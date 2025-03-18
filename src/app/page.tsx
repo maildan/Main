@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { TypingStats } from './components/TypingStats';
 import { TypingMonitor } from './components/TypingMonitor';
 import { TypingHistory } from './components/TypingHistory';
@@ -56,14 +56,20 @@ const createDummyElectronAPI = (): ElectronAPI => ({
   onAutoTrackingStarted: () => () => {}
 });
 
-// 메인 컴포넌트
-function HomeContent() {
+// HomeContent 컴포넌트를 메모이제이션
+const HomeContent = React.memo(function HomeContent() {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('monitor');
   const [isTracking, setIsTracking] = useState(false);
   const [debugMode, setDebugMode] = useState(false);
-  const [currentStats, setCurrentStats] = useState({
+  
+  // 메모리 관리를 위한 ref 사용
+  const intervalsRef = useRef<NodeJS.Timeout[]>([]);
+  const eventsCleanupRef = useRef<(() => void)[]>([]);
+  
+  // 현재 통계를 useRef로 관리하여 불필요한 렌더링 방지
+  const currentStatsRef = useRef({
     keyCount: 0,
     typingTime: 0,
     windowTitle: '',
@@ -75,6 +81,24 @@ function HomeContent() {
     accuracy: 100
   });
   
+  // 화면에 표시할 통계만 useState로 관리
+  const [displayStats, setDisplayStats] = useState(currentStatsRef.current);
+  
+  // 표시 통계 업데이트 인터벌 설정 (불필요한 렌더링 방지)
+  useEffect(() => {
+    // 화면 업데이트는 1초에 한 번만 수행
+    const updateInterval = setInterval(() => {
+      setDisplayStats({...currentStatsRef.current});
+    }, 1000);
+    
+    intervalsRef.current.push(updateInterval);
+    
+    return () => {
+      clearInterval(updateInterval);
+    };
+  }, []);
+
+  // 설정 관련 상태 - 최적화를 위해 분리
   const [settings, setSettings] = useState<SettingsState>({
     enabledCategories: {
       docs: true,
@@ -88,19 +112,73 @@ function HomeContent() {
   });
   
   const [darkMode, setDarkMode] = useState(false);
-  const [electronAPI, setElectronAPI] = useState<ElectronAPI>(createDummyElectronAPI());
+  const [electronAPI, setElectronAPI] = useState<ElectronAPI | null>(null);
   const { showToast } = useToast();
   
-  // 창 모드 상태 관리 (Zen Browser 스타일 구현)
+  // 창 모드 상태 관리
   const [windowMode, setWindowMode] = useState<WindowModeType>('windowed');
 
-  // 탭 전환 핸들러 (메모이제이션)
+  // 더미 API 생성 함수를 컴포넌트 외부로 이동
+  const createDummyAPI = useMemo(() => {
+    if (typeof window !== 'undefined' && window.electronAPI) {
+      return window.electronAPI;
+    }
+    
+    // 더미 API 반환
+    return {
+      onTypingStatsUpdate: () => () => {},
+      onStatsSaved: () => () => {},
+      startTracking: () => console.log('개발용 startTracking 호출'),
+      stopTracking: () => console.log('개발용 stopTracking 호출'),
+      saveStats: () => console.log('개발용 saveStats 호출'),
+      getCurrentBrowserInfo: () => Promise.resolve({ name: null, isGoogleDocs: false, title: null }),
+      getDebugInfo: () => Promise.resolve({
+        isTracking: false,
+        currentStats: {
+          keyCount: 0,
+          typingTime: 0,
+          startTime: null,
+          lastActiveTime: null,
+          currentWindow: null,
+          currentBrowser: null,
+          totalChars: 0,
+          totalWords: 0,
+          totalCharsNoSpace: 0,
+          pages: 0,
+          accuracy: 100
+        },
+        platform: 'web',
+        electronVersion: 'N/A',
+        nodeVersion: 'N/A'
+      }),
+      saveSettings: (settings) => Promise.resolve({ success: true, settings }),
+      loadSettings: () => Promise.resolve({
+        enabledCategories: { docs: true, office: true, coding: true, sns: true },
+        autoStartMonitoring: true,
+        darkMode: false,
+        windowMode: 'windowed'
+      }),
+      setDarkMode: (enabled) => Promise.resolve({ success: true, enabled }),
+      setWindowMode: (mode) => Promise.resolve({ success: true, mode }),
+      getWindowMode: () => Promise.resolve('windowed'),
+      windowControl: () => console.log('개발용 windowControl 호출'),
+      checkAutoStart: () => console.log('개발용 checkAutoStart 호출'),
+      onAutoTrackingStarted: () => () => {}
+    } as ElectronAPI;
+  }, []);
+
+  // 탭 전환 핸들러
   const handleTabChange = useCallback((tab: string) => {
     setActiveTab(tab);
   }, []);
 
   // API 호출 최적화
   const fetchLogs = useCallback(async () => {
+    if (activeTab !== 'history' && activeTab !== 'stats' && activeTab !== 'chart') {
+      // 필요한 탭에서만 로그를 가져오도록 최적화
+      return;
+    }
+    
     try {
       setIsLoading(true);
       
@@ -111,7 +189,7 @@ function HomeContent() {
         setLogs(data.logs);
         
         if (debugMode) {
-          console.log('로그 데이터 불러옴:', data.logs);
+          console.log('로그 데이터 불러옴:', data.logs.length);
         }
       } else {
         console.error('로그 불러오기 실패:', data.error);
@@ -121,9 +199,9 @@ function HomeContent() {
     } finally {
       setIsLoading(false);
     }
-  }, [debugMode]);
+  }, [debugMode, activeTab]);
 
-  // 데이터베이스 저장 함수
+  // 데이터베이스 저장 함수 최적화
   const saveToDatabase = useCallback(async (record: RecordData) => {
     try {
       if (debugMode) {
@@ -176,11 +254,17 @@ function HomeContent() {
   // 모니터링 중지 핸들러
   const handleStopTracking = useCallback(() => {
     try {
-      electronAPI.stopTracking();
-      setIsTracking(false);
-      
-      if (debugMode) {
-        console.log('모니터링 중지됨');
+      // null 체크 추가
+      if (electronAPI) {
+        electronAPI.stopTracking();
+        setIsTracking(false);
+        
+        if (debugMode) {
+          console.log('모니터링 중지됨');
+        }
+      } else {
+        console.warn('electronAPI가 없습니다');
+        setIsTracking(false);
       }
     } catch (error) {
       console.error('stopTracking 호출 오류:', error);
@@ -195,21 +279,23 @@ function HomeContent() {
         console.log('통계 저장 요청:', content);
       }
       
-      electronAPI.saveStats(content);
+      // null 체크 추가
+      if (electronAPI) {
+        electronAPI.saveStats(content);
+      }
       
       // 현재 통계 정보를 데이터베이스에 저장
       const recordData: RecordData = {
         content,
-        keyCount: currentStats.keyCount,
-        typingTime: currentStats.typingTime,
+        keyCount: currentStatsRef.current.keyCount,
+        typingTime: currentStatsRef.current.typingTime,
         timestamp: new Date().toISOString(),
-        windowTitle: currentStats.windowTitle,
-        browserName: currentStats.browserName,
-        totalChars: currentStats.totalChars,
-        totalWords: currentStats.totalWords,
-        pages: currentStats.pages,
-        accuracy: currentStats.accuracy
-        // totalCharsNoSpace 속성 제거
+        windowTitle: currentStatsRef.current.windowTitle,
+        browserName: currentStatsRef.current.browserName,
+        totalChars: currentStatsRef.current.totalChars,
+        totalWords: currentStatsRef.current.totalWords,
+        pages: currentStatsRef.current.pages,
+        accuracy: currentStatsRef.current.accuracy
       };
       
       saveToDatabase(recordData);
@@ -218,20 +304,19 @@ function HomeContent() {
       // API 호출 실패해도 데이터베이스에는 저장 시도
       const recordData: RecordData = {
         content,
-        keyCount: currentStats.keyCount,
-        typingTime: currentStats.typingTime,
+        keyCount: currentStatsRef.current.keyCount,
+        typingTime: currentStatsRef.current.typingTime,
         timestamp: new Date().toISOString(),
-        windowTitle: currentStats.windowTitle,
-        browserName: currentStats.browserName || 'Unknown',
-        totalChars: currentStats.totalChars,
-        totalWords: currentStats.totalWords,
-        pages: currentStats.pages,
-        accuracy: currentStats.accuracy
-        // totalCharsNoSpace 속성 제거
+        windowTitle: currentStatsRef.current.windowTitle,
+        browserName: currentStatsRef.current.browserName || 'Unknown',
+        totalChars: currentStatsRef.current.totalChars,
+        totalWords: currentStatsRef.current.totalWords,
+        pages: currentStatsRef.current.pages,
+        accuracy: currentStatsRef.current.accuracy
       };
       saveToDatabase(recordData);
     }
-  }, [currentStats, saveToDatabase, debugMode, electronAPI]);
+  }, [saveToDatabase, debugMode, electronAPI]);
 
   // 디버그 모드 토글
   const toggleDebugMode = useCallback(() => {
@@ -286,6 +371,7 @@ function HomeContent() {
     
     // Electron API로 설정 저장
     try {
+      // null 체크 추가
       if (!electronAPI) return;
       
       // saveSettings가 Promise를 반환하도록 타입을 맞춤
@@ -323,31 +409,36 @@ function HomeContent() {
   }, [electronAPI]);
 
   // 창 모드 변경 핸들러 수정 - 오류 처리 추가 및 API 일관성 확보
-  const handleWindowModeChange = useCallback(async (mode: WindowModeType) => {
-    try {
-      // Electron API가 있는지 확인 (window.electronAPI 또는 window.electron 둘 중 하나)
-      const api = window.electronAPI;
-
-      if (api && typeof api.setWindowMode === 'function') {
-        // electronAPI가 있는 경우 직접 사용
-        const result = await api.setWindowMode(mode);
-        if (!result.success) {
-          console.error(`창 모드 변경 실패: ${result.error || JSON.stringify(result)}`);
-          showToast('창 모드 변경에 실패했습니다.', 'error');
-        } else {
-          // 성공적으로 변경됨
-          setWindowMode(mode);
-        }
-      } else {
-        // API가 없는 경우 로컬에서만 설정 변경
-        console.warn('Electron API를 찾을 수 없습니다. 로컬에서만 창 모드를 변경합니다.');
-        setWindowMode(mode);
+// 다른 부분에서도 null 체크 추가
+// 예: handleWindowModeChange 함수
+const handleWindowModeChange = useCallback(async (mode: WindowModeType) => {
+  try {
+    setWindowMode(mode); // UI 즉시 업데이트
+    
+    // electronAPI가 null이 아니고 setWindowMode 메서드가 있는지 확인
+    if (electronAPI && typeof electronAPI.setWindowMode === 'function') {
+      // API 호출에 시간제한 추가
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('창 모드 변경 시간 초과')), 3000);
+      });
+      
+      const result = await Promise.race([
+        electronAPI.setWindowMode(mode),
+        timeoutPromise
+      ]) as {success: boolean, error?: string};
+      
+      if (!result.success) {
+        console.error(`창 모드 변경 실패: ${result.error || '알 수 없는 오류'}`);
+        showToast('창 모드 변경에 실패했습니다.', 'error');
       }
-    } catch (error) {
-      console.error('창 모드 변경 실패:', error);
-      showToast('창 모드 변경 중 오류가 발생했습니다.', 'error');
+    } else {
+      console.warn('setWindowMode API를 사용할 수 없습니다. UI만 업데이트됩니다.');
     }
-  }, [showToast]);
+  } catch (error) {
+    console.error('창 모드 변경 중 오류:', error);
+    showToast('창 모드 변경 중 오류가 발생했습니다.', 'error');
+  }
+}, [electronAPI, showToast]);
 
   // 초기 로그 데이터 및 설정 로딩
   useEffect(() => {
@@ -398,78 +489,80 @@ function HomeContent() {
   }, [loadSettingsFromLocalStorage, handleStartTracking, electronAPI]);
 
   // 창 모드 상태 이벤트 리스너
-  useEffect(() => {
-    const handleWindowModeStatus = (event: CustomEvent<{mode: WindowModeType, autoHideToolbar: boolean}>) => {
-      setWindowMode(event.detail.mode);
-    };
-    
-    window.addEventListener('window-mode-status' as any, handleWindowModeStatus);
-    
-    // 초기 창 모드 확인
-    const checkWindowMode = async () => {
-      if (electronAPI.getWindowMode) {
-        try {
-          const mode = await electronAPI.getWindowMode();
-          setWindowMode(mode);
-        } catch (err) {
-          console.error('창 모드 확인 오류:', err);
-        }
+// 창 모드 상태 이벤트 리스너 부분 수정
+useEffect(() => {
+  const handleWindowModeStatus = (event: CustomEvent<{mode: WindowModeType, autoHideToolbar: boolean}>) => {
+    setWindowMode(event.detail.mode);
+  };
+  
+  window.addEventListener('window-mode-status' as any, handleWindowModeStatus);
+  
+  // 초기 창 모드 확인
+  const checkWindowMode = async () => {
+    // electronAPI가 null이 아닌지 확인
+    if (electronAPI && electronAPI.getWindowMode) {
+      try {
+        const mode = await electronAPI.getWindowMode();
+        setWindowMode(mode);
+      } catch (err) {
+        console.error('창 모드 확인 오류:', err);
       }
-    };
-    
+    } else {
+      console.log('getWindowMode API를 사용할 수 없습니다. 기본 창 모드를 사용합니다.');
+    }
+  };
+  
+  // electronAPI 존재 시에만 창 모드 확인
+  if (electronAPI) {
     checkWindowMode();
-    
-    return () => {
-      window.removeEventListener('window-mode-status' as any, handleWindowModeStatus);
-    };
-  }, [electronAPI]);
+  }
+  
+  return () => {
+    window.removeEventListener('window-mode-status' as any, handleWindowModeStatus);
+  };
+}, [electronAPI]);
 
-  // Electron API 이벤트 구독
+  // 모니터링 이벤트 처리 최적화
   useEffect(() => {
+    const api = electronAPI || createDummyAPI;
+    
     // 클린업 함수 배열
     const cleanupFunctions: (() => void)[] = [];
     
     try {
       // 실시간 타이핑 통계 업데이트 이벤트
-      const unsubscribeStats = electronAPI.onTypingStatsUpdate((data: TypingStatsUpdate) => {
-        setCurrentStats(prev => ({
-          ...prev,
+      const unsubscribeStats = api.onTypingStatsUpdate((data: TypingStatsUpdate) => {
+        // ref로 상태 관리하여 불필요한 렌더링 방지
+        currentStatsRef.current = {
+          ...currentStatsRef.current,
           keyCount: data.keyCount,
           typingTime: data.typingTime,
-          windowTitle: data.windowTitle || prev.windowTitle,
-          browserName: data.browserName || prev.browserName,
+          windowTitle: data.windowTitle || currentStatsRef.current.windowTitle,
+          browserName: data.browserName || currentStatsRef.current.browserName,
           totalChars: data.totalChars || 0,
           totalCharsNoSpace: data.totalCharsNoSpace || 0,
           totalWords: data.totalWords || 0,
           pages: data.pages || 0,
           accuracy: data.accuracy || 100
-        }));
+        };
         
         if (!isTracking) {
           setIsTracking(true);
-        }
-        
-        if (debugMode) {
-          console.log('통계 업데이트 수신:', data);
         }
       });
       
       cleanupFunctions.push(unsubscribeStats);
       
       // 통계 저장 완료 이벤트
-      const unsubscribeSaved = electronAPI.onStatsSaved((data: StatsSaved) => {
-        fetchLogs(); // 로그 목록 다시 불러오기
-        
-        if (debugMode) {
-          console.log('통계 저장 완료:', data);
-        }
+      const unsubscribeSaved = api.onStatsSaved(() => {
+        // 저장 완료 시 로그 업데이트
+        fetchLogs();
       });
       
       cleanupFunctions.push(unsubscribeSaved);
       
-      if (debugMode) {
-        console.log('Electron API 이벤트 리스너 설정 완료');
-      }
+      // 저장
+      eventsCleanupRef.current = cleanupFunctions;
     } catch (error) {
       console.error('Electron API 이벤트 구독 오류:', error);
     }
@@ -483,8 +576,12 @@ function HomeContent() {
           console.error('이벤트 리스너 정리 오류:', error);
         }
       });
+      
+      // 등록된 모든 인터벌 제거
+      intervalsRef.current.forEach(clearInterval);
+      intervalsRef.current = [];
     };
-  }, [fetchLogs, isTracking, debugMode, electronAPI]);
+  }, [electronAPI, createDummyAPI, isTracking, fetchLogs]);
 
   // 앱이 종료되거나 페이지가 새로고침될 때 설정 저장
   useEffect(() => {
@@ -502,20 +599,31 @@ function HomeContent() {
   // window 객체 안전하게 접근
   useEffect(() => {
     // 클라이언트 사이드에서만 실행
-    try {
-      if (typeof window !== 'undefined') {
-        if (window.electronAPI) {
-          console.log('electronAPI 발견됨:', Object.keys(window.electronAPI));
-          // 기존 타입 충돌을 피하기 위해 as unknown as 사용
-          setElectronAPI(window.electronAPI as unknown as ElectronAPI);
-        } else {
-          console.warn('window.electronAPI를 찾을 수 없습니다. 개발 환경용 더미 API를 사용합니다.');
-          // 개발 환경을 위한 더미 객체 생성 (이미 초기 상태로 설정됨)
+    if (typeof window !== 'undefined') {
+      if (window.electronAPI) {
+        setElectronAPI(window.electronAPI);
+      }
+    }
+    
+    // 페이지 언마운트 시 메모리 정리
+    return () => {
+      // 등록된 모든 이벤트 리스너 제거
+      eventsCleanupRef.current.forEach(cleanup => cleanup());
+      eventsCleanupRef.current = [];
+      
+      // 등록된 모든 인터벌 제거
+      intervalsRef.current.forEach(clearInterval);
+      intervalsRef.current = [];
+      
+      // 메모리 해제 요청
+      if (window.gc) {
+        try {
+          window.gc();
+        } catch (e) {
+          console.log('GC 호출 실패');
         }
       }
-    } catch (err) {
-      console.error('electronAPI 초기화 중 오류:', err);
-    }
+    };
   }, []);
 
   // useEffect를 추가하여 전역 다크 모드 클래스를 설정
@@ -527,9 +635,69 @@ function HomeContent() {
     }
   }, [darkMode]);
 
+  // 메모이제이션된 컴포넌트 렌더링 - 의존성 최적화
+  const renderActiveTab = useMemo(() => {
+    // 각 탭 렌더링별 필요한 의존성만 포함
+    switch (activeTab) {
+      case 'monitor':
+        return (
+          <TypingMonitor 
+            stats={displayStats}
+            isTracking={isTracking}
+            onStartTracking={handleStartTracking}
+            onStopTracking={handleStopTracking}
+            onSaveStats={handleSaveStats}
+          />
+        );
+      case 'history':
+        return (
+          <TypingHistory 
+            logs={logs}
+            isLoading={isLoading}
+          />
+        );
+      case 'stats':
+        return (
+          <TypingStats 
+            logs={logs}
+          />
+        );
+      case 'chart':
+        return (
+          <TypingChart 
+            logs={logs}
+          />
+        );
+      case 'settings':
+        return (
+          <Settings 
+            onSave={handleSaveSettings}
+            initialSettings={settings}
+            darkMode={darkMode}
+            onDarkModeChange={handleDarkModeChange}
+            onWindowModeChange={handleWindowModeChange}
+          />
+        );
+      default:
+        return null;
+    }
+  }, [
+    activeTab, 
+    displayStats, 
+    isTracking, 
+    handleStartTracking, 
+    handleStopTracking, 
+    handleSaveStats,
+    logs, 
+    isLoading, 
+    settings, 
+    darkMode, 
+    handleDarkModeChange, 
+    handleWindowModeChange
+  ]);
+
   return (
     <div className={`${styles.container} ${darkMode ? 'dark-mode' : ''} ${windowMode === 'fullscreen-auto-hide' ? styles.zenMode : ''}`}>
-      {/* 커스텀 헤더만 유지하고 불필요한 주석은 제거 */}
       <CustomHeader darkMode={darkMode} windowMode={windowMode} />
         
       <main className={styles.mainContent}>
@@ -575,44 +743,8 @@ function HomeContent() {
           </button>
         </div>
         
-        {activeTab === 'monitor' && (
-          <TypingMonitor 
-            stats={currentStats}
-            isTracking={isTracking}
-            onStartTracking={handleStartTracking}
-            onStopTracking={handleStopTracking}
-            onSaveStats={handleSaveStats}
-          />
-        )}
-        
-        {activeTab === 'history' && (
-          <TypingHistory 
-            logs={logs}
-            isLoading={isLoading}
-          />
-        )}
-        
-        {activeTab === 'stats' && (
-          <TypingStats 
-            logs={logs}
-          />
-        )}
-        
-        {activeTab === 'chart' && (
-          <TypingChart 
-            logs={logs}
-          />
-        )}
-
-        {activeTab === 'settings' && (
-          <Settings 
-            onSave={handleSaveSettings}
-            initialSettings={settings}
-            darkMode={darkMode}
-            onDarkModeChange={handleDarkModeChange}
-            onWindowModeChange={handleWindowModeChange}
-          />
-        )}
+        {/* 메모이제이션된 컴포넌트 사용 */}
+        {renderActiveTab}
       </main>
       
       {/* 디버그 패널을 하단으로 이동 */}
@@ -622,9 +754,9 @@ function HomeContent() {
           <div className={styles.debugInfo}>
             <div><strong>isTracking:</strong> {isTracking ? 'true' : 'false'}</div>
             <div><strong>Logs:</strong> {logs.length}개</div>
-            <div><strong>Current keyCount:</strong> {currentStats.keyCount}</div>
-            <div><strong>Browser:</strong> {currentStats.browserName || 'N/A'}</div>
-            <div><strong>Window:</strong> {currentStats.windowTitle || 'N/A'}</div>
+            <div><strong>Current keyCount:</strong> {currentStatsRef.current.keyCount}</div>
+            <div><strong>Browser:</strong> {currentStatsRef.current.browserName || 'N/A'}</div>
+            <div><strong>Window:</strong> {currentStatsRef.current.windowTitle || 'N/A'}</div>
             <div><strong>Window Mode:</strong> {windowMode}</div>
           </div>
         </div>
@@ -633,7 +765,7 @@ function HomeContent() {
       <AppFooter />
     </div>
   );
-}
+});
 
 // 메인 페이지 컴포넌트
 export default function Home() {

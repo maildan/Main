@@ -46,7 +46,8 @@
 .rightSection {
   display: flex;
   align-items: center;
-  -webkit-app-region: no-drag; /* 컨트롤 버튼은 드래그에서 제외 */
+  -webkit-app-region: no-drag !important; /* 중요도를 높여 확실히 드래그 영역에서 제외 */
+  z-index: 10; /* z-index를 높여 다른 요소보다 앞에 오도록 설정 */
 }
 
 .iconOnly {
@@ -111,4 +112,12 @@
 .customHeader [data-no-drag],
 .customHeader *[data-no-drag] {
   -webkit-app-region: no-drag;
+}
+
+/* 명시적으로 no-drag가 설정된 요소들은 예외 처리 - 더 강력한 선택자 사용 */
+.customHeader [class*="windowControls"],
+.customHeader [class*="windowButton"],
+.customHeader button,
+.customHeader [role="button"] {
+  -webkit-app-region: no-drag !important;
 }

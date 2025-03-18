@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -40,7 +40,18 @@ interface TypingChartProps {
   logs: LogType[];
 }
 
-export function TypingChart({ logs }: TypingChartProps) {
+// 로그 데이터 필터링 함수 - 컴포넌트 외부로 이동
+const filterLogsForChart = (logs: LogType[]) => {
+  // 최근 30일 데이터만 표시하여 차트 렌더링 부하 감소
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+  
+  return logs
+    .filter(log => new Date(log.timestamp) >= thirtyDaysAgo)
+    .slice(0, 100); // 최대 100개 항목으로 제한
+};
+
+export const TypingChart = React.memo(function TypingChart({ logs }: TypingChartProps) {
   // 다크 모드 상태 추적
   const [isDarkMode, setIsDarkMode] = useState(false);
   
@@ -69,6 +80,9 @@ export function TypingChart({ logs }: TypingChartProps) {
     return () => observer.disconnect();
   }, []);
 
+  // 필터링된 로그 데이터 메모이제이션
+  const filteredLogs = useMemo(() => filterLogsForChart(logs), [logs]);
+  
   // 차트 옵션 - 다크 모드에 따라 변경되는 옵션들
   const getChartOptions = useCallback((title: string) => {
     return {
@@ -107,11 +121,11 @@ export function TypingChart({ logs }: TypingChartProps) {
     };
   }, [isDarkMode]);
 
-  // 날짜별 통계 데이터 가공
-  const processDataByDate = () => {
+  // 날짜별 통계 데이터 가공 - 메모이제이션
+  const chartData = useMemo(() => {
     const dataMap = new Map();
 
-    logs.forEach(log => {
+    filteredLogs.forEach(log => {
       const date = new Date(log.timestamp).toLocaleDateString();
       
       if (!dataMap.has(date)) {
@@ -145,24 +159,23 @@ export function TypingChart({ logs }: TypingChartProps) {
       wordData: Array.from(dataMap.values()).map(d => d.totalWords),
       charData: Array.from(dataMap.values()).map(d => d.totalChars),
     };
-  };
+  }, [filteredLogs]);
 
-  const chartData = processDataByDate();
-
-  const speedChartData = {
+  // 메모이제이션된 차트 데이터
+  const speedChartData = useMemo(() => ({
     labels: chartData.labels,
     datasets: [
       {
         label: '평균 타이핑 속도 (타/분)',
         data: chartData.speedData,
-        borderColor: isDarkMode ? 'rgb(3, 218, 198)' : 'rgb(75, 192, 192)', // 다크모드 색상 변경
+        borderColor: isDarkMode ? 'rgb(3, 218, 198)' : 'rgb(75, 192, 192)',
         backgroundColor: isDarkMode ? 'rgba(3, 218, 198, 0.5)' : 'rgba(75, 192, 192, 0.5)',
         tension: 0.3,
       },
     ],
-  };
+  }), [chartData.labels, chartData.speedData, isDarkMode]);
 
-  const keyCountChartData = {
+  const keyCountChartData = useMemo(() => ({
     labels: chartData.labels,
     datasets: [
       {
@@ -171,9 +184,9 @@ export function TypingChart({ logs }: TypingChartProps) {
         backgroundColor: isDarkMode ? 'rgba(30, 136, 229, 0.7)' : 'rgba(54, 162, 235, 0.5)',
       },
     ],
-  };
+  }), [chartData.labels, chartData.keyCountData, isDarkMode]);
 
-  const timeChartData = {
+  const timeChartData = useMemo(() => ({
     labels: chartData.labels,
     datasets: [
       {
@@ -182,10 +195,10 @@ export function TypingChart({ logs }: TypingChartProps) {
         backgroundColor: isDarkMode ? 'rgba(207, 102, 121, 0.7)' : 'rgba(255, 99, 132, 0.5)',
       },
     ],
-  };
+  }), [chartData.labels, chartData.timeData, isDarkMode]);
 
   // 구글 문서 방식 단어/글자 수 차트 추가
-  const wordCharChartData = {
+  const wordCharChartData = useMemo(() => ({
     labels: chartData.labels,
     datasets: [
       {
@@ -199,23 +212,28 @@ export function TypingChart({ logs }: TypingChartProps) {
         backgroundColor: isDarkMode ? 'rgba(251, 140, 0, 0.7)' : 'rgba(255, 159, 64, 0.5)',
       },
     ],
-  };
+  }), [chartData.labels, chartData.wordData, chartData.charData, isDarkMode]);
 
   return (
     <div className={styles.chartContainer}>
       <h2>타이핑 통계 차트</h2>
       
-      {logs.length > 0 ? (
+      {filteredLogs.length > 0 ? (
         <div className={styles.charts}>
-          <div className={styles.chartItem}>
-            <h3>일별 평균 타이핑 속도</h3>
-            <div className={styles.chartWrapper}>
-              <Line 
-                data={speedChartData} 
-                options={getChartOptions('일별 평균 속도 (타/분)')}
-              />
+          {/* 차트 렌더링에 lazy loading 적용 */}
+          {chartData.labels.length > 0 && (
+            <div className={styles.chartItem}>
+              <h3>일별 평균 타이핑 속도</h3>
+              <div className={styles.chartWrapper}>
+                <Line 
+                  data={speedChartData} 
+                  options={getChartOptions('일별 평균 속도 (타/분)')}
+                  // 더 낮은 프레임 레이트로 애니메이션 실행 (메모리 사용 감소)
+                  redraw={false}  
+                />
+              </div>
             </div>
-          </div>
+          )}
           
           <div className={styles.chartItem}>
             <h3>일별 총 타자 수</h3>
@@ -252,4 +270,4 @@ export function TypingChart({ logs }: TypingChartProps) {
       )}
     </div>
   );
-}
+});
