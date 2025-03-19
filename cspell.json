@@ -20,7 +20,8 @@
     "linecap",
     "darkmode", // Added "darkmode" to the list
     "hdpi",
-    "miniview"
+    "miniview",
+    "webaudio"
   ],
   "ignorePaths": [
     "node_modules/**",

@@ -54,5 +54,13 @@
       "x64",
       "arm64"
     ]
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/maildan/Main.git"
+  },
+  "bugs": {
+    "url": "https://github.com/maildan/Main/issues"
+  },
+  "homepage": "https://github.com/maildan/Main#readme"
 }

@@ -43,31 +43,39 @@ function setupTray() {
     // 트레이 메뉴 설정
     updateTrayMenu();
     
-    // 트레이 아이콘 클릭 이벤트
+    // 트레이 아이콘 클릭 이벤트 - 수정된 부분
     tray.on('click', () => {
-      // 미니뷰 설정이 활성화되어 있으면 미니뷰 토글
-      if (appState.settings.enableMiniView) {
-        const { toggleMiniView } = require('./window');
-        toggleMiniView();
-      } else {
-        // 기존 동작 유지
-        if (appState.mainWindow) {
-          if (appState.mainWindow.isVisible()) {
-            if (appState.mainWindow.isMinimized()) {
-              appState.mainWindow.restore();
+      try {
+        debugLog('트레이 아이콘 클릭됨');
+        // 미니뷰 설정이 활성화되어 있으면 미니뷰 토글
+        if (appState.settings.enableMiniView) {
+          const { toggleMiniView } = require('./window');
+          setTimeout(() => {
+            toggleMiniView();
+          }, 10);
+        } else {
+          // 기존 동작 유지
+          if (appState.mainWindow) {
+            if (appState.mainWindow.isVisible()) {
+              if (appState.mainWindow.isMinimized()) {
+                appState.mainWindow.restore();
+              }
+            } else {
+              appState.mainWindow.show();
+              appState.mainWindow.focus();
             }
-          } else {
-            appState.mainWindow.show();
-            appState.mainWindow.focus();
           }
         }
+      } catch (error) {
+        console.error('트레이 아이콘 클릭 처리 중 오류:', error);
       }
     });
     
     debugLog('시스템 트레이 설정 완료');
+    appState.tray = tray; // appState에 트레이 객체 저장
     return tray;
   } catch (error) {
-    debugLog('시스템 트레이 설정 오류:', error);
+    console.error('시스템 트레이 설정 오류:', error);
     return null;
   }
 }

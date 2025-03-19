@@ -9,6 +9,7 @@ const appState = {
   mainWindow: null,
   miniViewWindow: null, // 미니뷰 창 참조
   miniViewStatsInterval: null, // 미니뷰 통계 전송 인터벌
+  miniViewLastMode: 'icon', // 미니뷰 마지막 모드 ('icon' 또는 'normal')
   isTracking: false,
   keyboardListener: null,
   windowMode: 'windowed',
@@ -17,6 +18,13 @@ const appState = {
   backgroundCssKey: null, // 백그라운드 모드 CSS 키
   allowQuit: false, // 완전히 종료할지 여부
   tray: null, // 트레이 객체 참조
+  updateInterval: null, // 통계 업데이트 인터벌 참조
+  lastGcTime: Date.now(), // 마지막 GC 실행 시간
+  idleTime: 0, // 사용자 마지막 활동 이후 경과 시간
+  memoryUsage: {
+    lastCheck: Date.now(),
+    heapUsed: 0
+  },
   currentStats: {
     keyCount: 0,
     typingTime: 0,
@@ -43,12 +51,25 @@ const appState = {
     minimizeToTray: true, // 트레이로 최소화 설정 (기본값 true)
     showTrayNotifications: true, // 트레이 알림 표시 여부
     reduceMemoryInBackground: true, // 백그라운드에서 메모리 사용 감소
-    enableMiniView: true // 미니뷰 활성화 기본값
+    enableMiniView: true, // 미니뷰 활성화 기본값
+    useHardwareAcceleration: false, // 하드웨어 가속 사용 여부
+    garbageCollectionInterval: 60000, // 주기적 GC 실행 간격 (ms)
+    maxMemoryThreshold: 100, // 메모리 임계치 (MB)
+    autoCleanupLogs: true, // 오래된 로그 자동 정리
+    maxHistoryItems: 500, // 최대 히스토리 항목 수
+    logRetentionDays: 30 // 로그 보관 일수
   }
 };
 
-// 상수 정의
-const IDLE_TIMEOUT = 3000; // 3초 동안 입력이 없으면 타이핑 중지로 간주
+// IDLE 시간 기준 증가
+const IDLE_TIMEOUT = 5000; // 3초에서 5초로 증가
+
+// 메모리 최적화 관련 상수 추가
+const MEMORY_CHECK_INTERVAL = 30000; // 30초마다 메모리 체크
+const BACKGROUND_ACTIVITY_INTERVAL = 10000; // 백그라운드 활동 간격
+const LOW_MEMORY_THRESHOLD = 50 * 1024 * 1024; // 50MB
+const HIGH_MEMORY_THRESHOLD = 100 * 1024 * 1024; // 100MB
+const CRITICAL_MEMORY_THRESHOLD = 150 * 1024 * 1024; // 150MB
 
 // 단축키나 특수키를 필터링하기 위한 키 목록
 const SPECIAL_KEYS = [
@@ -173,5 +194,10 @@ module.exports = {
   GOOGLE_DOCS_URL_PATTERNS,
   GOOGLE_DOCS_TITLE_PATTERNS,
   settingsPath,
-  userDataPath
+  userDataPath,
+  MEMORY_CHECK_INTERVAL,
+  BACKGROUND_ACTIVITY_INTERVAL,
+  LOW_MEMORY_THRESHOLD,
+  HIGH_MEMORY_THRESHOLD,
+  CRITICAL_MEMORY_THRESHOLD
 };

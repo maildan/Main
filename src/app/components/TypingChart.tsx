@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -42,18 +42,24 @@ interface TypingChartProps {
 
 // 로그 데이터 필터링 함수 - 컴포넌트 외부로 이동
 const filterLogsForChart = (logs: LogType[]) => {
-  // 최근 30일 데이터만 표시하여 차트 렌더링 부하 감소
-  const thirtyDaysAgo = new Date();
-  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+  // 최근 7일 데이터만 표시 (30일에서 7일로 단축)
+  const sevenDaysAgo = new Date();
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
   
   return logs
-    .filter(log => new Date(log.timestamp) >= thirtyDaysAgo)
-    .slice(0, 100); // 최대 100개 항목으로 제한
+    .filter(log => new Date(log.timestamp) >= sevenDaysAgo)
+    .slice(0, 50); // 최대 50개 항목으로 제한 (100개에서 50개로 축소)
 };
 
 export const TypingChart = React.memo(function TypingChart({ logs }: TypingChartProps) {
   // 다크 모드 상태 추적
   const [isDarkMode, setIsDarkMode] = useState(false);
+  
+  // 차트 인스턴스 참조 저장
+  const chartRefs = useRef<any[]>([]);
+  
+  // 컴포넌트 마운트/언마운트 감지
+  const isMountedRef = useRef(true);
   
   // 다크 모드 감지 함수 개선
   useEffect(() => {
@@ -84,13 +90,34 @@ export const TypingChart = React.memo(function TypingChart({ logs }: TypingChart
       attributeFilter: ['class'] 
     });
     
+    // 컴포넌트 마운트 상태 설정
+    isMountedRef.current = true;
+    
     return () => {
+      // 컴포넌트 언마운트 시 모든 리소스 해제
+      isMountedRef.current = false;
       observer.disconnect();
       window.removeEventListener('darkmode-changed', handleDarkModeChange as EventListener);
+      
+      // 차트 인스턴스 정리
+      chartRefs.current.forEach(chart => {
+        if (chart && chart.destroy) {
+          chart.destroy();
+        }
+      });
+      
+      // 메모리 정리 요청
+      if (window.gc) {
+        try {
+          window.gc();
+        } catch (e) {
+          console.log('GC 호출 실패');
+        }
+      }
     };
   }, []);
 
-  // 필터링된 로그 데이터 메모이제이션
+  // 필터링된 로그 데이터 메모이제이션 (최소 데이터만 사용)
   const filteredLogs = useMemo(() => filterLogsForChart(logs), [logs]);
   
   // 차트 옵션 - 다크 모드에 따라 변경되는 옵션들
@@ -98,34 +125,86 @@ export const TypingChart = React.memo(function TypingChart({ logs }: TypingChart
     return {
       responsive: true,
       maintainAspectRatio: false,
+      // 메모리 사용량 감소를 위한 설정 추가
+      animation: {
+        duration: 0 // 애니메이션 비활성화
+      },
+      // 데이터 포인트 수 제한
+      elements: {
+        point: {
+          radius: 2, // 더 작은 포인트 크기
+          hoverRadius: 4,
+        },
+        line: {
+          tension: 0, // 직선으로 연결 (곡선 없음)
+        }
+      },
+      // 렌더링 성능 개선
+      devicePixelRatio: 1,
       plugins: {
         legend: { 
           position: 'top' as const,
           labels: {
-            color: isDarkMode ? '#E0E0E0' : '#333'
+            color: isDarkMode ? '#E0E0E0' : '#333',
+            // 폰트 크기 축소
+            font: {
+              size: 11,
+            }
           }
         },
         title: { 
           display: true, 
           text: title,
-          color: isDarkMode ? '#E0E0E0' : '#333'
+          color: isDarkMode ? '#E0E0E0' : '#333',
+          // 수정: 'normal'을 리터럴로 변경
+          font: {
+            size: 12,
+            weight: 'normal' as const, // 타입 문제 해결
+          }
         },
         tooltip: {
+          enabled: true, // 필요한 경우에만 활성화
           backgroundColor: isDarkMode ? 'rgba(30, 30, 30, 0.8)' : 'rgba(255, 255, 255, 0.8)',
           titleColor: isDarkMode ? '#E0E0E0' : '#333',
           bodyColor: isDarkMode ? '#B0B0B0' : '#666',
           borderColor: isDarkMode ? '#303030' : '#ddd',
-          borderWidth: 1
+          borderWidth: 1,
+          // 툴팁 콜백 간소화
+          callbacks: {
+            label: function(context: any) {
+              return context.raw;
+            }
+          }
         }
       },
       scales: {
         x: {
-          ticks: { color: isDarkMode ? '#B0B0B0' : '#666' },
-          grid: { color: isDarkMode ? 'rgba(60, 60, 60, 0.3)' : 'rgba(0, 0, 0, 0.1)' }
+          ticks: { 
+            color: isDarkMode ? '#B0B0B0' : '#666',
+            // 표시할 틱 수 제한
+            maxTicksLimit: 7,
+            font: {
+              size: 10,
+            }
+          },
+          grid: { 
+            color: isDarkMode ? 'rgba(60, 60, 60, 0.3)' : 'rgba(0, 0, 0, 0.1)',
+            // 그리드 간소화
+            display: false
+          }
         },
         y: {
-          ticks: { color: isDarkMode ? '#B0B0B0' : '#666' },
-          grid: { color: isDarkMode ? 'rgba(60, 60, 60, 0.3)' : 'rgba(0, 0, 0, 0.1)' }
+          ticks: { 
+            color: isDarkMode ? '#B0B0B0' : '#666',
+            font: {
+              size: 10,
+            }
+          },
+          grid: { 
+            color: isDarkMode ? 'rgba(60, 60, 60, 0.3)' : 'rgba(0, 0, 0, 0.1)',
+            // 그리드 선 수 제한
+            tickLength: 5
+          }
         }
       }
     };
@@ -133,9 +212,23 @@ export const TypingChart = React.memo(function TypingChart({ logs }: TypingChart
 
   // 날짜별 통계 데이터 가공 - 메모이제이션
   const chartData = useMemo(() => {
+    // 데이터가 없으면 기본값 반환
+    if (!filteredLogs.length) {
+      return {
+        labels: [],
+        keyCountData: [],
+        timeData: [],
+        speedData: [],
+        wordData: [],
+        charData: []
+      };
+    }
+    
     const dataMap = new Map();
 
-    filteredLogs.forEach(log => {
+    // 일괄 처리로 맵 구성
+    for (let i = 0; i < filteredLogs.length; i++) {
+      const log = filteredLogs[i];
       const date = new Date(log.timestamp).toLocaleDateString();
       
       if (!dataMap.has(date)) {
@@ -150,79 +243,98 @@ export const TypingChart = React.memo(function TypingChart({ logs }: TypingChart
       const data = dataMap.get(date);
       data.totalKeyCount += log.key_count;
       data.totalTime += log.typing_time;
-      data.totalChars += log.content.length;
       
-      // 구글 문서 방식의 단어 수 계산
-      const contentWords = log.content.trim().length > 0
-        ? log.content.trim().split(/\s+/).length
-        : 0;
-      data.totalWords += contentWords;
-    });
+      // 콘텐츠 길이 기반 계산 (간소화)
+      const contentLength = log.content?.length || 0;
+      data.totalChars += contentLength;
+      
+      // 단어 수는 간단히 글자 수 / 5로 추정 (성능 향상)
+      data.totalWords += Math.ceil(contentLength / 5);
+    }
 
+    // 배열로 변환 (Object.entries 사용)
+    const sortedDates = Array.from(dataMap.keys()).sort((a, b) => 
+      new Date(a).getTime() - new Date(b).getTime()
+    );
+    
     return {
-      labels: Array.from(dataMap.keys()),
-      keyCountData: Array.from(dataMap.values()).map(d => d.totalKeyCount),
-      timeData: Array.from(dataMap.values()).map(d => Math.round(d.totalTime / 60)), // 분 단위로 변환
-      speedData: Array.from(dataMap.values()).map(d => 
-        d.totalTime > 0 ? Math.round((d.totalKeyCount / d.totalTime) * 60) : 0
-      ),
-      wordData: Array.from(dataMap.values()).map(d => d.totalWords),
-      charData: Array.from(dataMap.values()).map(d => d.totalChars),
+      // 날짜 레이블 간략화 (월/일만 표시)
+      labels: sortedDates.map(date => {
+        const parts = date.split('/');
+        return parts.length >= 2 ? `${parts[0]}/${parts[1]}` : date;
+      }),
+      keyCountData: sortedDates.map(date => dataMap.get(date).totalKeyCount),
+      // 분 단위로 변환하고 정수로 반올림
+      timeData: sortedDates.map(date => Math.round(dataMap.get(date).totalTime / 60)),
+      // 속도 계산도 간소화
+      speedData: sortedDates.map(date => {
+        const d = dataMap.get(date);
+        return d.totalTime > 0 ? Math.round((d.totalKeyCount / d.totalTime) * 60) : 0;
+      }),
+      wordData: sortedDates.map(date => dataMap.get(date).totalWords),
+      charData: sortedDates.map(date => dataMap.get(date).totalChars),
     };
   }, [filteredLogs]);
 
-  // 메모이제이션된 차트 데이터
-  const speedChartData = useMemo(() => ({
-    labels: chartData.labels,
-    datasets: [
-      {
-        label: '평균 타이핑 속도 (타/분)',
-        data: chartData.speedData,
-        borderColor: isDarkMode ? 'rgb(3, 218, 198)' : 'rgb(75, 192, 192)',
-        backgroundColor: isDarkMode ? 'rgba(3, 218, 198, 0.5)' : 'rgba(75, 192, 192, 0.5)',
-        tension: 0.3,
-      },
-    ],
-  }), [chartData.labels, chartData.speedData, isDarkMode]);
+  // 차트 데이터 생성 함수 - 메모리 사용 최적화
+  const createChartData = useCallback((
+    labels: string[], 
+    data: number[], 
+    label: string, 
+    color: string, 
+    bgColor: string
+  ) => {
+    return {
+      labels,
+      datasets: [
+        {
+          label,
+          data,
+          borderColor: color,
+          backgroundColor: bgColor,
+          // 불필요한 옵션 제거
+          pointBackgroundColor: color,
+          borderWidth: 1,
+          fill: false,
+        },
+      ],
+    };
+  }, []);
 
-  const keyCountChartData = useMemo(() => ({
-    labels: chartData.labels,
-    datasets: [
-      {
-        label: '총 타자 수',
-        data: chartData.keyCountData,
-        backgroundColor: isDarkMode ? 'rgba(30, 136, 229, 0.7)' : 'rgba(54, 162, 235, 0.5)',
-      },
-    ],
-  }), [chartData.labels, chartData.keyCountData, isDarkMode]);
+  // 메모이제이션된 차트 데이터 (함수로 생성)
+  const speedChartData = useMemo(() => 
+    createChartData(
+      chartData.labels,
+      chartData.speedData,
+      '평균 타이핑 속도 (타/분)',
+      isDarkMode ? 'rgb(3, 218, 198)' : 'rgb(75, 192, 192)',
+      isDarkMode ? 'rgba(3, 218, 198, 0.5)' : 'rgba(75, 192, 192, 0.5)'
+    ),
+  [chartData.labels, chartData.speedData, isDarkMode, createChartData]);
 
-  const timeChartData = useMemo(() => ({
-    labels: chartData.labels,
-    datasets: [
-      {
-        label: '총 타이핑 시간 (분)',
-        data: chartData.timeData,
-        backgroundColor: isDarkMode ? 'rgba(207, 102, 121, 0.7)' : 'rgba(255, 99, 132, 0.5)',
-      },
-    ],
-  }), [chartData.labels, chartData.timeData, isDarkMode]);
+  // 더 효율적인 렌더링을 위한 지연 로딩 상태
+  const [shouldRenderCharts, setShouldRenderCharts] = useState(false);
 
-  // 구글 문서 방식 단어/글자 수 차트 추가
-  const wordCharChartData = useMemo(() => ({
-    labels: chartData.labels,
-    datasets: [
-      {
-        label: '총 단어 수',
-        data: chartData.wordData,
-        backgroundColor: isDarkMode ? 'rgba(124, 77, 255, 0.7)' : 'rgba(153, 102, 255, 0.5)',
-      },
-      {
-        label: '총 글자 수',
-        data: chartData.charData, 
-        backgroundColor: isDarkMode ? 'rgba(251, 140, 0, 0.7)' : 'rgba(255, 159, 64, 0.5)',
-      },
-    ],
-  }), [chartData.labels, chartData.wordData, chartData.charData, isDarkMode]);
+  // 지연 로딩 설정
+  useEffect(() => {
+    if (!shouldRenderCharts && filteredLogs.length > 0) {
+      // 약간의 지연 후 차트 렌더링 시작
+      const timer = setTimeout(() => {
+        if (isMountedRef.current) {
+          setShouldRenderCharts(true);
+        }
+      }, 100);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [filteredLogs.length, shouldRenderCharts]);
+
+  // 차트 참조 설정 콜백
+  const setChartRef = useCallback((instance: any) => {
+    if (instance) {
+      chartRefs.current.push(instance);
+    }
+  }, []);
 
   return (
     <div className={styles.chartContainer}>
@@ -230,50 +342,63 @@ export const TypingChart = React.memo(function TypingChart({ logs }: TypingChart
       
       {filteredLogs.length > 0 ? (
         <div className={styles.charts}>
-          {/* 차트 렌더링에 lazy loading 적용 */}
-          {chartData.labels.length > 0 && (
+          {/* 차트 렌더링에 지연 로딩 및 조건부 렌더링 적용 */}
+          {shouldRenderCharts && chartData.labels.length > 0 && (
             <div className={styles.chartItem}>
               <h3>일별 평균 타이핑 속도</h3>
               <div className={styles.chartWrapper}>
                 <Line 
                   data={speedChartData} 
                   options={getChartOptions('일별 평균 속도 (타/분)')}
-                  // 더 낮은 프레임 레이트로 애니메이션 실행 (메모리 사용 감소)
-                  redraw={false}  
+                  redraw={false}
+                  ref={setChartRef}
                 />
               </div>
             </div>
           )}
           
-          <div className={styles.chartItem}>
-            <h3>일별 총 타자 수</h3>
-            <div className={styles.chartWrapper}>
-              <Bar 
-                data={keyCountChartData}
-                options={getChartOptions('일별 총 타자 수')}
-              />
-            </div>
-          </div>
-          
-          <div className={styles.chartItem}>
-            <h3>일별 총 타이핑 시간</h3>
-            <div className={styles.chartWrapper}>
-              <Bar 
-                data={timeChartData}
-                options={getChartOptions('일별 총 타이핑 시간 (분)')}
-              />
-            </div>
-          </div>
-
-          <div className={styles.chartItem}>
-            <h3>일별 단어 및 글자 수</h3>
-            <div className={styles.chartWrapper}>
-              <Bar 
-                data={wordCharChartData}
-                options={getChartOptions('일별 단어 및 글자 수')}
-              />
-            </div>
-          </div>
+          {/* 다른 차트들은 사용자가 탭을 전환할 때만 렌더링하도록 지연 로딩 처리 */}
+          {shouldRenderCharts && (
+            <>
+              <div className={styles.chartItem}>
+                <h3>일별 총 타자 수</h3>
+                <div className={styles.chartWrapper}>
+                  <Bar 
+                    data={{
+                      labels: chartData.labels,
+                      datasets: [{
+                        label: '총 타자 수',
+                        data: chartData.keyCountData,
+                        backgroundColor: isDarkMode ? 'rgba(30, 136, 229, 0.7)' : 'rgba(54, 162, 235, 0.5)',
+                      }]
+                    }}
+                    options={getChartOptions('일별 총 타자 수')}
+                    redraw={false}
+                    ref={setChartRef}
+                  />
+                </div>
+              </div>
+              
+              <div className={styles.chartItem}>
+                <h3>일별 총 타이핑 시간</h3>
+                <div className={styles.chartWrapper}>
+                  <Bar 
+                    data={{
+                      labels: chartData.labels,
+                      datasets: [{
+                        label: '총 타이핑 시간 (분)',
+                        data: chartData.timeData,
+                        backgroundColor: isDarkMode ? 'rgba(207, 102, 121, 0.7)' : 'rgba(255, 99, 132, 0.5)',
+                      }]
+                    }}
+                    options={getChartOptions('일별 총 타이핑 시간 (분)')}
+                    redraw={false}
+                    ref={setChartRef}
+                  />
+                </div>
+              </div>
+            </>
+          )}
         </div>
       ) : (
         <p className={styles.noData}>저장된 타이핑 데이터가 없습니다.</p>

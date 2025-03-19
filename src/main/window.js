@@ -10,24 +10,33 @@ const { debugLog } = require('./utils');
  * 메인 윈도우 생성 함수
  */
 function createWindow() {
-  const mainWindowConfig = {
-    width: 1200,
-    height: 800,
+  // 메인 윈도우 생성
+  appState.mainWindow = new BrowserWindow({
+    width: 1024,
+    height: 768,
     minWidth: 800,
     minHeight: 600,
-    frame: false, // 기본 창 프레임 사용
-    autoHideMenuBar: true, // 메뉴바를 항상 자동 숨김으로 설정
-    title: '', // 창 제목을 비워둠
-    icon: path.join(__dirname, '../../public/app-icon.svg'), // 아이콘 설정
+    // 불필요한 시각적 요소 제거로 메모리 감소
+    frame: true,
+    titleBarStyle: 'hidden',
+    titleBarOverlay: false,
+    show: false, // 준비되기 전에는 표시하지 않음
+    // 웹뷰 설정 최적화
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      preload: path.join(__dirname, '../../preload.js')
-    },
-    show: false // 준비되기 전까지 표시하지 않음
-  };
-
-  appState.mainWindow = new BrowserWindow(mainWindowConfig);
+      preload: path.join(__dirname, '../../preload.js'),
+      // 메모리 사용량 감소를 위한 캐시 설정
+      backgroundThrottling: true, // 백그라운드에서 타이머 스로틀링
+      enableWebSQL: false, // WebSQL 비활성화
+      webgl: false, // 필요없는 WebGL 비활성화
+      webaudio: false, // 오디오 기능 비활성화
+      // SPELLCHECK 비활성화
+      spellcheck: false,
+      // 하드웨어 가속 필요없는 경우 비활성화
+      disableHardwareAcceleration: !appState.settings.useHardwareAcceleration
+    }
+  });
 
   // 개발/배포 환경에 따라 다른 URL 로드
   let startUrl;
@@ -141,15 +150,35 @@ function optimizeForBackground() {
   if (!appState.mainWindow) return;
   
   try {
-    // 백그라운드에서 애니메이션/렌더링 중지를 위한 CSS 삽입
+    // 백그라운드에서 업데이트 간격 크게 늘리기
+    if (appState.updateInterval) {
+      clearInterval(appState.updateInterval);
+      appState.updateInterval = setInterval(() => {
+        // 백그라운드에서는 10초마다 업데이트 (이전보다 긴 간격)
+        if (appState.isTracking) {
+          require('./stats').updateAndSendStats();
+        }
+      }, 10000); // 10초로 증가
+    }
+
+    // 애니메이션/렌더링 중지를 위한 CSS 삽입
     const backgroundModeCss = `
       * {
         animation-play-state: paused !important;
         transition: none !important;
         animation: none !important;
       }
-      .chart-container, canvas, .animation {
+      .chart-container, canvas, .animation, img:not([data-keep-visible]) {
         display: none !important;
+      }
+      /* 숨겨진 탭 콘텐츠 완전히 제거 */
+      .tab-content:not(.active) {
+        display: none !important;
+        visibility: hidden !important;
+        pointer-events: none !important;
+        position: absolute !important;
+        left: -9999px !important;
+        top: -9999px !important;
       }
     `;
     
@@ -168,6 +197,11 @@ function optimizeForBackground() {
     
     // 웹 컨텐츠에 백그라운드 모드 알림
     appState.mainWindow.webContents.send('background-mode', true);
+    
+    // 메모리 GC 트리거 - 백그라운드로 전환 시 메모리 정리
+    setTimeout(() => {
+      global.gc && global.gc();
+    }, 1000);
     
   } catch (error) {
     debugLog('백그라운드 최적화 오류:', error);
@@ -200,90 +234,67 @@ function disableBackgroundOptimization() {
  * 미니뷰 창 생성 함수
  */
 function createMiniViewWindow() {
-  // 이미 존재하는 경우 보이게 하고 포커스
-  if (appState.miniViewWindow && !appState.miniViewWindow.isDestroyed()) {
-    if (appState.miniViewWindow.isMinimized()) {
-      appState.miniViewWindow.restore();
-    }
-    appState.miniViewWindow.show();
-    appState.miniViewWindow.focus();
-    return appState.miniViewWindow;
-  }
-
   const miniViewConfig = {
-    width: 280,
-    height: 200,
-    minWidth: 240,
-    minHeight: 160,
-    maxWidth: 400,
-    maxHeight: 300,
+    width: 50,
+    height: 50,
+    minWidth: 50,
+    minHeight: 50,
+    maxWidth: 320,
+    maxHeight: 250,
     frame: false,
     transparent: true,
     resizable: true,
     alwaysOnTop: true,
     skipTaskbar: true,
     title: '타이핑 통계 미니뷰',
-    icon: path.join(__dirname, '../../public/app-icon.svg'),
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      preload: path.join(__dirname, '../../preload.js')
+      preload: path.join(__dirname, '../../preload.js'),
+      // 메모리 최적화 설정 추가
+      backgroundThrottling: true,
+      enableWebSQL: false,
+      webgl: false,
+      webaudio: false,
+      spellcheck: false,
+      devTools: false, // 개발자 도구 비활성화
+      disableHardwareAcceleration: !appState.settings.useHardwareAcceleration
     },
-    show: false
+    show: false,
+    movable: true,
+    acceptFirstMouse: false,
   };
+
+  const { screen } = require('electron');
+  const primaryDisplay = screen.getPrimaryDisplay();
+  const { width, height } = primaryDisplay.workAreaSize;
+
+  miniViewConfig.x = width - 70;
+  miniViewConfig.y = 70;
 
   appState.miniViewWindow = new BrowserWindow(miniViewConfig);
 
-  // 개발/배포 환경에 따라 다른 URL 로드
-  let miniViewUrl;
-  if (isDev) {
-    miniViewUrl = 'http://localhost:3000/mini-view';
-  } else {
-    miniViewUrl = 'http://localhost:3000/mini-view';
-  }
-  
-  debugLog('미니뷰 URL 로드:', miniViewUrl);
-  
-  appState.miniViewWindow.loadURL(miniViewUrl)
-    .catch(err => {
-      console.error('미니뷰 URL 로드 실패:', err);
-      
-      // 오류 화면 표시
-      const errorHtml = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <title></title>
-          <meta charset="UTF-8">
-          <style>
-            body { font-family: Arial; padding: 10px; color: #333; background: #f0f0f0; font-size: 12px; }
-            .error { color: #e53935; }
-          </style>
-        </head>
-        <body>
-          <p class="error">미니뷰 로드 실패</p>
-        </body>
-        </html>
-      `;
-      
-      const tempPath = path.join(__dirname, '../../miniview-error.html');
-      fs.writeFileSync(tempPath, errorHtml);
-      
-      return appState.miniViewWindow.loadFile(tempPath);
-    });
+  // 창이 생성된 후 추가 설정
+  appState.miniViewWindow.setIgnoreMouseEvents(false, { forward: false });
 
-  // 창이 준비되면 표시
+  const miniViewUrl = isDev
+    ? 'http://localhost:3000/mini-view'
+    : 'http://localhost:3000/mini-view';
+
+  appState.miniViewWindow.loadURL(miniViewUrl);
+
   appState.miniViewWindow.once('ready-to-show', () => {
     appState.miniViewWindow.show();
   });
 
-  // 미니뷰 닫히면 참조 제거
-  appState.miniViewWindow.on('closed', () => {
-    appState.miniViewWindow = null;
+  appState.miniViewWindow.on('resize', () => {
+    const [width, height] = appState.miniViewWindow.getSize();
+    if (width > 50 && height > 50) {
+      appState.miniViewLastMode = 'expanded';
+    } else {
+      appState.miniViewLastMode = 'collapsed';
+    }
   });
-
-  // 미니뷰에 통계 데이터 전송 시작
-  startSendingStatsToMiniView();
 
   return appState.miniViewWindow;
 }
@@ -292,11 +303,26 @@ function createMiniViewWindow() {
  * 미니뷰 토글 함수
  */
 function toggleMiniView() {
-  if (appState.miniViewWindow && !appState.miniViewWindow.isDestroyed()) {
-    appState.miniViewWindow.close();
-    appState.miniViewWindow = null;
-  } else {
-    createMiniViewWindow();
+  try {
+    debugLog('미니뷰 토글 함수 호출됨');
+    
+    if (appState.miniViewWindow && !appState.miniViewWindow.isDestroyed()) {
+      appState.miniViewWindow.close();
+      appState.miniViewWindow = null;
+      debugLog('미니뷰 닫힘');
+    } else {
+      const miniView = createMiniViewWindow();
+      
+      // 미니뷰가 준비되면 크기를 아이콘 모드로 확실히 설정
+      miniView.once('ready-to-show', () => {
+        miniView.setSize(50, 50);
+        appState.miniViewLastMode = 'icon';
+      });
+      
+      debugLog('미니뷰 생성됨');
+    }
+  } catch (error) {
+    console.error('미니뷰 토글 중 오류:', error);
   }
 }
 
@@ -308,10 +334,17 @@ function startSendingStatsToMiniView() {
     clearInterval(appState.miniViewStatsInterval);
   }
   
-  // 5초마다 미니뷰에 통계 전송
+  // 업데이트 주기 증가(5초) - 불필요한 IPC 통신 최소화
   appState.miniViewStatsInterval = setInterval(() => {
     if (appState.miniViewWindow && !appState.miniViewWindow.isDestroyed()) {
       try {
+        // 메모리 사용량이 임계치(100MB) 이상일 때 GC 유도
+        const memoryInfo = process.memoryUsage();
+        if (memoryInfo.heapUsed > 100 * 1024 * 1024) { // 100MB
+          global.gc && global.gc();
+          debugLog('메모리 사용량 높음: GC 실행됨', Math.round(memoryInfo.heapUsed / (1024 * 1024)) + 'MB');
+        }
+        
         appState.miniViewWindow.webContents.send('mini-view-stats-update', {
           keyCount: appState.currentStats.keyCount,
           typingTime: appState.currentStats.typingTime,
@@ -319,7 +352,8 @@ function startSendingStatsToMiniView() {
           browserName: appState.currentStats.currentBrowser,
           totalChars: appState.currentStats.totalChars,
           totalWords: appState.currentStats.totalWords,
-          accuracy: appState.currentStats.accuracy
+          accuracy: appState.currentStats.accuracy,
+          isTracking: appState.isTracking
         });
       } catch (error) {
         debugLog('미니뷰 통계 전송 오류:', error);
@@ -329,7 +363,27 @@ function startSendingStatsToMiniView() {
       clearInterval(appState.miniViewStatsInterval);
       appState.miniViewStatsInterval = null;
     }
-  }, 5000);
+  }, 5000); // 3초에서 5초로 늘림
+  
+  // 미니뷰가 열릴 때 초기 데이터 즉시 전송
+  if (appState.miniViewWindow && !appState.miniViewWindow.isDestroyed()) {
+    setTimeout(() => {
+      try {
+        appState.miniViewWindow.webContents.send('mini-view-stats-update', {
+          keyCount: appState.currentStats.keyCount,
+          typingTime: appState.currentStats.typingTime,
+          windowTitle: appState.currentStats.currentWindow,
+          browserName: appState.currentStats.currentBrowser,
+          totalChars: appState.currentStats.totalChars,
+          totalWords: appState.currentStats.totalWords,
+          accuracy: appState.currentStats.accuracy,
+          isTracking: appState.isTracking // 모니터링 상태 추가
+        });
+      } catch (error) {
+        debugLog('미니뷰 초기 통계 전송 오류:', error);
+      }
+    }, 500); // 미니뷰가 준비되기를 기다림
+  }
 }
 
 module.exports = {

@@ -117,19 +117,25 @@ const HomeContent = React.memo(function HomeContent() {
   // 화면에 표시할 통계만 useState로 관리
   const [displayStats, setDisplayStats] = useState(currentStatsRef.current);
   
+  // 로드된 로그 데이터를 최적화하기 위한 제한
+  const MAX_LOGS_TO_LOAD = 100; // 최대 로그 수 제한
+  
   // 표시 통계 업데이트 인터벌 설정 (불필요한 렌더링 방지)
   useEffect(() => {
-    // 화면 업데이트는 1초에 한 번만 수행
+    // 화면 업데이트 간격 증가
     const updateInterval = setInterval(() => {
-      setDisplayStats({...currentStatsRef.current});
-    }, 1000);
+      // 메모리 최적화: deepEqual로 변경 사항이 있는 경우에만 상태 업데이트
+      if (JSON.stringify(currentStatsRef.current) !== JSON.stringify(displayStats)) {
+        setDisplayStats({...currentStatsRef.current});
+      }
+    }, 2000); // 1초에서 2초로 증가
     
     intervalsRef.current.push(updateInterval);
     
     return () => {
       clearInterval(updateInterval);
     };
-  }, []);
+  }, [displayStats]);
 
   // 설정 관련 상태 - 최적화를 위해 분리
   const [settings, setSettings] = useState<SettingsState>({
@@ -241,7 +247,7 @@ const HomeContent = React.memo(function HomeContent() {
   }, []);
 
   // API 호출 최적화
-  const fetchLogs = useCallback(async () => {
+  const fetchLogs = useCallback(async (limit = MAX_LOGS_TO_LOAD) => {
     if (activeTab !== 'history' && activeTab !== 'stats' && activeTab !== 'chart') {
       // 필요한 탭에서만 로그를 가져오도록 최적화
       return;
@@ -250,14 +256,35 @@ const HomeContent = React.memo(function HomeContent() {
     try {
       setIsLoading(true);
       
-      const response = await fetch('/api/getLogs');
+      // 필요한 탭에 따라 다른 API 엔드포인트 사용 (데이터 양 최적화)
+      const endpoint = activeTab === 'chart' 
+        ? '/api/getAggregatedLogs' // 집계 데이터만 필요한 경우
+        : `/api/getLogs?limit=${limit}`; // 일반 로그 조회
+      
+      const response = await fetch(endpoint);
       const data = await response.json();
       
       if (data.success) {
-        setLogs(data.logs);
+        // 메모리 사용 최적화: 객체 참조 최소화를 위해 필요한 필드만 추출
+        const optimizedLogs = data.logs.map((log: any) => ({
+          id: log.id,
+          content: log.content,
+          key_count: log.key_count,
+          typing_time: log.typing_time,
+          timestamp: log.timestamp,
+          created_at: log.created_at,
+          window_title: log.window_title,
+          browser_name: log.browser_name,
+          total_chars: log.total_chars,
+          total_words: log.total_words,
+          pages: log.pages,
+          accuracy: log.accuracy
+        }));
+        
+        setLogs(optimizedLogs);
         
         if (debugMode) {
-          console.log('로그 데이터 불러옴:', data.logs.length);
+          console.log('로그 데이터 불러옴:', optimizedLogs.length);
         }
       } else {
         console.error('로그 불러오기 실패:', data.error);
@@ -839,9 +866,82 @@ const handleDarkModeChange = useCallback((enabled: boolean) => {
     }
   }, [electronAPI]);
 
+  // 메모리 관리를 위한 useEffect
+  useEffect(() => {
+    // 브라우저에서 실행 중인지 확인
+    if (typeof window === 'undefined') return;
+    
+    // 메모리 사용량 모니터링 함수
+    const checkMemoryUsage = () => {
+      // 메모리 정보가 있는 경우 (Chrome/Chromium 환경)
+      if (window.performance && (window.performance as any).memory) {
+        const memoryInfo = (window.performance as any).memory;
+        const usedHeapSize = memoryInfo.usedJSHeapSize / (1024 * 1024);
+        
+        if (debugMode) {
+          console.log(`메모리 사용량: ${Math.round(usedHeapSize)}MB`);
+        }
+        
+        // 임계치 이상이면 불필요한 데이터 해제
+        if (usedHeapSize > 100) { // 100MB 이상
+          // 필요하지 않은 큰 객체 참조 해제
+          if (activeTab !== 'history' && activeTab !== 'stats') {
+            // 로그 데이터가 필요 없는 탭에서는 메모리에서 해제
+            setLogs([]);
+          }
+          
+          // 브라우저에 GC 권장
+          if (window.gc) {
+            window.gc();
+          }
+        }
+      }
+    };
+    
+    // 30초마다 메모리 사용량 체크
+    const memoryCheckInterval = setInterval(checkMemoryUsage, 30000);
+    intervalsRef.current.push(memoryCheckInterval);
+    
+    // 페이지 언마운트 시 메모리 정리
+    return () => {
+      clearInterval(memoryCheckInterval);
+      
+      // 등록된 모든 이벤트 리스너 제거
+      eventsCleanupRef.current.forEach(cleanup => cleanup());
+      eventsCleanupRef.current = [];
+      
+      // 등록된 모든 인터벌 제거
+      intervalsRef.current.forEach(clearInterval);
+      intervalsRef.current = [];
+      
+      // 대용량 객체 참조 끊기
+      setLogs([]);
+      currentStatsRef.current = {
+        keyCount: 0,
+        typingTime: 0,
+        windowTitle: '',
+        browserName: '',
+        totalChars: 0,
+        totalCharsNoSpace: 0,
+        totalWords: 0,
+        pages: 0,
+        accuracy: 100
+      };
+      
+      // 메모리 해제 요청
+      if (window.gc) {
+        try {
+          window.gc();
+        } catch (e) {
+          console.log('GC 호출 실패');
+        }
+      }
+    };
+  }, [activeTab, debugMode]);
+
   // 메모이제이션된 컴포넌트 렌더링 - 의존성 최적화
   const renderActiveTab = useMemo(() => {
-    // 각 탭 렌더링별 필요한 의존성만 포함
+    // 객체 참조를 줄이기 위해 필요한 props만 전달
     switch (activeTab) {
       case 'monitor':
         return (
@@ -854,23 +954,30 @@ const handleDarkModeChange = useCallback((enabled: boolean) => {
           />
         );
       case 'history':
+        // 필요한 시점에만 로드 (지연 로딩)
         return (
-          <TypingHistory 
-            logs={logs}
-            isLoading={isLoading}
-          />
+          <React.Suspense fallback={<div>Loading history...</div>}>
+            <TypingHistory 
+              logs={logs}
+              isLoading={isLoading}
+            />
+          </React.Suspense>
         );
       case 'stats':
         return (
-          <TypingStats 
-            logs={logs}
-          />
+          <React.Suspense fallback={<div>Loading stats...</div>}>
+            <TypingStats 
+              logs={logs}
+            />
+          </React.Suspense>
         );
       case 'chart':
         return (
-          <TypingChart 
-            logs={logs}
-          />
+          <React.Suspense fallback={<div>Loading chart...</div>}>
+            <TypingChart 
+              logs={logs}
+            />
+          </React.Suspense>
         );
       case 'settings':
         return (
@@ -998,7 +1105,9 @@ export default function Home() {
   return (
     <ThemeProvider>
       <ToastProvider>
-        <HomeContent />
+        <React.Suspense fallback={<div>Loading...</div>}>
+          <HomeContent />
+        </React.Suspense>
       </ToastProvider>
     </ThemeProvider>
   );

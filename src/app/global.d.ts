@@ -8,6 +8,7 @@ interface TypingStatsUpdate {
   totalWords?: number;
   pages?: number;
   accuracy?: number;
+  isTracking?: boolean; // isTracking 필드 추가
 }
 
 interface RecordData {

@@ -1,17 +1,38 @@
 const { app } = require('electron');
-const { appState } = require('./constants');
+const { appState, MEMORY_CHECK_INTERVAL, HIGH_MEMORY_THRESHOLD } = require('./constants');
 const { createWindow } = require('./window');
 const { setupKeyboardListener } = require('./keyboard');
 const { setupIpcHandlers } = require('./ipc-handlers');
 const { loadSettings } = require('./settings');
 const { debugLog } = require('./utils');
-const { setupTray, destroyTray } = require('./tray'); // 트레이 기능 임포트 추가
+const { setupTray, destroyTray } = require('./tray');
+
+// 앱 시작 시 하드웨어 가속 비활성화 여부 설정 - app.ready 이벤트 전에 실행
+if (appState.settings && !appState.settings.useHardwareAcceleration) {
+  try {
+    app.disableHardwareAcceleration();
+    debugLog('하드웨어 가속 비활성화됨');
+  } catch (error) {
+    debugLog('하드웨어 가속 비활성화 실패:', error);
+  }
+}
+
+// GC 노출 설정
+try {
+  app.commandLine.appendSwitch('js-flags', '--expose-gc');
+  debugLog('GC 노출 설정 완료');
+} catch (error) {
+  debugLog('GC 노출 설정 실패:', error);
+}
 
 /**
  * 앱 초기화 함수
  */
 async function initializeApp() {
   debugLog('앱 초기화 시작');
+  
+  // 메모리 사용량 모니터링 시작
+  setupMemoryMonitoring();
   
   // 설정 로드
   await loadSettings();
@@ -34,6 +55,62 @@ async function initializeApp() {
 }
 
 /**
+ * 메모리 모니터링 설정
+ */
+function setupMemoryMonitoring() {
+  // 주기적 메모리 체크 및 GC
+  const memoryCheckInterval = setInterval(() => {
+    const memoryInfo = process.memoryUsage();
+    const heapUsedMB = Math.round(memoryInfo.heapUsed / (1024 * 1024));
+    
+    // 메모리 사용량 저장
+    appState.memoryUsage = {
+      lastCheck: Date.now(),
+      heapUsed: memoryInfo.heapUsed
+    };
+    
+    // 디버그 모드에서만 로깅
+    if (process.env.NODE_ENV === 'development') {
+      debugLog(`메모리 사용량: ${heapUsedMB}MB (힙), ${Math.round(memoryInfo.rss / (1024 * 1024))}MB (전체)`);
+    }
+    
+    // 임계치 이상이면 GC 수행
+    if (memoryInfo.heapUsed > HIGH_MEMORY_THRESHOLD) {
+      if (global.gc) {
+        debugLog(`메모리 임계치 초과(${heapUsedMB}MB), GC 실행`);
+        global.gc();
+        
+        // GC 후 메모리 재확인
+        setTimeout(() => {
+          const afterGcMemoryInfo = process.memoryUsage();
+          const afterHeapUsedMB = Math.round(afterGcMemoryInfo.heapUsed / (1024 * 1024));
+          debugLog(`GC 후 메모리: ${afterHeapUsedMB}MB (이전: ${heapUsedMB}MB, 절약: ${heapUsedMB - afterHeapUsedMB}MB)`);
+        }, 500);
+      }
+    }
+    
+    // 비활성 시간 체크 (사용자 입력 없을 때)
+    const now = Date.now();
+    if (appState.currentStats.lastActiveTime) {
+      const idleTime = now - appState.currentStats.lastActiveTime;
+      appState.idleTime = idleTime;
+      
+      // 장시간 IDLE 상태면 메모리 정리 더 적극적으로
+      if (idleTime > 60000) { // 1분 이상 IDLE
+        // 메모리 사용량에 관계없이 GC 실행
+        global.gc && global.gc();
+        debugLog('장시간 IDLE 상태, 메모리 정리 실행');
+      }
+    }
+  }, MEMORY_CHECK_INTERVAL);
+  
+  // 앱 종료 시 인터벌 정리
+  app.on('will-quit', () => {
+    clearInterval(memoryCheckInterval);
+  });
+}
+
+/**
  * 앱 종료 정리 함수
  */
 function cleanupApp() {
@@ -45,8 +122,22 @@ function cleanupApp() {
     appState.keyboardListener = null;
   }
   
+  // 모든 인터벌 정리
+  if (appState.miniViewStatsInterval) {
+    clearInterval(appState.miniViewStatsInterval);
+    appState.miniViewStatsInterval = null;
+  }
+  
+  if (appState.updateInterval) {
+    clearInterval(appState.updateInterval);
+    appState.updateInterval = null;
+  }
+  
   // 트레이 제거 추가
   destroyTray();
+  
+  // 최종 메모리 정리
+  global.gc && global.gc();
   
   debugLog('앱 종료 정리 완료');
 }
