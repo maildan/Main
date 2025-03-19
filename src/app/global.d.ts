@@ -51,6 +51,8 @@ interface DebugInfo {
 
 type WindowModeType = 'windowed' | 'fullscreen' | 'fullscreen-auto-hide';
 
+type ProcessingModeType = 'auto' | 'normal' | 'cpu-intensive' | 'gpu-intensive';
+
 interface TraySettings {
   minimizeToTray: boolean;
   showTrayNotifications: boolean;
@@ -73,6 +75,10 @@ interface SettingsState {
   reduceMemoryInBackground: boolean;
   // 미니뷰 설정 추가
   enableMiniView: boolean;
+  // GPU 가속 관련 설정을 필수 속성으로 변경
+  useHardwareAcceleration: boolean;
+  processingMode: ProcessingModeType;
+  maxMemoryThreshold: number;
 }
 
 interface ElectronAPI {

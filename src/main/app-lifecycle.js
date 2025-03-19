@@ -8,6 +8,51 @@ const { debugLog } = require('./utils');
 const { setupTray, destroyTray } = require('./tray');
 // 메모리 관리자 모듈 추가
 const { setupMemoryMonitoring, performGC } = require('./memory-manager');
+// GPU 설정 관련 모듈 추가
+const { switchToLowMemoryMode } = require('./stats');
+
+// GPU 설정 확인 및 적용 함수
+async function setupGpuConfiguration() {
+  try {
+    // 설정 로드
+    await loadSettings();
+    
+    // 하드웨어 가속 설정 적용
+    const useHardwareAcceleration = appState.settings?.useHardwareAcceleration || false;
+    
+    if (!useHardwareAcceleration) {
+      app.disableHardwareAcceleration();
+      debugLog('사용자 설정에 따라 하드웨어 가속 비활성화됨');
+      appState.gpuEnabled = false;
+    } else {
+      // GPU 가속 활성화 및 최적화 플래그 설정
+      debugLog('하드웨어 가속 활성화됨');
+      appState.gpuEnabled = true;
+      
+      // 성능 최적화 플래그 설정
+      app.commandLine.appendSwitch('enable-gpu-rasterization');
+      app.commandLine.appendSwitch('enable-zero-copy');
+      app.commandLine.appendSwitch('enable-native-gpu-memory-buffers');
+      
+      // 메모리 관리 관련 플래그
+      app.commandLine.appendSwitch('renderer-process-limit', '4');
+      app.commandLine.appendSwitch('enable-features', 'NetworkService,NetworkServiceInProcess');
+    }
+    
+    // 처리 모드 적용
+    const processingMode = appState.settings?.processingMode || 'auto';
+    debugLog(`처리 모드 설정: ${processingMode}`);
+    
+    // 메모리 임계치 설정
+    const maxMemoryThreshold = appState.settings?.maxMemoryThreshold || 100;
+    debugLog(`메모리 임계치 설정: ${maxMemoryThreshold}MB`);
+    
+    return true;
+  } catch (error) {
+    console.error('GPU 설정 적용 중 오류:', error);
+    return false;
+  }
+}
 
 // 앱 시작 시 하드웨어 가속 비활성화 여부 설정 - app.ready 이벤트 전에 실행
 if (appState.settings && !appState.settings.useHardwareAcceleration) {
@@ -39,6 +84,9 @@ try {
  */
 async function initializeApp() {
   debugLog('앱 초기화 시작');
+  
+  // GPU 설정 초기화 - 새로 추가된 부분
+  await setupGpuConfiguration();
   
   // 메모리 사용량 모니터링 시작 - 새 모듈 사용
   setupMemoryMonitoring();
@@ -194,5 +242,6 @@ function setupAppEventListeners() {
 module.exports = {
   initializeApp,
   cleanupApp,
-  setupAppEventListeners
+  setupAppEventListeners,
+  setupGpuConfiguration // 새로운 함수 내보내기
 };

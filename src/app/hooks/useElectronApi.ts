@@ -36,7 +36,11 @@ const createDummyElectronAPI = (): ElectronAPI => ({
     minimizeToTray: true,
     showTrayNotifications: true,
     reduceMemoryInBackground: true,
-    enableMiniView: true
+    enableMiniView: true,
+    // 누락된 필수 속성 추가
+    useHardwareAcceleration: false,
+    processingMode: 'auto',
+    maxMemoryThreshold: 100
   }),
   setDarkMode: () => Promise.resolve({ success: true }),
   setWindowMode: () => Promise.resolve({ success: true }),

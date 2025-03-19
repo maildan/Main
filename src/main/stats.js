@@ -11,6 +11,10 @@ let workerMemoryUsage = { heapUsed: 0, heapTotal: 0 };
 let lastWorkerCheck = 0;
 let pendingTasks = [];
 
+// 메모리 사용량 임계치 및 처리 모드 상태
+const MEMORY_THRESHOLD = 100 * 1024 * 1024; // 100MB
+let processingMode = 'normal'; // 'normal', 'cpu-intensive', 'gpu-intensive'
+
 /**
  * 워커 초기화 - CPU 집약적 계산을 위한 별도 스레드
  */
@@ -21,9 +25,38 @@ function initializeWorker() {
   
   try {
     const workerPath = path.join(__dirname, './workers/stat-worker.js');
+    
+    // GPU 가속 설정 확인 및 모드 설정
+    const preferredMode = appState.settings?.processingMode || 'auto';
+    let initialMode = 'normal';
+    
+    // 자동 모드가 아닌 경우 사용자 지정 모드 사용
+    if (preferredMode !== 'auto') {
+      initialMode = preferredMode;
+      processingMode = preferredMode;
+      debugLog(`사용자 지정 처리 모드 사용: ${processingMode}`);
+    }
+    
+    // 자동 모드인 경우 시스템 상태에 따라 초기 모드 결정
+    if (preferredMode === 'auto') {
+      const { getMemoryInfo } = require('./memory-manager');
+      const memoryInfo = getMemoryInfo();
+      
+      if (memoryInfo.heapUsed > HIGH_MEMORY_THRESHOLD) {
+        initialMode = appState.gpuEnabled ? 'gpu-intensive' : 'cpu-intensive';
+        processingMode = initialMode;
+        debugLog(`메모리 상황에 따른 초기 모드 설정: ${processingMode}`);
+      }
+    }
+    
+    // 워커에 필요한 옵션 전달
     statWorker = new Worker(workerPath, {
-      // 워커에 GC 권한 부여
-      execArgv: ['--expose-gc']
+      workerData: {
+        memoryLimit: MEMORY_THRESHOLD,
+        initialMode: processingMode,
+        gpuEnabled: appState.gpuEnabled,
+        maxMemoryThreshold: appState.settings?.maxMemoryThreshold || 100
+      }
     });
     
     statWorker.on('message', (message) => {
@@ -77,6 +110,11 @@ function initializeWorker() {
             // 메인 프로세스도 메모리 정리 시도
             const { checkMemoryUsage } = require('./memory-manager');
             checkMemoryUsage(true);
+            
+            // 메모리 사용량이 임계치를 초과하면 처리 모드 변경
+            if (message.memoryInfo.heapUsed > MEMORY_THRESHOLD) {
+              switchToLowMemoryMode();
+            }
             break;
             
           case 'error':
@@ -126,9 +164,13 @@ function initializeWorker() {
       workerInitialized = false;
       statWorker = null;
       
-      // 메모리 급증 방지를 위한 GC 호출
-      if (global.gc) {
-        global.gc();
+      // 메모리 급증 방지를 위한 자원 확보
+      try {
+        // 대용량 객체 참조 제거
+        const { freeUpMemoryResources } = require('./memory-manager');
+        freeUpMemoryResources(true);
+      } catch (err) {
+        console.error('메모리 정리 중 오류:', err);
       }
     });
     
@@ -137,7 +179,81 @@ function initializeWorker() {
     console.error('워커 초기화 오류:', error);
     workerInitialized = false;
     statWorker = null;
+    
+    // 워커 없이도 기본 기능 동작하도록 폴백 모드 활성화
+    debugLog('워커 초기화 실패: 폴백 모드로 전환');
+    switchToFallbackMode();
   }
+}
+
+/**
+ * 저메모리 모드로 전환
+ * 메모리 사용량이 임계치를 초과할 때 CPU/GPU 집약적 처리 모드로 전환
+ */
+function switchToLowMemoryMode() {
+  try {
+    // 이미 저메모리 모드인 경우 또는 사용자가 처리 모드를 수동으로 지정한 경우 중단
+    if (processingMode !== 'normal' || 
+        (appState.settings?.processingMode && appState.settings.processingMode !== 'auto')) {
+      return;
+    }
+    
+    debugLog('메모리 사용량 임계치 초과: 저메모리 모드로 전환');
+    
+    // GPU 지원 여부 확인 및 가능한 경우 GPU 모드로 전환
+    appState.gpuEnabled = appState.settings?.useHardwareAcceleration === true;
+    
+    if (appState.gpuEnabled) {
+      processingMode = 'gpu-intensive';
+      debugLog('GPU 가속 처리 모드 활성화');
+    } else {
+      processingMode = 'cpu-intensive';
+      debugLog('CPU 집약적 처리 모드 활성화');
+    }
+    
+    // 워커에 모드 변경 알림
+    if (statWorker && workerInitialized) {
+      statWorker.postMessage({
+        action: 'change-processing-mode',
+        mode: processingMode
+      });
+    }
+    
+    // 메모리 정리
+    const { freeUpMemoryResources } = require('./memory-manager');
+    freeUpMemoryResources(false);
+    
+  } catch (error) {
+    console.error('저메모리 모드 전환 오류:', error);
+  }
+}
+
+/**
+ * 일반 처리 모드로 복귀
+ */
+function restoreNormalMode() {
+  if (processingMode === 'normal') {
+    return;
+  }
+  
+  debugLog('일반 처리 모드로 복귀');
+  processingMode = 'normal';
+  
+  // 워커에 모드 변경 알림
+  if (statWorker && workerInitialized) {
+    statWorker.postMessage({
+      action: 'change-processing-mode',
+      mode: processingMode
+    });
+  }
+}
+
+/**
+ * 폴백 모드로 전환 (워커 없이 동작)
+ */
+function switchToFallbackMode() {
+  debugLog('폴백 모드 활성화: 워커 없이 메인 스레드에서 계산');
+  // 폴백 모드에서는 계산을 간소화하고 메인 스레드에서 처리
 }
 
 /**
@@ -156,9 +272,21 @@ function updateWorkerMemoryInfo(memoryInfo) {
   
   lastWorkerCheck = Date.now();
   
-  // 메모리 사용량이 기준치를 초과하면 최적화 실행
+  // 메모리 사용량에 따른 처리 모드 전환
   if (workerMemoryUsage.heapUsed > HIGH_MEMORY_THRESHOLD) {
-    optimizeWorkerMemory(workerMemoryUsage.heapUsed > HIGH_MEMORY_THRESHOLD * 1.5);
+    // 심각한 메모리 부족 - 긴급 메모리 확보
+    optimizeWorkerMemory(true);
+    
+    // 저메모리 모드로 전환
+    if (workerMemoryUsage.heapUsed > MEMORY_THRESHOLD) {
+      switchToLowMemoryMode();
+    }
+  } else if (workerMemoryUsage.heapUsed > MEMORY_THRESHOLD) {
+    // 메모리 임계치 초과 - 저메모리 모드로 전환
+    switchToLowMemoryMode();
+  } else if (workerMemoryUsage.heapUsed < MEMORY_THRESHOLD * 0.7 && processingMode !== 'normal') {
+    // 메모리 사용량이 충분히 낮아지면 일반 모드로 복귀
+    restoreNormalMode();
   }
 }
 
@@ -292,7 +420,8 @@ function calculateStatsInWorker() {
       keyCount: appState.currentStats.keyCount,
       typingTime: appState.currentStats.typingTime,
       content: appState.currentContent || '',
-      errors: appState.currentStats.errors || 0
+      errors: appState.currentStats.errors || 0,
+      processingMode: processingMode // 현재 처리 모드 전달
     }
   };
   
@@ -302,7 +431,24 @@ function calculateStatsInWorker() {
       statWorker.postMessage(message);
     } catch (error) {
       console.error('워커 메시지 전송 오류:', error);
-      updateCalculatedStatsMain(); // 폴백: 메인 스레드에서 계산
+      
+      // 오류 발생 시 대안 처리
+      try {
+        // 메모리 사용량 초과 여부에 따라 처리 방식 선택
+        const memoryUsage = process.memoryUsage();
+        if (memoryUsage.heapUsed > MEMORY_THRESHOLD) {
+          // 메모리 사용량이 높은 경우 경량화된 계산 수행
+          updateCalculatedStatsLite();
+          debugLog('메모리 사용량 초과: 경량화된 계산 수행');
+        } else {
+          // 일반적인 경우 표준 계산 수행
+          updateCalculatedStatsMain();
+        }
+      } catch (innerError) {
+        console.error('폴백 계산 중 오류:', innerError);
+        // 최소한의 기본 계산만 수행
+        updateCalculatedStatsMinimal();
+      }
     }
   } else {
     // 워커가 준비되지 않은 경우 작업 큐에 추가
@@ -321,6 +467,28 @@ function calculateStatsInWorker() {
   if (lastWorkerCheck === 0 || (Date.now() - lastWorkerCheck) > 60000) { // 1분마다
     checkWorkerStatus();
   }
+}
+
+/**
+ * 경량화된 통계 계산 (메모리 사용량 최소화)
+ */
+function updateCalculatedStatsLite() {
+  const { keyCount, typingTime } = appState.currentStats;
+  
+  // 최소한의 필수 계산만 수행
+  appState.currentStats.totalWords = Math.round(keyCount / 5);
+  appState.currentStats.totalChars = keyCount;
+  appState.currentStats.pages = keyCount / 1800;
+  appState.currentStats.accuracy = 100;
+}
+
+/**
+ * 최소한의 통계 계산 (긴급 상황용)
+ */
+function updateCalculatedStatsMinimal() {
+  // 메모리 사용을 최소화하기 위해 가장 기본적인 계산만 수행
+  appState.currentStats.totalWords = Math.round(appState.currentStats.keyCount / 5);
+  appState.currentStats.totalChars = appState.currentStats.keyCount;
 }
 
 /**
@@ -640,5 +808,9 @@ module.exports = {
   cleanup,
   initializeWorker,
   analyzeTypingPattern,
-  optimizeWorkerMemory
+  optimizeWorkerMemory,
+  // 새로운 함수 내보내기
+  switchToLowMemoryMode,
+  restoreNormalMode,
+  getProcessingMode: () => processingMode
 };

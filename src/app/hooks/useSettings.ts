@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useToast } from '../components/ToastContext';
 import { applyDarkModeToAllElements } from '../utils/darkModeUtils';
 
-// 기본 설정 값
+// 기본 설정 값 - GPU 및 처리 모드 추가
 const defaultSettings: SettingsState = {
   enabledCategories: {
     docs: true,
@@ -16,7 +16,10 @@ const defaultSettings: SettingsState = {
   minimizeToTray: true,
   showTrayNotifications: true,
   reduceMemoryInBackground: true,
-  enableMiniView: true
+  enableMiniView: true,
+  useHardwareAcceleration: false, // GPU 하드웨어 가속 기본값 추가
+  processingMode: 'auto', // 처리 모드 기본값 추가
+  maxMemoryThreshold: 100 // 메모리 임계치 기본값
 };
 
 export function useSettings(electronAPI: ElectronAPI | null) {
@@ -39,7 +42,7 @@ export function useSettings(electronAPI: ElectronAPI | null) {
     try {
       const savedSettings = localStorage.getItem('app-settings');
       if (savedSettings) {
-        const parsedSettings = JSON.parse(savedSettings) as SettingsState;
+        const parsedSettings = JSON.parse(savedSettings) as Partial<SettingsState>;
         
         // 누락된 필드가 있을 경우 기본값 추가
         const completeSettings: SettingsState = {
@@ -55,7 +58,10 @@ export function useSettings(electronAPI: ElectronAPI | null) {
           minimizeToTray: parsedSettings.minimizeToTray ?? true,
           showTrayNotifications: parsedSettings.showTrayNotifications ?? true,
           reduceMemoryInBackground: parsedSettings.reduceMemoryInBackground ?? true,
-          enableMiniView: parsedSettings.enableMiniView ?? true
+          enableMiniView: parsedSettings.enableMiniView ?? true,
+          useHardwareAcceleration: parsedSettings.useHardwareAcceleration ?? false, // GPU 가속 설정 추가
+          processingMode: parsedSettings.processingMode ?? 'auto', // 처리 모드 설정 추가
+          maxMemoryThreshold: parsedSettings.maxMemoryThreshold ?? 100 // 메모리 임계치 추가
         };
         
         setSettings(completeSettings);

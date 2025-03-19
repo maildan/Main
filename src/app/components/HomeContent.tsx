@@ -50,6 +50,31 @@ export const HomeContent = React.memo(function HomeContent() {
     handleWindowModeChange 
   } = useSettings(electronAPI);
   
+  // 설정 로드 함수 내에서 기본값 설정
+  const loadSettings = async () => {
+    try {
+      if (electronAPI) {
+        const settings = await electronAPI.loadSettings();
+        
+        // GPU 가속 관련 속성이 없는 경우 기본값 설정
+        const completeSettings: SettingsState = {
+          ...settings,
+          // 필수 속성이지만 값이 undefined인 경우를 방지하기 위한 기본값 설정
+          useHardwareAcceleration: settings.useHardwareAcceleration ?? false,
+          processingMode: settings.processingMode ?? 'auto',
+          maxMemoryThreshold: settings.maxMemoryThreshold ?? 100
+        };
+        
+        // setSettings 대신 handleSaveSettings 사용
+        handleSaveSettings(completeSettings);
+        // setDarkMode 대신 handleDarkModeChange 사용
+        handleDarkModeChange(settings.darkMode);
+      }
+    } catch (error) {
+      console.error('설정 로드 중 오류:', error);
+    }
+  };
+
   // 탭 관리
   const { 
     activeTab, 
@@ -144,7 +169,7 @@ export const HomeContent = React.memo(function HomeContent() {
         return (
           <Settings  // 이제 정상적으로 임포트된 Settings 컴포넌트 사용
             onSave={handleSaveSettings}
-            initialSettings={settings}
+            initialSettings={settings} // 이제 완전한 설정을 전달
             darkMode={darkMode}
             onDarkModeChange={handleDarkModeChange}
             onWindowModeChange={handleWindowModeChange}

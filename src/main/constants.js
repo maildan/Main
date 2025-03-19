@@ -55,13 +55,16 @@ const appState = {
     reduceMemoryInBackground: true, // 백그라운드에서 메모리 사용 감소
     enableMiniView: true, // 미니뷰 활성화 기본값
     useHardwareAcceleration: false, // 하드웨어 가속 사용 여부
+    processingMode: 'auto', // 처리 모드 - 'auto', 'normal', 'cpu-intensive', 'gpu-intensive'
     garbageCollectionInterval: 60000, // 주기적 GC 실행 간격 (ms)
     maxMemoryThreshold: 100, // 메모리 임계치 (MB)
     autoCleanupLogs: true, // 오래된 로그 자동 정리
     maxHistoryItems: 500, // 최대 히스토리 항목 수
     logRetentionDays: 30 // 로그 보관 일수
   },
-  inBackgroundMode: false
+  inBackgroundMode: false,
+  gpuEnabled: false, // GPU 가속 사용 여부
+  gpuResources: null // GPU 관련 리소스 저장 객체
 };
 
 // IDLE 시간 기준 증가

@@ -22,6 +22,10 @@ export interface SettingsState {
   reduceMemoryInBackground: boolean;
   // 미니뷰 설정 추가
   enableMiniView: boolean;
+  // GPU 가속 관련 설정 추가
+  useHardwareAcceleration: boolean;
+  processingMode: 'auto' | 'normal' | 'cpu-intensive' | 'gpu-intensive';
+  maxMemoryThreshold: number;
 }
 
 interface SettingsProps {
@@ -39,7 +43,7 @@ export function Settings({
   onDarkModeChange, 
   onWindowModeChange 
 }: SettingsProps) {
-  const [settings, setSettings] = useState<SettingsState>(initialSettings || {
+  const [settings, setSettings] = useState<SettingsState>({
     enabledCategories: {
       docs: true,
       office: true,
@@ -52,7 +56,17 @@ export function Settings({
     minimizeToTray: true,
     showTrayNotifications: true,
     reduceMemoryInBackground: true,
-    enableMiniView: true // 미니뷰 기본값 true
+    enableMiniView: true, // 미니뷰 기본값 true
+    // 수정: 타입 오류 해결을 위해 옵셔널 체이닝과 nullish 병합 연산자 수정
+    useHardwareAcceleration: initialSettings && 'useHardwareAcceleration' in initialSettings 
+      ? initialSettings.useHardwareAcceleration 
+      : false,
+    processingMode: initialSettings && 'processingMode' in initialSettings 
+      ? initialSettings.processingMode 
+      : 'auto',
+    maxMemoryThreshold: initialSettings && 'maxMemoryThreshold' in initialSettings 
+      ? initialSettings.maxMemoryThreshold 
+      : 100
   });
   const { showToast } = useToast();
 
@@ -125,6 +139,13 @@ export function Settings({
     setSettings(prev => ({
       ...prev,
       enableMiniView: !prev.enableMiniView
+    }));
+  };
+
+  const handleSettingChange = (key: keyof SettingsState, value: any) => {
+    setSettings(prev => ({
+      ...prev,
+      [key]: value
     }));
   };
 
@@ -244,6 +265,63 @@ export function Settings({
             />
             <span className={styles.radioText}>자동 숨김 모드 (마우스 가까이 가면 도구모음 표시)</span>
           </label>
+        </div>
+      </div>
+
+      {/* 성능 섹션 추가 */}
+      <div className={styles.settingSection}>
+        <h3>성능 설정</h3>
+        
+        <div className={styles.toggleItem}>
+          <label>
+            <input 
+              type="checkbox" 
+              checked={settings.useHardwareAcceleration} 
+              onChange={(e) => handleSettingChange('useHardwareAcceleration', e.target.checked)}
+            />
+            <span className={styles.toggleLabel}>
+              GPU 하드웨어 가속 사용 (재시작 필요)
+            </span>
+          </label>
+          <p className={styles.settingDescription}>
+            GPU 하드웨어 가속을 활성화하면 그래픽 렌더링과 일부 계산이 더 빨라질 수 있지만,
+            일부 시스템에서는 불안정할 수 있습니다. 변경 후 앱 재시작이 필요합니다.
+          </p>
+        </div>
+        
+        <div className={styles.toggleItem}>
+          <label className={styles.selectLabel}>처리 모드:</label>
+          <select 
+            className={styles.selectControl}
+            value={settings.processingMode || 'auto'} 
+            onChange={(e) => handleSettingChange('processingMode', e.target.value)}
+          >
+            <option value="auto">자동 (리소스에 따라 결정)</option>
+            <option value="normal">일반 모드</option>
+            <option value="cpu-intensive">CPU 집약적 모드 (메모리 최적화)</option>
+            <option value="gpu-intensive">GPU 가속 모드 (실험적)</option>
+          </select>
+          <p className={styles.settingDescription}>
+            처리 모드에 따라 타이핑 통계 계산 방식이 달라집니다. 자동 모드는 시스템 리소스에 따라
+            최적의 모드를 선택합니다. CPU 집약적 모드는 메모리 사용을 줄이고, GPU 가속 모드는
+            GPU를 활용하여 계산 속도를 높입니다.
+          </p>
+        </div>
+        
+        <div className={styles.toggleItem}>
+          <label className={styles.selectLabel}>메모리 임계치 (MB):</label>
+          <input 
+            type="number" 
+            className={styles.numberInput}
+            value={settings.maxMemoryThreshold || 100} 
+            onChange={(e) => handleSettingChange('maxMemoryThreshold', parseInt(e.target.value))}
+            min={50}
+            max={500}
+          />
+          <p className={styles.settingDescription}>
+            메모리 사용량이 이 임계치를 초과하면 메모리 최적화 모드로 전환됩니다.
+            값이 높을수록 더 많은 메모리를 사용하지만 성능이 향상될 수 있습니다.
+          </p>
         </div>
       </div>
 

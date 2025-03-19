@@ -218,53 +218,67 @@ function checkMemoryUsage() {
  * @param {boolean} isEmergency 긴급 상황인지 여부
  */
 function freeUpMemoryResources(isEmergency = false) {
-  debugLog(`메모리 자원 확보 - ${isEmergency ? '긴급' : '일반'} 모드`);
-  
-  // 불필요한 캐시 정리
-  if (appState.currentStats) {
-    // 과거 히스토리 데이터 참조가 필요없을 때 정리
-    if (appState.oldHistoryData) {
-      delete appState.oldHistoryData;
-      debugLog('과거 히스토리 데이터 메모리 해제');
-    }
+  process.nextTick(() => {/* 비워둠 */});
+}
+
+/**
+ * 메모리 사용량을 최적화하기 위한 리소스 해제
+ * @param {boolean} emergency 긴급 상황 여부
+ */
+function freeUpMemoryResources(emergency = false) {
+  try {
+    // 현재 메모리 상태 확인
+    const memoryBefore = getMemoryInfo();
     
-    // 큰 객체 참조 정리
-    const largeObjectKeys = Object.keys(appState).filter(key => {
-      const value = appState[key];
-      return (
-        value &&
-        typeof value === 'object' &&
-        !['mainWindow', 'miniViewWindow', 'tray', 'settings', 'currentStats'].includes(key)
-      );
-    });
+    // 1. 불필요한 캐시 정리
+    global.gc && global.gc();
     
-    largeObjectKeys.forEach(key => {
-      debugLog(`대용량 객체 정리: ${key}`);
-      delete appState[key];
-    });
-  }
-  
-  // 이미지 캐시 정리
-  if (isEmergency && appState.mainWindow) {
-    appState.mainWindow.webContents.session.clearCache()
-      .then(() => debugLog('세션 캐시 정리 완료'))
-      .catch(err => debugLog('세션 캐시 정리 실패:', err));
-  }
-  
-  // 메인 프로세스 힙 압축 요청
-  process.nextTick(() => {
-    try {
-      // 명시적 GC 요청
-      if (global.gc) {
-        setTimeout(() => {
-          global.gc();
-          debugLog('명시적 GC 요청 완료');
-        }, 200);
+    // 2. 대용량 데이터 정리 (긴급 상황에서만)
+    if (emergency) {
+      // 오래된 로그 데이터 참조 해제
+      if (appState.historyLogs && appState.historyLogs.length > 100) {
+        appState.historyLogs = appState.historyLogs.slice(-50); // 최근 50개만 유지
       }
-    } catch (e) {
-      debugLog('메모리 정리 시도 중 오류:', e);
+      
+      // 임시 데이터 정리
+      appState.tempData = null;
     }
-  });
+    
+    // 3. 메모리 누수 방지를 위한 참조 순환 끊기
+    if (appState.circularRefs) {
+      Object.keys(appState.circularRefs).forEach(key => {
+        appState.circularRefs[key] = null;
+      });
+    }
+    
+    // 4. GPU 메모리 관련 리소스 정리 (추가)
+    if (appState.gpuResources && emergency) {
+      // GPU 관련 임시 리소스 정리
+      if (Array.isArray(appState.gpuResources)) {
+        appState.gpuResources.length = 0;
+      } else if (typeof appState.gpuResources === 'object') {
+        Object.keys(appState.gpuResources).forEach(key => {
+          appState.gpuResources[key] = null;
+        });
+      }
+      appState.gpuResources = null;
+    }
+    
+    // 결과 확인
+    const memoryAfter = getMemoryInfo();
+    const savedMB = Math.round((memoryBefore.heapUsed - memoryAfter.heapUsed) / (1024 * 1024));
+    
+    debugLog(`메모리 정리 완료: ${savedMB}MB 확보됨 (${emergency ? '긴급모드' : '일반모드'})`);
+    
+    return {
+      before: memoryBefore,
+      after: memoryAfter,
+      savedBytes: memoryBefore.heapUsed - memoryAfter.heapUsed
+    };
+  } catch (error) {
+    console.error('메모리 리소스 해제 중 오류:', error);
+    return null;
+  }
 }
 
 /**
