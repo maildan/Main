@@ -281,6 +281,9 @@ function cleanupApp() {
  * 앱 이벤트 리스너 설정
  */
 function setupAppEventListeners() {
+  // 전역 예외 처리기 설정
+  setupGlobalExceptionHandlers();
+  
   // 앱 준비 이벤트
   app.on('ready', async () => {
     debugLog('앱 준비 완료');
@@ -306,21 +309,46 @@ function setupAppEventListeners() {
   // 앱 종료 전 이벤트
   app.on('will-quit', cleanupApp);
   
-  // 앱이 백그라운드로 전환될 때 메모리 최적화
+  // 앱이 백그라운드로 전환될 때 메모리 최적화 처리
   app.on('browser-window-blur', () => {
-    if (appState.settings.reduceMemoryInBackground) {
-      const { optimizeMemoryForBackground } = require('./memory-manager');
-      optimizeMemoryForBackground(true);
-      debugLog('앱이 백그라운드로 전환됨, 메모리 최적화 실행');
+    try {
+      // 메모리 최적화 함수를 메모리 매니저에서 가져와서 사용
+      const memoryManager = require('./memory-manager');
+      
+      // 함수 존재 여부 확인 후 호출
+      if (typeof memoryManager.optimizeMemoryForBackground === 'function') {
+        memoryManager.optimizeMemoryForBackground(true);
+        debugLog('앱이 백그라운드로 전환됨: 메모리 최적화 모드 활성화');
+      } else {
+        debugLog('optimizeMemoryForBackground 함수를 찾을 수 없습니다. 대체 로직 사용');
+      }
+    } catch (err) {
+      // memory-manager 모듈이 없는 경우 안전하게 처리
+      debugLog('memory-manager 모듈을 로드할 수 없습니다:', err.message);
+      const fallbackMemoryManager = createFallbackMemoryManager();
+      fallbackMemoryManager.optimizeMemoryForBackground(true);
     }
   });
   
-  // 앱이 포그라운드로 돌아올 때
+  // 앱이 포그라운드로 돌아왔을 때 일반 상태로 전환
   app.on('browser-window-focus', () => {
-    if (appState.inBackgroundMode) {
-      const { optimizeMemoryForBackground } = require('./memory-manager');
-      optimizeMemoryForBackground(false);
-      debugLog('앱이 포그라운드로 복귀, 기본 상태로 전환');
+    try {
+      // 메모리 매니저 모듈 동적 로드 시도
+      const memoryManager = require('./memory-manager');
+      
+      // 함수 존재 여부 확인 후 호출
+      if (typeof memoryManager.optimizeMemoryForBackground === 'function') {
+        memoryManager.optimizeMemoryForBackground(false);
+        debugLog('앱이 포그라운드로 복귀, 기본 상태로 전환');
+      } else {
+        debugLog('optimizeMemoryForBackground 함수를 찾을 수 없습니다. 대체 로직 사용');
+        // 대체 로직: 필요시 리소스 복원
+        if (appState.mainWindow && !appState.mainWindow.isDestroyed()) {
+          appState.mainWindow.webContents.send('background-mode', false);
+        }
+      }
+    } catch (error) {
+      console.error('포그라운드 메모리 최적화 해제 오류:', error);
     }
   });
   
@@ -329,12 +357,127 @@ function setupAppEventListeners() {
     if (details.reason === 'oom' || details.reason === 'crashed') {
       debugLog('렌더러 프로세스 메모리 부족 또는 충돌:', details);
       // 메모리 긴급 정리
-      const { freeUpMemoryResources } = require('./memory-manager');
-      freeUpMemoryResources(true);
+      try {
+        const { freeUpMemoryResources } = require('./memory-manager');
+        freeUpMemoryResources(true);
+      } catch (error) {
+        console.error('메모리 긴급 정리 중 오류:', error);
+      }
     }
   });
   
   debugLog('앱 이벤트 리스너 설정 완료');
+}
+
+/**
+ * 전역 예외 핸들러 설정
+ * 처리되지 않은 예외를 잡아 앱이 충돌하지 않도록 함
+ */
+function setupGlobalExceptionHandlers() {
+  // 처리되지 않은 예외 처리
+  process.on('uncaughtException', (error) => {
+    console.error('처리되지 않은 예외:', error);
+    debugLog(`치명적인 오류 발생: ${error.message}`);
+    
+    // 오류 로깅 - 실제 프로덕션에서는 로그 파일이나 원격 서버에 기록
+    try {
+      const fs = require('fs');
+      const path = require('path');
+      const logDir = path.join(app.getPath('userData'), 'logs');
+      
+      // 로그 디렉토리 확인 및 생성
+      if (!fs.existsSync(logDir)) {
+        fs.mkdirSync(logDir, { recursive: true });
+      }
+      
+      // 오류 로그 파일에 기록
+      const logFile = path.join(logDir, `error-${new Date().toISOString().replace(/[:.]/g, '-')}.log`);
+      const logContent = `[${new Date().toISOString()}] ${error.stack || error.message}\n`;
+      
+      fs.appendFileSync(logFile, logContent);
+    } catch (logError) {
+      console.error('오류 로깅 실패:', logError);
+    }
+    
+    // 앱을 종료하지 않고 계속 실행
+    debugLog('앱이 예외를 처리하고 계속 실행됩니다.');
+  });
+  
+  // 처리되지 않은 Promise 거부 처리
+  process.on('unhandledRejection', (reason, promise) => {
+    console.error('처리되지 않은 Promise 거부:', reason);
+    debugLog(`Promise 오류: ${reason}`);
+  });
+  
+  // 렌더러 프로세스 충돌 처리
+  app.on('render-process-gone', (event, webContents, details) => {
+    console.error('렌더러 프로세스 종료:', details);
+    debugLog(`렌더러 프로세스 오류: ${details.reason}`);
+    
+    // 메인 창이 충돌한 경우 복구 시도
+    if (appState.mainWindow && webContents === appState.mainWindow.webContents) {
+      debugLog('메인 창 복구 시도 중...');
+      
+      // 타이머로 지연시켜 안전하게 재생성
+      setTimeout(() => {
+        try {
+          if (appState.mainWindow && appState.mainWindow.isDestroyed()) {
+            debugLog('파괴된 창 재생성 시도');
+            const { createWindow } = require('./window');
+            createWindow();
+          }
+        } catch (e) {
+          console.error('창 복구 실패:', e);
+        }
+      }, 1000);
+    }
+  });
+  
+  debugLog('전역 예외 핸들러 설정 완료');
+}
+
+/**
+ * 메모리 매니저 모듈이 로드되지 않을 경우 대체 구현 제공
+ * @returns {Object} 기본 메모리 관리 기능
+ */
+function createFallbackMemoryManager() {
+  debugLog('대체 메모리 매니저 생성');
+  return {
+    optimizeMemoryForBackground: function(enable) {
+      debugLog(`대체 메모리 최적화 함수 호출됨 (활성화: ${enable})`);
+      // 기본 작업 수행
+      if (enable) {
+        // GC 직접 호출만 시도
+        if (global.gc) {
+          setTimeout(() => {
+            global.gc();
+            debugLog('GC 호출 완료');
+          }, 500);
+        }
+        
+        // 백그라운드 모드 알림
+        if (appState.mainWindow && !appState.mainWindow.isDestroyed()) {
+          appState.mainWindow.webContents.send('background-mode', true);
+        }
+      } else {
+        // 포그라운드 모드 알림
+        if (appState.mainWindow && !appState.mainWindow.isDestroyed()) {
+          appState.mainWindow.webContents.send('background-mode', false);
+        }
+      }
+      return true;
+    },
+    
+    freeUpMemoryResources: function(emergency) {
+      debugLog(`대체 메모리 정리 함수 호출됨 (긴급: ${emergency})`);
+      // 기본 GC 수행
+      if (global.gc) {
+        global.gc();
+        debugLog('기본 GC 수행 완료');
+      }
+      return true;
+    }
+  };
 }
 
 module.exports = {

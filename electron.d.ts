@@ -14,54 +14,60 @@ interface ElectronAPI {
     title: string | null;
   }>;
   getDebugInfo: () => Promise<DebugInfo>;
-  saveSettings: (settings: SettingsState) => void;
+  saveSettings: (settings: SettingsState) => Promise<any>;
   loadSettings: () => Promise<SettingsState>;
-  setDarkMode: (enabled: boolean) => void;
-  setWindowMode: (mode: WindowModeType) => void;
+  setDarkMode: (enabled: boolean) => Promise<any>;
+  setWindowMode: (mode: WindowModeType) => Promise<any>;
   getWindowMode: () => Promise<WindowModeType>;
-  windowControl: (
-    command: 'minimize' | 'maximize' | 'close' | 'showHeader' | 'hideHeader' | 'setTitle',
-    param?: string
-  ) => void;
+  windowControl: (command: 'minimize' | 'maximize' | 'close') => void;
   checkAutoStart: (shouldAutoStart: boolean) => void;
   onAutoTrackingStarted: (callback: (data: any) => void) => () => void;
-  
-  // 트레이 관련 API 추가
-  updateTraySettings: (settings: {
-    minimizeToTray?: boolean;
-    showTrayNotifications?: boolean;
-    reduceMemoryInBackground?: boolean;
-  }) => Promise<{
-    success: boolean;
-    settings?: TraySettings;
-    error?: string;
-  }>;
-  
-  quitApp: () => void;
-  toggleWindow: () => void;
-  onBackgroundModeChange: (callback: (isBackground: boolean) => void) => () => void;
-  onTrayCommand: (callback: (command: 'start' | 'stop') => void) => () => void;
-
-  // 누락된 메서드 추가
-  onSwitchTab: (callback: (tab: string) => void) => () => void;
-  onOpenSaveStatsDialog: (callback: () => void) => () => void;
-  requestStatsUpdate: () => void;
-  
-  // 미니뷰 관련 메소드 추가
-  onMiniViewStatsUpdate: (callback: (data: TypingStatsUpdate) => void) => () => void;
-  toggleMiniView: () => void;
-  
-  /**
-   * 앱 재시작
-   */
+  onShowRestartLoading?: (callback: (data: RestartLoadingData) => void) => () => void;
+  // 메모리 관련 API 추가
+  getMemoryUsage?: () => Promise<MemoryInfo>;
+  requestGC?: () => Promise<any>;
+  optimizeMemory?: (emergency?: boolean) => Promise<any>;
+  rendererGCCompleted?: (data: any) => void;
+  onRequestGC?: (callback: (data: {emergency: boolean}) => void) => () => void;
+  // 재시작 관련 API 추가
   restartApp: () => void;
-  
-  /**
-   * 재시작 안내 창 표시
-   */
   showRestartPrompt: () => void;
 }
 
+// 통합된 MemoryInfo 인터페이스 - 각 속성에 설명 추가
+interface MemoryInfo {
+  // 공통 필드
+  timestamp: number;        // 메모리 정보 수집 시간
+  
+  // 프로세스 메모리 정보 필드
+  heapUsed: number;         // 사용 중인 힙 메모리 (바이트)
+  heapTotal: number;        // 총 할당된 힙 메모리 (바이트)
+  heapLimit?: number;       // 힙 메모리 한도 (바이트)
+  heapUsedMB: number;       // 사용 중인 힙 메모리 (MB)
+  percentUsed: number;      // 메모리 사용률 (%)
+  
+  // 추가 필드
+  unavailable?: boolean;    // 메모리 정보 사용 불가 여부
+  error?: string;           // 오류 메시지 (있을 경우)
+  
+  // Chrome Performance API 확장 필드
+  totalJSHeapSize?: number; // 총 JS 힙 크기 (바이트)
+  usedJSHeapSize?: number;  // 사용 중인 JS 힙 크기 (바이트)
+  jsHeapSizeLimit?: number; // JS 힙 크기 제한 (바이트)
+}
+
+// Window 인터페이스 확장
 interface Window {
   electronAPI?: ElectronAPI;
+  electron?: ElectronAPI;
+  gc?: () => void;
+}
+
+// Performance 인터페이스 확장
+interface Performance {
+  memory?: {
+    totalJSHeapSize: number;
+    usedJSHeapSize: number;
+    jsHeapSizeLimit: number;
+  };
 }

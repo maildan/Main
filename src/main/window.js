@@ -130,6 +130,9 @@ async function createWindow() {
         return appState.mainWindow.loadFile(tempPath);
       });
 
+    // 리소스 존재 여부 확인 및 누락된 리소스 생성
+    ensureRequiredResources();
+
     // 윈도우 준비되면 표시
     mainWindow.once('ready-to-show', () => {
       mainWindow.show();
@@ -182,6 +185,54 @@ async function createWindow() {
   } catch (error) {
     console.error('윈도우 생성 오류:', error);
     throw error;
+  }
+}
+
+/**
+ * 필수 리소스 파일 존재 여부 확인 및 생성
+ */
+function ensureRequiredResources() {
+  const fs = require('fs');
+  const path = require('path');
+  
+  // 앱 아이콘 확인
+  const iconPath = path.join(app.getAppPath(), 'public', 'app-icon.png');
+  const iconExists = fs.existsSync(iconPath);
+  
+  if (!iconExists) {
+    debugLog('앱 아이콘을 찾을 수 없습니다. 빈 아이콘 생성...');
+    
+    try {
+      // public 디렉토리 존재 확인
+      const publicDir = path.join(app.getAppPath(), 'public');
+      if (!fs.existsSync(publicDir)) {
+        fs.mkdirSync(publicDir, { recursive: true });
+      }
+      
+      // 기본 아이콘 복사 또는 생성
+      const defaultIconPath = path.join(__dirname, '..', '..', 'resources', 'default-icon.png');
+      
+      if (fs.existsSync(defaultIconPath)) {
+        // 기본 아이콘 복사
+        fs.copyFileSync(defaultIconPath, iconPath);
+      } else {
+        // 간단한 앱 아이콘 생성 (1x1 투명 픽셀)
+        const emptyPNG = Buffer.from([
+          0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D,
+          0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
+          0x08, 0x06, 0x00, 0x00, 0x00, 0x1F, 0x15, 0xC4, 0x89, 0x00, 0x00, 0x00,
+          0x0A, 0x49, 0x44, 0x41, 0x54, 0x78, 0x9C, 0x63, 0x00, 0x01, 0x00, 0x00,
+          0x05, 0x00, 0x01, 0x0D, 0x0A, 0x2D, 0xB4, 0x00, 0x00, 0x00, 0x00, 0x49,
+          0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82
+        ]);
+        
+        fs.writeFileSync(iconPath, emptyPNG);
+      }
+      
+      debugLog('기본 앱 아이콘이 생성되었습니다.');
+    } catch (error) {
+      console.error('앱 아이콘 생성 중 오류:', error);
+    }
   }
 }
 
@@ -497,11 +548,56 @@ function createRestartPromptWindow() {
   }
 }
 
+/**
+ * 재시작 창 생성 함수
+ */
+function createRestartWindow(reason = 'GPU 가속 설정이 변경되었습니다.') {
+  if (appState.restartWindow) {
+    appState.restartWindow.focus();
+    return;
+  }
+  
+  appState.restartWindow = new BrowserWindow({
+    width: 400,
+    height: 250,
+    resizable: false,
+    frame: false,
+    webPreferences: {
+      preload: path.join(__dirname, '../preload/restart.js'),
+      contextIsolation: true,
+      nodeIntegration: false
+    },
+    show: false,
+    center: true
+  });
+  
+  if (isDev) {
+    // 개발 환경에서는 Next.js 개발 서버의 /restart 경로 사용
+    appState.restartWindow.loadURL('http://localhost:3000/restart?reason=' + encodeURIComponent(reason));
+  } else {
+    // 프로덕션 환경에서는 정적 빌드된 파일 사용 (경로 수정)
+    appState.restartWindow.loadFile(path.join(__dirname, '../../dist/restart.html'), {
+      query: { reason: reason }
+    });
+  }
+  
+  // 창이 준비되면 보여주기
+  appState.restartWindow.once('ready-to-show', () => {
+    appState.restartWindow.show();
+    appState.restartWindow.focus();
+  });
+  
+  appState.restartWindow.on('closed', () => {
+    appState.restartWindow = null;
+  });
+}
+
 module.exports = {
   createWindow,
   optimizeForBackground,
   disableBackgroundOptimization,
   createMiniViewWindow,
   toggleMiniView,
-  createRestartPromptWindow
+  createRestartPromptWindow,
+  createRestartWindow
 };

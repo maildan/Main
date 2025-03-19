@@ -1,0 +1,197 @@
+.overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  backdrop-filter: blur(3px);
+}
+
+.dialog {
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  width: 400px;
+  max-width: 90%;
+  overflow: hidden;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.header {
+  padding: 16px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #eee;
+}
+
+.header h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.info {
+  background-color: #f0f7ff;
+  color: #0062cc;
+}
+
+.warning {
+  background-color: #fff8e6;
+  color: #cc7700;
+}
+
+.error {
+  background-color: #ffebee;
+  color: #d32f2f;
+}
+
+.success {
+  background-color: #e8f5e9;
+  color: #2e7d32;
+}
+
+.closeButton {
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: #666;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  transition: background-color 0.2s;
+}
+
+.closeButton:hover {
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+.content {
+  padding: 20px;
+}
+
+.message {
+  margin: 0;
+  line-height: 1.5;
+  font-size: 14px;
+}
+
+.actions {
+  padding: 12px 20px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  border-top: 1px solid #eee;
+}
+
+.button {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.button:hover {
+  transform: translateY(-1px);
+}
+
+.cancelButton {
+  background-color: #f5f5f5;
+  color: #333;
+}
+
+.cancelButton:hover {
+  background-color: #e0e0e0;
+}
+
+.confirmButton {
+  background-color: #4d7cfe;
+  color: white;
+}
+
+.confirmButton:hover {
+  background-color: #3a66d3;
+}
+
+.warningButton {
+  background-color: #ff9800;
+}
+
+.warningButton:hover {
+  background-color: #f57c00;
+}
+
+.errorButton {
+  background-color: #f44336;
+}
+
+.errorButton:hover {
+  background-color: #d32f2f;
+}
+
+.successButton {
+  background-color: #4caf50;
+}
+
+.successButton:hover {
+  background-color: #388e3c;
+}
+
+/* 다크 모드 스타일 */
+.darkMode .dialog {
+  background-color: #2d2d2d;
+  color: #e0e0e0;
+}
+
+.darkMode .header {
+  border-bottom-color: #444;
+}
+
+.darkMode .actions {
+  border-top-color: #444;
+}
+
+.darkMode .cancelButton {
+  background-color: #444;
+  color: #e0e0e0;
+}
+
+.darkMode .cancelButton:hover {
+  background-color: #555;
+}
+
+.darkMode .closeButton {
+  color: #aaa;
+}
+
+.darkMode .closeButton:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.darkMode.overlay {
+  background-color: rgba(0, 0, 0, 0.7);
+}
+
+/* 애니메이션 */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

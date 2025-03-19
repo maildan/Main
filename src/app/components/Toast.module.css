@@ -30,6 +30,12 @@
   color: white;
 }
 
+/* warning 스타일 추가 */
+.warning {
+  background-color: #ff9800;
+  color: white;
+}
+
 .message {
   font-weight: 500;
 }

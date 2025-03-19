@@ -127,7 +127,7 @@ function setupIpcHandlers() {
     }
   });
 
-  // 설정 로드 요청 처리 - invoke/handle 패턴으로 변경
+  // 설정 로드 요청 처리 - 중복된 핸들러 제거 및 통합
   ipcMain.handle('load-settings', async () => {
     try {
       debugLog('IPC: 설정 로드 요청 수신');
@@ -135,7 +135,26 @@ function setupIpcHandlers() {
       return settings;
     } catch (error) {
       console.error('설정 로드 오류:', error);
-      throw new Error('설정을 로드하지 못했습니다');
+      // 기본 설정 반환
+      return {
+        enabledCategories: {
+          docs: true,
+          office: true,
+          coding: true,
+          sns: true
+        },
+        autoStartMonitoring: true,
+        darkMode: false,
+        windowMode: 'windowed',
+        resumeAfterIdle: true,
+        minimizeToTray: true,
+        showTrayNotifications: true,
+        reduceMemoryInBackground: true,
+        enableMiniView: true,
+        useHardwareAcceleration: false,
+        processingMode: 'auto',
+        maxMemoryThreshold: 100
+      };
     }
   });
 
@@ -209,47 +228,74 @@ function setupIpcHandlers() {
     }
   });
   
-  // 앱 재시작 핸들러 추가
+  // 앱 재시작 핸들러
   ipcMain.on('restart-app', () => {
     debugLog('앱 재시작 요청 수신');
-    appState.allowQuit = true;
-    
-    // 앱 재시작
-    app.relaunch();
-    app.exit(0);
-  });
-
-  // 설정 로드 요청
-  ipcMain.on('load-settings', (event) => {
-    debugLog('설정 로드 요청 받음');
     
     try {
-      // 임시로 기본 설정 반환
-      const settings = appState.settings || {
-        enabledCategories: {
-          docs: true,
-          office: true,
-          coding: true,
-          sns: true
-        },
-        autoStartMonitoring: true
-      };
+      // 재시작 전에 로딩 화면 표시
+      if (appState.mainWindow && !appState.mainWindow.isDestroyed()) {
+        appState.mainWindow.webContents.send('show-restart-loading', { 
+          message: '재시작 중입니다...',
+          timeout: 1500
+        });
+      }
       
-      event.reply('settings-loaded', settings);
+      // 안전한 종료를 위한 플래그 설정
+      appState.allowQuit = true;
       
-      debugLog('설정 로드 완료');
+      // 설정 저장 확인
+      saveSettings(appState.settings)
+        .then(() => {
+          debugLog('재시작 전 설정 저장 완료');
+          
+          // 약간의 지연 후 재시작 (로딩 화면을 보여주기 위해)
+          setTimeout(() => {
+            debugLog('앱 재시작 실행');
+            app.relaunch();
+            app.exit(0);
+          }, 1000);
+        })
+        .catch(error => {
+          console.error('재시작 전 설정 저장 중 오류:', error);
+          // 오류가 있어도 재시작 시도
+          setTimeout(() => {
+            app.relaunch();
+            app.exit(0);
+          }, 1000);
+        });
     } catch (error) {
-      console.error('설정 로드 중 오류:', error);
-      event.reply('settings-loaded', { 
-        enabledCategories: {
-          docs: true,
-          office: true,
-          coding: true, 
-          sns: true
-        },
-        autoStartMonitoring: true,
-        error: String(error)
-      });
+      console.error('앱 재시작 처리 중 오류:', error);
+      // 오류 발생해도 재시작 시도
+      setTimeout(() => {
+        app.relaunch();
+        app.exit(0);
+      }, 1000);
+    }
+  });
+
+  // 재시작 안내 창 표시 핸들러 추가
+  ipcMain.on('show-restart-prompt', async () => {
+    debugLog('재시작 안내 창 표시 요청 수신');
+    try {
+      const response = await showRestartPrompt();
+      
+      if (response === 0) {
+        // 사용자가 재시작 선택
+        restartApplication();
+      }
+    } catch (error) {
+      console.error('재시작 안내 창 표시 중 오류:', error);
+    }
+  });
+
+  // 재시작 창 닫기 핸들러
+  ipcMain.on('close-restart-window', () => {
+    debugLog('재시작 창 닫기 요청 수신');
+    
+    if (appState.restartWindow && !appState.restartWindow.isDestroyed()) {
+      appState.restartWindow.close();
+      appState.restartWindow = null;
     }
   });
 
@@ -661,7 +707,79 @@ function setupIpcHandlers() {
     }
   });
 
+  // 재시작 창 닫기 핸들러 추가
+  ipcMain.on('close-restart-window', () => {
+    debugLog('재시작 창 닫기 요청 수신');
+    
+    if (appState.restartWindow && !appState.restartWindow.isDestroyed()) {
+      appState.restartWindow.close();
+      appState.restartWindow = null;
+    }
+  });
+
+  // 다크 모드 설정 가져오기 핸들러 추가
+  ipcMain.handle('get-dark-mode', () => {
+    debugLog('다크 모드 설정 요청 수신');
+    return appState.settings?.darkMode || false;
+  });
+
   debugLog('IPC 핸들러 설정 완료');
+}
+
+/**
+ * 앱 재시작 공통 함수
+ * 중복 코드를 방지하기 위해 별도 함수로 분리
+ */
+function restartApplication() {
+  try {
+    // 재시작 전에 로딩 화면 표시
+    if (appState.mainWindow && !appState.mainWindow.isDestroyed()) {
+      appState.mainWindow.webContents.send('show-restart-loading', { 
+        message: '재시작 중입니다...',
+        timeout: 1500
+      });
+    }
+    
+    // 안전한 종료를 위한 플래그 설정
+    appState.allowQuit = true;
+    
+    // 설정 저장 확인
+    saveSettings(appState.settings)
+      .then(() => {
+        debugLog('재시작 전 설정 저장 완료');
+        
+        // 약간의 지연 후 재시작 (로딩 화면을 보여주기 위해)
+        setTimeout(() => {
+          debugLog('앱 재시작 실행');
+          try {
+            app.relaunch();
+            app.exit(0);
+          } catch (error) {
+            console.error('앱 재시작 실행 중 오류:', error);
+          }
+        }, 1000);
+      })
+      .catch(error => {
+        console.error('재시작 전 설정 저장 중 오류:', error);
+        // 오류가 있어도 재시작 시도
+        setTimeout(() => {
+          app.relaunch();
+          app.exit(0);
+        }, 1000);
+      });
+  } catch (error) {
+    console.error('앱 재시작 처리 중 오류:', error);
+    
+    // 오류가 발생해도 일정 시간 후 재시작 시도
+    setTimeout(() => {
+      try {
+        app.relaunch();
+        app.exit(0);
+      } catch (innerError) {
+        console.error('최종 재시작 시도 중 오류:', innerError);
+      }
+    }, 2000);
+  }
 }
 
 module.exports = {

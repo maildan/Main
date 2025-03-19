@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState } from 'react';
 import { Toast } from './Toast';
 
-type ToastType = 'success' | 'error' | 'info';
+type ToastType = 'success' | 'error' | 'info' | 'warning'; // warning 타입 추가
 
 interface ToastContextType {
   showToast: (message: string, type: ToastType) => void;

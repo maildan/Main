@@ -1,0 +1,85 @@
+.overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.7);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999;
+  backdrop-filter: blur(5px);
+}
+
+.loadingContainer {
+  background-color: white;
+  border-radius: 8px;
+  padding: 24px;
+  text-align: center;
+  width: 300px;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.spinner {
+  width: 50px;
+  height: 50px;
+  border: 5px solid #f3f3f3;
+  border-top: 5px solid #3498db;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 16px;
+}
+
+.title {
+  font-size: 18px;
+  margin: 0 0 20px 0;
+  color: #333;
+}
+
+.progressContainer {
+  width: 100%;
+  height: 8px;
+  background-color: #e0e0e0;
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 16px;
+}
+
+.progressBar {
+  height: 100%;
+  background-color: #4d7cfe;
+  border-radius: 4px;
+  transition: width 0.2s ease;
+}
+
+.note {
+  font-size: 14px;
+  color: #666;
+  margin: 0;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* 다크 모드 지원 */
+:global(.dark-mode) .loadingContainer {
+  background-color: #1e1e1e;
+}
+
+:global(.dark-mode) .title {
+  color: #e0e0e0;
+}
+
+:global(.dark-mode) .progressContainer {
+  background-color: #333;
+}
+
+:global(.dark-mode) .note {
+  color: #aaa;
+}

@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron';
+const { contextBridge, ipcRenderer } = require('electron');
 
 const electronAPI = {
   /**
@@ -143,6 +143,21 @@ const electronAPI = {
    * @param {string} command - 창 제어 명령 (minimize, maximize, close)
    */
   windowControl: (command) => {
+    // 지원하는 명령 명시적으로 검증
+    const validCommands = ['minimize', 'maximize', 'close'];
+    
+    if (!validCommands.includes(command)) {
+      // showHeader와 hideHeader 명령에 대한 특수 처리
+      if (command === 'showHeader' || command === 'hideHeader') {
+        console.warn(`'${command}' 명령은 더 이상 사용되지 않습니다. 자동 숨김 처리는 설정에서 구성하세요.`);
+        return;
+      }
+      
+      // 그 외 유효하지 않은 명령
+      console.error(`유효하지 않은 창 제어 명령: ${command}`);
+      return;
+    }
+    
     console.log('창 제어 요청:', command);
     ipcRenderer.send('window-control', command);
   },
@@ -315,6 +330,46 @@ const electronAPI = {
   showRestartPrompt: () => {
     console.log('재시작 안내 창 표시 요청');
     ipcRenderer.send('show-restart-prompt');
+  },
+
+  /**
+   * 재시작 창 닫기 (restart.html용)
+   */
+  closeWindow: () => {
+    console.log('재시작 창 닫기 요청');
+    ipcRenderer.send('close-restart-window');
+  },
+
+  /**
+   * 다크 모드 설정 가져오기 (restart.html용)
+   * @returns {Promise<boolean>} 다크 모드 활성화 상태
+   */
+  getDarkMode: () => {
+    console.log('다크 모드 설정 요청');
+    return ipcRenderer.invoke('get-dark-mode');
+  },
+
+  /**
+   * 재시작 로딩 이벤트 수신
+   * @param {Function} callback - 재시작 로딩 표시 콜백
+   * @returns {Function} - 이벤트 리스너 제거 함수
+   */
+  onShowRestartLoading: (callback) => {
+    if (!callback || typeof callback !== 'function') {
+      console.error('유효한 콜백 함수가 필요합니다');
+      return () => {};
+    }
+
+    const handler = (_event, data) => {
+      console.log('재시작 로딩 화면 표시 요청 수신:', data);
+      callback(data);
+    };
+
+    ipcRenderer.on('show-restart-loading', handler);
+
+    return () => {
+      ipcRenderer.removeListener('show-restart-loading', handler);
+    };
   }
 };
 
@@ -324,5 +379,13 @@ contextBridge.exposeInMainWorld('electronAPI', electronAPI);
 // 동일한 API를 window.electron으로도 노출 (하위 호환성을 위해)
 contextBridge.exposeInMainWorld('electron', electronAPI);
 
+// 재시작 창을 위한 별도의 API (restart.html에서 사용)
+contextBridge.exposeInMainWorld('restartAPI', {
+  restartApp: electronAPI.restartApp,
+  closeWindow: electronAPI.closeWindow,
+  getDarkMode: electronAPI.getDarkMode
+});
+
 // 디버그용 로그
 console.log('Electron preload 스크립트가 로드되었습니다.');
+console.log('노출된 API 함수:', Object.keys(electronAPI).join(', '));

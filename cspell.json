@@ -26,6 +26,10 @@
     "Vaapi",
     "msaa",
     "Kahan",
+    "fieldtrials",
+    "appcache",
+    "serviceworkers",
+    "COOLDOWN"
   ],
   "ignorePaths": [
     "node_modules/**",

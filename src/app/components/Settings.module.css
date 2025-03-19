@@ -355,3 +355,59 @@
   border-left-color: #00e676;
   background-color: rgba(0, 230, 118, 0.05);
 }
+
+/* 디버그 버튼과 정보 표시 영역 스타일 */
+.buttonGroup {
+  display: flex;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.debugButton {
+  background-color: #7b68ee;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background-color 0.2s;
+}
+
+.debugButton:hover {
+  background-color: #6a5acd;
+}
+
+.debugInfo {
+  margin-top: 15px;
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background-color: #f8f9fa;
+  max-height: 200px;
+  overflow: auto;
+}
+
+.darkMode .debugInfo {
+  background-color: #2a2a2a;
+  border-color: #444;
+}
+
+.debugInfo h4 {
+  margin-top: 0;
+  margin-bottom: 10px;
+  font-size: 14px;
+  color: #333;
+}
+
+.darkMode .debugInfo h4 {
+  color: #e0e0e0;
+}
+
+.debugInfo pre {
+  margin: 0;
+  white-space: pre-wrap;
+  font-family: monospace;
+  font-size: 12px;
+  line-height: 1.5;
+}

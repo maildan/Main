@@ -107,6 +107,20 @@ interface ElectronAPI {
   ) => void;
   checkAutoStart: (shouldAutoStart: boolean) => void;
   onAutoTrackingStarted: (callback: (data: any) => void) => () => void;
+  
+  /**
+   * 재시작 로딩 상태 이벤트 수신
+   * @param callback 재시작 로딩 상태 변경 핸들러
+   */
+  onShowRestartLoading?: (callback: (data: RestartLoadingData) => void) => () => void;
+}
+
+/**
+ * 재시작 로딩 데이터 인터페이스
+ */
+interface RestartLoadingData {
+  message?: string;
+  timeout?: number;
 }
 
 interface LogEntry {

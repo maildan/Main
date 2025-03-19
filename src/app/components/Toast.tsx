@@ -3,7 +3,7 @@ import styles from './Toast.module.css';
 
 interface ToastProps {
   message: string;
-  type: 'success' | 'error' | 'info';
+  type: 'success' | 'error' | 'info' | 'warning'; // warning 타입 추가
   duration?: number;
   onClose?: () => void;
 }

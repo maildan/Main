@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import styles from './Settings.module.css';
 import { useToast } from './ToastContext';
+import SaveConfirmDialog from './dialogs/SaveConfirmDialog';
 
 interface EnabledCategories {
   docs: boolean;
@@ -75,7 +76,12 @@ export function Settings({
       : true
   });
   const [needsRestart, setNeedsRestart] = useState(false);
+  const [showSaveConfirm, setShowSaveConfirm] = useState(false);
   const { showToast } = useToast();
+
+  // 재시작 API 디버깅 상태 추가
+  const [apiDebugInfo, setApiDebugInfo] = useState<string>('');
+  const [showDebugInfo, setShowDebugInfo] = useState<boolean>(false);
 
   // 초기 설정 변경 시 state 업데이트
   useEffect(() => {
@@ -180,6 +186,20 @@ export function Settings({
   };
 
   const handleSaveSettings = () => {
+    // 변경 사항이 있을 때만 저장 확인 대화상자 표시
+    const hasChanges = JSON.stringify(settings) !== JSON.stringify(initialSettings);
+    
+    if (hasChanges) {
+      setShowSaveConfirm(true);
+    } else {
+      showToast('변경된 설정이 없습니다.', 'info');
+    }
+  };
+  
+  const confirmSaveSettings = () => {
+    setShowSaveConfirm(false);
+    
+    // 설정 저장 실행
     onSave(settings);
     
     if (needsRestart) {
@@ -187,12 +207,96 @@ export function Settings({
       showToast('GPU 가속 설정이 변경되었습니다. 변경 사항을 적용하려면 앱을 재시작하세요.', 'info');
       
       // 재시작 확인 대화상자 표시
-      if (window.electronAPI && window.confirm('GPU 가속 설정이 변경되었습니다. 지금 앱을 재시작하시겠습니까?')) {
-        window.electronAPI.restartApp();
+      if (window.electronAPI) {
+        if (typeof window.electronAPI.showRestartPrompt === 'function') {
+          window.electronAPI.showRestartPrompt();
+        } else {
+          // 대체 방법: 재시작 여부 확인 후 재시작 요청
+          if (window.confirm('GPU 가속 설정이 변경되었습니다. 지금 앱을 재시작하시겠습니까?')) {
+            if (typeof window.electronAPI.restartApp === 'function') {
+              window.electronAPI.restartApp();
+            } else {
+              console.error('restartApp 함수를 찾을 수 없습니다.');
+              showToast('앱을 수동으로 재시작해 주세요.', 'warning');
+            }
+          }
+        }
       }
     } else {
       showToast('설정이 저장되었습니다.', 'success');
     }
+  };
+  
+  const cancelSaveSettings = () => {
+    setShowSaveConfirm(false);
+  };
+
+  // 재시작 버튼 클릭 핸들러 수정 및 디버깅 기능 추가
+  const handleRestartClick = () => {
+    // 사용 가능한 API 목록 로깅 추가 
+    console.log('전자 API 객체:', window.electronAPI);
+    
+    try {
+      if (window.electronAPI) {
+        const apiInfo = Object.keys(window.electronAPI)
+          .map(key => {
+            const type = typeof (window.electronAPI as any)[key];
+            return `${key}: ${type}`;
+          })
+          .join('\n');
+        
+        setApiDebugInfo(apiInfo);
+        console.log('API 정보:', apiInfo);
+        
+        if (typeof window.electronAPI.restartApp === 'function') {
+          window.electronAPI.restartApp();
+        } else {
+          console.error('restartApp 함수가 정의되지 않았습니다.');
+          showToast('restartApp 함수를 찾을 수 없습니다. API가 올바르게 로드되었는지 확인하세요.', 'error');
+          
+          // 대체 방법: showRestartPrompt API 사용 시도
+          if (typeof window.electronAPI.showRestartPrompt === 'function') {
+            window.electronAPI.showRestartPrompt();
+          } else {
+            showToast('재시작 기능을 사용할 수 없습니다. 앱을 수동으로 재시작하세요.', 'warning');
+            
+            // 디버깅 정보 표시
+            setShowDebugInfo(true);
+          }
+        }
+      } else {
+        console.error('electronAPI가 정의되지 않았습니다.');
+        showToast('electronAPI를 찾을 수 없습니다. preload 스크립트가 올바르게 로드되었는지 확인하세요.', 'error');
+        setApiDebugInfo('electronAPI가 정의되지 않았습니다');
+        setShowDebugInfo(true);
+      }
+    } catch (error) {
+      console.error('앱 재시작 중 오류:', error);
+      showToast('앱 재시작 중 오류가 발생했습니다: ' + (error as Error).message, 'error');
+      
+      // 디버깅 정보 수집
+      setApiDebugInfo(String(error));
+      setShowDebugInfo(true);
+    }
+  };
+
+  // API 디버그 정보 표시 함수 추가
+  const toggleDebugInfo = () => {
+    // API 정보 새로고침
+    if (window.electronAPI) {
+      const apiInfo = Object.keys(window.electronAPI)
+        .map(key => {
+          const type = typeof (window.electronAPI as any)[key];
+          return `${key}: ${type}`;
+        })
+        .join('\n');
+        
+      setApiDebugInfo(apiInfo);
+    } else {
+      setApiDebugInfo('electronAPI가 정의되지 않았습니다');
+    }
+    
+    setShowDebugInfo(!showDebugInfo);
   };
 
   return (
@@ -432,16 +536,28 @@ export function Settings({
           {needsRestart && (
             <div className={styles.restartNotice}>
               <p>GPU 가속 설정이 변경되었습니다. 변경 사항을 적용하려면 앱을 재시작해야 합니다.</p>
-              <button 
-                className={styles.restartButton}
-                onClick={() => {
-                  if (window.electronAPI) {
-                    window.electronAPI.restartApp();
-                  }
-                }}
-              >
-                지금 재시작
-              </button>
+              <div className={styles.buttonGroup}>
+                <button 
+                  className={styles.restartButton}
+                  onClick={handleRestartClick}
+                >
+                  지금 재시작
+                </button>
+                <button 
+                  className={styles.debugButton}
+                  onClick={toggleDebugInfo}
+                >
+                  API 디버그 정보
+                </button>
+              </div>
+              
+              {/* 디버그 정보 표시 영역 */}
+              {showDebugInfo && (
+                <div className={styles.debugInfo}>
+                  <h4>API 디버그 정보</h4>
+                  <pre>{apiDebugInfo || '정보 없음'}</pre>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -490,6 +606,14 @@ export function Settings({
           설정 저장
         </button>
       </div>
+      
+      {/* 설정 저장 확인 대화상자 */}
+      <SaveConfirmDialog 
+        isOpen={showSaveConfirm}
+        onConfirm={confirmSaveSettings}
+        onCancel={cancelSaveSettings}
+        isDarkMode={darkMode}
+      />
     </div>
   );
 }

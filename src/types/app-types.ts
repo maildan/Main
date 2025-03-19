@@ -153,10 +153,13 @@ export interface TypingPerformanceResult {
   sustainableRate: number;
 }
 
+// 메모리 사용량 정보 인터페이스
 export interface MemoryUsageInfo {
   heapUsed: number;
   heapTotal: number;
   heapUsedMB: number;
+  percentUsed?: number;
+  timestamp?: number;
 }
 
 // 웹사이트 카테고리 관련 타입

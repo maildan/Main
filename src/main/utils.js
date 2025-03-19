@@ -27,7 +27,23 @@ function formatTime(seconds) {
   return `${hours}시간 ${remainingMinutes}분 ${remainingSeconds}초`;
 }
 
+/**
+ * 안전하게 모듈 로드
+ * @param {string} modulePath - 로드할 모듈 경로
+ * @param {Object} fallbackModule - 대체 모듈 (로드 실패 시 사용)
+ * @returns {Object} 로드된 모듈 또는 대체 모듈
+ */
+function safeRequire(modulePath, fallbackModule = {}) {
+  try {
+    return require(modulePath);
+  } catch (error) {
+    console.error(`모듈 '${modulePath}' 로드 실패:`, error.message);
+    return fallbackModule;
+  }
+}
+
 module.exports = {
   debugLog,
-  formatTime
+  formatTime,
+  safeRequire
 };

@@ -14,10 +14,10 @@ export default function RootLayout({
 }: {
   children: React.ReactNode
 }) {
-  // 서버 렌더링 시에는 초기 다크모드 클래스를 제거
-  // 클라이언트에서 useEffect를 통해 추가할 것이므로
+  // 서버 렌더링 시에는 다크모드 클래스를 추가하지 않습니다.
+  // 대신 클라이언트 측 JS가 로드된 후 다크모드를 결정하게 합니다.
   return (
-    <html lang="ko">
+    <html lang="ko" suppressHydrationWarning>
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />

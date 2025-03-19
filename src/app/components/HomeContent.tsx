@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo, useState, useCallback } from 'react';
+import React, { useMemo, useState, useCallback, useEffect } from 'react';
 import { TypingStats } from './TypingStats';
 import { TypingMonitor } from './TypingMonitor';
 import { TypingHistory } from './TypingHistory';
@@ -9,6 +9,7 @@ import { TabNavigation } from './TabNavigation';
 import { MainLayout } from './MainLayout';
 import { DebugPanel } from './DebugPanel';
 import { Settings } from './Settings'; 
+import RestartLoading from './RestartLoading';
 // useToast를 사용하지 않는다면 임포트 제거
 // import { useToast } from './ToastContext';
 import { useElectronApi } from '../hooks/useElectronApi';
@@ -106,19 +107,52 @@ export const HomeContent = React.memo(function HomeContent() {
   } = useTypingStats(electronAPI);
   
   // 현재 표시할 로그 관리
-  const [currentLogs, setCurrentLogs] = useState<LogEntry[]>([]); // 이름 변경
+  const [currentLogs, setCurrentLogs] = useState<LogEntry[]>([]);
   
-  // 메모리 관리
-  useMemoryManagement({
+  // 메모리 관리 훅 사용 개선
+  const memoryManager = useMemoryManagement({
     debugMode,
     activeTab,
+    memoryThreshold: 100, // 100MB 기준
+    checkInterval: 30000, // 30초마다 체크
     onClearLogs: () => {
-      // 로그 데이터가 필요 없는 탭에서는 메모리에서 해제
+      // 현재 활성 탭이 로그를 사용하지 않는 경우에만 해제
       if (activeTab !== 'history' && activeTab !== 'stats' && activeTab !== 'chart') {
-        setCurrentLogs([]); // 수정된 변수명으로 변경
+        setCurrentLogs([]);
+        
+        // 대용량 데이터 참조 해제를 통한 추가 최적화
+        if (window.__memoryOptimizer?.optimizeImageResources) {
+          window.__memoryOptimizer.optimizeImageResources().catch(err => {
+            console.error('이미지 리소스 최적화 중 오류:', err);
+          });
+        }
       }
     }
   });
+
+  // 컴포넌트 첫 로드 시 메모리 최적화 실행
+  useEffect(() => {
+    // 초기 메모리 최적화
+    if (window.__memoryOptimizer?.optimizeMemory) {
+      window.__memoryOptimizer.optimizeMemory(false);
+    }
+    
+    // 주기적으로 이미지 리소스 최적화 (페이지가 오래 열려있을 때)
+    const imageOptimizationInterval = setInterval(() => {
+      if (window.__memoryOptimizer?.optimizeImageResources) {
+        window.__memoryOptimizer.optimizeImageResources().catch(err => {
+          console.error('이미지 리소스 최적화 주기 작업 중 오류:', err);
+        });
+      }
+    }, 300000); // 5분마다
+    
+    // 인터벌 등록 및 언마운트 시 정리
+    memoryManager.addInterval(imageOptimizationInterval);
+    
+    return () => {
+      memoryManager.clearIntervals();
+    };
+  }, [memoryManager]);
 
   // 로그 데이터 업데이트 - 타이핑 로그가 변경될 때마다 실행
   React.useEffect(() => {
@@ -126,6 +160,29 @@ export const HomeContent = React.memo(function HomeContent() {
       setCurrentLogs(typingLogs);
     }
   }, [typingLogs]);
+
+  const [isRestarting, setIsRestarting] = useState(false);
+
+  // 재시작 로딩 리스너 추가
+  useEffect(() => {
+    // 전자캅에 접근할 수 있는지 확인
+    if (!electronAPI) return;
+    
+    const unsubscribe = electronAPI.onShowRestartLoading?.((data: RestartLoadingData) => {
+      setIsRestarting(true);
+      
+      // 타임아웃이 있으면 자동으로 숨김
+      if (data.timeout) {
+        setTimeout(() => {
+          setIsRestarting(false);
+        }, data.timeout);
+      }
+    }) || (() => {});
+    
+    return () => {
+      unsubscribe();
+    };
+  }, [electronAPI]);
 
   // 컴포넌트 렌더링 로직
   const renderContent = useCallback(() => {
@@ -189,6 +246,13 @@ export const HomeContent = React.memo(function HomeContent() {
       electronAPI={electronAPI}
       isHeaderVisible={isHeaderVisible}
     >
+      {/* 재시작 로딩 오버레이 */}
+      <RestartLoading 
+        isVisible={isRestarting}
+        message="앱을 재시작하는 중입니다"
+      />
+      
+      {/* 나머지 내용 */}
       <TabNavigation
         activeTab={activeTab}
         onTabChange={handleTabChange}
@@ -202,12 +266,8 @@ export const HomeContent = React.memo(function HomeContent() {
       {/* 디버그 패널 */}
       <DebugPanel
         isVisible={debugMode}
-        stats={{
-          keyCount: currentStatsRef.current.keyCount,
-          windowTitle: currentStatsRef.current.windowTitle,
-          browserName: currentStatsRef.current.browserName
-        }}
-        logsCount={currentLogs.length} // 변수명 수정
+        stats={currentStatsRef.current}
+        logsCount={currentLogs.length}
         isTracking={isTracking}
         windowMode={windowMode}
       />
