@@ -118,8 +118,20 @@ export const TypingChart = React.memo(function TypingChart({ logs }: TypingChart
   }, []);
 
   // 필터링된 로그 데이터 메모이제이션 (최소 데이터만 사용)
-  const filteredLogs = useMemo(() => filterLogsForChart(logs), [logs]);
-  
+  const filteredLogs = useMemo(() => {
+    try {
+      // 데이터 검증 추가
+      if (!Array.isArray(logs)) {
+        console.warn('유효하지 않은 로그 데이터:', logs);
+        return [];
+      }
+      return filterLogsForChart(logs);
+    } catch (error) {
+      console.error('로그 필터링 중 오류:', error);
+      return [];
+    }
+  }, [logs]);
+
   // 차트 옵션 - 다크 모드에 따라 변경되는 옵션들
   const getChartOptions = useCallback((title: string) => {
     return {
@@ -212,8 +224,75 @@ export const TypingChart = React.memo(function TypingChart({ logs }: TypingChart
 
   // 날짜별 통계 데이터 가공 - 메모이제이션
   const chartData = useMemo(() => {
-    // 데이터가 없으면 기본값 반환
-    if (!filteredLogs.length) {
+    try {
+      // 데이터가 없으면 기본값 반환
+      if (!Array.isArray(filteredLogs) || filteredLogs.length === 0) {
+        return {
+          labels: [],
+          keyCountData: [],
+          timeData: [],
+          speedData: [],
+          wordData: [],
+          charData: []
+        };
+      }
+      
+      const dataMap = new Map();
+
+      // 데이터 검증 추가
+      for (let i = 0; i < filteredLogs.length; i++) {
+        const log = filteredLogs[i];
+        if (!log || typeof log !== 'object') continue;
+        
+        // timestamp가 없거나 유효하지 않은 경우 건너뛰기
+        if (!log.timestamp || !Date.parse(log.timestamp)) continue;
+        
+        const date = new Date(log.timestamp).toLocaleDateString();
+        
+        if (!dataMap.has(date)) {
+          dataMap.set(date, {
+            totalKeyCount: 0,
+            totalTime: 0,
+            totalChars: 0,
+            totalWords: 0,
+          });
+        }
+
+        const data = dataMap.get(date);
+        data.totalKeyCount += log.key_count || 0;
+        data.totalTime += log.typing_time || 0;
+        
+        // 콘텐츠 길이 기반 계산 (간소화)
+        const contentLength = log.content?.length || 0;
+        data.totalChars += contentLength;
+        data.totalWords += Math.ceil(contentLength / 5);
+      }
+
+      // 배열로 변환 (Object.entries 사용)
+      const sortedDates = Array.from(dataMap.keys()).sort((a, b) => 
+        new Date(a).getTime() - new Date(b).getTime()
+      );
+      
+      return {
+        // 날짜 레이블 간략화 (월/일만 표시)
+        labels: sortedDates.map(date => {
+          const parts = date.split('/');
+          return parts.length >= 2 ? `${parts[0]}/${parts[1]}` : date;
+        }),
+        keyCountData: sortedDates.map(date => dataMap.get(date).totalKeyCount),
+        // 분 단위로 변환하고 정수로 반올림
+        timeData: sortedDates.map(date => Math.round(dataMap.get(date).totalTime / 60)),
+        // 속도 계산도 간소화
+        speedData: sortedDates.map(date => {
+          const d = dataMap.get(date);
+          return d.totalTime > 0 ? Math.round((d.totalKeyCount / d.totalTime) * 60) : 0;
+        }),
+        wordData: sortedDates.map(date => dataMap.get(date).totalWords),
+        charData: sortedDates.map(date => dataMap.get(date).totalChars),
+      };
+    } catch (error) {
+      console.error('차트 데이터 생성 중 오류:', error);
+      // 오류 발생 시 빈 데이터 반환
       return {
         labels: [],
         keyCountData: [],
@@ -223,57 +302,6 @@ export const TypingChart = React.memo(function TypingChart({ logs }: TypingChart
         charData: []
       };
     }
-    
-    const dataMap = new Map();
-
-    // 일괄 처리로 맵 구성
-    for (let i = 0; i < filteredLogs.length; i++) {
-      const log = filteredLogs[i];
-      const date = new Date(log.timestamp).toLocaleDateString();
-      
-      if (!dataMap.has(date)) {
-        dataMap.set(date, {
-          totalKeyCount: 0,
-          totalTime: 0,
-          totalChars: 0,
-          totalWords: 0,
-        });
-      }
-
-      const data = dataMap.get(date);
-      data.totalKeyCount += log.key_count;
-      data.totalTime += log.typing_time;
-      
-      // 콘텐츠 길이 기반 계산 (간소화)
-      const contentLength = log.content?.length || 0;
-      data.totalChars += contentLength;
-      
-      // 단어 수는 간단히 글자 수 / 5로 추정 (성능 향상)
-      data.totalWords += Math.ceil(contentLength / 5);
-    }
-
-    // 배열로 변환 (Object.entries 사용)
-    const sortedDates = Array.from(dataMap.keys()).sort((a, b) => 
-      new Date(a).getTime() - new Date(b).getTime()
-    );
-    
-    return {
-      // 날짜 레이블 간략화 (월/일만 표시)
-      labels: sortedDates.map(date => {
-        const parts = date.split('/');
-        return parts.length >= 2 ? `${parts[0]}/${parts[1]}` : date;
-      }),
-      keyCountData: sortedDates.map(date => dataMap.get(date).totalKeyCount),
-      // 분 단위로 변환하고 정수로 반올림
-      timeData: sortedDates.map(date => Math.round(dataMap.get(date).totalTime / 60)),
-      // 속도 계산도 간소화
-      speedData: sortedDates.map(date => {
-        const d = dataMap.get(date);
-        return d.totalTime > 0 ? Math.round((d.totalKeyCount / d.totalTime) * 60) : 0;
-      }),
-      wordData: sortedDates.map(date => dataMap.get(date).totalWords),
-      charData: sortedDates.map(date => dataMap.get(date).totalChars),
-    };
   }, [filteredLogs]);
 
   // 차트 데이터 생성 함수 - 메모리 사용 최적화

@@ -23,7 +23,9 @@ const appState = {
   idleTime: 0, // 사용자 마지막 활동 이후 경과 시간
   memoryUsage: {
     lastCheck: Date.now(),
-    heapUsed: 0
+    heapUsed: 0,
+    heapTotal: 0,
+    rss: 0
   },
   currentStats: {
     keyCount: 0,
@@ -58,13 +60,14 @@ const appState = {
     autoCleanupLogs: true, // 오래된 로그 자동 정리
     maxHistoryItems: 500, // 최대 히스토리 항목 수
     logRetentionDays: 30 // 로그 보관 일수
-  }
+  },
+  inBackgroundMode: false
 };
 
 // IDLE 시간 기준 증가
 const IDLE_TIMEOUT = 5000; // 3초에서 5초로 증가
 
-// 메모리 최적화 관련 상수 추가
+// 메모리 최적화 관련 상수 업데이트
 const MEMORY_CHECK_INTERVAL = 30000; // 30초마다 메모리 체크
 const BACKGROUND_ACTIVITY_INTERVAL = 10000; // 백그라운드 활동 간격
 const LOW_MEMORY_THRESHOLD = 50 * 1024 * 1024; // 50MB

@@ -6,6 +6,8 @@ const { setupIpcHandlers } = require('./ipc-handlers');
 const { loadSettings } = require('./settings');
 const { debugLog } = require('./utils');
 const { setupTray, destroyTray } = require('./tray');
+// 메모리 관리자 모듈 추가
+const { setupMemoryMonitoring, performGC } = require('./memory-manager');
 
 // 앱 시작 시 하드웨어 가속 비활성화 여부 설정 - app.ready 이벤트 전에 실행
 if (appState.settings && !appState.settings.useHardwareAcceleration) {
@@ -17,12 +19,19 @@ if (appState.settings && !appState.settings.useHardwareAcceleration) {
   }
 }
 
-// GC 노출 설정
+// GC 플래그 확인 (이 시점에서는 변경 불가능, 정보 제공용)
 try {
-  app.commandLine.appendSwitch('js-flags', '--expose-gc');
-  debugLog('GC 노출 설정 완료');
+  const hasGcFlag = process.argv.includes('--expose-gc') || 
+                   process.execArgv.some(arg => arg.includes('--expose-gc'));
+  
+  debugLog('GC 플래그 상태:', hasGcFlag ? '사용 가능' : '사용 불가능');
+  debugLog('Process argv:', process.argv);
+  debugLog('Process execArgv:', process.execArgv);
+  
+  appState.gcEnabled = typeof global.gc === 'function';
+  debugLog('GC 사용 가능 상태:', appState.gcEnabled);
 } catch (error) {
-  debugLog('GC 노출 설정 실패:', error);
+  debugLog('GC 상태 확인 중 오류:', error);
 }
 
 /**
@@ -31,7 +40,7 @@ try {
 async function initializeApp() {
   debugLog('앱 초기화 시작');
   
-  // 메모리 사용량 모니터링 시작
+  // 메모리 사용량 모니터링 시작 - 새 모듈 사용
   setupMemoryMonitoring();
   
   // 설정 로드
@@ -51,67 +60,25 @@ async function initializeApp() {
     setupTray();
   }
   
+  // GC가 사용 가능한지 확인
+  if (typeof global.gc === 'function') {
+    debugLog('GC 사용 가능 - 초기화 후 메모리 정리 실행');
+    
+    // 초기 GC 실행으로 시작 시 사용된 메모리 정리
+    setTimeout(() => {
+      performGC();
+      debugLog('초기 메모리 정리 완료');
+    }, 3000); // 앱 시작 3초 후 GC 실행
+  } else {
+    debugLog('경고: GC를 사용할 수 없습니다. 메모리 관리가 제한됩니다.');
+    debugLog('GC 활성화를 위해 --expose-gc 플래그로 앱을 다시 시작하세요.');
+  }
+  
   debugLog('앱 초기화 완료');
 }
 
 /**
- * 메모리 모니터링 설정
- */
-function setupMemoryMonitoring() {
-  // 주기적 메모리 체크 및 GC
-  const memoryCheckInterval = setInterval(() => {
-    const memoryInfo = process.memoryUsage();
-    const heapUsedMB = Math.round(memoryInfo.heapUsed / (1024 * 1024));
-    
-    // 메모리 사용량 저장
-    appState.memoryUsage = {
-      lastCheck: Date.now(),
-      heapUsed: memoryInfo.heapUsed
-    };
-    
-    // 디버그 모드에서만 로깅
-    if (process.env.NODE_ENV === 'development') {
-      debugLog(`메모리 사용량: ${heapUsedMB}MB (힙), ${Math.round(memoryInfo.rss / (1024 * 1024))}MB (전체)`);
-    }
-    
-    // 임계치 이상이면 GC 수행
-    if (memoryInfo.heapUsed > HIGH_MEMORY_THRESHOLD) {
-      if (global.gc) {
-        debugLog(`메모리 임계치 초과(${heapUsedMB}MB), GC 실행`);
-        global.gc();
-        
-        // GC 후 메모리 재확인
-        setTimeout(() => {
-          const afterGcMemoryInfo = process.memoryUsage();
-          const afterHeapUsedMB = Math.round(afterGcMemoryInfo.heapUsed / (1024 * 1024));
-          debugLog(`GC 후 메모리: ${afterHeapUsedMB}MB (이전: ${heapUsedMB}MB, 절약: ${heapUsedMB - afterHeapUsedMB}MB)`);
-        }, 500);
-      }
-    }
-    
-    // 비활성 시간 체크 (사용자 입력 없을 때)
-    const now = Date.now();
-    if (appState.currentStats.lastActiveTime) {
-      const idleTime = now - appState.currentStats.lastActiveTime;
-      appState.idleTime = idleTime;
-      
-      // 장시간 IDLE 상태면 메모리 정리 더 적극적으로
-      if (idleTime > 60000) { // 1분 이상 IDLE
-        // 메모리 사용량에 관계없이 GC 실행
-        global.gc && global.gc();
-        debugLog('장시간 IDLE 상태, 메모리 정리 실행');
-      }
-    }
-  }, MEMORY_CHECK_INTERVAL);
-  
-  // 앱 종료 시 인터벌 정리
-  app.on('will-quit', () => {
-    clearInterval(memoryCheckInterval);
-  });
-}
-
-/**
- * 앱 종료 정리 함수
+ * 앱 종료 정리 함수 - 메모리 최적화
  */
 function cleanupApp() {
   debugLog('앱 종료 정리 시작');
@@ -133,11 +100,33 @@ function cleanupApp() {
     appState.updateInterval = null;
   }
   
+  // 대용량 객체 참조 해제
+  if (appState.currentStats) {
+    // 복제본 생성하지 않고 직접 속성 초기화
+    Object.keys(appState.currentStats).forEach(key => {
+      if (typeof appState.currentStats[key] === 'object' && appState.currentStats[key] !== null) {
+        appState.currentStats[key] = null;
+      }
+    });
+  }
+  
+  // 이벤트 리스너 참조 해제
+  if (appState.mainWindow) {
+    appState.mainWindow.removeAllListeners();
+  }
+  
+  if (appState.miniViewWindow) {
+    appState.miniViewWindow.removeAllListeners();
+  }
+  
   // 트레이 제거 추가
   destroyTray();
   
   // 최종 메모리 정리
-  global.gc && global.gc();
+  if (global.gc) {
+    debugLog('종료 전 메모리 정리 실행');
+    global.gc();
+  }
   
   debugLog('앱 종료 정리 완료');
 }
@@ -171,30 +160,32 @@ function setupAppEventListeners() {
   // 앱 종료 전 이벤트
   app.on('will-quit', cleanupApp);
   
-  // 앱이 두 번째로 실행될 때 실행 중인 인스턴스에 포커스
-  const gotTheLock = app.requestSingleInstanceLock();
-  
-  if (!gotTheLock) {
-    app.quit();
-  } else {
-    app.on('second-instance', () => {
-      // 다른 인스턴스가 실행될 때 메인 윈도우를 복구하고 포커스
-      if (appState.mainWindow) {
-        if (appState.mainWindow.isMinimized()) appState.mainWindow.restore();
-        if (!appState.mainWindow.isVisible()) appState.mainWindow.show();
-        appState.mainWindow.focus();
-      }
-    });
-  }
-  
-  // 렌더러 프로세스 오류 처리
-  app.on('render-process-gone', (event, webContents, details) => {
-    console.error('렌더러 프로세스 종료:', details);
+  // 앱이 백그라운드로 전환될 때 메모리 최적화
+  app.on('browser-window-blur', () => {
+    if (appState.settings.reduceMemoryInBackground) {
+      const { optimizeMemoryForBackground } = require('./memory-manager');
+      optimizeMemoryForBackground(true);
+      debugLog('앱이 백그라운드로 전환됨, 메모리 최적화 실행');
+    }
   });
   
-  // 자식 프로세스 오류 처리
-  app.on('child-process-gone', (event, details) => {
-    console.error('자식 프로세스 종료:', details);
+  // 앱이 포그라운드로 돌아올 때
+  app.on('browser-window-focus', () => {
+    if (appState.inBackgroundMode) {
+      const { optimizeMemoryForBackground } = require('./memory-manager');
+      optimizeMemoryForBackground(false);
+      debugLog('앱이 포그라운드로 복귀, 기본 상태로 전환');
+    }
+  });
+  
+  // 메모리 부족 경고 이벤트 추가
+  app.on('render-process-gone', (event, webContents, details) => {
+    if (details.reason === 'oom' || details.reason === 'crashed') {
+      debugLog('렌더러 프로세스 메모리 부족 또는 충돌:', details);
+      // 메모리 긴급 정리
+      const { freeUpMemoryResources } = require('./memory-manager');
+      freeUpMemoryResources(true);
+    }
   });
   
   debugLog('앱 이벤트 리스너 설정 완료');

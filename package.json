@@ -4,17 +4,22 @@
   "private": true,
   "main": "main.js",
   "scripts": {
-    "dev": "concurrently -k \"next dev\" \"npm run electron-dev\"",
+    "dev": "concurrently \"npm run next:dev\" \"npm run electron:wait\"",
+    "next:dev": "next dev",
+    "electron:wait": "wait-on http://localhost:3000 && npm run electron:dev",
     "build": "next build",
     "start": "next start",
-    "electron": "electron .",
-    "electron-dev": "wait-on -d 5000 http://localhost:3000 && node --experimental-modules ./node_modules/electron/cli.js .",
-    "lint": "next lint"
+    "lint": "next lint",
+    "electron:dev": "cross-env NODE_ENV=development electron --expose-gc --js-flags=\"--expose-gc\" .",
+    "electron:start": "electron --expose-gc --js-flags=\"--expose-gc\" .",
+    "electron:build": "electron-builder",
+    "electron:package": "npm run build && npm run electron:build"
   },
   "dependencies": {
     "@prisma/client": "^6.5.0",
     "@types/recharts": "^1.8.29",
     "active-win": "^8.1.0",
+    "better-sqlite3": "^11.9.1",
     "chart.js": "^4.4.8",
     "dotenv": "^16.4.7",
     "electron-is-dev": "^3.0.1",
@@ -30,10 +35,12 @@
   "devDependencies": {
     "@eslint/eslintrc": "^3",
     "@tailwindcss/postcss": "^4",
+    "@types/better-sqlite3": "^7.6.12",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "concurrently": "^9.1.2",
+    "cross-env": "^7.0.3",
     "electron": "^35.0.2",
     "wait-on": "^8.0.3"
   },

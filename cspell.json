@@ -21,7 +21,8 @@
     "darkmode", // Added "darkmode" to the list
     "hdpi",
     "miniview",
-    "webaudio"
+    "webaudio",
+    "AUTOINCREMENT",
   ],
   "ignorePaths": [
     "node_modules/**",

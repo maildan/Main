@@ -1,6 +1,6 @@
-const { ipcMain, BrowserWindow } = require('electron'); // BrowserWindow import 추가
+const { ipcMain, BrowserWindow, app } = require('electron'); // app 모듈 추가
 const activeWin = require('active-win');
-const { appState } = require('./constants');
+const { appState, HIGH_MEMORY_THRESHOLD } = require('./constants'); // HIGH_MEMORY_THRESHOLD 추가
 const { detectBrowserName, isGoogleDocsWindow } = require('./browser');
 const { startTracking, stopTracking, saveStats } = require('./stats');
 const { debugLog } = require('./utils');
@@ -397,7 +397,143 @@ function setupIpcHandlers() {
       console.error('미니뷰 토글 중 오류:', error);
     }
   });
+
+  // 메모리 사용량 정보 요청 처리
+  ipcMain.handle('get-memory-usage', () => {
+    try {
+      const { getMemoryInfo } = require('./memory-manager');
+      const memoryInfo = getMemoryInfo();
+      debugLog('메모리 사용량 정보 요청됨:', memoryInfo.heapUsedMB + 'MB');
+      return memoryInfo;
+    } catch (error) {
+      console.error('메모리 정보 요청 처리 중 오류:', error);
+      return {
+        timestamp: Date.now(),
+        heapUsed: 0,
+        heapTotal: 0,
+        rss: 0,
+        external: 0,
+        heapUsedMB: 0,
+        rssMB: 0,
+        percentUsed: 0,
+        error: String(error)
+      };
+    }
+  });
   
+  // 수동 가비지 컬렉션 요청 처리
+  ipcMain.on('request-gc', (event) => {
+    debugLog('수동 가비지 컬렉션 요청 받음');
+    
+    try {
+      const { performGC } = require('./memory-manager');
+      const result = performGC();
+      
+      // 결과 전송
+      event.reply('gc-completed', {
+        success: true,
+        timestamp: Date.now(),
+        memoryBefore: result?.before
+      });
+    } catch (error) {
+      console.error('가비지 컬렉션 요청 처리 중 오류:', error);
+      event.reply('gc-completed', {
+        success: false,
+        error: String(error)
+      });
+    }
+  });
+  
+  // 메모리 최적화 요청 처리
+  ipcMain.on('optimize-memory', (event) => {
+    debugLog('메모리 최적화 요청 받음');
+    
+    try {
+      const { freeUpMemoryResources } = require('./memory-manager');
+      const isEmergency = appState.memoryUsage.heapUsed > HIGH_MEMORY_THRESHOLD;
+      
+      freeUpMemoryResources(isEmergency);
+      
+      // GC 요청
+      if (global.gc) {
+        setTimeout(() => {
+          global.gc();
+          
+          // 최적화 후 메모리 정보 반환
+          const { getMemoryInfo } = require('./memory-manager');
+          const memoryInfo = getMemoryInfo();
+          
+          event.reply('memory-optimized', {
+            success: true,
+            memoryInfo
+          });
+        }, 200);
+      } else {
+        event.reply('memory-optimized', {
+          success: false,
+          error: 'GC를 사용할 수 없음 (--expose-gc 플래그 필요)'
+        });
+      }
+    } catch (error) {
+      console.error('메모리 최적화 중 오류:', error);
+      event.reply('memory-optimized', {
+        success: false,
+        error: String(error)
+      });
+    }
+  });
+  
+  // 렌더러 프로세스에 GC 요청 수신
+  ipcMain.on('renderer-gc-completed', (_, data) => {
+    debugLog('렌더러 GC 완료:', data);
+    // 필요한 경우 여기서 추가 작업 수행
+  });
+  
+  // 메모리 상태 모니터링 요청
+  ipcMain.handle('check-memory', async () => {
+    try {
+      const { checkMemoryUsage } = require('./memory-manager');
+      const memoryInfo = checkMemoryUsage();
+      return { success: true, memoryInfo };
+    } catch (error) {
+      console.error('메모리 상태 확인 중 오류:', error);
+      return { 
+        success: false, 
+        error: String(error) 
+      };
+    }
+  });
+  
+  // 메모리 모니터링 옵션 업데이트
+  ipcMain.on('update-memory-settings', (event, settings) => {
+    try {
+      if (settings.garbageCollectionInterval !== undefined) {
+        appState.settings.garbageCollectionInterval = settings.garbageCollectionInterval;
+      }
+      
+      if (settings.maxMemoryThreshold !== undefined) {
+        appState.settings.maxMemoryThreshold = settings.maxMemoryThreshold;
+      }
+      
+      // 설정 저장
+      saveSettings();
+      
+      event.reply('memory-settings-updated', { 
+        success: true, 
+        settings: {
+          garbageCollectionInterval: appState.settings.garbageCollectionInterval,
+          maxMemoryThreshold: appState.settings.maxMemoryThreshold
+        } 
+      });
+    } catch (error) {
+      console.error('메모리 설정 업데이트 중 오류:', error);
+      event.reply('memory-settings-updated', { 
+        success: false, 
+        error: String(error) 
+      });
+    }
+  });
+
   debugLog('IPC 핸들러 설정 완료');
 }
 
