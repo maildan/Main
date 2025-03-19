@@ -14,6 +14,8 @@ export default function RootLayout({
 }: {
   children: React.ReactNode
 }) {
+  // 서버 렌더링 시에는 초기 다크모드 클래스를 제거
+  // 클라이언트에서 useEffect를 통해 추가할 것이므로
   return (
     <html lang="ko">
       <head>
@@ -21,9 +23,9 @@ export default function RootLayout({
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <link rel="icon" href="/favicon.ico" />
       </head>
-      <body className={inter.className}>
+      <body>
         {children}
       </body>
     </html>
-  );
+  )
 }

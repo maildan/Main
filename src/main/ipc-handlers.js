@@ -343,10 +343,12 @@ function setupIpcHandlers() {
           appState.mainWindow.close();
           break;
         case 'showHeader':
-          // 프레임 있는(네이티브) 헤더 모드에서는 무시
+          // 헤더 표시 기능은 사용하지 않거나 제거
+          debugLog('showHeader 명령은 더 이상 사용되지 않습니다');
           break;
         case 'hideHeader':
-          // 프레임 있는(네이티브) 헤더 모드에서는 무시
+          // 헤더 숨기기 기능은 사용하지 않거나 제거
+          debugLog('hideHeader 명령은 더 이상 사용되지 않습니다');
           break;
         case 'setTitle':
           if (param) {
@@ -638,6 +640,24 @@ function setupIpcHandlers() {
         success: false, 
         error: String(error) 
       });
+    }
+  });
+
+  // 재시작 안내 창 표시 핸들러 추가
+  ipcMain.on('show-restart-prompt', async () => {
+    debugLog('재시작 안내 창 표시 요청 수신');
+    try {
+      const { showRestartPrompt } = require('./dialogs');
+      const response = await showRestartPrompt();
+      
+      if (response === 0) {
+        // 사용자가 재시작 선택
+        appState.allowQuit = true;
+        app.relaunch();
+        app.exit(0);
+      }
+    } catch (error) {
+      console.error('재시작 안내 창 표시 중 오류:', error);
     }
   });
 

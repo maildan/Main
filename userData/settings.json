@@ -7,7 +7,6 @@
   },
   "autoStartMonitoring": true,
   "resumeAfterIdle": true,
-  "idleTimeout": 300,
   "darkMode": true,
   "windowMode": "windowed",
   "minimizeToTray": true,
@@ -15,10 +14,6 @@
   "reduceMemoryInBackground": true,
   "enableMiniView": true,
   "useHardwareAcceleration": true,
-  "processingMode": "auto",
-  "garbageCollectionInterval": 60000,
-  "maxMemoryThreshold": 100,
-  "autoCleanupLogs": true,
-  "maxHistoryItems": 500,
-  "logRetentionDays": 30
+  "processingMode": "cpu-intensive",
+  "maxMemoryThreshold": 100
 }

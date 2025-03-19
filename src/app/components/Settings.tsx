@@ -84,6 +84,19 @@ export function Settings({
     }
   }, [initialSettings]);
 
+  // 다크 모드 처리를 위한 효과 추가
+  useEffect(() => {
+    // 다크 모드 클래스가 서버 렌더링과 클라이언트 간에 일치하도록 함
+    if (typeof window !== 'undefined') {
+      const isDarkMode = settings.darkMode;
+      if (isDarkMode) {
+        document.documentElement.classList.add('dark-mode');
+      } else {
+        document.documentElement.classList.remove('dark-mode');
+      }
+    }
+  }, [settings.darkMode]);
+
   // Handler functions
   const handleCategoryToggle = (category: keyof typeof settings.enabledCategories) => {
     setSettings(prev => ({
