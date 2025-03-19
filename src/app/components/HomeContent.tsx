@@ -127,12 +127,12 @@ export const HomeContent = React.memo(function HomeContent() {
     }
   }, [typingLogs]);
 
-  // 메모이제이션된 컴포넌트 렌더링
-  const renderActiveTab = useMemo(() => {
+  // 컴포넌트 렌더링 로직
+  const renderContent = useCallback(() => {
     switch (activeTab) {
       case 'monitor':
         return (
-          <TypingMonitor 
+          <TypingMonitor
             stats={displayStats}
             isTracking={isTracking}
             onStartTracking={handleStartTracking}
@@ -140,40 +140,29 @@ export const HomeContent = React.memo(function HomeContent() {
             onSaveStats={handleSaveStats}
           />
         );
-      case 'history':
-        return (
-          <React.Suspense fallback={<div>Loading history...</div>}>
-            <TypingHistory 
-              logs={currentLogs} // 변수명 수정
-              isLoading={isLoading}
-            />
-          </React.Suspense>
-        );
       case 'stats':
-        return (
-          <React.Suspense fallback={<div>Loading stats...</div>}>
-            <TypingStats 
-              logs={currentLogs} // 변수명 수정
-            />
-          </React.Suspense>
-        );
-      case 'chart':
         return (
           <React.Suspense fallback={<div>Loading chart...</div>}>
             <TypingChart 
-              logs={currentLogs} // 변수명 수정
+              logs={typingLogs}
             />
           </React.Suspense>
         );
       case 'settings':
         return (
-          <Settings  // 이제 정상적으로 임포트된 Settings 컴포넌트 사용
-            onSave={handleSaveSettings}
-            initialSettings={settings} // 이제 완전한 설정을 전달
-            darkMode={darkMode}
-            onDarkModeChange={handleDarkModeChange}
-            onWindowModeChange={handleWindowModeChange}
-          />
+          <div className="settings-tab-wrapper" style={{
+            maxWidth: '800px',
+            margin: '0 auto',
+            width: '100%'
+          }}>
+            <Settings
+              onSave={handleSaveSettings}
+              initialSettings={settings}
+              darkMode={darkMode}
+              onDarkModeChange={handleDarkModeChange}
+              onWindowModeChange={handleWindowModeChange}
+            />
+          </div>
         );
       default:
         return null;
@@ -185,12 +174,12 @@ export const HomeContent = React.memo(function HomeContent() {
     handleStartTracking, 
     handleStopTracking, 
     handleSaveStats,
-    currentLogs, // 변수명 수정
-    isLoading, 
+    typingLogs,
     settings, 
     darkMode, 
     handleDarkModeChange, 
-    handleWindowModeChange
+    handleWindowModeChange,
+    handleSaveSettings
   ]);
 
   return (
@@ -208,7 +197,7 @@ export const HomeContent = React.memo(function HomeContent() {
       />
       
       {/* 메모이제이션된 컴포넌트 사용 */}
-      {renderActiveTab}
+      {renderContent()}
       
       {/* 디버그 패널 */}
       <DebugPanel

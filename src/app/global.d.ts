@@ -67,15 +67,17 @@ interface SettingsState {
     sns: boolean;
   };
   autoStartMonitoring: boolean;
+  resumeAfterIdle: boolean; // 옵셔널 제거, 필수 속성으로 변경
+  idleTimeout?: number; // 유휴 상태 판단 시간 (초) (옵셔널)
   darkMode: boolean;
   windowMode: WindowModeType;
-  // 트레이 관련 설정 추가
+  // 트레이 관련 설정
   minimizeToTray: boolean;
   showTrayNotifications: boolean;
   reduceMemoryInBackground: boolean;
-  // 미니뷰 설정 추가
+  // 미니뷰 설정
   enableMiniView: boolean;
-  // GPU 가속 관련 설정을 필수 속성으로 변경
+  // GPU 가속 관련 설정
   useHardwareAcceleration: boolean;
   processingMode: ProcessingModeType;
   maxMemoryThreshold: number;

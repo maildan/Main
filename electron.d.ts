@@ -50,6 +50,16 @@ interface ElectronAPI {
   // 미니뷰 관련 메소드 추가
   onMiniViewStatsUpdate: (callback: (data: TypingStatsUpdate) => void) => () => void;
   toggleMiniView: () => void;
+  
+  /**
+   * 앱 재시작
+   */
+  restartApp: () => void;
+  
+  /**
+   * 재시작 안내 창 표시
+   */
+  showRestartPrompt: () => void;
 }
 
 interface Window {

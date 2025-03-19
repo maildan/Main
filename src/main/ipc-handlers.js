@@ -1,62 +1,141 @@
-const { ipcMain, BrowserWindow, app } = require('electron'); // app 모듈 추가
+const { ipcMain, app } = require('electron');
 const activeWin = require('active-win');
-const { appState, HIGH_MEMORY_THRESHOLD } = require('./constants'); // HIGH_MEMORY_THRESHOLD 추가
+const { appState, HIGH_MEMORY_THRESHOLD } = require('./constants');
 const { detectBrowserName, isGoogleDocsWindow } = require('./browser');
-const { startTracking, stopTracking, saveStats } = require('./stats');
+const { startTracking, stopTracking, saveStats, resetStats } = require('./stats');
 const { debugLog } = require('./utils');
 const { applyWindowMode } = require('./settings');
-const { saveSettings, getSettings } = require('./settings');
+const { saveSettings, getSettings, loadSettings } = require('./settings');
+const { createMiniViewWindow, toggleMiniView } = require('./window');
+const { showRestartPrompt } = require('./dialogs');
 
 /**
- * IPC 이벤트 핸들러 등록
+ * IPC 핸들러 설정
  */
 function setupIpcHandlers() {
-  // 타이핑 모니터링 시작
-  ipcMain.on('start-tracking', (event) => {
-    debugLog('타이핑 모니터링 시작 요청 받음');
+  // 자동 모니터링 시작 처리 - 수정된 부분
+  if (appState.settings?.autoStartMonitoring) {
+    debugLog('자동 모니터링 시작 설정 감지됨');
     
-    if (!appState.isTracking) {
-      startTracking();
-      
-      // 초기 상태 전송 (UI 업데이트를 위해)
-      if (appState.mainWindow) {
-        appState.mainWindow.webContents.send('typing-stats-update', {
-          isTracking: appState.isTracking,
-          keyCount: appState.currentStats.keyCount,
-          typingTime: appState.currentStats.typingTime,
-          windowTitle: appState.currentStats.currentWindow,
-          browserName: appState.currentStats.currentBrowser,
-          totalChars: appState.currentStats.totalChars,
-          totalCharsNoSpace: appState.currentStats.totalCharsNoSpace,
-          totalWords: appState.currentStats.totalWords,
-          pages: appState.currentStats.pages,
-          accuracy: appState.currentStats.accuracy
-        });
+    // 메인 윈도우가 준비되면 자동으로 모니터링 시작
+    const startAutoMonitoring = () => {
+      if (!appState.isTracking) {
+        debugLog('자동 모니터링 시작 실행');
+        startTracking();
+        
+        // 렌더러에 모니터링 시작 상태 알림 (지연 추가)
+        setTimeout(() => {
+          if (appState.mainWindow && !appState.mainWindow.isDestroyed()) {
+            appState.mainWindow.webContents.send('auto-tracking-started', {
+              timestamp: Date.now(),
+              isAutoStart: true
+            });
+          }
+        }, 1000); // 1초 지연으로 렌더러가 준비되도록 함
       }
+    };
+    
+    // 윈도우가 로드된 후 실행
+    if (appState.mainWindow && !appState.mainWindow.isDestroyed()) {
+      appState.mainWindow.webContents.on('did-finish-load', startAutoMonitoring);
     } else {
-      debugLog('이미 모니터링 중입니다');
+      // 앱이 시작되고 약간의 지연 후 시작 (윈도우 없는 경우 대비)
+      setTimeout(startAutoMonitoring, 2000);
     }
+  }
+
+  // 모니터링 시작 요청 처리
+  ipcMain.on('start-tracking', () => {
+    debugLog('IPC: 모니터링 시작 요청 수신');
+    startTracking();
   });
 
-  // 타이핑 모니터링 중지
+  // 모니터링 중지 요청 처리
   ipcMain.on('stop-tracking', () => {
-    debugLog('타이핑 추적 중지 요청 받음');
+    debugLog('IPC: 모니터링 중지 요청 수신');
     stopTracking();
   });
 
-  // 통계 저장 요청
+  // 통계 저장 요청 처리
   ipcMain.on('save-stats', (event, content) => {
-    debugLog('통계 저장 요청 받음');
+    debugLog('IPC: 통계 저장 요청 수신:', content);
+    const savedStats = saveStats(content);
     
+    // 저장 결과를 렌더러에 전송
+    if (savedStats) {
+      event.reply('stats-saved', {
+        ...savedStats,
+        success: true
+      });
+    } else {
+      event.reply('stats-saved', {
+        success: false,
+        error: '통계 저장 중 오류가 발생했습니다.'
+      });
+    }
+  });
+
+  // 설정 저장 요청 처리
+  ipcMain.on('save-settings', async (event, newSettings) => {
     try {
-      const stats = saveStats(content);
+      debugLog('IPC: 설정 저장 요청 수신');
       
-      // 메인 창으로 저장 완료 이벤트 전송
-      event.reply('stats-saved', stats);
+      // 자동 모니터링 설정 변경 시 처리
+      const autoMonitoringChanged = 
+        appState.settings?.autoStartMonitoring !== newSettings.autoStartMonitoring;
       
-      debugLog('통계 저장 및 초기화 완료');
+      // GPU 가속 또는 처리 모드 설정 변경 확인
+      const gpuSettingsChanged = 
+        appState.settings?.useHardwareAcceleration !== newSettings.useHardwareAcceleration ||
+        appState.settings?.processingMode !== newSettings.processingMode;
+      
+      // 설정 저장
+      const saved = await saveSettings(newSettings);
+      
+      // 앱 상태의 설정도 업데이트
+      appState.settings = { ...newSettings };
+      
+      // 자동 시작 설정 변경 시
+      if (autoMonitoringChanged) {
+        if (newSettings.autoStartMonitoring && !appState.isTracking) {
+          debugLog('설정 변경: 자동 모니터링 활성화됨, 모니터링 시작');
+          startTracking();
+        } else if (!newSettings.autoStartMonitoring && appState.isTracking) {
+          debugLog('설정 변경: 자동 모니터링 비활성화됨');
+          // 자동 모니터링을 비활성화해도 현재 세션은 유지
+        }
+      }
+      
+      // 설정 결과 응답
+      event.reply('settings-saved', { 
+        success: true, 
+        settings: newSettings,
+        restartRequired: gpuSettingsChanged
+      });
+      
+      // GPU 설정 변경 시 재시작 필요 안내
+      if (gpuSettingsChanged) {
+        debugLog('GPU 관련 설정 변경됨, 재시작 필요');
+        showRestartPrompt();
+      }
     } catch (error) {
-      console.error('통계 저장 중 오류:', error);
+      console.error('설정 저장 오류:', error);
+      event.reply('settings-saved', { 
+        success: false, 
+        error: error.message 
+      });
+    }
+  });
+
+  // 설정 로드 요청 처리 - invoke/handle 패턴으로 변경
+  ipcMain.handle('load-settings', async () => {
+    try {
+      debugLog('IPC: 설정 로드 요청 수신');
+      const settings = await loadSettings();
+      return settings;
+    } catch (error) {
+      console.error('설정 로드 오류:', error);
+      throw new Error('설정을 로드하지 못했습니다');
     }
   });
 
@@ -95,21 +174,49 @@ function setupIpcHandlers() {
   });
 
   // 설정 저장 요청
-  ipcMain.on('save-settings', (event, settings) => {
-    debugLog('설정 저장 요청 받음:', settings);
-    
+  ipcMain.on('save-settings', async (event, newSettings) => {
     try {
-      // 임시로 앱 상태에 저장
-      appState.settings = settings;
+      // 이전 설정 값 저장
+      const prevSettings = { ...appState.settings };
       
-      // 응답
-      event.reply('settings-saved', { success: true });
+      // 새 설정 저장
+      await saveSettings(newSettings);
       
-      debugLog('설정 저장 완료');
+      // 설정 변경 시 필요한 업데이트 적용
+      if (newSettings.darkMode !== prevSettings.darkMode) {
+        appState.mainWindow.webContents.send('dark-mode-changed', { 
+          success: true, 
+          darkMode: newSettings.darkMode 
+        });
+      }
+      
+      // 창 모드 설정 변경 시 적용
+      if (newSettings.windowMode !== prevSettings.windowMode) {
+        const { setWindowMode } = require('./window');
+        setWindowMode(newSettings.windowMode);
+      }
+      
+      // 설정 저장 결과 전송
+      event.reply('settings-saved', { success: true, settings: newSettings });
+      
+      // GPU 가속화 설정 변경 감지 (로깅만 추가)
+      if (newSettings.useHardwareAcceleration !== prevSettings.useHardwareAcceleration) {
+        debugLog('GPU 가속화 설정이 변경되었습니다. 재시작 시 적용됩니다.');
+      }
     } catch (error) {
       console.error('설정 저장 중 오류:', error);
-      event.reply('settings-saved', { success: false, error: String(error) });
+      event.reply('settings-saved', { success: false, error: error.message });
     }
+  });
+  
+  // 앱 재시작 핸들러 추가
+  ipcMain.on('restart-app', () => {
+    debugLog('앱 재시작 요청 수신');
+    appState.allowQuit = true;
+    
+    // 앱 재시작
+    app.relaunch();
+    app.exit(0);
   });
 
   // 설정 로드 요청

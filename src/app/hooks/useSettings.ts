@@ -11,6 +11,7 @@ const defaultSettings: SettingsState = {
     sns: true
   },
   autoStartMonitoring: true,
+  resumeAfterIdle: true, // 필수 속성으로 추가
   darkMode: false,
   windowMode: 'windowed',
   minimizeToTray: true,
@@ -53,6 +54,7 @@ export function useSettings(electronAPI: ElectronAPI | null) {
             sns: parsedSettings.enabledCategories?.sns ?? true
           },
           autoStartMonitoring: parsedSettings.autoStartMonitoring ?? true,
+          resumeAfterIdle: parsedSettings.resumeAfterIdle ?? true, // 필수 속성으로 추가
           darkMode: parsedSettings.darkMode ?? false,
           windowMode: parsedSettings.windowMode ?? 'windowed',
           minimizeToTray: parsedSettings.minimizeToTray ?? true,

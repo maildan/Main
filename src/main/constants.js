@@ -48,6 +48,8 @@ const appState = {
       sns: true
     },
     autoStartMonitoring: true,
+    resumeAfterIdle: true, // 유휴 상태 후 자동 재시작 (신규 추가)
+    idleTimeout: 300, // 유휴 상태 판단 시간 (초) (신규 추가)
     darkMode: false,
     windowMode: 'windowed',
     minimizeToTray: true, // 트레이로 최소화 설정 (기본값 true)

@@ -1,146 +1,188 @@
-const { BrowserWindow } = require('electron');
+const { BrowserWindow, app, screen } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const url = require('url');
 const { appState, isDev } = require('./constants');
-const { applyWindowMode } = require('./settings');
+const { applyWindowMode, loadSettings } = require('./settings');
 const { debugLog } = require('./utils');
+const { setupTray } = require('./tray');
 
 /**
  * 메인 윈도우 생성 함수
  */
-function createWindow() {
-  // 메인 윈도우 생성
-  appState.mainWindow = new BrowserWindow({
-    width: 1024,
-    height: 768,
-    minWidth: 800,
-    minHeight: 600,
-    // 불필요한 시각적 요소 제거로 메모리 감소
-    frame: true,
-    titleBarStyle: 'hidden',
-    titleBarOverlay: false,
-    show: false, // 준비되기 전에는 표시하지 않음
-    // 웹뷰 설정 최적화
-    webPreferences: {
-      nodeIntegration: false,
-      contextIsolation: true,
-      preload: path.join(__dirname, '../../preload.js'),
-      // 메모리 사용량 감소를 위한 캐시 설정
-      backgroundThrottling: true, // 백그라운드에서 타이머 스로틀링
-      enableWebSQL: false, // WebSQL 비활성화
-      webgl: false, // 필요없는 WebGL 비활성화
-      webaudio: false, // 오디오 기능 비활성화
-      // SPELLCHECK 비활성화
-      spellcheck: false,
-      // 하드웨어 가속 필요없는 경우 비활성화
-      disableHardwareAcceleration: !appState.settings.useHardwareAcceleration
+async function createWindow() {
+  try {
+    // 이미 윈도우가 있는 경우 표시하고 포커스
+    if (appState.mainWindow) {
+      if (appState.mainWindow.isMinimized()) {
+        appState.mainWindow.restore();
+      }
+      appState.mainWindow.focus();
+      return appState.mainWindow;
     }
-  });
-
-  // 개발/배포 환경에 따라 다른 URL 로드
-  let startUrl;
-  if (isDev) {
-    // 개발 환경: 로컬 서버 사용
-    startUrl = 'http://localhost:3000';
-  } else {
-    // 배포 환경: 로컬 서버 사용 (npm start로 실행된 서버)
-    startUrl = 'http://localhost:3000';
-  }
-  
-  console.log('앱 시작 URL:', startUrl);
-  
-  appState.mainWindow.loadURL(startUrl)
-    .catch(err => {
-      console.error('URL 로드 실패:', err);
-      
-      // 오류 화면 표시 - 타이틀 제거
-      const errorHtml = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <title></title>
-          <meta charset="UTF-8">
-          <style>
-            body { font-family: Arial; padding: 20px; color: #333; background: #f0f0f0; }
-            .container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-            h1 { color: #2196F3; }
-            pre { background: #f5f5f5; padding: 10px; border-radius: 4px; overflow: auto; }
-            .error { color: #e53935; }
-            .solution { margin-top: 20px; border-top: 1px solid #eee; padding-top: 20px; }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <h1></h1>
-            <p>Next.js 서버에 연결할 수 없습니다.</p>
-            <p class="error">오류: Next.js 서버가 실행 중인지 확인하세요.</p>
-            <div class="solution">
-              <h3>해결 방법:</h3>
-              <p>터미널에서 아래 명령어 실행 후 앱을 다시 시작하세요:</p>
-              <ol>
-                <li>개발 모드: <code>npm run dev</code></li>
-                <li>또는 프로덕션 모드: <code>npm run build</code> 후 <code>npm run start</code></li>
-              </ol>
-              <p>그런 다음 앱을 다시 실행하세요: <code>npm run electron</code></p>
-            </div>
-          </div>
-        </body>
-        </html>
-      `;
-      
-      const tempPath = path.join(__dirname, '../../error.html');
-      fs.writeFileSync(tempPath, errorHtml);
-      
-      return appState.mainWindow.loadFile(tempPath);
-    });
-
-  // 창이 준비되면 표시
-  appState.mainWindow.once('ready-to-show', () => {
-    appState.mainWindow.show();
     
-    // 설정에 따라 창 모드 적용
-    applyWindowMode(appState.settings.windowMode);
-  });
-
-  // 기본 메뉴 비활성화
-  appState.mainWindow.setMenu(null);
-
-  // 개발 도구 설정
-  if (isDev) {
-    appState.mainWindow.webContents.openDevTools();
-  }
-
-  // 윈도우 닫기 이벤트 처리 추가
-  appState.mainWindow.on('close', (event) => {
-    // 설정에서 트레이로 최소화 옵션이 활성화되어 있고, 완전히 종료하지 않는 경우
-    if (appState.settings.minimizeToTray && !appState.allowQuit) {
-      event.preventDefault(); // 창 닫기 이벤트 취소
+    // 설정 로드
+    await loadSettings();
+    
+    // 화면 크기 가져오기
+    const primaryDisplay = screen.getPrimaryDisplay();
+    const { width, height } = primaryDisplay.workAreaSize;
+    
+    // GPU 가속 설정에 따른 옵션 설정
+    const windowOptions = {
+      width: Math.min(1200, width * 0.8),
+      height: Math.min(800, height * 0.8),
+      webPreferences: {
+        preload: path.join(__dirname, '../../preload.js'),
+        nodeIntegration: false,
+        contextIsolation: true,
+        sandbox: false,
+      },
+      show: false, // 준비될 때까지 숨김
+      backgroundColor: appState.settings?.darkMode ? '#121212' : '#f9f9f9',
+      titleBarStyle: 'hidden',
+      frame: false,
+      // GPU 가속 관련 설정 추가
+      webPreferences: {
+        preload: path.join(__dirname, '../../preload.js'),
+        nodeIntegration: false,
+        contextIsolation: true,
+        sandbox: false,
+        // Chrome 스타일의 GPU 가속 설정
+        enableWebSQL: false, // 더 이상 사용되지 않는 기능 비활성화
+        enableBlinkFeatures: 'CSSColorSchemeUARendering',
+        // GPU 가속 관련 설정 추가 - Chrome 스타일
+        accelerator: appState.settings?.useHardwareAcceleration ? 'gpu' : 'cpu',
+        // 하드웨어 가속 설정에 따른 옵션 
+        offscreen: false,
+      }
+    };
+    
+    // 메인 윈도우 생성
+    const mainWindow = new BrowserWindow(windowOptions);
+    
+    // 앱 상태에 저장
+    appState.mainWindow = mainWindow;
+    
+    // 윈도우 모드 설정 적용
+    if (appState.settings?.windowMode === 'fullscreen') {
+      mainWindow.setFullScreen(true);
+    } else if (appState.settings?.windowMode === 'fullscreen-auto-hide') {
+      mainWindow.setFullScreen(true);
+      appState.autoHideToolbar = true;
+    }
+    
+    // 다크 모드 설정 적용
+    if (appState.settings?.darkMode) {
+      mainWindow.webContents.executeJavaScript(
+        'document.documentElement.classList.add("dark-mode");'
+      );
+    }
+    
+    // 로드 URL 결정
+    const startUrl = isDev
+      ? 'http://localhost:3000'
+      : `file://${path.join(__dirname, '../../dist/index.html')}`;
       
-      // 백그라운드 모드 최적화 실행
-      optimizeForBackground();
+    // URL 로드 및 이벤트 핸들러 설정
+    mainWindow.loadURL(startUrl)
+      .catch(err => {
+        console.error('URL 로드 실패:', err);
+        
+        // 오류 화면 표시 - 타이틀 제거
+        const errorHtml = `
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <title></title>
+            <meta charset="UTF-8">
+            <style>
+              body { font-family: Arial; padding: 20px; color: #333; background: #f0f0f0; }
+              .container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+              h1 { color: #2196F3; }
+              pre { background: #f5f5f5; padding: 10px; border-radius: 4px; overflow: auto; }
+              .error { color: #e53935; }
+              .solution { margin-top: 20px; border-top: 1px solid #eee; padding-top: 20px; }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <h1></h1>
+              <p>Next.js 서버에 연결할 수 없습니다.</p>
+              <p class="error">오류: Next.js 서버가 실행 중인지 확인하세요.</p>
+              <div class="solution">
+                <h3>해결 방법:</h3>
+                <p>터미널에서 아래 명령어 실행 후 앱을 다시 시작하세요:</p>
+                <ol>
+                  <li>개발 모드: <code>npm run dev</code></li>
+                  <li>또는 프로덕션 모드: <code>npm run build</code> 후 <code>npm run start</code></li>
+                </ol>
+                <p>그런 다음 앱을 다시 실행하세요: <code>npm run electron</code></p>
+              </div>
+            </div>
+          </body>
+          </html>
+        `;
+        
+        const tempPath = path.join(__dirname, '../../error.html');
+        fs.writeFileSync(tempPath, errorHtml);
+        
+        return appState.mainWindow.loadFile(tempPath);
+      });
+
+    // 윈도우 준비되면 표시
+    mainWindow.once('ready-to-show', () => {
+      mainWindow.show();
       
-      // 창 숨기기
-      appState.mainWindow.hide();
-      
-      // 트레이 알림 표시 (선택 사항)
-      if (appState.settings.showTrayNotifications) {
-        appState.mainWindow.webContents.send('show-tray-notification', {
-          title: '타이핑 통계 앱',
-          message: '앱이 계속 백그라운드에서 실행 중입니다.'
-        });
+      // 개발 모드에서만 개발자 도구 열기
+      if (isDev) {
+        mainWindow.webContents.openDevTools();
       }
       
-      debugLog('창을 숨기고 백그라운드 모드로 전환');
-      return false;
-    }
-  });
-
-  appState.mainWindow.on('closed', () => {
-    appState.mainWindow = null;
-  });
-  
-  return appState.mainWindow;
+      // 앱 상태에 따라 트레이 아이콘 생성
+      if (appState.settings?.minimizeToTray) {
+        setupTray();
+      }
+      
+      debugLog('메인 윈도우 준비됨');
+    });
+    
+    // 윈도우 닫기 이벤트 처리
+    mainWindow.on('close', (e) => {
+      // 트레이로 최소화 설정 시 닫기 동작 가로채서 숨김으로 변경
+      if (appState.settings?.minimizeToTray && !appState.allowQuit) {
+        e.preventDefault();
+        mainWindow.hide();
+        
+        // 트레이 알림 설정이 활성화된 경우 알림 표시
+        if (appState.settings.showTrayNotifications && appState.tray) {
+          appState.tray.displayBalloon({
+            title: '타이핑 통계 앱',
+            content: '앱이 트레이로 최소화되었습니다. 계속 모니터링 중입니다.',
+            iconType: 'info'
+          });
+        }
+        
+        return false;
+      }
+    });
+    
+    // 윈도우 닫힘 이벤트 처리
+    mainWindow.on('closed', () => {
+      appState.mainWindow = null;
+      
+      // 미니뷰도 함께 닫기
+      if (appState.miniViewWindow && !appState.miniViewWindow.isDestroyed()) {
+        appState.miniViewWindow.close();
+        appState.miniViewWindow = null;
+      }
+    });
+    
+    return mainWindow;
+  } catch (error) {
+    console.error('윈도우 생성 오류:', error);
+    throw error;
+  }
 }
 
 /**
@@ -264,8 +306,6 @@ function createMiniViewWindow() {
     movable: true,
     acceptFirstMouse: false,
   };
-
-  const { screen } = require('electron');
   const primaryDisplay = screen.getPrimaryDisplay();
   const { width, height } = primaryDisplay.workAreaSize;
 
@@ -386,10 +426,82 @@ function startSendingStatsToMiniView() {
   }
 }
 
+/**
+ * 재시작 안내 창 생성
+ */
+function createRestartPromptWindow() {
+  debugLog('재시작 안내 창 생성 중...');
+  
+  try {
+    // 메인 화면 크기 가져오기
+    const { width, height } = screen.getPrimaryDisplay().workAreaSize;
+    
+    // 재시작 창 생성 (메인 창보다 작게)
+    const restartWindow = new BrowserWindow({
+      width: 400,
+      height: 250,
+      title: '앱 재시작',
+      center: true,
+      resizable: false,
+      // cspell:disable-next-line
+      minimizable: false,
+      // cspell:disable-next-line
+      maximizable: false,
+      // cspell:disable-next-line
+      fullscreenable: false,
+      backgroundColor: appState.settings?.darkMode ? '#1E1E1E' : '#FFFFFF',
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true,
+        preload: path.join(__dirname, '../preload/restart.js')
+      },
+      show: false,
+      parent: appState.mainWindow || null,
+      modal: true,
+      frame: false,
+      skipTaskbar: true,
+    });
+    
+    const restartPageUrl = url.format({
+      pathname: path.join(__dirname, '../renderer/restart.html'),
+      protocol: 'file:',
+      slashes: true
+    });
+    
+    // HTML 페이지 로드
+    restartWindow.loadURL(restartPageUrl);
+    
+    // 개발자 도구 (개발 환경에서만)
+    if (isDev) {
+      restartWindow.webContents.openDevTools({ mode: 'detach' });
+    }
+    
+    // 창이 준비되면 표시
+    restartWindow.once('ready-to-show', () => {
+      restartWindow.show();
+      restartWindow.focus();
+    });
+    
+    // 창이 닫힐 때 참조 제거
+    restartWindow.on('closed', () => {
+      appState.restartWindow = null;
+    });
+    
+    // 전역 상태에 창 참조 저장
+    appState.restartWindow = restartWindow;
+    
+    return restartWindow;
+  } catch (error) {
+    console.error('재시작 창 생성 중 오류:', error);
+    return null;
+  }
+}
+
 module.exports = {
   createWindow,
   optimizeForBackground,
   disableBackgroundOptimization,
   createMiniViewWindow,
-  toggleMiniView
+  toggleMiniView,
+  createRestartPromptWindow
 };

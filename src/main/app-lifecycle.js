@@ -6,37 +6,111 @@ const { setupIpcHandlers } = require('./ipc-handlers');
 const { loadSettings } = require('./settings');
 const { debugLog } = require('./utils');
 const { setupTray, destroyTray } = require('./tray');
-// 메모리 관리자 모듈 추가
 const { setupMemoryMonitoring, performGC } = require('./memory-manager');
-// GPU 설정 관련 모듈 추가
 const { switchToLowMemoryMode } = require('./stats');
 
 // GPU 설정 확인 및 적용 함수
 async function setupGpuConfiguration() {
   try {
+    debugLog('GPU 설정 적용 시작 - Chrome 스타일 구성');
+    
     // 설정 로드
     await loadSettings();
     
     // 하드웨어 가속 설정 적용
     const useHardwareAcceleration = appState.settings?.useHardwareAcceleration || false;
     
+    debugLog(`GPU 가속 설정 상태: ${useHardwareAcceleration ? '활성화됨' : '비활성화됨'}`);
+    
+    // 이미 실행 중인 앱의 설정 변경인 경우, 재시작 필요 메시지 표시
+    if (appState.mainWindow && appState.gpuEnabled !== useHardwareAcceleration) {
+      debugLog('GPU 가속 설정이 변경되었습니다. 재시작이 필요합니다.');
+    }
+    
     if (!useHardwareAcceleration) {
+      // GPU 가속이 비활성화된 경우
       app.disableHardwareAcceleration();
       debugLog('사용자 설정에 따라 하드웨어 가속 비활성화됨');
       appState.gpuEnabled = false;
+      
+      // 강제로 소프트웨어 렌더링 사용 (Chrome 스타일)
+      app.commandLine.appendSwitch('disable-gpu');
+      app.commandLine.appendSwitch('disable-gpu-compositing');
+      app.commandLine.appendSwitch('disable-accelerated-2d-canvas');
+      app.commandLine.appendSwitch('disable-accelerated-video-decode');
+      app.commandLine.appendSwitch('disable-accelerated-video-encode');
+      app.commandLine.appendSwitch('disable-gpu-rasterization');
+      app.commandLine.appendSwitch('disable-zero-copy');
+      app.commandLine.appendSwitch('disable-webgl');
+      debugLog('소프트웨어 렌더링 모드 활성화됨 (모든 GPU 기능 비활성화)');
     } else {
-      // GPU 가속 활성화 및 최적화 플래그 설정
-      debugLog('하드웨어 가속 활성화됨');
+      // Chrome 스타일의 GPU 가속 활성화 및 최적화 플래그 설정
+      debugLog('Chrome 스타일의 하드웨어 가속 활성화 시작');
       appState.gpuEnabled = true;
       
-      // 성능 최적화 플래그 설정
+      // 기존 플래그 제거 (중복 적용 방지)
+      try {
+        app.commandLine.hasSwitch('ignore-gpu-blocklist') && app.commandLine.removeSwitch('ignore-gpu-blocklist');
+        app.commandLine.hasSwitch('disable-gpu') && app.commandLine.removeSwitch('disable-gpu');
+      } catch (e) {
+        debugLog('기존 GPU 플래그 제거 중 오류 (무시됨):', e);
+      }
+      
+      // Chrome의 GPU 가속 최적화 플래그 추가
+      
+      // 1. 기본 GPU 가속 활성화
+      app.commandLine.appendSwitch('ignore-gpu-blocklist');
+      
+      // 2. 컴포지팅 및 래스터화 최적화 (Chrome 스타일)
       app.commandLine.appendSwitch('enable-gpu-rasterization');
       app.commandLine.appendSwitch('enable-zero-copy');
+      app.commandLine.appendSwitch('enable-accelerated-2d-canvas');
+      app.commandLine.appendSwitch('enable-gpu-compositing');
+      
+      // 3. 비디오 가속 (Chrome 스타일)
+      app.commandLine.appendSwitch('enable-accelerated-video-decode');
+      if (process.platform !== 'darwin') { // macOS에서는 지원 안 됨
+        app.commandLine.appendSwitch('enable-accelerated-video-encode');
+      }
+      
+      // 4. WebGL 가속 (Chrome 스타일)
+      app.commandLine.appendSwitch('enable-webgl');
+      app.commandLine.appendSwitch('enable-webgl2');
+      
+      // 5. 네이티브 GPU 메모리 버퍼 최적화 (Chrome 스타일)
       app.commandLine.appendSwitch('enable-native-gpu-memory-buffers');
       
-      // 메모리 관리 관련 플래그
-      app.commandLine.appendSwitch('renderer-process-limit', '4');
-      app.commandLine.appendSwitch('enable-features', 'NetworkService,NetworkServiceInProcess');
+      // 6. 하드웨어 가속을 위한 플랫폼별 최적화 설정 (Chrome 스타일)
+      if (process.platform === 'win32') {
+        // Windows에서 DirectX 관련 최적화
+        app.commandLine.appendSwitch('enable-direct-composition');
+        app.commandLine.appendSwitch('enable-features', 'D3D11VideoDecoder,UseOzonePlatform,VaapiVideoDecoder');
+        
+        // ANGLE(Almost Native Graphics Layer) 설정 (Chrome 방식)
+        app.commandLine.appendSwitch('use-angle', 'gl'); // 또는 'd3d11', 'd3d9', 'metal'
+      } 
+      else if (process.platform === 'darwin') {
+        // macOS에서 Metal API 사용 (Chrome 방식)
+        app.commandLine.appendSwitch('use-metal');
+        app.commandLine.appendSwitch('enable-features', 'Metal');
+      } 
+      else if (process.platform === 'linux') {
+        // Linux에서 Vulkan/VA-API 최적화
+        app.commandLine.appendSwitch('enable-features', 'VaapiVideoDecoder,VaapiVideoEncoder,Vulkan');
+        
+        // OpenGL 최적화 설정
+        app.commandLine.appendSwitch('use-gl', 'desktop');
+      }
+      
+      // 7. GPU 프로세스 관리 최적화 (Chrome 스타일)
+      app.commandLine.appendSwitch('enable-gpu-memory-buffer-video-frames');
+      app.commandLine.appendSwitch('gpu-rasterization-msaa-sample-count', '0');
+      
+      // 8. 실험적 기능 활성화 (Chrome 방식)
+      app.commandLine.appendSwitch('enable-features', 
+        'CanvasOopRasterization,GpuMemoryBufferCompositor,LazyFrameGeneration,OverlayScrollbar');
+      
+      debugLog('Chrome 스타일의 GPU 가속 플래그 설정 완료');
     }
     
     // 처리 모드 적용
@@ -47,6 +121,10 @@ async function setupGpuConfiguration() {
     const maxMemoryThreshold = appState.settings?.maxMemoryThreshold || 100;
     debugLog(`메모리 임계치 설정: ${maxMemoryThreshold}MB`);
     
+    // 설정 적용 시간 지연 추가 (안정화 시간)
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
+    debugLog('GPU 설정 적용 완료');
     return true;
   } catch (error) {
     console.error('GPU 설정 적용 중 오류:', error);
@@ -85,44 +163,64 @@ try {
 async function initializeApp() {
   debugLog('앱 초기화 시작');
   
-  // GPU 설정 초기화 - 새로 추가된 부분
-  await setupGpuConfiguration();
-  
-  // 메모리 사용량 모니터링 시작 - 새 모듈 사용
-  setupMemoryMonitoring();
-  
-  // 설정 로드
-  await loadSettings();
-  
-  // 메인 윈도우 생성
-  createWindow();
-  
-  // 키보드 리스너 설정
-  setupKeyboardListener();
-  
-  // IPC 핸들러 설정
-  setupIpcHandlers();
-  
-  // 트레이 설정 추가
-  if (appState.settings.minimizeToTray) {
-    setupTray();
-  }
-  
-  // GC가 사용 가능한지 확인
-  if (typeof global.gc === 'function') {
-    debugLog('GC 사용 가능 - 초기화 후 메모리 정리 실행');
+  try {
+    // GPU 설정 초기화
+    await setupGpuConfiguration();
+    debugLog('GPU 설정 초기화 완료');
     
-    // 초기 GC 실행으로 시작 시 사용된 메모리 정리
-    setTimeout(() => {
-      performGC();
-      debugLog('초기 메모리 정리 완료');
-    }, 3000); // 앱 시작 3초 후 GC 실행
-  } else {
-    debugLog('경고: GC를 사용할 수 없습니다. 메모리 관리가 제한됩니다.');
-    debugLog('GC 활성화를 위해 --expose-gc 플래그로 앱을 다시 시작하세요.');
+    // 설정 확인
+    debugLog(`GPU 가속 상태: ${appState.gpuEnabled ? '활성화됨' : '비활성화됨'}`);
+    
+    // 메모리 사용량 모니터링 시작
+    setupMemoryMonitoring();
+    
+    // 설정 로드 (이미 GPU 설정에서 로드했으므로 중복되지 않게 수정)
+    if (!appState.settings) {
+      await loadSettings();
+    }
+    
+    // 안정화를 위한 지연 추가 (필요한 경우에만)
+    if (appState.gpuEnabled) {
+      debugLog('GPU 초기화 안정화 대기 중...');
+      await new Promise(resolve => setTimeout(resolve, 500));
+    }
+    
+    // 메인 윈도우 생성
+    createWindow();
+    
+    // 키보드 리스너 설정
+    setupKeyboardListener();
+    
+    // IPC 핸들러 설정
+    setupIpcHandlers();
+    
+    // 트레이 설정 추가
+    if (appState.settings.minimizeToTray) {
+      setupTray();
+    }
+    
+    // GC가 사용 가능한지 확인
+    if (typeof global.gc === 'function') {
+      debugLog('GC 사용 가능 - 초기화 후 메모리 정리 실행');
+      
+      // 초기 GC 실행으로 시작 시 사용된 메모리 정리
+      setTimeout(() => {
+        performGC();
+        debugLog('초기 메모리 정리 완료');
+      }, 3000); // 앱 시작 3초 후 GC 실행
+    } else {
+      debugLog('경고: GC를 사용할 수 없습니다. 메모리 관리가 제한됩니다.');
+      debugLog('GC 활성화를 위해 --expose-gc 플래그로 앱을 다시 시작하세요.');
+    }
+    
+    debugLog('앱 초기화 완료');
+  } catch (error) {
+    console.error('앱 초기화 중 오류:', error);
+    // 오류 발생 시 기본 설정으로 계속 시도
+    createWindow();
+    setupKeyboardListener();
+    setupIpcHandlers();
   }
-  
-  debugLog('앱 초기화 완료');
 }
 
 /**

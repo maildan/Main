@@ -23,6 +23,9 @@
     "miniview",
     "webaudio",
     "AUTOINCREMENT",
+    "Vaapi",
+    "msaa",
+    "Kahan",
   ],
   "ignorePaths": [
     "node_modules/**",

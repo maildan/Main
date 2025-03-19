@@ -299,6 +299,22 @@ const electronAPI = {
   requestStatsUpdate: () => {
     console.log('트레이 통계 업데이트 요청');
     ipcRenderer.send('request-stats-update');
+  },
+
+  /**
+   * 앱 재시작
+   */
+  restartApp: () => {
+    console.log('앱 재시작 요청');
+    ipcRenderer.send('restart-app');
+  },
+  
+  /**
+   * 재시작 안내 창 표시
+   */
+  showRestartPrompt: () => {
+    console.log('재시작 안내 창 표시 요청');
+    ipcRenderer.send('show-restart-prompt');
   }
 };
 

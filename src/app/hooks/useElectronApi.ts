@@ -40,7 +40,9 @@ const createDummyElectronAPI = (): ElectronAPI => ({
     // 누락된 필수 속성 추가
     useHardwareAcceleration: false,
     processingMode: 'auto',
-    maxMemoryThreshold: 100
+    maxMemoryThreshold: 100,
+    // resumeAfterIdle 속성 추가
+    resumeAfterIdle: true
   }),
   setDarkMode: () => Promise.resolve({ success: true }),
   setWindowMode: () => Promise.resolve({ success: true }),
@@ -57,7 +59,10 @@ const createDummyElectronAPI = (): ElectronAPI => ({
   quitApp: () => console.log('개발용 quitApp 호출'),
   toggleWindow: () => console.log('개발용 toggleWindow 호출'),
   onBackgroundModeChange: () => () => {},
-  onTrayCommand: () => () => {}
+  onTrayCommand: () => () => {},
+  restartApp: () => console.log('개발용 restartApp 호출'),
+  // showRestartPrompt 메서드 추가
+  showRestartPrompt: () => console.log('개발용 showRestartPrompt 호출')
 });
 
 export function useElectronApi() {

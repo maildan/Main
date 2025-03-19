@@ -42,20 +42,35 @@ function initializeWorker() {
       const { getMemoryInfo } = require('./memory-manager');
       const memoryInfo = getMemoryInfo();
       
-      if (memoryInfo.heapUsed > HIGH_MEMORY_THRESHOLD) {
+      // 메모리 상태에 따른 모드 선택 (임계값 조정)
+      const memoryThreshold = appState.settings?.maxMemoryThreshold 
+        ? appState.settings.maxMemoryThreshold * 1024 * 1024  // MB를 바이트로 변환
+        : HIGH_MEMORY_THRESHOLD;
+      
+      if (memoryInfo.heapUsed > memoryThreshold * 0.8) { // 80% 임계점
         initialMode = appState.gpuEnabled ? 'gpu-intensive' : 'cpu-intensive';
         processingMode = initialMode;
-        debugLog(`메모리 상황에 따른 초기 모드 설정: ${processingMode}`);
+        debugLog(`메모리 상황에 따른 초기 모드 설정: ${processingMode}, 사용 메모리: ${Math.round(memoryInfo.heapUsed/(1024*1024))}MB`);
       }
     }
     
-    // 워커에 필요한 옵션 전달
+    // 워커에 필요한 옵션 전달 (메모리 임계치 사용자 설정 적용)
+    const actualMemoryThreshold = appState.settings?.maxMemoryThreshold 
+      ? appState.settings.maxMemoryThreshold * 1024 * 1024  // MB를 바이트로 변환
+      : MEMORY_THRESHOLD;
+      
     statWorker = new Worker(workerPath, {
       workerData: {
-        memoryLimit: MEMORY_THRESHOLD,
+        memoryLimit: actualMemoryThreshold,
         initialMode: processingMode,
         gpuEnabled: appState.gpuEnabled,
-        maxMemoryThreshold: appState.settings?.maxMemoryThreshold || 100
+        maxMemoryThreshold: appState.settings?.maxMemoryThreshold || 100,
+        // 워커 성능 최적화 옵션 추가
+        resourceLimits: {
+          maxYoungGenerationSizeMb: 32,
+          maxOldGenerationSizeMb: 128,
+          codeRangeSizeMb: 16,
+        }
       }
     });
     
@@ -203,12 +218,19 @@ function switchToLowMemoryMode() {
     // GPU 지원 여부 확인 및 가능한 경우 GPU 모드로 전환
     appState.gpuEnabled = appState.settings?.useHardwareAcceleration === true;
     
+    // GPU 모드 최적화
     if (appState.gpuEnabled) {
       processingMode = 'gpu-intensive';
-      debugLog('GPU 가속 처리 모드 활성화');
+      debugLog('GPU 가속 처리 모드 활성화 (성능 향상)');
+      
+      // GPU 메모리 최적화 추가 코드
+      if (global.gc) {
+        global.gc();
+        debugLog('GPU 모드 전환 전 메모리 정리 수행');
+      }
     } else {
       processingMode = 'cpu-intensive';
-      debugLog('CPU 집약적 처리 모드 활성화');
+      debugLog('CPU 집약적 처리 모드 활성화 (메모리 최적화)');
     }
     
     // 워커에 모드 변경 알림

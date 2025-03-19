@@ -151,6 +151,11 @@ function optimizeMemoryForBackground(isBackground) {
   // 즉시 GC 수행
   performGC();
   
+  // GPU 메모리 최적화 추가
+  if (appState.gpuEnabled) {
+    optimizeGpuMemory();
+  }
+  
   // 추가 최적화 설정
   if (appState.settings?.reduceMemoryInBackground) {
     // 백그라운드에서 메모리 최적화 전략 수립
@@ -282,6 +287,46 @@ function freeUpMemoryResources(emergency = false) {
 }
 
 /**
+ * GPU 관련 메모리 최적화 수행
+ * Chrome 스타일의 메모리 관리를 위한 함수
+ */
+function optimizeGpuMemory() {
+  try {
+    if (!appState.gpuEnabled) return false;
+    
+    debugLog('GPU 메모리 최적화 시작');
+    
+    if (appState.mainWindow && !appState.mainWindow.isDestroyed()) {
+      // Chrome과 유사한 방식으로 GPU 컨텍스트 최적화
+      appState.mainWindow.webContents.send('optimize-gpu-resources', {
+        action: 'clean-webgl-context',
+        timestamp: Date.now()
+      });
+      
+      // 사용되지 않는 GPU 리소스 해제를 렌더러에 요청
+      appState.mainWindow.webContents.send('release-inactive-gpu-resources');
+      
+      // 최고 성능이 필요하지 않은 경우 GPU 프로세스 부하 감소
+      if (appState.inBackgroundMode) {
+        // Chrome처럼 백그라운드 탭에서 GPU 사용 제한
+        appState.mainWindow.webContents.send('limit-background-gpu');
+      }
+    }
+    
+    // GPU 가속 모드에서 주기적으로 메모리 정리
+    if (global.gc) {
+      global.gc();
+      debugLog('GPU 최적화 후 메모리 정리 수행');
+    }
+    
+    return true;
+  } catch (error) {
+    console.error('GPU 메모리 최적화 오류:', error);
+    return false;
+  }
+}
+
+/**
  * 메모리 모니터링 시작
  */
 function setupMemoryMonitoring(interval = 30000) {
@@ -384,5 +429,6 @@ module.exports = {
   setupMemoryMonitoring,
   optimizeMemoryForBackground,
   freeUpMemoryResources,
-  createHeapSnapshot // 추가된 함수
+  createHeapSnapshot, // 추가된 함수
+  optimizeGpuMemory,  // 새 함수 내보내기
 };
