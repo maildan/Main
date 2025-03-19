@@ -8,14 +8,33 @@ import { TypingChart } from './TypingChart';
 import { TabNavigation } from './TabNavigation';
 import { MainLayout } from './MainLayout';
 import { DebugPanel } from './DebugPanel';
-import { Settings } from './Settings'; // Settings 컴포넌트 임포트 추가
-import { useToast } from '../components/ToastContext';
+import { Settings } from './Settings'; 
+// useToast를 사용하지 않는다면 임포트 제거
+// import { useToast } from './ToastContext';
 import { useElectronApi } from '../hooks/useElectronApi';
 import { useSettings } from '../hooks/useSettings';
 import { useTypingStats } from '../hooks/useTypingStats';
 import { useTabNavigation } from '../hooks/useTabNavigation';
 import { useMemoryManagement } from '../hooks/useMemoryManagement';
 import { useAutoHideHeader } from '../hooks/useAutoHideHeader';
+
+// LogEntry 타입 정의 추가
+interface LogEntry {
+  id: number;
+  content: string;
+  key_count: number;
+  typing_time: number;
+  timestamp: string;
+  created_at: string;
+  is_saved?: boolean;
+  window_title?: string;
+  browser_name?: string;
+  total_chars?: number;
+  total_chars_no_space?: number;
+  total_words?: number;
+  pages?: number;
+  accuracy?: number;
+}
 
 export const HomeContent = React.memo(function HomeContent() {
   // Electron API 초기화

@@ -1,11 +1,15 @@
 const { Worker } = require('worker_threads');
 const path = require('path');
-const { appState, BROWSER_DISPLAY_NAMES, IDLE_TIMEOUT } = require('./constants');
+const { appState, BROWSER_DISPLAY_NAMES, IDLE_TIMEOUT, HIGH_MEMORY_THRESHOLD } = require('./constants');
 const { debugLog, formatTime } = require('./utils');
 const { saveStats: saveStatsToDb, getStatById } = require('./database');
 
 // 워커 인스턴스 관리
 let statWorker = null;
+let workerInitialized = false;
+let workerMemoryUsage = { heapUsed: 0, heapTotal: 0 };
+let lastWorkerCheck = 0;
+let pendingTasks = [];
 
 /**
  * 워커 초기화 - CPU 집약적 계산을 위한 별도 스레드
@@ -17,40 +21,183 @@ function initializeWorker() {
   
   try {
     const workerPath = path.join(__dirname, './workers/stat-worker.js');
-    statWorker = new Worker(workerPath);
+    statWorker = new Worker(workerPath, {
+      // 워커에 GC 권한 부여
+      execArgv: ['--expose-gc']
+    });
     
     statWorker.on('message', (message) => {
-      switch (message.action) {
-        case 'stats-calculated':
-          // 계산된 통계 처리
-          updateCalculatedStats(message.result);
-          break;
-        case 'pattern-analyzed':
-          // 분석된 패턴 처리
-          updateTypingPattern(message.result);
-          break;
-        case 'error':
-          console.error('워커 오류:', message.error);
-          break;
+      try {
+        // 메시지 타입에 따라 처리
+        switch (message.action) {
+          case 'stats-calculated':
+            // 계산된 통계 처리
+            updateCalculatedStats(message.result);
+            
+            // 워커 메모리 정보 업데이트
+            if (message.memoryInfo) {
+              updateWorkerMemoryInfo(message.memoryInfo);
+            }
+            break;
+            
+          case 'pattern-analyzed':
+            // 분석된 패턴 처리
+            updateTypingPattern(message.result);
+            
+            // 워커 메모리 정보 업데이트
+            if (message.memoryInfo) {
+              updateWorkerMemoryInfo(message.memoryInfo);
+            }
+            break;
+            
+          case 'initialized':
+            // 워커 초기화 완료
+            workerInitialized = true;
+            debugLog('워커 초기화 완료:', message.timestamp);
+            
+            // 대기 중인 작업 처리
+            processPendingTasks();
+            break;
+            
+          case 'memory-optimized':
+            // 메모리 최적화 결과 처리
+            debugLog('워커 메모리 최적화 완료:', {
+              before: `${Math.round(message.before / (1024 * 1024))}MB`,
+              after: `${Math.round(message.after / (1024 * 1024))}MB`,
+              reduction: `${Math.round(message.reduction / (1024 * 1024))}MB`,
+              emergency: message.emergency
+            });
+            break;
+            
+          case 'memory-warning':
+            // 메모리 경고 로깅
+            debugLog('워커 메모리 경고:', message.message, 
+                     `${Math.round(message.memoryInfo.heapUsedMB)}MB`);
+            
+            // 메인 프로세스도 메모리 정리 시도
+            const { checkMemoryUsage } = require('./memory-manager');
+            checkMemoryUsage(true);
+            break;
+            
+          case 'error':
+            console.error('워커 오류:', message.error);
+            if (message.memoryInfo) {
+              updateWorkerMemoryInfo(message.memoryInfo);
+            }
+            break;
+            
+          case 'worker-ready':
+            workerInitialized = true;
+            if (message.memoryInfo) {
+              updateWorkerMemoryInfo(message.memoryInfo);
+            }
+            break;
+            
+          default:
+            debugLog('알 수 없는 워커 메시지:', message);
+        }
+      } catch (error) {
+        console.error('워커 메시지 처리 중 오류:', error);
       }
     });
     
     statWorker.on('error', (error) => {
       console.error('워커 실행 오류:', error);
-      statWorker = null; // 워커 참조 제거
+      
+      // 워커 상태 초기화
+      workerInitialized = false;
+      statWorker = null;
+      
+      // 메모리 최적화 목적으로 일정 시간 후 재생성 시도
+      setTimeout(() => {
+        if (!statWorker) {
+          debugLog('워커 재생성 시도');
+          initializeWorker();
+        }
+      }, 30000); // 30초 후 재시도
     });
     
     statWorker.on('exit', (code) => {
       if (code !== 0) {
         console.error(`워커가 코드 ${code}로 종료됨`);
       }
-      statWorker = null; // 워커 참조 제거
+      
+      // 워커 참조 및 상태 정리
+      workerInitialized = false;
+      statWorker = null;
+      
+      // 메모리 급증 방지를 위한 GC 호출
+      if (global.gc) {
+        global.gc();
+      }
     });
     
-    debugLog('통계 워커 초기화 완료');
+    debugLog('통계 워커 초기화 시작됨');
   } catch (error) {
     console.error('워커 초기화 오류:', error);
+    workerInitialized = false;
     statWorker = null;
+  }
+}
+
+/**
+ * 워커 메모리 정보 업데이트
+ * @param {Object} memoryInfo - 워커에서 전송한 메모리 정보
+ */
+function updateWorkerMemoryInfo(memoryInfo) {
+  if (!memoryInfo) return;
+  
+  workerMemoryUsage = {
+    heapUsed: memoryInfo.heapUsed || 0,
+    heapTotal: memoryInfo.heapTotal || 0,
+    heapUsedMB: memoryInfo.heapUsedMB || 0,
+    timestamp: memoryInfo.timestamp || Date.now()
+  };
+  
+  lastWorkerCheck = Date.now();
+  
+  // 메모리 사용량이 기준치를 초과하면 최적화 실행
+  if (workerMemoryUsage.heapUsed > HIGH_MEMORY_THRESHOLD) {
+    optimizeWorkerMemory(workerMemoryUsage.heapUsed > HIGH_MEMORY_THRESHOLD * 1.5);
+  }
+}
+
+/**
+ * 워커 메모리 최적화
+ * @param {boolean} emergency - 긴급 최적화 여부
+ */
+function optimizeWorkerMemory(emergency = false) {
+  if (!statWorker || !workerInitialized) return;
+  
+  try {
+    statWorker.postMessage({
+      action: 'optimize-memory',
+      emergency
+    });
+    
+    debugLog(`워커 메모리 최적화 요청: ${emergency ? '긴급' : '일반'}`);
+    
+  } catch (error) {
+    console.error('워커 메모리 최적화 요청 중 오류:', error);
+  }
+}
+
+/**
+ * 대기 중인 작업 처리
+ */
+function processPendingTasks() {
+  if (!statWorker || !workerInitialized || pendingTasks.length === 0) return;
+  
+  debugLog(`대기 중인 작업 ${pendingTasks.length}개 처리 시작`);
+  
+  // 대기 중인 작업 처리
+  while (pendingTasks.length > 0) {
+    const task = pendingTasks.shift();
+    try {
+      statWorker.postMessage(task);
+    } catch (error) {
+      console.error('대기 작업 처리 중 오류:', error);
+    }
   }
 }
 
@@ -134,24 +281,99 @@ function processKeyInput(windowTitle, browserName) {
  * 메모리 최적화: CPU 집약적 작업을 별도 스레드로 분리
  */
 function calculateStatsInWorker() {
+  // 워커가 아직 초기화되지 않은 경우 초기화
   if (!statWorker) {
     initializeWorker();
   }
   
-  if (statWorker) {
-    // 현재 입력 내용을 워커로 전송 (필요한 데이터만 전송)
-    statWorker.postMessage({
-      action: 'calculate-stats',
-      data: {
-        keyCount: appState.currentStats.keyCount,
-        typingTime: appState.currentStats.typingTime,
-        content: appState.currentContent || '',
-        errors: appState.currentStats.errors || 0
-      }
-    });
+  const message = {
+    action: 'calculate-stats',
+    data: {
+      keyCount: appState.currentStats.keyCount,
+      typingTime: appState.currentStats.typingTime,
+      content: appState.currentContent || '',
+      errors: appState.currentStats.errors || 0
+    }
+  };
+  
+  if (statWorker && workerInitialized) {
+    // 워커가 준비된 경우 메시지 전송
+    try {
+      statWorker.postMessage(message);
+    } catch (error) {
+      console.error('워커 메시지 전송 오류:', error);
+      updateCalculatedStatsMain(); // 폴백: 메인 스레드에서 계산
+    }
   } else {
-    // 워커 사용 불가능한 경우 메인 스레드에서 간단히 계산
+    // 워커가 준비되지 않은 경우 작업 큐에 추가
+    pendingTasks.push(message);
+    
+    // 워커 초기화
+    if (!statWorker) {
+      initializeWorker();
+    }
+    
+    // 폴백: 메인 스레드에서 간단히 계산
     updateCalculatedStatsMain();
+  }
+  
+  // 주기적으로 워커 메모리 상태 확인
+  if (lastWorkerCheck === 0 || (Date.now() - lastWorkerCheck) > 60000) { // 1분마다
+    checkWorkerStatus();
+  }
+}
+
+/**
+ * 워커 상태 확인 및 필요시 재시작
+ */
+function checkWorkerStatus() {
+  lastWorkerCheck = Date.now();
+  
+  // 워커가 없거나 초기화되지 않은 경우 재시작
+  if (!statWorker) {
+    debugLog('워커 없음, 재초기화');
+    initializeWorker();
+    return;
+  }
+  
+  // 메모리 사용량이 너무 높은 경우 워커 재시작
+  if (workerMemoryUsage.heapUsed > HIGH_MEMORY_THRESHOLD * 2) {
+    debugLog('워커 메모리 사용량 과다, 재시작');
+    restartWorker();
+    return;
+  }
+  
+  // 워커 메모리 최적화 요청 (일반 모드)
+  optimizeWorkerMemory(false);
+}
+
+/**
+ * 워커 재시작
+ */
+function restartWorker() {
+  if (statWorker) {
+    debugLog('워커 재시작');
+    try {
+      // 기존 워커 종료
+      statWorker.terminate();
+      statWorker = null;
+      workerInitialized = false;
+      
+      // 메모리 정리
+      if (global.gc) {
+        global.gc();
+      }
+      
+      // 새 워커 시작
+      setTimeout(() => {
+        initializeWorker();
+      }, 500); // 약간의 지연 후 재시작
+      
+    } catch (error) {
+      console.error('워커 재시작 중 오류:', error);
+    }
+  } else {
+    initializeWorker();
   }
 }
 
@@ -185,11 +407,6 @@ function updateAndSendStats() {
   // 타이핑 시간 업데이트
   appState.currentStats.typingTime = typingTime;
   
-  // 속도 계산 (KPM)
-  const kpm = typingTime > 0 
-    ? Math.round((appState.currentStats.keyCount / typingTime) * 60) 
-    : 0;
-    
   // 필요한 통계 계산 (객체 복제 없이)
   if (!appState.currentStats.totalWords) {
     appState.currentStats.totalWords = Math.round(appState.currentStats.keyCount / 5);
@@ -225,6 +442,9 @@ function updateAndSendStats() {
     updateTrayMenu();
   }
   
+  // 미니뷰가 있다면 미니뷰 업데이트
+  updateMiniViewStats();
+  
   // 주기적 메모리 사용량 체크 (50회 간격)
   if (appState.currentStats.keyCount % 50 === 0) {
     const { checkMemoryUsage } = require('./memory-manager');
@@ -237,9 +457,58 @@ function updateAndSendStats() {
     debugLog('통계 업데이트:', {
       keyCount: appState.currentStats.keyCount,
       typingTime: formatTime(typingTime),
-      kpm,
       window: appState.currentStats.currentWindow?.substring(0, 30)
     });
+  }
+}
+
+/**
+ * 미니뷰 통계 업데이트
+ */
+function updateMiniViewStats() {
+  // 미니뷰 창이 있고 표시 중인 경우에만 업데이트
+  if (appState.miniViewWindow && !appState.miniViewWindow.isDestroyed() && appState.miniViewWindow.isVisible()) {
+    appState.miniViewWindow.webContents.send('mini-view-stats-update', {
+      keyCount: appState.currentStats.keyCount,
+      typingTime: appState.currentStats.typingTime,
+      windowTitle: appState.currentStats.currentWindow,
+      browserName: appState.currentStats.currentBrowser,
+      totalChars: appState.currentStats.totalChars,
+      totalWords: appState.currentStats.totalWords,
+      accuracy: appState.currentStats.accuracy,
+      isTracking: appState.isTracking
+    });
+  }
+}
+
+/**
+ * 타이핑 패턴 분석 요청
+ */
+function analyzeTypingPattern() {
+  if (!statWorker || !workerInitialized) {
+    if (!statWorker) {
+      initializeWorker();
+    }
+    return;
+  }
+  
+  // 최소 100회 이상의 키 입력이 있는 경우에만 분석 수행
+  if (appState.keyPresses && appState.keyPresses.length >= 100) {
+    try {
+      // 필요한 데이터만 복사하여 메모리 사용 최적화
+      const keyPresses = appState.keyPresses.slice(-1000); // 최대 1000개만 사용
+      const timestamps = appState.keyTimestamps.slice(-1000); // 최대 1000개만 사용
+      
+      statWorker.postMessage({
+        action: 'analyze-typing-pattern',
+        data: {
+          keyPresses,
+          timestamps
+        }
+      });
+    } catch (error) {
+      console.error('타이핑 패턴 분석 요청 중 오류:', error);
+    }
   }
 }
 
@@ -337,6 +606,7 @@ function stopTracking() {
   if (statWorker) {
     statWorker.terminate();
     statWorker = null;
+    workerInitialized = false;
   }
   
   debugLog('타이핑 모니터링 중지됨');
@@ -352,6 +622,10 @@ function cleanup() {
     statWorker = null;
   }
   
+  // 대기 작업 정리
+  pendingTasks = [];
+  workerInitialized = false;
+  
   // 참조 정리
   appState.currentContent = null;
 }
@@ -363,6 +637,8 @@ module.exports = {
   resetStats,
   startTracking,
   stopTracking,
-  cleanup, // 리소스 해제 함수 추가
-  initializeWorker // 워커 초기화 함수 내보내기
+  cleanup,
+  initializeWorker,
+  analyzeTypingPattern,
+  optimizeWorkerMemory
 };
