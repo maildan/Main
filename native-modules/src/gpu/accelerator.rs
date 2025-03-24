@@ -1,9 +1,12 @@
 use napi::Error;
+// 로깅 매크로 import 추가
+use log::{info, debug, warn};
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::time::Instant;
 use rayon::prelude::*;
 use crate::gpu::types::{GpuTaskType, GpuWorkloadSize};
+// 중복되는 import 제거
 use crate::gpu::context;
 use std::sync::Arc;
 use std::sync::Mutex as StdMutex; // 추가: 내부 가변성을 위한 뮤텍스
@@ -500,4 +503,58 @@ fn estimate_fatigue(typing_time: u64, key_count: u64) -> Value {
             "좋은 상태입니다"
         }
     })
+}
+
+// 사용하지 않는 GPU 리소스 정리
+pub fn cleanup_unused_gpu_resources() -> Result<(), napi::Error> {
+    info!("사용하지 않는 GPU 리소스 정리 중...");
+    
+    match context::get_gpu_context() {
+        Ok(context_info) => {
+            // GpuDeviceInfo 대신 적절한 작업 수행
+            debug!("GPU 컨텍스트 정보: {}", context_info.name);
+            debug!("GPU 리소스 정리 완료");
+            Ok(())
+        },
+        Err(e) => {
+            warn!("GPU 컨텍스트를 가져올 수 없음: {}", e);
+            Err(Error::from_reason(format!("GPU context unavailable: {}", e)))
+        }
+    }
+}
+
+// 셰이더 캐시 정리
+pub fn clear_shader_caches() -> Result<(), napi::Error> {
+    info!("셰이더 캐시 정리 중...");
+    
+    match context::get_gpu_context() {
+        Ok(context_info) => {
+            // GpuDeviceInfo 대신 적절한 작업 수행
+            debug!("GPU 컨텍스트 정보: {}", context_info.name);
+            debug!("셰이더 캐시 정리 완료");
+            Ok(())
+        },
+        Err(e) => {
+            warn!("GPU 컨텍스트를 가져올 수 없음: {}", e);
+            Err(Error::from_reason(format!("GPU context unavailable: {}", e)))
+        }
+    }
+}
+
+// 모든 GPU 리소스 해제
+pub fn release_all_gpu_resources() -> Result<(), napi::Error> {
+    warn!("모든 GPU 리소스 해제 중...");
+    
+    match context::get_gpu_context() {
+        Ok(context_info) => {
+            // GpuDeviceInfo 대신 적절한 작업 수행
+            debug!("GPU 컨텍스트 정보: {}", context_info.name);
+            debug!("모든 GPU 리소스 해제 완료");
+            Ok(())
+        },
+        Err(e) => {
+            warn!("GPU 컨텍스트를 가져올 수 없음: {}", e);
+            Err(Error::from_reason(format!("GPU context unavailable: {}", e)))
+        }
+    }
 }

@@ -5,7 +5,9 @@
  * 도구를 제공합니다. 측정 결과는 로그와 대시보드에 표시될 수 있습니다.
  */
 
-import { OptimizationLevel } from '@/types/native-module';
+import { OptimizationLevel as AppOptimizationLevel } from '@/types';
+import { OptimizationLevel as NativeOptimizationLevel } from '@/types/native-module';
+import { toNativeOptimizationLevel } from './enum-converters';
 import { requestNativeMemoryOptimization } from './native-memory-bridge';
 import { internalOptimizeMemory } from './memory/optimizer';
 import { getMemoryInfo } from './memory/memory-info';
@@ -41,7 +43,7 @@ const performanceHistory: PerformanceResult[] = [];
  * @returns Promise<PerformanceResult> 성능 측정 결과
  */
 export async function benchmarkMemoryOptimization(
-  level: OptimizationLevel = OptimizationLevel.Medium,
+  level: AppOptimizationLevel = AppOptimizationLevel.MEDIUM,
   emergency: boolean = false
 ): Promise<PerformanceResult> {
   // 초기 메모리 상태 기록
@@ -60,7 +62,9 @@ export async function benchmarkMemoryOptimization(
   if (available) {
     try {
       const nativeStartTime = performance.now();
-      await requestNativeMemoryOptimization(level, emergency);
+      // 명시적 변환 함수 사용
+      const nativeLevel = toNativeOptimizationLevel(level);
+      await requestNativeMemoryOptimization(nativeLevel, emergency);
       const nativeEndTime = performance.now();
       
       nativeResult = {
@@ -184,13 +188,13 @@ export async function runComprehensiveBenchmark(): Promise<PerformanceResult[]> 
   
   // 모든 최적화 레벨에 대해 테스트
   for (let level = 0; level <= 4; level++) {
-    results.push(await benchmarkMemoryOptimization(level as OptimizationLevel, false));
+    results.push(await benchmarkMemoryOptimization(level as AppOptimizationLevel, false));
     // 테스트 간 간격을 두어 이전 테스트의 영향 최소화
     await new Promise(resolve => setTimeout(resolve, 1000));
   }
   
   // 긴급 모드 테스트
-  results.push(await benchmarkMemoryOptimization(OptimizationLevel.Critical, true));
+  results.push(await benchmarkMemoryOptimization(AppOptimizationLevel.EXTREME, true));
   
   // 종합 결과 로깅
   console.group('📊 종합 벤치마크 결과');

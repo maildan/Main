@@ -39,9 +39,13 @@ export {
   getGpuInfo as getGpuAccelerationInfo,  // 이름 충돌 방지를 위한 재명명
   toggleGpuAcceleration,
   executeGpuComputation,
-  getGpuAccelerationState,
-  setGpuFallbackMode,
-  initializeGpuAcceleration
+  // 존재하지 않는 함수 제거
+  // getGpuAccelerationState,
+  // setGpuFallbackMode,
+  initializeGpuAcceleration,
+  // 필요한 경우 아래 함수들 추가
+  isGpuAccelerationEnabled,
+  isGpuSupported
 } from './gpu-acceleration';
 
 // 통합 성능 최적화

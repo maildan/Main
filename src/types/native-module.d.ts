@@ -4,18 +4,18 @@
  * Rust 네이티브 모듈과의 상호작용에 사용되는 타입들을 정의합니다.
  */
 
-// 최적화 레벨 열거형
+// 최적화 레벨 열거형 - index.ts의 OptimizationLevel과 호환되는 네이밍으로 정의
 export enum OptimizationLevel {
-  Normal = 0,
-  Low = 1,
-  Medium = 2,
-  High = 3,
-  Critical = 4
+  Normal = 0,    // 대응: NONE
+  Low = 1,       // 대응: LOW
+  Medium = 2,    // 대응: MEDIUM
+  High = 3,      // 대응: HIGH
+  Critical = 4   // 대응: EXTREME
 }
 
-// 메모리 정보 인터페이스 - snake_case와 camelCase 모두 지원
+// 메모리 정보 인터페이스
 export interface MemoryInfo {
-  // snake_case 속성 (Rust와 호환)
+  // Rust 스타일 속성 (snake_case)
   heap_used: number;
   heap_total: number;
   heap_limit?: number;
@@ -25,15 +25,14 @@ export interface MemoryInfo {
   rss_mb: number;
   percent_used: number;
   
-  // camelCase 속성 (TypeScript 규칙)
+  // JavaScript 스타일 속성 (camelCase)
   heapUsed: number;
   heapTotal: number;
   heapLimit?: number;
   rssMB: number;
   percentUsed: number;
-  heapUsedMB: number;
   
-  // 공통 속성
+  // 추가 정보
   timestamp: number;
   error?: string;
   unavailable?: boolean;
@@ -59,6 +58,7 @@ export interface GCResult {
   memoryAfter?: MemoryInfo;
   freedMemory?: number;
   freedMB?: number;
+  duration?: number;
   timestamp: number;
   error?: string;
 }

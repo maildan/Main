@@ -2,6 +2,28 @@ pub mod types;
 pub mod context;
 pub mod shader;
 pub mod accelerator;
+
+// 다른 모듈에서 필요한 함수들을 여기서 re-export
+// 이렇게 하면 crate::gpu:: 경로에서 직접 접근 가능
+pub use accelerator::{
+    cleanup_unused_gpu_resources,
+    clear_shader_caches,
+    release_all_gpu_resources
+};
+
+// 다른 함수들도 필요에 따라 re-export
+pub use context::is_gpu_initialized;
+pub use context::check_gpu_availability as is_gpu_acceleration_available;
+pub use context::initialize_gpu_context as enable_gpu_acceleration;
+// 존재하지 않는 함수 제거
+// 새로운 함수 추가
+pub fn disable_gpu_acceleration() -> Result<bool, napi::Error> {
+    // GPU 가속 비활성화 로직 구현
+    // GPU_ACCELERATION_ENABLED atomic 값을 false로 설정
+    GPU_ACCELERATION_ENABLED.store(false, Ordering::SeqCst);
+    Ok(true)
+}
+
 use napi_derive::napi;
 use napi::Error;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -9,8 +31,8 @@ use parking_lot::Mutex;
 use once_cell::sync::OnceCell;
 use std::collections::HashMap;
 use serde_json::{json, Value};
-use types::GpuTaskType;  // 미사용 import 정리
-use wgpu;  // 불필요한 중괄호 제거
+use types::GpuTaskType;
+use wgpu;
 
 // GPU 가속 상태
 static GPU_ACCELERATION_ENABLED: AtomicBool = AtomicBool::new(false);
@@ -52,40 +74,6 @@ pub fn initialize_gpu_module() -> napi::Result<bool> {
     GPU_ACCELERATION_ENABLED.store(available, Ordering::SeqCst);
     
     Ok(available)
-}
-
-/// GPU 가속 가능 여부 확인
-#[napi]
-pub fn is_gpu_acceleration_available() -> bool {
-    context::check_gpu_availability()
-}
-
-/// GPU 가속 활성화
-#[napi]
-pub fn enable_gpu_acceleration() -> bool {
-    // GPU 가용성 확인
-    if !context::check_gpu_availability() {
-        return false;
-    }
-    
-    // GPU 컨텍스트가 초기화되지 않았다면 초기화
-    if !context::is_gpu_initialized() {
-        if let Err(_) = context::initialize_gpu_context() {
-            return false;
-        }
-    }
-    
-    // GPU 가속 활성화
-    GPU_ACCELERATION_ENABLED.store(true, Ordering::SeqCst);
-    true
-}
-
-/// GPU 가속 비활성화
-#[napi]
-pub fn disable_gpu_acceleration() -> bool {
-    // GPU 가속 비활성화
-    GPU_ACCELERATION_ENABLED.store(false, Ordering::SeqCst);
-    true
 }
 
 /// GPU 정보 가져오기

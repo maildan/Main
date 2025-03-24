@@ -8,6 +8,8 @@ import {
   forceGarbageCollection as fetchGC 
 } from './nativeModuleClient';
 import { OptimizationLevel, MemoryInfo, OptimizationResult, GCResult } from '@/types';
+import { OptimizationLevel as NativeOptimizationLevel } from '@/types/native-module';
+import { toNativeOptimizationLevel } from './enum-converters';
 
 /**
  * 네이티브 메모리 최적화 요청
@@ -16,11 +18,12 @@ import { OptimizationLevel, MemoryInfo, OptimizationResult, GCResult } from '@/t
  * @returns Promise<OptimizationResult | null>
  */
 export async function requestNativeMemoryOptimization(
-  level: OptimizationLevel,
+  level: NativeOptimizationLevel,
   emergency: boolean = false
 ): Promise<OptimizationResult | null> {
   try {
-    const response = await optimizeMemory(level, emergency);
+    // level은 이미 NativeOptimizationLevel 타입이므로 변환 없이 직접 사용
+    const response = await optimizeMemory(level as any, emergency);
     
     if (response.success && response.result) {
       return response.result;
@@ -119,8 +122,11 @@ export function setupPeriodicMemoryOptimization(
         const level = determineOptimizationLevel(memoryInfo);
         const emergency = level === OptimizationLevel.EXTREME;
         
+        // 변환 함수 사용하여 올바른 타입으로 변환
+        const nativeLevel = toNativeOptimizationLevel(level);
+        
         // 메모리 최적화 수행
-        await requestNativeMemoryOptimization(level, emergency);
+        await requestNativeMemoryOptimization(nativeLevel, emergency);
       }
     } catch (error) {
       console.error('주기적 메모리 최적화 중 오류:', error);
@@ -144,7 +150,9 @@ export function addMemoryOptimizationListeners() {
       document.addEventListener('visibilitychange', async () => {
         if (document.visibilityState === 'hidden') {
           console.log('페이지가 백그라운드로 전환됨: 메모리 최적화 수행');
-          await requestNativeMemoryOptimization(OptimizationLevel.MEDIUM, false);
+          // 변환 함수 사용
+          const nativeLevel = toNativeOptimizationLevel(OptimizationLevel.MEDIUM);
+          await requestNativeMemoryOptimization(nativeLevel, false);
         }
       });
       
@@ -154,7 +162,9 @@ export function addMemoryOptimizationListeners() {
         clearTimeout(resizeTimer);
         resizeTimer = setTimeout(async () => {
           console.log('창 크기 조정 완료: 가벼운 메모리 최적화 수행');
-          await requestNativeMemoryOptimization(OptimizationLevel.LOW, false);
+          // 변환 함수 사용
+          const nativeLevel = toNativeOptimizationLevel(OptimizationLevel.LOW);
+          await requestNativeMemoryOptimization(nativeLevel, false);
         }, 500);
       });
     }

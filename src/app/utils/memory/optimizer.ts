@@ -10,7 +10,9 @@ import { clearImageCache, optimizeImageResources } from './image-optimizer';
 import { cleanLocalStorage, clearLargeObjectsAndCaches } from './storage-cleaner';
 import { suggestGarbageCollection, requestGC } from './gc-utils';
 import { requestNativeMemoryOptimization } from '../native-memory-bridge';
-import { OptimizationLevel } from '@/types/native-module';
+import { OptimizationLevel as AppOptimizationLevel } from '@/types';
+import { OptimizationLevel as NativeOptimizationLevel } from '@/types/native-module';
+import { toNativeOptimizationLevel } from '../enum-converters';
 
 /**
  * 메모리 최적화 수행 함수 (내부 구현)
@@ -25,8 +27,10 @@ export async function internalOptimizeMemory(aggressive: boolean = false): Promi
     let nativeSuccess = false;
     try {
       // 적절한 최적화 레벨 선택
-      const level = aggressive ? OptimizationLevel.High : OptimizationLevel.Medium;
-      const result = await requestNativeMemoryOptimization(level, aggressive);
+      const appLevel = aggressive ? AppOptimizationLevel.HIGH : AppOptimizationLevel.MEDIUM;
+      // 명시적 변환 함수 사용
+      const nativeLevel = toNativeOptimizationLevel(appLevel);
+      const result = await requestNativeMemoryOptimization(nativeLevel, aggressive);
       nativeSuccess = !!result;
     } catch (error) {
       console.warn('네이티브 메모리 최적화 실패, JS 구현으로 폴백:', error);

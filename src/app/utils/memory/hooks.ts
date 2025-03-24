@@ -10,7 +10,9 @@ import { MemoryOptimizerOptions } from './types';
 import { getMemoryInfo, getMemoryUsagePercentage } from './memory-info';
 import { requestGC } from './gc-utils';
 import { requestNativeMemoryOptimization, requestNativeGarbageCollection } from '../native-memory-bridge';
-import { OptimizationLevel } from '@/types/native-module';
+import { OptimizationLevel as AppOptimizationLevel } from '@/types';
+import { OptimizationLevel as NativeOptimizationLevel } from '@/types/native-module';
+import { toNativeOptimizationLevel } from '../enum-converters';
 
 /**
  * 메모리 최적화 훅 (통합 버전)
@@ -85,8 +87,10 @@ export function useMemoryOptimizer(options: MemoryOptimizerOptions = {}) {
       if (preferNative) {
         try {
           // 중간 수준 최적화 수행
+          const appLevel = AppOptimizationLevel.MEDIUM;
+          const nativeLevel = toNativeOptimizationLevel(appLevel);
           optimizationResult = await requestNativeMemoryOptimization(
-            OptimizationLevel.Medium, 
+            nativeLevel, 
             false
           );
           
@@ -149,8 +153,10 @@ export function useMemoryOptimizer(options: MemoryOptimizerOptions = {}) {
       if (preferNative) {
         try {
           // 높은 수준 (긴급) 최적화 수행
+          const appLevel = AppOptimizationLevel.EXTREME;
+          const nativeLevel = toNativeOptimizationLevel(appLevel);
           optimizationResult = await requestNativeMemoryOptimization(
-            OptimizationLevel.Critical, 
+            nativeLevel, 
             true
           );
           

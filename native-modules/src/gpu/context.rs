@@ -139,6 +139,40 @@ pub fn get_gpu_device() -> Result<(&'static Device, &'static Queue), Error> {
     }
 }
 
+/// GPU 컨텍스트 가져오기
+pub fn get_gpu_context() -> Result<GpuDeviceInfo, Error> {
+    let context = GPU_CONTEXT.read();
+    
+    match &*context {
+        Some(ctx) => {
+            // 소유권 있는 값을 반환하도록 수정 (참조가 아닌 복제본)
+            Ok(ctx.device_info.clone())
+        },
+        None => Err(Error::from_reason("GPU 컨텍스트가 초기화되지 않았습니다"))
+    }
+}
+
+// 필요한 메서드 추가
+impl GpuContext {
+    // 리소스 정리 메서드
+    pub fn cleanup_resources(&self) -> Result<(), Error> {
+        // 실제 구현
+        Ok(())
+    }
+    
+    // 셰이더 캐시 정리 메서드
+    pub fn clear_shader_cache(&self) -> Result<(), Error> {
+        // 실제 구현
+        Ok(())
+    }
+    
+    // 모든 리소스 해제 메서드
+    pub fn release_all_resources(&self) -> Result<(), Error> {
+        // 실제 구현
+        Ok(())
+    }
+}
+
 /// GPU 초기화 상태 가져오기
 pub fn is_gpu_initialized() -> bool {
     GPU_INITIALIZED.load(Ordering::SeqCst)

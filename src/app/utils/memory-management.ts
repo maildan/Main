@@ -15,6 +15,7 @@ import { logMemoryUsage, MemoryEventType } from './memory/logger';
 import { benchmarkMemoryOptimization } from './performance-metrics';
 import { getNativeModuleStatus } from './nativeModuleClient';
 import { normalizeMemoryInfo, createDefaultMemoryInfo } from './memory/format-utils';
+import { toNativeOptimizationLevel } from './enum-converters';
 
 // 모듈 상태 관리
 interface MemoryManagerState {
@@ -77,7 +78,7 @@ export async function initializeMemoryManager(): Promise<boolean> {
     // 성능 측정 설정에 따라 초기 벤치마크 실행
     if (settings.enablePerformanceMetrics && available) {
       setTimeout(() => {
-        benchmarkMemoryOptimization(OptimizationLevel.Low, false)
+        benchmarkMemoryOptimization(OptimizationLevel.LOW, false)
           .catch(err => console.error('초기 벤치마크 오류:', err));
       }, 5000);
     }
@@ -201,7 +202,9 @@ export async function optimizeMemoryWithFallback(
     // 네이티브 구현 시도
     if (useNative) {
       try {
-        optimizationResult = await requestNativeMemoryOptimization(level, emergency);
+        // 네이티브 레벨로 변환하여 전달
+        const nativeLevel = toNativeOptimizationLevel(level);
+        optimizationResult = await requestNativeMemoryOptimization(nativeLevel, emergency);
         
         if (optimizationResult) {
           // 성공 기록

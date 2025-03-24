@@ -33,13 +33,21 @@ export interface MemoryInfo {
   unavailable?: boolean;
 }
 
-// 최적화 레벨 enum - 네이티브 모듈과 호환되도록 수정
+// 앱 레벨 최적화 레벨 열거형 (0-4)
 export enum OptimizationLevel {
-  NONE = 0,     // 네이티브 Normal(0)과 호환
-  LOW = 1,      // 네이티브 Low(1)과 호환
-  MEDIUM = 2,   // 네이티브 Medium(2)과 호환
-  HIGH = 3,     // 네이티브 High(3)과 호환
-  EXTREME = 4   // 네이티브 Critical(4)과 호환
+  NONE = 0,
+  LOW = 1,
+  MEDIUM = 2,
+  HIGH = 3,
+  EXTREME = 4
+}
+
+// 네이티브 모듈과의 호환성을 위한 타입 매핑
+export type OptimizationLevelType = OptimizationLevel;
+
+// 네이티브 OptimizationLevel 값을 AppOptimizationLevel로 안전하게 변환하는 런타임 타입 가드
+export function isValidOptimizationLevel(level: number): level is OptimizationLevel {
+  return level >= 0 && level <= 4;
 }
 
 // 최적화 결과 인터페이스
