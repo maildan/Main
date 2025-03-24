@@ -3,6 +3,7 @@ pub mod gc;
 pub mod optimizer;
 pub mod pool;
 pub mod types;
+pub mod settings;
 
 use napi_derive::napi;
 use napi::Error;
@@ -21,174 +22,172 @@ static LAST_MEMORY_OPTIMIZATION: AtomicU64 = AtomicU64::new(0);
 /// 메모리 상태 가져오기 (엔트리포인트)
 /// 
 /// 애플리케이션의 현재 메모리 상태를 JSON 형태로 반환합니다.
-/// 이 함수는 메모리 모니터링 대시보드 및 진단에 활용됩니다.
 #[napi]
 pub fn get_memory_info() -> napi::Result<String> {
-    debug!("메모리 정보 요청 수신");
     match analyzer::get_process_memory_info() {
         Ok(memory_info) => {
-            let result = serde_json::to_string(&memory_info)
-                .map_err(|e| Error::from_reason(format!("Failed to serialize memory info: {}", e)))?;
+            let json_result = json!({
+                "heap_used": memory_info.heap_used,
+                "heap_total": memory_info.heap_total,
+                "heap_limit": memory_info.heap_limit,
+                "rss": memory_info.rss,
+                "external": memory_info.external,
+                "heap_used_mb": memory_info.heap_used_mb,
+                "rss_mb": memory_info.rss_mb,
+                "percent_used": memory_info.percent_used,
+                "timestamp": memory_info.timestamp
+            });
             
-            debug!("메모리 정보 반환: {:.2}MB 사용 중 ({:.1}%)", 
-                memory_info.heap_used_mb, memory_info.percent_used);
-            Ok(result)
+            Ok(json_result.to_string())
         },
         Err(e) => {
-            error!("메모리 정보 분석 오류: {}", e);
-            Err(Error::from_reason(format!("Failed to get memory info: {}", e)))
+            error!("메모리 정보 가져오기 실패: {}", e);
+            Err(e)
         }
     }
 }
 
-/// 최적화 수준 결정 (엔트리포인트)
-/// 
-/// 현재 메모리 상태를 기반으로 필요한 최적화 수준을 결정합니다.
-/// 반환된 수준(0-4)에 따라 클라이언트는 최적화 전략을 수립할 수 있습니다.
+/// 메모리 최적화 수준 결정
 #[napi]
-pub fn determine_optimization_level() -> napi::Result<u32> {
-    debug!("최적화 수준 분석 요청 수신");
+pub fn determine_optimization_level() -> napi::Result<u8> {
     match analyzer::determine_memory_optimization_level() {
-        Ok(level) => {
-            debug!("결정된 최적화 수준: {}", level);
-            Ok(level as u32)
-        },
+        Ok(level) => Ok(level),
         Err(e) => {
-            error!("최적화 수준 결정 오류: {}", e);
-            Err(Error::from_reason(format!("Failed to determine optimization level: {}", e)))
+            error!("최적화 수준 결정 실패: {}", e);
+            Err(e)
         }
     }
 }
 
-/// 메모리 최적화 수행 (엔트리포인트)
+/// 메모리 최적화 수행
 /// 
-/// 지정된 수준의 메모리 최적화를 수행합니다.
-/// 긴급 모드를 활성화하면 더 적극적인 최적화 전략이 적용됩니다.
+/// 요청된 최적화 수준에 따라 메모리 최적화를 수행합니다.
 #[napi]
-pub fn optimize_memory(level: u32, emergency: bool) -> napi::Result<String> {
-    info!("메모리 최적화 요청: 레벨 {}, 긴급 모드: {}", level, emergency);
+pub fn optimize_memory(level: u8, emergency: bool) -> napi::Result<String> {
+    info!("메모리 최적화 요청: 레벨 {}, 긴급 모드 {}", level, emergency);
     
-    // 최적화 레벨 변환 (u32 -> OptimizationLevel)
-    let opt_level = match level {
+    // 최적화 수준 변환
+    let optimization_level = match level {
         0 => types::OptimizationLevel::Normal,
         1 => types::OptimizationLevel::Low,
         2 => types::OptimizationLevel::Medium,
         3 => types::OptimizationLevel::High,
         4 => types::OptimizationLevel::Critical,
-        _ => {
-            debug!("유효하지 않은 최적화 레벨 ({}), 기본값(Medium)으로 대체", level);
-            types::OptimizationLevel::Medium // 기본값
-        }
+        _ => types::OptimizationLevel::Medium,
     };
     
-    // 현재 시간 기록
-    let now = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis() as u64;
+    // Tokio 런타임을 사용하여 비동기 최적화 실행
+    let runtime = match tokio::runtime::Runtime::new() {
+        Ok(rt) => rt,
+        Err(e) => return Err(Error::from_reason(format!("런타임 생성 실패: {}", e))),
+    };
     
-    LAST_MEMORY_OPTIMIZATION.store(now, Ordering::SeqCst);
-    
-    match optimizer::perform_memory_optimization_sync(opt_level, emergency) {
+    let result = match runtime.block_on(optimizer::perform_memory_optimization(optimization_level, emergency)) {
         Ok(result) => {
-            // 결과 이력 저장
-            let mut history = OPTIMIZATION_HISTORY.write();
-            history.push(result.clone());
-            if history.len() > 20 {  // 최대 20개 이력만 유지
-                history.remove(0);
+            // 최적화 이력 저장
+            OPTIMIZATION_HISTORY.write().push(result.clone());
+            LAST_MEMORY_OPTIMIZATION.store(result.timestamp, Ordering::SeqCst);
+            
+            // 결과를 JSON으로 변환
+            match serde_json::to_string(&result) {
+                Ok(json) => json,
+                Err(e) => return Err(Error::from_reason(format!("결과 직렬화 실패: {}", e))),
             }
-            
-            let result_str = serde_json::to_string(&result)
-                .map_err(|e| Error::from_reason(format!("Failed to serialize result: {}", e)))?;
-            
-            // 최적화 결과 로깅
-            if let (Some(freed_mb), Some(duration)) = (result.freed_mb, result.duration) {
-                info!("메모리 최적화 완료: {:.2}MB 해제됨, 소요 시간: {}ms", 
-                    freed_mb, duration);
-            }
-            
-            Ok(result_str)
         },
         Err(e) => {
             error!("메모리 최적화 실패: {}", e);
-            
-            // 실패 결과 생성 및 반환
-            let error_result = json!({
-                "success": false,
-                "optimization_level": opt_level as u8,
-                "error": e.to_string(),
-                "timestamp": now
-            });
-            
-            Ok(serde_json::to_string(&error_result)
-                .unwrap_or_else(|_| format!("{{\"success\":false,\"error\":\"{}\"}}", e)))
+            return Err(e);
         }
-    }
+    };
+    
+    Ok(result)
 }
 
-/// 가비지 컬렉션 수행 (엔트리포인트)
+/// 강제 가비지 컬렉션 수행
 #[napi]
 pub fn force_garbage_collection() -> napi::Result<String> {
-    info!("가비지 컬렉션 강제 수행 요청");
-    
     match gc::force_garbage_collection() {
         Ok(result) => {
-            let result_str = serde_json::to_string(&result)
-                .map_err(|e| Error::from_reason(format!("Failed to serialize GC result: {}", e)))?;
-            
-            // GC 결과 로깅
-            if let Some(freed_mb) = result.freed_mb {
-                info!("가비지 컬렉션 완료: {:.2}MB 해제됨", freed_mb);
+            // 결과를 JSON으로 변환
+            match serde_json::to_string(&result) {
+                Ok(json) => Ok(json),
+                Err(e) => Err(Error::from_reason(format!("결과 직렬화 실패: {}", e))),
             }
-            
-            Ok(result_str)
         },
         Err(e) => {
             error!("가비지 컬렉션 실패: {}", e);
-            
-            // 실패 결과 생성 및 반환
-            let error_result = json!({
-                "success": false,
-                "error": e.to_string(),
-                "timestamp": std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .unwrap_or_default()
-                    .as_millis() as u64
-            });
-            
-            Ok(serde_json::to_string(&error_result)
-                .unwrap_or_else(|_| format!("{{\"success\":false,\"error\":\"{}\"}}", e)))
+            Err(e)
         }
     }
 }
 
-/// 메모리 풀 초기화 (엔트리포인트)
+/// 메모리 설정 초기화
 #[napi]
-pub fn initialize_memory_pools() -> napi::Result<bool> {
-    info!("메모리 풀 초기화 요청");
+pub fn initialize_memory_settings(settings_json: String) -> napi::Result<bool> {
+    debug!("메모리 설정 초기화 요청");
+    match settings::initialize_memory_settings(&settings_json) {
+        Ok(result) => Ok(result),
+        Err(e) => {
+            error!("메모리 설정 초기화 실패: {}", e);
+            Err(e)
+        }
+    }
+}
+
+/// 메모리 설정 업데이트
+#[napi]
+pub fn update_memory_settings(settings_json: String) -> napi::Result<bool> {
+    debug!("메모리 설정 업데이트 요청");
+    match settings::update_memory_settings(&settings_json) {
+        Ok(result) => Ok(result),
+        Err(e) => {
+            error!("메모리 설정 업데이트 실패: {}", e);
+            Err(e)
+        }
+    }
+}
+
+/// 현재 메모리 설정 가져오기
+#[napi]
+pub fn get_memory_settings() -> napi::Result<String> {
+    debug!("메모리 설정 가져오기 요청");
+    match settings::get_settings_json() {
+        Ok(json) => Ok(json),
+        Err(e) => {
+            error!("메모리 설정 가져오기 실패: {}", e);
+            Err(e)
+        }
+    }
+}
+
+/// 자동 메모리 최적화 수행 (필요한 경우)
+#[napi]
+pub fn auto_optimize_memory_if_needed() -> napi::Result<String> {
+    // Tokio 런타임을 사용하여 비동기 최적화 실행
+    let runtime = match tokio::runtime::Runtime::new() {
+        Ok(rt) => rt,
+        Err(e) => return Err(Error::from_reason(format!("런타임 생성 실패: {}", e))),
+    };
     
-    match pool::initialize_memory_pools() {
-        Ok(_) => {
-            info!("메모리 풀 초기화 완료");
-            Ok(true)
+    let result = match runtime.block_on(optimizer::auto_optimize_memory_if_needed()) {
+        Ok(result) => {
+            // 최적화가 수행된 경우에만 이력 저장
+            if result.freed_memory.unwrap_or(0) > 0 {
+                OPTIMIZATION_HISTORY.write().push(result.clone());
+                LAST_MEMORY_OPTIMIZATION.store(result.timestamp, Ordering::SeqCst);
+            }
+            
+            // 결과를 JSON으로 변환
+            match serde_json::to_string(&result) {
+                Ok(json) => json,
+                Err(e) => return Err(Error::from_reason(format!("결과 직렬화 실패: {}", e))),
+            }
         },
         Err(e) => {
-            error!("메모리 풀 초기화 실패: {}", e);
-            Err(Error::from_reason(format!("Failed to initialize memory pools: {}", e)))
+            error!("자동 메모리 최적화 실패: {}", e);
+            return Err(e);
         }
-    }
-}
-
-/// 메모리 최적화 이력 가져오기
-#[napi]
-pub fn get_optimization_history() -> napi::Result<String> {
-    debug!("최적화 이력 요청 수신");
+    };
     
-    let history = OPTIMIZATION_HISTORY.read();
-    match serde_json::to_string(&*history) {
-        Ok(json) => Ok(json),
-        Err(e) => Err(Error::from_reason(format!("Failed to serialize optimization history: {}", e)))
-    }
+    Ok(result)
 }
-
-// 추가 유틸리티 함수들...

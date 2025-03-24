@@ -8,6 +8,7 @@ use crate::memory::types::{OptimizationLevel, OptimizationResult, MemoryInfo};
 use crate::memory::analyzer;
 use crate::memory::gc;
 use crate::memory::pool;
+use crate::memory::settings;
 // GPU 모듈 올바르게 import
 use crate::gpu::{self, context};
 // 이전에 중복 선언된 함수 대신 사용할 함수들 import
@@ -29,14 +30,17 @@ pub fn get_last_optimization_time() -> u64 {
 /// 
 /// 사용자 설정에서 GPU 가속화가 활성화되어 있는지 확인합니다.
 pub fn is_gpu_acceleration_enabled() -> bool {
-    // gpu 모듈의 함수 직접 호출로 변경
-    match gpu::is_gpu_acceleration_available() {
-        true => true,
-        false => false
+    // 사용자 설정 먼저 확인 (하드웨어 가속 비활성화된 경우 무조건 false)
+    if !settings::is_hardware_acceleration_enabled() {
+        return false;
     }
+    
+    // 그 다음 실제 GPU 가용성 확인
+    crate::gpu::is_gpu_acceleration_available()
 }
 
 pub fn optimize_gpu_resources() -> Result<bool, Error> {
+    // 사용자 설정 및 실제 GPU 상태 확인
     if is_gpu_acceleration_enabled() {
         debug!("GPU 리소스 최적화 수행 중...");
         match cleanup_unused_gpu_resources() {
@@ -50,12 +54,47 @@ pub fn optimize_gpu_resources() -> Result<bool, Error> {
             }
         }
     }
+    // GPU 가속화가 활성화되지 않은 경우 아무 작업도 수행하지 않음
     Ok(false)
 }
 
 /// 사용자 설정에 따라 GPU 가속화 상태 조정
 pub fn adjust_gpu_acceleration_based_on_memory(memory_info: &MemoryInfo) -> Result<(), Error> {
-    // 메모리 사용량에 따라 GPU 가속화 활성화 여부 결정
+    // 하드웨어 가속이 설정에서 비활성화된 경우 아무 작업도 하지 않음
+    if !settings::is_hardware_acceleration_enabled() {
+        return Ok(());
+    }
+
+    // 처리 모드에 따라 GPU 사용 여부 결정
+    let processing_mode = settings::get_processing_mode();
+    let _mode_specific_setting = match processing_mode.as_str() {
+        "cpu-intensive" => false, // CPU 집약적 모드에서는 GPU 비활성화
+        "gpu-intensive" => true,  // GPU 집약적 모드에서는 GPU 활성화
+        _ => true,                // auto 또는 normal 모드에서는 메모리 사용량에 따라 결정
+    };
+
+    // CPU 집약적 모드일 경우 무조건 GPU 비활성화
+    if processing_mode == "cpu-intensive" {
+        if context::is_gpu_initialized() {
+            debug!("CPU 집약적 모드: GPU 가속화 비활성화");
+            gpu::disable_gpu_acceleration()?;
+        }
+        return Ok(());
+    }
+
+    // GPU 집약적 모드일 경우 메모리 상태가 심각하지 않으면 GPU 유지
+    if processing_mode == "gpu-intensive" {
+        if memory_info.percent_used > 90.0 {
+            debug!("GPU 집약적 모드이지만 메모리 사용량이 매우 높음: GPU 가속화 임시 비활성화");
+            gpu::disable_gpu_acceleration()?;
+        } else if !context::is_gpu_initialized() && context::check_gpu_availability() {
+            debug!("GPU 집약적 모드: GPU 가속화 활성화");
+            gpu::enable_gpu_acceleration()?;
+        }
+        return Ok(());
+    }
+
+    // 기본 모드(auto) 또는 normal 모드에서 메모리 사용량에 따라 GPU 가속화 활성화 여부 결정
     let high_memory_usage = memory_info.percent_used > 85.0;
     
     if high_memory_usage {
@@ -63,14 +102,17 @@ pub fn adjust_gpu_acceleration_based_on_memory(memory_info: &MemoryInfo) -> Resu
         debug!("메모리 사용량이 높아 GPU 가속화 비활성화 ({:.1}%)", 
                memory_info.percent_used);
         
-        // GPU 리소스 최적화
-        let _ = optimize_gpu_resources();
+        // GPU 리소스 최적화 - bool 결과 무시하고 Error만 전파
+        if let Err(e) = optimize_gpu_resources() {
+            return Err(e);
+        }
         
         // GPU 가속화 상태를 변경하는 다른 함수 호출
         if context::is_gpu_initialized() {
             // gpu 모듈 함수로 변경
             if let Err(e) = gpu::disable_gpu_acceleration() {
                 warn!("GPU 가속화 비활성화 실패: {}", e);
+                // 경고만 발생시키고 계속 진행
             }
             debug!("GPU 컨텍스트 이미 초기화됨, 가속화 비활성화");
         }
@@ -85,9 +127,34 @@ pub fn adjust_gpu_acceleration_based_on_memory(memory_info: &MemoryInfo) -> Resu
             // gpu 모듈 함수로 변경
             if let Err(e) = gpu::enable_gpu_acceleration() {
                 warn!("GPU 가속화 활성화 실패: {}", e);
+                // 경고만 발생시키고 계속 진행
             }
         }
     }
+    
+    // 프로세싱 모드에 따른 특정 설정 처리
+    let _mode_specific_setting = match processing_mode.as_str() {
+        "normal" => {
+            // 일반 모드 
+            debug!("일반 모드에서 메모리 최적화 설정 적용");
+            1.0
+        },
+        "cpu-intensive" => {
+            // CPU 집약적 모드
+            debug!("CPU 집약적 모드에서 메모리 최적화 설정 적용");
+            1.5
+        },
+        "gpu-intensive" => {
+            // GPU 집약적 모드
+            debug!("GPU 집약적 모드에서 메모리 최적화 설정 적용");
+            2.0
+        },
+        _ => {
+            // 기본 (자동)
+            debug!("자동 모드에서 메모리 최적화 설정 적용");
+            1.0
+        }
+    };
     
     Ok(())
 }
@@ -120,6 +187,9 @@ pub async fn perform_memory_optimization(
     if let Err(e) = adjust_gpu_acceleration_based_on_memory(&memory_before) {
         warn!("GPU 가속화 상태 조정 실패: {}", e);
     }
+    
+    // 사용자 설정에 따라 공격적인 GC 사용 여부 결정
+    let use_aggressive_gc = settings::is_aggressive_gc_enabled() || emergency;
     
     match level {
         OptimizationLevel::Normal => {
@@ -163,7 +233,12 @@ pub async fn perform_memory_optimization(
             perform_medium_optimization().await?;
             perform_high_optimization().await?;
             
-            gc::force_garbage_collection()?;
+            // 사용자 설정에 따라 공격적인 GC 수행
+            if use_aggressive_gc {
+                gc::force_garbage_collection()?;
+            } else {
+                gc::perform_basic_gc()?;
+            }
             
             if is_gpu_acceleration_enabled() && emergency {
                 debug!("긴급 상황: GPU 가속화 일시 중지");
@@ -197,14 +272,13 @@ pub async fn perform_memory_optimization(
     
     TOTAL_FREED_MEMORY.fetch_add(freed_memory, Ordering::SeqCst);
     
-    let freed_mb = freed_memory / (1024 * 1024);
+    let freed_mb = freed_memory as f64 / (1024.0 * 1024.0);
     let duration = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .as_millis() as u64 - now;
     
-    debug!("최적화 완료: {:.2}MB 해제됨, 소요 시간: {}ms", 
-        freed_memory as f64 / (1024.0 * 1024.0), duration);
+    debug!("최적화 완료: {:.2}MB 해제됨, 소요 시간: {}ms", freed_mb, duration);
     
     Ok(OptimizationResult {
         success: true,
@@ -212,7 +286,7 @@ pub async fn perform_memory_optimization(
         memory_before: Some(memory_before),
         memory_after: Some(memory_after),
         freed_memory: Some(freed_memory),
-        freed_mb: Some(freed_mb),
+        freed_mb: Some(freed_mb as u64),
         duration: Some(duration),
         timestamp: now,
         error: None,
@@ -352,7 +426,7 @@ pub fn perform_memory_optimization_sync(
         memory_before: Some(memory_before),
         memory_after: Some(memory_after),
         freed_memory: Some(freed_memory),
-        freed_mb: Some(freed_mb),
+        freed_mb: Some(freed_mb as u64),
         duration: Some(duration),
         timestamp: now,
         error: None,
@@ -475,30 +549,53 @@ fn force_temporary_memory_release() {
 }
 
 pub async fn auto_optimize_memory_if_needed() -> Result<OptimizationResult, Error> {
+    // 자동 최적화가 설정에서 비활성화된 경우 빠르게 종료
+    if !settings::is_automatic_optimization_enabled() {
+        debug!("자동 메모리 최적화가 설정에서 비활성화되어 있습니다");
+        
+        // 기본 성공 결과 반환
+        let memory_info = analyzer::get_process_memory_info()?;
+        return Ok(OptimizationResult {
+            success: true,
+            optimization_level: OptimizationLevel::Normal,
+            memory_before: Some(memory_info.clone()),
+            memory_after: Some(memory_info),
+            freed_memory: Some(0),
+            freed_mb: Some(0),
+            duration: Some(0),
+            timestamp: SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_millis() as u64,
+            error: None,
+        });
+    }
+
     debug!("자동 메모리 최적화 검사 중...");
     
     let memory_info = analyzer::get_process_memory_info()?;
     
-    let opt_level = if memory_info.percent_used > 90.0 {
-        OptimizationLevel::Critical
-    } else if memory_info.percent_used > 80.0 {
-        OptimizationLevel::High
-    } else if memory_info.percent_used > 70.0 {
-        OptimizationLevel::Medium
-    } else if memory_info.percent_used > 50.0 {
-        OptimizationLevel::Low
+    // 설정에서 가져온 임계값 사용
+    let threshold = settings::get_optimization_threshold();
+    let memory_used_mb = memory_info.heap_used_mb;
+    
+    // 임계값과 비교하여 최적화 수준 결정
+    let (opt_level, emergency) = if memory_used_mb > threshold * 1.5 {
+        (OptimizationLevel::Critical, true)
+    } else if memory_used_mb > threshold * 1.2 {
+        (OptimizationLevel::High, false)
+    } else if memory_used_mb > threshold {
+        (OptimizationLevel::Medium, false)
     } else {
-        OptimizationLevel::Normal
+        (OptimizationLevel::Normal, false)
     };
     
     if opt_level != OptimizationLevel::Normal {
-        let emergency = opt_level == OptimizationLevel::Critical;
-        
-        info!("자동 메모리 최적화 실행 (레벨: {:?}, 긴급 모드: {})", opt_level, emergency);
+        debug!("자동 메모리 최적화 수행: 레벨 {:?}, 긴급 모드: {}", opt_level, emergency);
         return perform_memory_optimization(opt_level, emergency).await;
     }
     
-    debug!("현재 자동 최적화 불필요 (메모리 사용률: {:.1}%)", memory_info.percent_used);
+    debug!("메모리 사용량이 정상 범위입니다: {:.2}MB <= {:.2}MB", memory_used_mb, threshold);
     
     Ok(OptimizationResult {
         success: true,

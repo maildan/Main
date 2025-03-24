@@ -7,70 +7,90 @@
 import { MemoryInfo } from '@/types';
 
 /**
- * 다양한 소스의 메모리 정보를 표준화된 MemoryInfo 객체로 변환
- * Rust(snake_case)와 JS(camelCase) 간의 속성명 차이 처리
+ * 메모리 정보 표준화 함수
+ * 다양한 형태의 메모리 정보를 일관된 포맷으로 변환
+ * 
+ * @param memoryInfo 메모리 정보 객체
+ * @returns 표준화된 메모리 정보
  */
-export function normalizeMemoryInfo(data: any): MemoryInfo {
-  if (!data) {
-    return createDefaultMemoryInfo();
-  }
-
-  // 두 명명 규칙을 모두 지원하도록 표준화된 객체 생성
-  const heapUsed = data.heap_used ?? data.heapUsed ?? 0;
-  const heapTotal = data.heap_total ?? data.heapTotal ?? 0;
-  const heapUsedMB = data.heap_used_mb ?? data.heapUsedMB ?? (heapUsed / (1024 * 1024));
-  const rssMB = data.rss_mb ?? data.rssMB ?? 0;
-  const percentUsed = data.percent_used ?? data.percentUsed ?? 0;
-
+export function normalizeMemoryInfo(memoryInfo: any): MemoryInfo {
+  // 기본값 설정
+  const defaultMemoryInfo = createDefaultMemoryInfo();
+  
+  // memoryInfo가 없는 경우 기본값 반환
+  if (!memoryInfo) return defaultMemoryInfo;
+  
+  // 구조 분해 할당으로 필요한 속성 추출 및 기본값 설정
+  const {
+    heap_used = 0,
+    heap_total = 0,
+    heap_limit = 0,
+    heap_used_mb = 0,
+    heapUsed = 0,
+    heapTotal = 0,
+    heapLimit = 0,
+    heapUsedMB = 0,
+    percent_used = 0,
+    percentUsed = 0,
+    rss = 0,
+    rss_mb = 0,
+    rssMB = 0,
+    timestamp = Date.now()
+  } = memoryInfo;
+  
+  // 일관된 포맷으로 변환
   return {
-    // snake_case 속성
-    heap_used: heapUsed,
-    heap_total: heapTotal,
-    heap_limit: data.heap_limit ?? data.heapLimit,
-    rss: data.rss ?? 0,
-    external: data.external,
-    heap_used_mb: heapUsedMB,
-    rss_mb: rssMB,
-    percent_used: percentUsed,
+    // 네이티브 모듈 및 JS 구현 속성 통합
+    heap_used: heap_used || heapUsed || 0,
+    heap_total: heap_total || heapTotal || 0,
+    heap_limit: heap_limit || heapLimit || 0,
+    heap_used_mb: heap_used_mb || heapUsedMB || 
+      (heap_used ? heap_used / (1024 * 1024) : 0),
+    percent_used: percent_used || percentUsed || 
+      (heap_total > 0 ? (heap_used / heap_total) * 100 : 0),
+    rss: rss || 0,
+    rss_mb: rss_mb || (rss ? rss / (1024 * 1024) : 0),
+    timestamp: timestamp || Date.now(),
     
-    // camelCase 속성
-    heapUsed: heapUsed,
-    heapTotal: heapTotal,
-    heapLimit: data.heap_limit ?? data.heapLimit,
-    heapUsedMB: heapUsedMB,
-    rssMB: rssMB,
-    percentUsed: percentUsed,
-    
-    // 공통 속성
-    timestamp: data.timestamp ?? Date.now(),
-    error: data.error,
-    unavailable: data.unavailable
+    // 앱 호환성을 위한 별칭 속성
+    heapUsed: heap_used || heapUsed || 0,
+    heapTotal: heap_total || heapTotal || 0,
+    heapLimit: heap_limit || heapLimit || 0,
+    heapUsedMB: heap_used_mb || heapUsedMB || 
+      (heap_used ? heap_used / (1024 * 1024) : 0),
+    percentUsed: percent_used || percentUsed || 
+      (heap_total > 0 ? (heap_used / heap_total) * 100 : 0),
+    // rssMB 속성 추가 - MemoryInfo 타입에 맞게 추가
+    rssMB: rssMB || rss_mb || (rss ? rss / (1024 * 1024) : 0),
   };
 }
 
 /**
- * 기본 메모리 정보 객체 생성
+ * 기본 메모리 정보 생성
+ * 메모리 정보를 얻을 수 없을 때 기본값 제공
+ * 
+ * @returns 기본 메모리 정보
  */
 export function createDefaultMemoryInfo(): MemoryInfo {
-  const now = Date.now();
+  const timestamp = Date.now();
+  
   return {
-    // snake_case 속성
     heap_used: 0,
     heap_total: 0,
+    heap_limit: 0,
     heap_used_mb: 0,
+    percent_used: 0,
     rss: 0,
     rss_mb: 0,
-    percent_used: 0,
+    timestamp,
     
-    // camelCase 속성
+    // 앱 호환성을 위한 별칭 속성
     heapUsed: 0,
     heapTotal: 0,
+    heapLimit: 0,
     heapUsedMB: 0,
-    rssMB: 0,
     percentUsed: 0,
-    
-    // 공통 속성
-    timestamp: now,
-    unavailable: true
+    // rssMB 속성 추가
+    rssMB: 0,
   };
 }

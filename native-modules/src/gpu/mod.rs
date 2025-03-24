@@ -15,14 +15,6 @@ pub use accelerator::{
 pub use context::is_gpu_initialized;
 pub use context::check_gpu_availability as is_gpu_acceleration_available;
 pub use context::initialize_gpu_context as enable_gpu_acceleration;
-// 존재하지 않는 함수 제거
-// 새로운 함수 추가
-pub fn disable_gpu_acceleration() -> Result<bool, napi::Error> {
-    // GPU 가속 비활성화 로직 구현
-    // GPU_ACCELERATION_ENABLED atomic 값을 false로 설정
-    GPU_ACCELERATION_ENABLED.store(false, Ordering::SeqCst);
-    Ok(true)
-}
 
 use napi_derive::napi;
 use napi::Error;
@@ -32,6 +24,7 @@ use once_cell::sync::OnceCell;
 use std::collections::HashMap;
 use serde_json::{json, Value};
 use types::GpuTaskType;
+use crate::memory::settings;
 use wgpu;
 
 // GPU 가속 상태
@@ -43,16 +36,38 @@ type GpuTaskFn = fn(&str) -> Result<Value, Error>;
 // GPU 작업 함수 맵 - 타입 일관성 문제 해결
 static GPU_TASK_FUNCTIONS: OnceCell<Mutex<HashMap<GpuTaskType, GpuTaskFn>>> = OnceCell::new();
 
+/// GPU 가속화 비활성화
+pub fn disable_gpu_acceleration() -> Result<bool, Error> {
+    // 사용자 설정과 관계없이 현재 GPU 상태 비활성화
+    GPU_ACCELERATION_ENABLED.store(false, Ordering::SeqCst);
+    
+    // 현재 활성화된 GPU 리소스 정리
+    if context::is_gpu_initialized() {
+        if let Err(e) = cleanup_unused_gpu_resources() {
+            log::warn!("GPU 리소스 정리 실패: {}", e);
+        }
+    }
+    
+    Ok(true)
+}
+
 /// GPU 모듈 초기화
 #[napi]
 pub fn initialize_gpu_module() -> napi::Result<bool> {
+    // 사용자 설정 확인 - 하드웨어 가속화 비활성화 설정이면 초기화 중단
+    if !settings::is_hardware_acceleration_enabled() {
+        log::info!("사용자 설정에 따라 GPU 가속화가 비활성화되어 있습니다");
+        GPU_ACCELERATION_ENABLED.store(false, Ordering::SeqCst);
+        return Ok(false);
+    }
+    
     // GPU 가용성 확인
     let available = context::check_gpu_availability();
     
-    if available {  // 불필요한 괄호 제거
+    if available {
         // 사용 가능한 경우 GPU 컨텍스트 초기화
         if let Err(e) = context::initialize_gpu_context() {
-            println!("GPU 컨텍스트 초기화 실패: {}", e);
+            log::error!("GPU 컨텍스트 초기화 실패: {}", e);
             return Ok(false);
         }
         
@@ -81,9 +96,9 @@ pub fn initialize_gpu_module() -> napi::Result<bool> {
 pub fn get_gpu_info() -> napi::Result<String> {
     // GPU 가용성 확인
     let available = context::check_gpu_availability();
-    let acceleration_enabled = GPU_ACCELERATION_ENABLED.load(Ordering::SeqCst);
+    let acceleration_enabled = GPU_ACCELERATION_ENABLED.load(Ordering::SeqCst) && settings::is_hardware_acceleration_enabled();
     
-    let mut info = if available {  // 여기에 mut 추가
+    let mut info = if available {
         // GPU 정보 가져오기
         match context::get_gpu_device_info() {
             Ok(device_info) => {
@@ -113,7 +128,9 @@ pub fn get_gpu_info() -> napi::Result<String> {
                     "device_type": device_type_str,
                     "backend": backend_str,
                     "available": true,
-                    "acceleration_enabled": acceleration_enabled
+                    "acceleration_enabled": acceleration_enabled,
+                    "settings_enabled": settings::is_hardware_acceleration_enabled(),
+                    "processing_mode": settings::get_processing_mode()
                 })
             },
             Err(_) => {
@@ -124,7 +141,9 @@ pub fn get_gpu_info() -> napi::Result<String> {
                     "device_type": "Unknown",
                     "backend": "Unknown",
                     "available": true,
-                    "acceleration_enabled": acceleration_enabled
+                    "acceleration_enabled": acceleration_enabled,
+                    "settings_enabled": settings::is_hardware_acceleration_enabled(),
+                    "processing_mode": settings::get_processing_mode()
                 })
             }
         }
@@ -137,7 +156,9 @@ pub fn get_gpu_info() -> napi::Result<String> {
             "device_type": "CPU",
             "backend": "CPU",
             "available": false,
-            "acceleration_enabled": false
+            "acceleration_enabled": false,
+            "settings_enabled": settings::is_hardware_acceleration_enabled(),
+            "processing_mode": settings::get_processing_mode()
         })
     };
     
@@ -156,6 +177,23 @@ pub fn get_gpu_info() -> napi::Result<String> {
 /// GPU 계산 수행 (동기 버전)
 #[napi]
 pub fn perform_gpu_computation_sync(data: String, computation_type: String) -> napi::Result<String> {
+    // 사용자 설정 확인
+    if !settings::is_hardware_acceleration_enabled() {
+        let result = json!({
+            "success": false,
+            "task_type": computation_type,
+            "duration_ms": 0,
+            "result": null,
+            "error": "GPU acceleration is disabled in settings",
+            "timestamp": std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_millis() as u64
+        });
+        
+        return Ok(serde_json::to_string(&result).unwrap_or_default());
+    }
+
     // GPU 가속이 비활성화된 경우
     if !GPU_ACCELERATION_ENABLED.load(Ordering::SeqCst) {
         let result = json!({

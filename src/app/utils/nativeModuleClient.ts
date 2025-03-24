@@ -234,3 +234,76 @@ export async function submitTask<T = any>(taskType: string, data: any) {
     };
   }
 }
+
+/**
+ * 메모리 설정 초기화
+ * @param settingsJson 설정 JSON 문자열
+ * @returns Promise 성공 여부
+ */
+export async function initializeMemorySettings(settingsJson: string): Promise<{success: boolean, error?: string}> {
+  try {
+    const response = await fetch('/api/native/memory/settings/initialize', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: settingsJson
+    });
+    
+    const result = await response.json();
+    return result;
+  } catch (error) {
+    console.error('메모리 설정 초기화 중 오류:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : '알 수 없는 오류'
+    };
+  }
+}
+
+/**
+ * 메모리 설정 업데이트
+ * @param settingsJson 설정 JSON 문자열
+ * @returns Promise 성공 여부
+ */
+export async function updateMemorySettings(settingsJson: string): Promise<{success: boolean, error?: string}> {
+  try {
+    const response = await fetch('/api/native/memory/settings/update', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: settingsJson
+    });
+    
+    const result = await response.json();
+    return result;
+  } catch (error) {
+    console.error('메모리 설정 업데이트 중 오류:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : '알 수 없는 오류'
+    };
+  }
+}
+
+/**
+ * 메모리 설정 가져오기
+ * @returns Promise 설정 데이터
+ */
+export async function getMemorySettings(): Promise<{success: boolean, settings?: any, error?: string}> {
+  try {
+    const response = await fetch('/api/native/memory/settings', {
+      method: 'GET'
+    });
+    
+    const result = await response.json();
+    return result;
+  } catch (error) {
+    console.error('메모리 설정 가져오기 중 오류:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : '알 수 없는 오류'
+    };
+  }
+}

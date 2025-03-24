@@ -33,7 +33,7 @@ export async function detectGPUAcceleration(): Promise<boolean> {
     }
     
     // 이미 전역 객체에 GPU 정보가 있는 경우
-    if (window.__gpuInfo?.isHardwareAccelerated) {
+    if (window.__gpuInfo && typeof window.__gpuInfo.isHardwareAccelerated === 'function') {
       gpuAccelerationStatus.hardwareAccelerated = window.__gpuInfo.isHardwareAccelerated();
       gpuAccelerationStatus.lastCheck = now;
       return gpuAccelerationStatus.hardwareAccelerated;
@@ -107,6 +107,9 @@ export async function detectGPUAcceleration(): Promise<boolean> {
     
     // 전역 GPU 정보 객체 설정
     window.__gpuInfo = {
+      isAccelerated: isAccelerated,
+      renderer: renderer || 'Unknown',
+      vendor: vendor || 'Unknown',
       getGPUTier: () => ({
         tier: gpuAccelerationStatus.gpuTier,
         type: getTierDescription(gpuAccelerationStatus.gpuTier)
@@ -463,7 +466,7 @@ export function isGPUAccelerationEnabled(): boolean {
   try {
     // 캐시된 정보 사용 (있는 경우)
     if (window.__gpuInfo !== undefined) {
-      return window.__gpuInfo?.isAccelerated ?? false;
+      return window.__gpuInfo.isAccelerated();
     }
 
     // 캐시된 정보가 없으면 직접 확인
@@ -480,7 +483,7 @@ export function isGPUAccelerationEnabled(): boolean {
     const renderer = debugInfo ? glContext.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL) : '';
     
     // WebGL 렌더러 문자열 기반으로 확인
-    const accelerated = !(
+    const isAccelerated = !(
       renderer.includes('SwiftShader') || 
       renderer.includes('Basic Renderer') ||
       renderer.includes('Software') ||
@@ -489,11 +492,14 @@ export function isGPUAccelerationEnabled(): boolean {
     
     // 결과 캐싱
     window.__gpuInfo = {
+      isAccelerated: () => isAccelerated,
       renderer,
-      isAccelerated: accelerated
+      vendor: debugInfo ? glContext.getParameter(debugInfo.UNMASKED_VENDOR_WEBGL) : '',
+      getGPUTier: () => ({ tier: 0, type: 'unknown' }),
+      isHardwareAccelerated: () => isAccelerated
     };
     
-    return accelerated;
+    return isAccelerated;
   } catch (error) {
     console.warn('GPU 가속화 상태 확인 오류:', error);
     return false;
@@ -510,7 +516,7 @@ export function getGPUInfo(): { renderer: string, vendor: string, isAccelerated:
     return {
       renderer: window.__gpuInfo.renderer || 'Unknown',
       vendor: window.__gpuInfo.vendor || 'Unknown',
-      isAccelerated: window.__gpuInfo.isAccelerated || false
+      isAccelerated: window.__gpuInfo.isAccelerated()
     };
   }
   
@@ -537,9 +543,11 @@ export function getGPUInfo(): { renderer: string, vendor: string, isAccelerated:
   
   // 결과 캐싱
   window.__gpuInfo = {
+    isAccelerated: () => isAccelerated,
     renderer,
     vendor,
-    isAccelerated
+    getGPUTier: () => ({ tier: 0, type: 'unknown' }),
+    isHardwareAccelerated: () => isAccelerated
   };
   
   return { renderer, vendor, isAccelerated };

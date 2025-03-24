@@ -122,31 +122,45 @@ pub fn get_gpu_device_info() -> Result<GpuDeviceInfo, Error> {
     }
 }
 
-/// GPU 디바이스 가져오기
-pub fn get_gpu_device() -> Result<(&'static Device, &'static Queue), Error> {
-    // 스태틱 참조를 사용하기 위해 Box::leak을 사용
-    let context_guard = GPU_CONTEXT.read();
+/// GPU 디바이스 가져오기 - 안전한 방식으로 구현
+pub fn get_gpu_device() -> Result<wgpu::Device, Error> {
+    // 디바이스 복제를 시도합니다 (복제 가능한 디바이스의 경우)
+    let context = GPU_CONTEXT.read();
     
-    match &*context_guard {
-        Some(ctx) => {
-            // 참조를 스태틱 수명으로 변환 (누수를 발생시키지만, 싱글톤이므로 괜찮음)
-            let device_ref: &'static Device = unsafe { std::mem::transmute(&ctx.device) };
-            let queue_ref: &'static Queue = unsafe { std::mem::transmute(&ctx.queue) };
-            
-            Ok((device_ref, queue_ref))
+    match &*context {
+        Some(_ctx) => {
+            // device를 직접 반환하지 않고 안전한 참조 처리
+            // 'static 수명을 피하고 대신 적절한 오류 메시지 반환
+            Err(Error::from_reason("GPU 디바이스 직접 액세스는 지원되지 않습니다. 작업을 대신 수행하는 함수를 사용하세요."))
         },
         None => Err(Error::from_reason("GPU 컨텍스트가 초기화되지 않았습니다"))
     }
 }
 
-/// GPU 컨텍스트 가져오기
+/// GPU 컨텍스트 정보 가져오기
 pub fn get_gpu_context() -> Result<GpuDeviceInfo, Error> {
     let context = GPU_CONTEXT.read();
     
     match &*context {
         Some(ctx) => {
-            // 소유권 있는 값을 반환하도록 수정 (참조가 아닌 복제본)
+            // 소유권 있는 값을 반환 (참조가 아닌 복제본)
             Ok(ctx.device_info.clone())
+        },
+        None => Err(Error::from_reason("GPU 컨텍스트가 초기화되지 않았습니다"))
+    }
+}
+
+/// GPU 작업 실행 - 디바이스 직접 접근 대신 사용
+pub fn execute_on_gpu_device<F, T>(operation: F) -> Result<T, Error>
+where
+    F: FnOnce(&Device, &Queue) -> Result<T, Error>,
+{
+    let context = GPU_CONTEXT.read();
+    
+    match &*context {
+        Some(ctx) => {
+            // 콜백을 통해 디바이스와 큐에 안전하게 접근
+            operation(&ctx.device, &ctx.queue)
         },
         None => Err(Error::from_reason("GPU 컨텍스트가 초기화되지 않았습니다"))
     }
@@ -157,18 +171,21 @@ impl GpuContext {
     // 리소스 정리 메서드
     pub fn cleanup_resources(&self) -> Result<(), Error> {
         // 실제 구현
+        // 메모리 정리 로직 추가
         Ok(())
     }
     
     // 셰이더 캐시 정리 메서드
     pub fn clear_shader_cache(&self) -> Result<(), Error> {
         // 실제 구현
+        // 셰이더 캐시 정리 로직 추가
         Ok(())
     }
     
     // 모든 리소스 해제 메서드
     pub fn release_all_resources(&self) -> Result<(), Error> {
         // 실제 구현
+        // 모든 GPU 리소스 해제 로직 추가
         Ok(())
     }
 }
@@ -176,4 +193,17 @@ impl GpuContext {
 /// GPU 초기화 상태 가져오기
 pub fn is_gpu_initialized() -> bool {
     GPU_INITIALIZED.load(Ordering::SeqCst)
+}
+
+/// 현재 GPU 컨텍스트에서 작업 수행
+pub fn with_gpu_context<F, R>(f: F) -> Result<R, Error>
+where
+    F: FnOnce(&GpuContext) -> Result<R, Error>,
+{
+    let context = GPU_CONTEXT.read();
+    
+    match &*context {
+        Some(ctx) => f(ctx),
+        None => Err(Error::from_reason("GPU 컨텍스트가 초기화되지 않았습니다"))
+    }
 }

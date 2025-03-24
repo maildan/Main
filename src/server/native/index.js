@@ -774,3 +774,199 @@ loadNativeModule();
 
 // 모듈 API 내보내기
 module.exports = nativeModuleApi;
+
+/**
+ * 네이티브 모듈 JavaScript 대체 구현
+ * Rust 네이티브 모듈이 없는 경우 사용됩니다.
+ */
+
+const { performance: perfHooks } = require('perf_hooks');
+
+// 메모리 관련 함수
+function getMemoryInfo() {
+  try {
+    moduleState.metrics.calls++;
+    const start = performance.now();
+    
+    const memoryUsage = process.memoryUsage();
+    const result = {
+      heapUsed: memoryUsage.heapUsed,
+      heapTotal: memoryUsage.heapTotal,
+      heapUsedMB: Math.round(memoryUsage.heapUsed / (1024 * 1024) * 100) / 100,
+      heapTotalMB: Math.round(memoryUsage.heapTotal / (1024 * 1024) * 100) / 100,
+      percentUsed: Math.round((memoryUsage.heapUsed / memoryUsage.heapTotal) * 100),
+      rss: memoryUsage.rss,
+      rssMB: Math.round(memoryUsage.rss / (1024 * 1024) * 100) / 100,
+      external: memoryUsage.external,
+      externalMB: Math.round(memoryUsage.external / (1024 * 1024) * 100) / 100,
+      timestamp: Date.now()
+    };
+    
+    const executionTime = performance.now() - start;
+    moduleState.metrics.totalExecutionTime += executionTime;
+    
+    return result;
+  } catch (error) {
+    moduleState.metrics.errors++;
+    logger.error('메모리 정보 가져오기 오류:', error);
+    return {
+      heapUsed: 0,
+      heapTotal: 0,
+      heapUsedMB: 0,
+      heapTotalMB: 0,
+      percentUsed: 0,
+      timestamp: Date.now(),
+      error: error.message
+    };
+  }
+}
+
+function determineOptimizationLevel(memoryUsedMB, threshold = 100) {
+  if (memoryUsedMB > threshold * 1.5) {
+    return 3; // 위험
+  } else if (memoryUsedMB > threshold * 1.2) {
+    return 2; // 경고
+  } else if (memoryUsedMB > threshold * 0.8) {
+    return 1; // 주의
+  }
+  return 0; // 정상
+}
+
+function requestGarbageCollection(emergency = false) {
+  try {
+    moduleState.metrics.calls++;
+    const start = performance.now();
+    
+    const memoryBefore = getMemoryInfo();
+    
+    // 가비지 컬렉션 요청
+    if (global.gc) {
+      global.gc();
+    } else {
+      // GC 간접 유도
+      const tmp = [];
+      for (let i = 0; i < 1000; i++) {
+        tmp.push(new Array(10000).fill(0));
+      }
+      tmp.length = 0;
+    }
+    
+    const memoryAfter = getMemoryInfo();
+    
+    const executionTime = performance.now() - start;
+    moduleState.metrics.totalExecutionTime += executionTime;
+    
+    return {
+      success: true,
+      memoryBefore,
+      memoryAfter,
+      freedMemory: memoryBefore.heapUsed - memoryAfter.heapUsed,
+      freedMB: Math.round((memoryBefore.heapUsed - memoryAfter.heapUsed) / (1024 * 1024) * 100) / 100
+    };
+  } catch (error) {
+    moduleState.metrics.errors++;
+    logger.error('가비지 컬렉션 요청 오류:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+function optimizeMemory(level = 2, emergency = false) {
+  try {
+    moduleState.metrics.calls++;
+    const start = performance.now();
+    
+    const memoryBefore = getMemoryInfo();
+    
+    // 가비지 컬렉션 요청
+    requestGarbageCollection(emergency);
+    
+    const memoryAfter = getMemoryInfo();
+    
+    const executionTime = performance.now() - start;
+    moduleState.metrics.totalExecutionTime += executionTime;
+    
+    return {
+      success: true,
+      level,
+      emergency,
+      memoryBefore,
+      memoryAfter,
+      freedMemory: memoryBefore.heapUsed - memoryAfter.heapUsed,
+      freedMB: Math.round((memoryBefore.heapUsed - memoryAfter.heapUsed) / (1024 * 1024) * 100) / 100
+    };
+  } catch (error) {
+    moduleState.metrics.errors++;
+    logger.error('메모리 최적화 오류:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+// GPU 관련 함수
+function isGpuAccelerationAvailable() {
+  return false;
+}
+
+function enableGpuAcceleration() {
+  return false;
+}
+
+function disableGpuAcceleration() {
+  return true;
+}
+
+function getGpuInfo() {
+  return {
+    name: "Software Renderer",
+    vendor: "CPU",
+    driver_info: "JavaScript Fallback",
+    device_type: "CPU",
+    backend: "CPU",
+    available: false,
+    acceleration_enabled: false,
+    timestamp: Date.now()
+  };
+}
+
+function performGpuComputation(data, computationType) {
+  return {
+    success: false,
+    task_type: computationType,
+    duration_ms: 0,
+    result: null,
+    error: "GPU acceleration is not available in JavaScript fallback mode",
+    timestamp: Date.now()
+  };
+}
+
+// 유틸리티 함수
+function getNativeModuleInfo() {
+  return {
+    isAvailable: moduleState.isAvailable,
+    isFallback: moduleState.isFallback,
+    initTime: moduleState.initTime,
+    metrics: { ...moduleState.metrics },
+    version: "JS-Fallback-1.0.0",
+    platform: process.platform,
+    arch: process.arch,
+    nodeVersion: process.version
+  };
+}
+
+// 모듈 내보내기
+module.exports = {
+  // 메모리 관련
+  getMemoryInfo,
+  determineOptimizationLevel,
+  requestGarbageCollection,
+  optimizeMemory,
+  
+  // GPU 관련
+  isGpuAccelerationAvailable,
+  enableGpuAcceleration,
+  disableGpuAcceleration,
+  getGpuInfo,
+  performGpuComputation,
+  
+  // 유틸리티
+  getNativeModuleInfo
+};

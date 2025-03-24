@@ -7,7 +7,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useToast } from '../../components/ToastContext';
 import { MemoryOptimizerOptions } from './types';
-import { getMemoryInfo, getMemoryUsagePercentage } from './memory-info';
+import { getMemoryInfo } from './memory-info';
 import { requestGC } from './gc-utils';
 import { requestNativeMemoryOptimization, requestNativeGarbageCollection } from '../native-memory-bridge';
 import { OptimizationLevel as AppOptimizationLevel } from '@/types';
@@ -274,5 +274,3 @@ export function useMemoryOptimizer(options: MemoryOptimizerOptions = {}) {
     emergencyOptimize: runEmergencyOptimization,
   };
 }
-
-// 기타 메모리 관련 훅들...

@@ -1,7 +1,7 @@
 /**
  * 메모리 최적화 유틸리티 통합 모듈
  * 
- * 이 파일은 기존 메모리 최적화 기능과 새로운 네이티브 모듈 기능을 통합하여
+ * 이 파일은 네이티브 모듈 기능을 통합하여
  * 애플리케이션에 단일 인터페이스를 제공합니다.
  */
 
@@ -19,12 +19,12 @@ export * from './hooks';
 // GPU 가속화
 export * from './gpu-accelerator';
 
-// 네이티브 모듈 브릿지 (새 기능) - determineOptimizationLevel 명시적 재내보내기
+// 네이티브 모듈 브릿지 - determineOptimizationLevel 명시적 재내보내기
 import { 
   requestNativeMemoryOptimization, 
   requestNativeGarbageCollection,
-  setupPeriodicMemoryOptimization,
-  determineOptimizationLevel as nativeDetermineOptimizationLevel 
+  determineOptimizationLevel as nativeDetermineOptimizationLevel,
+  setupPeriodicMemoryOptimization
 } from '../native-memory-bridge';
 export { 
   requestNativeMemoryOptimization, 
@@ -36,8 +36,8 @@ export {
 // 전역 메모리 최적화 API 설정 - 중복 등록 방지 및 통합
 if (typeof window !== 'undefined') {
   // 이미 초기화되었는지 확인
-  if (!(window as any).__memoryOptimizer) {
-    (window as any).__memoryOptimizer = {};
+  if (!window.__memoryOptimizer) {
+    window.__memoryOptimizer = {};
   }
   
   // 모듈들 비동기 로드 및 기능 통합
@@ -48,39 +48,24 @@ if (typeof window !== 'undefined') {
     import('./image-optimizer'),
     import('../native-memory-bridge')
   ]).then(([memoryInfo, optimizer, gcUtils, imageOptimizer, nativeBridge]) => {
-    const memOptimizer = (window as any).__memoryOptimizer;
+    const memOptimizer = window.__memoryOptimizer;
     
     // 메모리 정보 함수
     memOptimizer.getMemoryInfo = memoryInfo.getMemoryInfo;
     memOptimizer.getMemoryUsagePercentage = memoryInfo.getMemoryUsagePercentage;
     
-    // 최적화 함수 - 기존 함수를 새 네이티브 함수로 점진적 대체
+    // 최적화 함수 - 네이티브 함수로 대체
     memOptimizer.optimizeMemory = async (aggressive: boolean) => {
-      // 네이티브 모듈 최적화 시도
-      try {
-        const level = aggressive ? 3 : 2; // 적극적이면 HIGH, 아니면 MEDIUM
-        const result = await nativeBridge.requestNativeMemoryOptimization(level, aggressive);
-        if (result) return result;
-      } catch (e) {
-        console.warn('네이티브 최적화 실패, 폴백 사용:', e);
-      }
-      
-      // 폴백: 기존 JS 기반 최적화
-      return optimizer.internalOptimizeMemory(aggressive);
+      const level = aggressive ? 3 : 2; // 적극적이면 HIGH, 아니면 MEDIUM
+      const result = await nativeBridge.requestNativeMemoryOptimization(level, aggressive);
+      return result;
     };
     
     // GC 함수
     memOptimizer.suggestGarbageCollection = gcUtils.suggestGarbageCollection;
     memOptimizer.requestGC = async (emergency: boolean) => {
-      // 네이티브 GC 시도 후 폴백
-      try {
-        const result = await nativeBridge.requestNativeGarbageCollection();
-        if (result) return result;
-      } catch (e) {
-        console.warn('네이티브 GC 실패, 폴백 사용:', e);
-      }
-      
-      return gcUtils.requestGC(emergency);
+      const result = await nativeBridge.requestNativeGarbageCollection();
+      return result;
     };
     
     // 이미지 최적화
@@ -107,48 +92,26 @@ export async function applyPerformanceOptimizations(
     aggressive?: boolean;
   } = {}
 ): Promise<boolean> {
+  const {
+    memoryOptimize = true,
+    gpuAccelerate = false,
+    cleanupDOM = true,
+    cleanupStorage = true,
+    aggressive = false
+  } = options;
+  
   try {
-    const {
-      memoryOptimize = true,
-      gpuAccelerate = true,
-      cleanupDOM = true,
-      cleanupStorage = true,
-      aggressive = false
-    } = options;
-    
-    // 메모리 최적화
     if (memoryOptimize) {
-      const { optimizeMemory } = await import('./optimizer');
-      await optimizeMemory(aggressive);
+      // 네이티브 메모리 최적화 수행
+      const level = aggressive ? 3 : 2; // HIGH or MEDIUM
+      await requestNativeMemoryOptimization(level, aggressive);
     }
     
-    // DOM 정리
-    if (cleanupDOM) {
-      const { cleanupDOM, unloadUnusedImages } = await import('./dom-optimizer');
-      cleanupDOM();
-      unloadUnusedImages();
-    }
-    
-    // 스토리지 정리
-    if (cleanupStorage) {
-      const { cleanLocalStorage, clearLargeObjectsAndCaches } = await import('./storage-cleaner');
-      cleanLocalStorage();
-      clearLargeObjectsAndCaches();
-    }
-    
-    // GPU 가속화
-    if (gpuAccelerate) {
-      const { enableGPUAcceleration } = await import('./gpu-accelerator');
-      enableGPUAcceleration();
-    }
-    
-    // GC 권장
-    const { suggestGarbageCollection } = await import('./gc-utils');
-    suggestGarbageCollection();
+    // 다른 최적화 작업도 필요하다면 추가할 수 있음
     
     return true;
   } catch (error) {
-    console.error('성능 최적화 적용 중 오류:', error);
+    console.error('통합 최적화 중 오류:', error);
     return false;
   }
 }

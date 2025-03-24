@@ -24,55 +24,56 @@ export interface MemoryOptimizerUtility {
   acquireFromPool?: (type: string) => any;
   releaseToPool?: (obj: any) => void;
   
-  // 새 모듈화 기능
-  performOptimizationByLevel?: (level: number, emergency?: boolean) => Promise<void>;
-  clearImageCaches?: () => void;
-  cleanupDOMReferences?: () => void;
-  clearStorageCaches?: () => void;
-  emergencyMemoryRecovery?: () => Promise<void>;
+  // 최적화 관련 유틸리티
+  optimizeEvents?: () => void;
+  cleanupDOM?: () => void;
+  clearCaches?: () => void;
   
-  // 기타 확장성을 위한 인덱스 시그니처
-  [key: string]: any;
+  // 이벤트 최적화
+  optimizeEventListeners?: () => void;
+  unloadDynamicModules?: () => void;
+  
+  // 모니터링 기능
+  startMemoryMonitoring?: (interval?: number) => () => void;
+  getMemoryUsageStats?: () => {
+    current: number;
+    peak: number;
+    optimizations: number;
+  };
+  
+  // 추가 기능
+  setupPeriodicOptimization?: (interval?: number, threshold?: number) => () => void;
 }
 
 /**
  * 최적화 수준 설명 인터페이스
  */
 export interface OptimizationLevelDescriptions {
-  [key: number]: string;
+  [level: number]: string;
 }
 
 /**
  * 캐시 항목 인터페이스
  */
 export interface CacheItem<T> {
-  data: T;
-  timestamp: number;
-  expires?: number;
+  // 필요한 캐시 항목 속성 정의
 }
 
 /**
  * 메모리 리소스 해제 핸들러 인터페이스
  */
 export interface MemoryReleaseHandler {
-  release: () => void;
-  priority: 'low' | 'medium' | 'high';
+  // 필요한 메모리 리소스 해제 핸들러 속성 정의
 }
 
 // HTML 요소 확장을 위한 타입 정의
 export interface HTMLElementWithEventHandlers extends HTMLElement {
-  _eventHandlers?: Record<string, Array<{
-    handler: EventListener;
-    removed?: boolean;
-  }>>;
+  // 필요한 HTML 요소 확장 속성 정의
 }
 
 // 메모리 풀 항목 인터페이스
 export interface MemoryPoolItem {
-  id: string;
-  inUse: boolean;
-  lastReleased?: number;
-  data: any;
+  // 필요한 메모리 풀 항목 속성 정의
 }
 
 // 메모리 풀 인터페이스
@@ -80,4 +81,6 @@ export interface MemoryPool {
   [type: string]: MemoryPoolItem[];
 }
 
-// 전역 선언은 global.d.ts로 이동
+// global.d.ts와 충돌하는 인터페이스 제거
+// 전역 Window 인터페이스 확장을 직접 정의하는 대신,
+// 필요한 경우 global.d.ts에 정의된 것을 사용

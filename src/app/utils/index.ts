@@ -35,17 +35,16 @@ export {
   optimizeOnComponentUnmount
 } from './memory-management';
 
+// GPU 가속화 관련 함수들
 export {
   getGpuInfo as getGpuAccelerationInfo,  // 이름 충돌 방지를 위한 재명명
   toggleGpuAcceleration,
   executeGpuComputation,
-  // 존재하지 않는 함수 제거
-  // getGpuAccelerationState,
-  // setGpuFallbackMode,
   initializeGpuAcceleration,
-  // 필요한 경우 아래 함수들 추가
-  isGpuAccelerationEnabled,
-  isGpuSupported
+  isGpuComputationActive as isGpuAccelerationEnabled,
+  isGpuSupported,
+  checkGpuAvailability
+  // startGpuMemoryMonitoring 함수는 미구현되어 제거
 } from './gpu-acceleration';
 
 // 통합 성능 최적화
@@ -56,7 +55,8 @@ export {
   getMemoryInfo as fetchNativeMemoryInfo,
   optimizeMemory as nativeOptimizeMemory,
   forceGarbageCollection,
-  getGpuInfo as fetchGpuInfo
+  getGpuInfo as fetchGpuInfo,
+  getNativeModuleStatus
 } from './nativeModuleClient';
 
 // 명시적 이름 재내보내기를 통한 충돌 해결

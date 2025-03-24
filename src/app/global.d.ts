@@ -167,5 +167,41 @@ declare global {
   interface Window {
     electronAPI?: ElectronAPI;
     electron?: ElectronAPI; // 명시적으로 추가
+    
+    // GPU 관련 전역 객체
+    __gpuInfo?: {
+      renderer?: string;
+      vendor?: string;
+      isAccelerated: () => boolean;
+      getGPUTier?: () => { tier: number; type: string; };
+      isHardwareAccelerated?: () => boolean;
+    };
+    
+    // 메모리 최적화 관련 전역 객체
+    __memoryOptimizer?: {
+      [key: string]: any;
+      getMemoryInfo?: () => any;
+      getMemoryUsagePercentage?: () => number;
+      optimizeMemory?: (aggressive: boolean) => Promise<any>;
+      suggestGarbageCollection?: () => void;
+      requestGC?: (emergency?: boolean) => Promise<any>;
+      determineOptimizationLevel?: () => number;
+      settings?: any;
+      cleanupPeriodicOptimization?: () => void;
+    };
+    
+    // GPU 가속화 관련 전역 객체
+    __gpuAccelerator?: {
+      [key: string]: any;
+    };
+  
+    // 리소스 최적화를 위한 전역 캐시 객체들
+    __objectUrls?: Map<string, string>;
+    __widgetCache?: Map<string, any>;
+    __styleCache?: Map<string, any>;
+    __imageResizeCache?: Map<string, HTMLImageElement>;
+    
+    // 동적 모듈 관리
+    _dynamicModules?: Map<string, any>;
   }
 }
