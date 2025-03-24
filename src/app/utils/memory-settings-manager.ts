@@ -136,7 +136,11 @@ export async function saveMemorySettings(settings: Partial<MemorySettings>): Pro
     
     // 전역 메모리 최적화 유틸리티 업데이트 (존재하는 경우)
     if (typeof window !== 'undefined' && window.__memoryOptimizer) {
-      window.__memoryOptimizer.settings = updatedSettings;
+      if (!window.__memoryOptimizer.settings) {
+        window.__memoryOptimizer.settings = updatedSettings;
+      } else {
+        Object.assign(window.__memoryOptimizer.settings, updatedSettings);
+      }
     }
     
     return true;
@@ -189,13 +193,21 @@ function setupPeriodicMemoryOptimization(settings: MemorySettings): void {
         window.__memoryOptimizer.cleanupPeriodicOptimization = cleanup;
       }
       
-      // __memoryOptimizer.settings에 직접 할당하는 대신 아래와 같이 변경
+      if (window.__memoryOptimizer && window.__memoryOptimizer.setupPeriodicOptimization) {
+        if (window.__memoryOptimizer.cleanupPeriodicOptimization) {
+          window.__memoryOptimizer.cleanupPeriodicOptimization();
+        }
+        
+        // 새 주기적 최적화 설정
+        window.__memoryOptimizer.setupPeriodicOptimization = cleanup;
+      }
+      
       if (typeof window !== 'undefined' && window.__memoryOptimizer) {
-        Object.defineProperty(window.__memoryOptimizer, 'settings', {
-          value: settings,
-          writable: true,
-          configurable: true
-        });
+        if (!window.__memoryOptimizer.settings) {
+          window.__memoryOptimizer.settings = settings;
+        } else {
+          Object.assign(window.__memoryOptimizer.settings, settings);
+        }
       }
     }).catch(error => {
       console.error('주기적 최적화 설정 중 오류 발생:', error);
@@ -273,6 +285,7 @@ declare global {
     __memoryOptimizer?: {
       settings?: MemorySettings;
       cleanupPeriodicOptimization?: () => void;
+      setupPeriodicOptimization?: () => void;
       [key: string]: any;
     };
   }

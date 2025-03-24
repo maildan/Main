@@ -1,4 +1,73 @@
 /**
+ * 메모리 관련 확장 타입 정의
+ */
+import { 
+  GCResult, 
+  OptimizationLevel, 
+  MemorySettings, 
+  MemoryUsageInfo 
+} from './types';
+
+// ExtendedGCResult 타입 정의 
+export interface ExtendedGCResult extends GCResult {
+  // 추가 필드 정의
+  optimizationLevel?: OptimizationLevel;
+  memoryInfoBefore?: MemoryUsageInfo;
+  memoryInfoAfter?: MemoryUsageInfo;
+  detachedEventListeners?: number; 
+  removedElements?: number;
+  cleanedCaches?: number;
+  optimizationSource?: string;
+}
+
+// Window 인터페이스 확장 (캐시 관련)
+export interface WindowWithCache extends Window {
+  __cachedData?: Record<string, any>;
+  __bufferCache?: Record<string, ArrayBuffer>;
+  __memoryCache?: Map<string, any>;
+  __animationFrameIds?: number[];
+  __intervalIds?: number[];
+  __timeoutIds?: number[];
+  
+  // GC 관련
+  gc?: () => void;
+}
+
+// 메모리 최적화 상태 인터페이스
+export interface MemoryOptimizationState {
+  isOptimizing: boolean;
+  lastOptimization: number;
+  optimizationCount: number;
+  totalFreedMemory: number;
+  gcCount: number;
+  lastGC: number;
+}
+
+// 제네릭 캐시 엔트리 인터페이스
+export interface CacheEntry<T> {
+  data: T;
+  expiry: number;
+  size: number;
+  lastAccess: number;
+  accessCount: number;
+}
+
+// 메모리 풀 옵션 인터페이스
+export interface MemoryPoolOptions {
+  maxSize: number;
+  cleanupInterval: number;
+  ttl: number;
+}
+
+// 최적화 작업 관리자 인터페이스
+export interface OptimizationTaskManager {
+  scheduleTask: (task: () => Promise<void>, priority: number) => void;
+  cancelAllTasks: () => void;
+  pauseTasks: () => void;
+  resumeTasks: () => void;
+}
+
+/**
  * 메모리 최적화 관련 확장 타입 정의
  * 모든 메모리 관련 타입의 중앙 집중화 및 재사용성 증가
  */
@@ -79,6 +148,33 @@ export interface MemoryPoolItem {
 // 메모리 풀 인터페이스
 export interface MemoryPool {
   [type: string]: MemoryPoolItem[];
+}
+
+// 메모리 최적화 옵션
+export interface MemoryOptimizationOptions {
+  aggressive?: boolean;
+  targets?: string[];
+  timeout?: number;
+  includeEventListeners?: boolean;
+  includeImageCache?: boolean;
+  includeObjectCache?: boolean;
+}
+
+// 추가 타입 정의 (중복 제거)
+export interface DynamicModule<T = any> {
+  name: string;
+  instance: T;
+  lastAccessed: number;
+  size?: number;
+  priority?: number; 
+}
+
+// 제네릭 타입 확장
+export interface PooledObject<T> {
+  object: T;
+  createdAt: number;
+  lastUsed: number;
+  usageCount: number;
 }
 
 // global.d.ts와 충돌하는 인터페이스 제거

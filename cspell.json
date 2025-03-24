@@ -59,7 +59,12 @@
     "Deque",
     "xlarge",
     "INDEXEDDB",
-    "turbotrace"
+    "turbotrace",
+    "workgroups",
+    "Adreno",
+    "stddev",
+    "prealloc"
+    
   ],
   "ignorePaths": [
     "node_modules/**",

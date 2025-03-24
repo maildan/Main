@@ -62,9 +62,12 @@ export async function detectGPUAcceleration(): Promise<boolean> {
     
     // GPU 정보 가져오기
     const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
+    let renderer = 'Unknown';
+    let vendor = 'Unknown';
+    
     if (debugInfo) {
-      const renderer = gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL) as string;
-      const vendor = gl.getParameter(debugInfo.UNMASKED_VENDOR_WEBGL) as string;
+      renderer = gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL) as string;
+      vendor = gl.getParameter(debugInfo.UNMASKED_VENDOR_WEBGL) as string;
       
       console.debug('GPU 정보:', { renderer, vendor });
       
@@ -107,9 +110,9 @@ export async function detectGPUAcceleration(): Promise<boolean> {
     
     // 전역 GPU 정보 객체 설정
     window.__gpuInfo = {
-      isAccelerated: isAccelerated,
-      renderer: renderer || 'Unknown',
-      vendor: vendor || 'Unknown',
+      isAccelerated: () => gpuAccelerationStatus.hardwareAccelerated,
+      renderer: renderer,
+      vendor: vendor,
       getGPUTier: () => ({
         tier: gpuAccelerationStatus.gpuTier,
         type: getTierDescription(gpuAccelerationStatus.gpuTier)

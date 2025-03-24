@@ -1,107 +1,35 @@
 /**
- * 유틸리티 함수 통합 인덱스
- * 
- * 모든 유틸리티 모듈을 재내보내 일관된 접근점을 제공합니다.
+ * 공통 유틸리티 함수 및 모듈
  */
 
-// 기본 메모리 유틸리티 - 선택적 내보내기로 이름 충돌 해결
+// 기본 유틸리티 함수 내보내기
+export * from './date-utils';
+export * from './string-utils';
+export * from './math-utils';
+export * from './format-utils';
+export * from './localStorage';
+
+// 스토리지 유틸리티 - 올바른 경로 지정
 export { 
-  getMemoryUsagePercentage,
-  getMemoryInfo as getJsMemoryInfo
-} from './memory/memory-info';
+  getLocalStorage, 
+  setLocalStorage,
+  clearLocalStorage
+} from './storage-utils';
 
-export {
-  internalOptimizeMemory,
-  optimizeMemory as jsOptimizeMemory,
-  getFromMemoryPool,
-  returnToMemoryPool
-} from './memory/optimizer';
+// 메모리 최적화 및 관리
+export * from './memory-optimizer';
+export * from './memory-settings-manager';
+export * from './performance-optimizer';
+export * from './nativeModuleClient';
 
-export {
-  requestGC,
-  suggestGarbageCollection
-} from './memory/gc-utils';
-
-// 네이티브 통합 모듈 
-export { 
-  initializeMemoryManager,
-  optimizeMemoryWithFallback as optimizeMemory, // 기본 최적화 함수로 사용
-  collectGarbageWithFallback,
-  getMemoryInfoWithFallback as getMemoryInfo,  // 기본 메모리 정보 함수로 사용
-  getMemoryManagerState,
-  startMemoryMonitoring,
-  stopMemoryMonitoring,
-  setFallbackMode,
-  optimizeOnComponentUnmount
-} from './memory-management';
-
-// GPU 가속화 관련 함수들
-export {
-  getGpuInfo as getGpuAccelerationInfo,  // 이름 충돌 방지를 위한 재명명
-  toggleGpuAcceleration,
-  executeGpuComputation,
-  initializeGpuAcceleration,
-  isGpuComputationActive as isGpuAccelerationEnabled,
-  isGpuSupported,
-  checkGpuAvailability
-  // startGpuMemoryMonitoring 함수는 미구현되어 제거
-} from './gpu-acceleration';
-
-// 통합 성능 최적화
+// TypeScript 문법 오류 수정 - 모듈 경로 수정 및 문자열 종결
+export * from './memory/gpu-accelerator';
+export * from './enum-converters';
+export * from './performance-metrics';
 export * from './performance-optimizer';
 
-// 네이티브 모듈 통신
-export { 
-  getMemoryInfo as fetchNativeMemoryInfo,
-  optimizeMemory as nativeOptimizeMemory,
-  forceGarbageCollection,
-  getGpuInfo as fetchGpuInfo,
-  getNativeModuleStatus
-} from './nativeModuleClient';
-
-// 명시적 이름 재내보내기를 통한 충돌 해결
-export { 
-  requestNativeMemoryOptimization,
-  requestNativeGarbageCollection,
-  requestNativeMemoryInfo,
-  determineOptimizationLevel as nativeDetermineOptimizationLevel,
-  setupPeriodicMemoryOptimization,
-  addMemoryOptimizationListeners
-} from './native-memory-bridge';
-
-// 성능 측정
-export * from './performance-metrics';
-
-// GPU 컴퓨팅 비교 헬퍼 함수
-export function isBrowserGpuAvailable(): boolean {
-  try {
-    if (typeof window === 'undefined') return false;
-    
-    // WebGL 지원 확인
-    const canvas = document.createElement('canvas');
-    const gl = canvas.getContext('webgl2') || 
-               canvas.getContext('webgl') ||
-               canvas.getContext('experimental-webgl');
-               
-    return !!gl;
-  } catch (e) {
-    return false;
-  }
-}
-
-// 메모리 최적화 도우미
-export async function optimizeMemoryOnDemand(aggressive = false): Promise<boolean> {
-  try {
-    const { optimizePerformance } = await import('./performance-optimizer');
-    await optimizePerformance({
-      aggressive,
-      memoryOptimizationLevel: aggressive ? 3 : 2, // HIGH or MEDIUM
-      enableGpuAcceleration: true,
-      cleanupDOM: aggressive
-    });
-    return true;
-  } catch (error) {
-    console.error('온디맨드 메모리 최적화 오류:', error);
-    return false;
-  }
-}
+// 타입 정의
+export type { 
+  MemoryInfo, 
+  OptimizationResult 
+} from '@/types';

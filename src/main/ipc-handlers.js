@@ -8,6 +8,12 @@ const { applyWindowMode } = require('./settings');
 const { saveSettings, getSettings, loadSettings } = require('./settings');
 const { createMiniViewWindow, toggleMiniView } = require('./window');
 const { showRestartPrompt } = require('./dialogs');
+const { 
+  forceMemoryOptimization, 
+  performGarbageCollection, 
+  getCurrentMemoryUsage, 
+  getMemoryManagerStats 
+} = require('./memory-manager');
 
 /**
  * IPC 핸들러 설정
@@ -635,6 +641,27 @@ function setupIpcHandlers() {
     debugLog('수동 가비지 컬렉션 요청 받음');
     
     try {
+      // 네이티브 모듈 사용 시도
+      const nativeModule = require('../native-modules');
+      if (nativeModule && typeof nativeModule.force_garbage_collection === 'function') {
+        // Rust 네이티브 GC 호출
+        const resultJson = nativeModule.force_garbage_collection();
+        
+        try {
+          const result = JSON.parse(resultJson);
+          event.reply('gc-completed', {
+            success: true,
+            timestamp: result.timestamp,
+            freedMemory: result.freed_memory || 0,
+            freedMB: result.freed_mb || 0
+          });
+          return;
+        } catch (parseError) {
+          debugLog('네이티브 GC 결과 파싱 오류:', parseError);
+        }
+      }
+      
+      // 네이티브 모듈 사용 불가능한 경우 기본 구현으로 폴백
       const { performGC } = require('./memory-manager');
       const result = performGC();
       
@@ -658,6 +685,32 @@ function setupIpcHandlers() {
     debugLog('메모리 최적화 요청 받음');
     
     try {
+      // 네이티브 모듈 사용 시도
+      const nativeModule = require('../native-modules');
+      if (nativeModule && typeof nativeModule.optimize_memory === 'function') {
+        // 최적화 레벨 결정
+        const isEmergency = appState.memoryUsage.heapUsed > HIGH_MEMORY_THRESHOLD;
+        const level = isEmergency ? 4 : 2;
+        
+        // Rust 네이티브 메모리 최적화 호출
+        const resultJson = nativeModule.optimize_memory(level, isEmergency);
+        
+        try {
+          const result = JSON.parse(resultJson);
+          const memoryInfo = require('./memory-manager').getMemoryInfo();
+          
+          event.reply('memory-optimized', {
+            success: true,
+            result,
+            memoryInfo
+          });
+          return;
+        } catch (parseError) {
+          debugLog('네이티브 최적화 결과 파싱 오류:', parseError);
+        }
+      }
+      
+      // 네이티브 모듈 사용 불가능한 경우 기본 구현으로 폴백
       const { freeUpMemoryResources } = require('./memory-manager');
       const isEmergency = appState.memoryUsage.heapUsed > HIGH_MEMORY_THRESHOLD;
       
@@ -691,7 +744,7 @@ function setupIpcHandlers() {
       });
     }
   });
-  
+
   // 렌더러 프로세스에 GC 요청 수신
   ipcMain.on('renderer-gc-completed', (_, data) => {
     debugLog('렌더러 GC 완료:', data);
@@ -836,6 +889,74 @@ function restartApplication() {
   }
 }
 
+/**
+ * 메모리 관련 IPC 핸들러 등록
+ */
+function registerMemoryIpcHandlers() {
+  // 메모리 최적화 요청 처리
+  ipcMain.handle('optimize-memory', async (event, level = 2, emergency = false) => {
+    try {
+      const result = await forceMemoryOptimization(level, emergency);
+      return { success: true, result };
+    } catch (error) {
+      console.error('메모리 최적화 IPC 핸들러 오류:', error);
+      return { success: false, error: error.message };
+    }
+  });
+  
+  // 가비지 컬렉션 요청 처리
+  ipcMain.handle('request-gc', async (event, emergency = false) => {
+    try {
+      const result = await performGarbageCollection(emergency);
+      return { success: true, result };
+    } catch (error) {
+      console.error('GC 요청 IPC 핸들러 오류:', error);
+      return { success: false, error: error.message };
+    }
+  });
+  
+  // 메모리 사용량 요청 처리
+  ipcMain.handle('get-memory-usage', async () => {
+    try {
+      const memoryInfo = await getCurrentMemoryUsage();
+      return { success: true, memoryInfo };
+    } catch (error) {
+      console.error('메모리 사용량 IPC 핸들러 오류:', error);
+      return { success: false, error: error.message };
+    }
+  });
+  
+  // 메모리 관리자 상태 요청 처리
+  ipcMain.handle('get-memory-manager-stats', () => {
+    try {
+      const stats = getMemoryManagerStats();
+      return { success: true, stats };
+    } catch (error) {
+      console.error('메모리 관리자 상태 IPC 핸들러 오류:', error);
+      return { success: false, error: error.message };
+    }
+  });
+  
+  // 메모리 최적화 요청 (렌더러 → 메인)
+  ipcMain.on('renderer-gc-completed', (event, data) => {
+    console.log('렌더러 GC 완료 알림 수신:', data);
+  });
+  
+  console.log('메모리 관련 IPC 핸들러 등록 완료');
+}
+
+/**
+ * 모든 IPC 핸들러 등록
+ */
+function registerAllIpcHandlers() {
+  registerMemoryIpcHandlers();
+  // 다른 IPC 핸들러 등록...
+  
+  console.log('모든 IPC 핸들러 등록 완료');
+}
+
 module.exports = {
-  setupIpcHandlers
+  setupIpcHandlers,
+  registerAllIpcHandlers,
+  registerMemoryIpcHandlers
 };

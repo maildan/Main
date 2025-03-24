@@ -4,6 +4,7 @@
  */
 import { OptimizationLevel, MemoryInfo, OptimizationResult, GCResult } from '@/types';
 import { OptimizationLevel as NativeOptimizationLevel } from '@/types/native-module';
+import { toNativeOptimizationLevel, convertNativeMemoryInfo, convertNativeGCResult } from './enum-converters';
 import { optimizeMemory, forceGarbageCollection, getMemoryInfo as fetchMemoryInfo, 
          initializeMemorySettings, updateMemorySettings, getMemorySettings } from './nativeModuleClient';
 
@@ -14,12 +15,16 @@ import { optimizeMemory, forceGarbageCollection, getMemoryInfo as fetchMemoryInf
  * @returns Promise<OptimizationResult | null>
  */
 export async function requestNativeMemoryOptimization(
-  level: NativeOptimizationLevel,
+  level: OptimizationLevel | NativeOptimizationLevel,
   emergency: boolean = false
 ): Promise<OptimizationResult | null> {
   try {
-    // level은 이미 NativeOptimizationLevel 타입이므로 변환 없이 직접 사용
-    const response = await optimizeMemory(level as any, emergency);
+    // AppOptimizationLevel을 NativeOptimizationLevel로 변환
+    const nativeLevel = typeof level === 'number' && level >= 0 && level <= 4
+      ? level as NativeOptimizationLevel
+      : toNativeOptimizationLevel(level as OptimizationLevel);
+    
+    const response = await optimizeMemory(nativeLevel, emergency);
     
     if (response.success && response.result) {
       return response.result;
@@ -42,7 +47,7 @@ export async function requestNativeGarbageCollection(): Promise<GCResult | null>
     const response = await forceGarbageCollection();
     
     if (response.success && response.result) {
-      return response.result;
+      return convertNativeGCResult(response.result);
     }
     
     console.warn('네이티브 가비지 컬렉션 실패:', response.error);
@@ -113,10 +118,7 @@ export function setupPeriodicMemoryOptimization(
       if (memoryUsedMB > threshold) {
         // 임계값 초과 시 메모리 최적화 수행
         const level = determineOptimizationLevel(memoryInfo);
-        await requestNativeMemoryOptimization(
-          level as unknown as NativeOptimizationLevel, 
-          level === OptimizationLevel.EXTREME
-        );
+        await requestNativeMemoryOptimization(level, level === OptimizationLevel.EXTREME);
       }
     } catch (error) {
       console.error('주기적 메모리 최적화 중 오류:', error);
@@ -129,91 +131,9 @@ export function setupPeriodicMemoryOptimization(
   };
 }
 
-/**
- * React 컴포넌트용 메모리 최적화 수행
- * 특정 DOM 이벤트에 반응하여 메모리 최적화 수행
- */
-export function addMemoryOptimizationListeners() {
-  try {
-    if (typeof window !== 'undefined') {
-      // 사용자가 페이지를 떠날 때 최적화 수행
-      window.addEventListener('beforeunload', () => {
-        // 비동기 호출이지만 페이지 이탈 시에는 완료를 기다릴 필요 없음
-        requestNativeMemoryOptimization(NativeOptimizationLevel.Low);
-      });
-      
-      // 페이지가 백그라운드로 전환될 때 최적화 수행
-      document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'hidden') {
-          requestNativeMemoryOptimization(NativeOptimizationLevel.Medium);
-        }
-      });
-    }
-  } catch (error) {
-    console.error('메모리 최적화 리스너 설정 중 오류:', error);
-  }
-}
-
-/**
- * 메모리 설정 초기화
- * @param settings 메모리 설정 객체
- * @returns Promise<boolean>
- */
-export async function initializeNativeMemorySettings(settings: any): Promise<boolean> {
-  try {
-    const settingsJson = JSON.stringify(settings);
-    const response = await initializeMemorySettings(settingsJson);
-    
-    if (response.success) {
-      return true;
-    }
-    
-    console.warn('네이티브 메모리 설정 초기화 실패:', response.error);
-    return false;
-  } catch (error) {
-    console.error('네이티브 메모리 설정 초기화 중 오류:', error);
-    return false;
-  }
-}
-
-/**
- * 메모리 설정 업데이트
- * @param settings 메모리 설정 객체
- * @returns Promise<boolean>
- */
-export async function updateNativeMemorySettings(settings: any): Promise<boolean> {
-  try {
-    const settingsJson = JSON.stringify(settings);
-    const response = await updateMemorySettings(settingsJson);
-    
-    if (response.success) {
-      return true;
-    }
-    
-    console.warn('네이티브 메모리 설정 업데이트 실패:', response.error);
-    return false;
-  } catch (error) {
-    console.error('네이티브 메모리 설정 업데이트 중 오류:', error);
-    return false;
-  }
-}
-
-/**
- * 현재 메모리 설정 가져오기
- * @returns Promise<any|null>
- */
-export async function getNativeMemorySettings(): Promise<any | null> {
-  try {
-    const response = await getMemorySettings();
-    
-    if (response.success && response.settings) {
-      return response.settings;
-    }
-    
-    console.warn('네이티브 메모리 설정 가져오기 실패:', response.error);
-    return null;
-  } catch (error) {
-    console.error('네이티브 메모리 설정 가져오기 중 오류:', error);
-    return null;
-  }
-}
+// 추가 함수들 내보내기
+export {
+  initializeNativeMemorySettings,
+  updateNativeMemorySettings,
+  getNativeMemorySettings
+} from './memory-settings-bridge';

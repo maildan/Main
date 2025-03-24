@@ -1,7 +1,5 @@
 /**
- * Electron 메인 프로세스 진입점
- * 
- * 애플리케이션의 창 생성 및 이벤트 처리를 담당합니다.
+ * 애플리케이션 메인 엔트리 포인트
  */
 
 const { app, BrowserWindow, ipcMain, Menu, shell } = require('electron');
@@ -9,30 +7,71 @@ const path = require('path');
 const os = require('os');
 const { setupMemoryMonitoring } = require('./memory');
 const { initializeWorkerPool, shutdownWorkerPool } = require('./workers');
+const { initializeAppLifecycle } = require('./app-lifecycle');
+const { registerAllIpcHandlers } = require('./ipc-handlers');
+const { initializeNativeModule } = require('./memory-manager-native');
 
-// 개발 모드 체크
-const isDev = process.env.NODE_ENV === 'development';
-
-// 윈도우 인스턴스 유지
-let mainWindow;
-
-// 앱 설정
-const APP_CONFIG = {
-  minWidth: 800,
-  minHeight: 600,
-  defaultWidth: 1200,
-  defaultHeight: 800,
-  backgroundColor: '#f5f5f5',
-  title: '타이핑 통계',
-  appUrl: isDev ? 'http://localhost:3000' : 'https://your-production-url.com',
+// 앱 상태 저장소
+global.appState = {
+  settings: null,
+  mainWindow: null,
+  isDevelopment: process.env.NODE_ENV === 'development',
+  isQuitting: false,
+  memoryMonitorInterval: 60000,
+  memoryThreshold: {
+    high: 150,
+    critical: 225
+  }
 };
 
-/**
- * 메인 윈도우 생성
- */
+// 앱이 준비되었을 때 실행
+app.whenReady().then(() => {
+  console.log('앱 초기화 시작...');
+  
+  // 설정 로드
+  loadSettings();
+  
+  // IPC 핸들러 등록
+  registerAllIpcHandlers();
+  
+  // 네이티브 모듈 초기화 시도
+  const nativeAvailable = initializeNativeModule();
+  console.log(`네이티브 모듈 초기화 ${nativeAvailable ? '성공' : '실패'}`);
+  
+  // 앱 생명주기 초기화
+  initializeAppLifecycle(global.appState.settings);
+  
+  // 메인 창 생성
+  createMainWindow();
+});
+
+// 설정 로드 함수
+function loadSettings() {
+  try {
+    // TODO: 실제 설정 로드 로직 구현
+    global.appState.settings = {
+      reduceMemoryInBackground: true,
+      maxMemoryThreshold: 150,
+      useHardwareAcceleration: true,
+      processingMode: 'auto'
+    };
+  } catch (error) {
+    console.error('설정 로드 중 오류:', error);
+    
+    // 기본 설정 사용
+    global.appState.settings = {
+      reduceMemoryInBackground: true,
+      maxMemoryThreshold: 150,
+      useHardwareAcceleration: true,
+      processingMode: 'auto'
+    };
+  }
+}
+
+// 메인 창 생성 함수
 function createMainWindow() {
   // BrowserWindow 인스턴스 생성
-  mainWindow = new BrowserWindow({
+  global.appState.mainWindow = new BrowserWindow({
     width: APP_CONFIG.defaultWidth,
     height: APP_CONFIG.defaultHeight,
     minWidth: APP_CONFIG.minWidth,
@@ -49,45 +88,31 @@ function createMainWindow() {
   });
 
   // 앱 URL 로드
-  mainWindow.loadURL(APP_CONFIG.appUrl);
+  global.appState.mainWindow.loadURL(APP_CONFIG.appUrl);
 
   // 개발 모드에서는 개발자 도구 자동 열기
-  if (isDev) {
-    mainWindow.webContents.openDevTools();
+  if (global.appState.isDevelopment) {
+    global.appState.mainWindow.webContents.openDevTools();
   }
 
   // 창이 준비되면 표시
-  mainWindow.once('ready-to-show', () => {
-    mainWindow.show();
+  global.appState.mainWindow.once('ready-to-show', () => {
+    global.appState.mainWindow.show();
   });
 
   // 창이 닫힐 때 이벤트 처리
-  mainWindow.on('closed', () => {
-    mainWindow = null;
+  global.appState.mainWindow.on('closed', () => {
+    global.appState.mainWindow = null;
   });
 
   // 메모리 모니터링 시작
-  setupMemoryMonitoring(mainWindow);
+  setupMemoryMonitoring(global.appState.mainWindow);
 
   // 워커 풀 초기화
   initializeWorkerPool();
 
-  return mainWindow;
+  return global.appState.mainWindow;
 }
-
-/**
- * 앱 초기화
- */
-app.whenReady().then(() => {
-  createMainWindow();
-
-  // macOS에서 앱 활성화 시 윈도우가 없으면 새로 생성
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      createMainWindow();
-    }
-  });
-});
 
 /**
  * 모든 창이 닫히면 앱 종료 (Windows & Linux)
@@ -138,4 +163,13 @@ ipcMain.handle('get-app-info', () => {
     freeMemory: os.freemem(),
     cpuCount: os.cpus().length
   };
+});
+
+/**
+ * macOS에서 앱 활성화 시 윈도우가 없으면 새로 생성
+ */
+app.on('activate', () => {
+  if (BrowserWindow.getAllWindows().length === 0) {
+    createMainWindow();
+  }
 });

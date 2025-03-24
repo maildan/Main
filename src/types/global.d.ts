@@ -9,6 +9,8 @@ interface Window {
     isAccelerated: () => boolean;
     getGPUTier?: () => { tier: number, type: string };
     isHardwareAccelerated?: () => boolean;
+    renderer?: string;
+    vendor?: string;
   };
   
   // 메모리 최적화 관련
@@ -23,6 +25,8 @@ interface Window {
     acquireFromPool?: (poolName: string) => any;
     releaseToPool?: (obj: any) => void;
     setupPeriodicOptimization?: (interval?: number, threshold?: number) => () => void;
+    settings?: any;
+    cleanupPeriodicOptimization?: () => void;
   };
   
   // 캐싱 및 성능 관련
@@ -47,15 +51,22 @@ interface Window {
     onRequestGC: (callback: (data: { emergency: boolean }) => void) => (() => void);
     rendererGCCompleted: (data: { timestamp: number, success: boolean, memoryInfo: any }) => void;
     requestAppRecovery?: () => Promise<void>;
+    restartApp?: () => void;
+    showRestartPrompt?: () => void;
   };
+  
+  // 기타 필요한 전역 속성들
+  electron?: any;
+  gc?: () => void;
 }
 
 // Navigator 타입 확장 (브라우저 호환성 이슈를 위한 타입 정의)
-interface NavigatorWithBattery extends Navigator {
+interface Navigator {
   getBattery?: () => Promise<{
     level: number;
     charging: boolean;
     addEventListener: (type: string, listener: EventListenerOrEventListenerObject) => void;
     removeEventListener: (type: string, listener: EventListenerOrEventListenerObject) => void;
   }>;
+  deviceMemory?: number;
 }

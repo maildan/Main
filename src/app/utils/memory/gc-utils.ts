@@ -15,7 +15,9 @@ export {
 export {
   determineOptimizationLevel,
   ensureMemoryInfo,
-  induceGarbageCollection
+  induceGarbageCollection,
+  suggestGarbageCollection,
+  requestGC
 } from './gc/garbage-collector';
 
 /**
@@ -122,8 +124,8 @@ if (typeof window !== 'undefined') {
         (window as any).__memoryOptimizer = {
           ...(window as any).__memoryOptimizer || {},
           // 가비지 컬렉션 기능
-          requestGC: requestGC, // 로컬 함수 참조로 변경
-          suggestGarbageCollection: suggestGarbageCollection, // 로컬 함수 참조로 변경
+          requestGC: gc.requestGC,
+          suggestGarbageCollection: gc.suggestGarbageCollection,
           determineOptimizationLevel: gc.determineOptimizationLevel,
           // 메모리 풀 기능
           acquireFromPool: memoryPool.acquireFromPool,
@@ -132,10 +134,17 @@ if (typeof window !== 'undefined') {
           performOptimizationByLevel: optimization.performOptimizationByLevel,
           clearImageCaches: optimization.clearImageCaches,
           cleanupDOMReferences: optimization.cleanupDOMReferences,
-          clearStorageCaches: optimization.clearStorageCaches,
-          emergencyMemoryRecovery: optimization.emergencyMemoryRecovery
+          clearStorageCaches: optimization.clearStorageCaches
         };
+        
+        console.log('메모리 최적화 유틸리티 초기화 완료');
+      }).catch(error => {
+        console.error('최적화 컨트롤러 로드 중 오류:', error);
       });
+    }).catch(error => {
+      console.error('가비지 컬렉터 로드 중 오류:', error);
     });
+  }).catch(error => {
+    console.error('메모리 풀 로드 중 오류:', error);
   });
 }

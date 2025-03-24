@@ -124,11 +124,6 @@ function setupGpuAcceleration() {
  */
 async function initializeApp() {
   try {
-    // 설정 로드
-    await loadSettings();
-    
-    // GPU 가속화 설정 적용 (앱 초기화 전에 호출해야 함)
-    const isGpuEnabled = setupGpuAcceleration();
     
     // ...existing initialization code...
     
@@ -160,101 +155,156 @@ function setupMemoryManagement() {
     critical: (settings?.maxMemoryThreshold || 150) * 1.5
   };
   
-  debugLog(`메모리 모니터링 설정: 간격=${appState.memoryMonitorInterval}ms, 임계값=${appState.memoryThreshold.high}MB`);
+  try {
+    // 네이티브 메모리 모듈 초기화
+    const { isNativeModuleAvailable, initializeMemorySettings } = require('../server/native');
+    
+    // 네이티브 모듈이 사용 가능한 경우 설정 초기화
+    if (isNativeModuleAvailable()) {
+      console.log('네이티브 메모리 모듈 초기화 중...');
+      
+      // 네이티브 모듈에 설정 전달
+      const memorySettings = {
+        enable_automatic_optimization: true,
+        optimization_threshold: settings?.maxMemoryThreshold || 150,
+        optimization_interval: appState.memoryMonitorInterval,
+        aggressive_gc: false,
+        enable_logging: true,
+        enable_performance_metrics: true,
+        use_hardware_acceleration: settings?.useHardwareAcceleration || false,
+        processing_mode: settings?.processingMode || "auto",
+        use_memory_pool: true,
+        pool_cleanup_interval: 300000 // 5분
+      };
+      
+      initializeMemorySettings(JSON.stringify(memorySettings));
+      console.log('네이티브 메모리 모듈 설정 초기화 완료');
+    } else {
+      console.log('네이티브 메모리 모듈을 사용할 수 없음, JavaScript 기반 메모리 관리 사용');
+    }
+  } catch (error) {
+    console.error('네이티브 메모리 모듈 초기화 오류:', error);
+    console.log('JavaScript 기반 메모리 관리로 폴백');
+  }
 }
 
 /**
  * 메모리 최적화를 위한 이벤트 리스너 설정
  */
 function setupMemoryOptimizationEvents() {
-  // 앱이 백그라운드로 갈 때 메모리 사용량 줄이기
-  app.on('browser-window-blur', () => {
-    if (appState.settings?.reduceMemoryInBackground) {
-      debugLog('앱이 백그라운드로 전환됨: 메모리 최적화 모드 활성화');
+  const { app, ipcMain } = require('electron');
+  const { isNativeModuleAvailable, optimizeMemory, forceGarbageCollection } = require('../server/native');
+  
+  // 메모리 사용량 모니터링 타이머
+  let memoryMonitorTimer = null;
+  
+  // 메모리 사용량 확인 및 최적화
+  const checkMemoryUsage = async () => {
+    try {
+      // 현재 메모리 사용량 가져오기
+      const memoryInfo = process.memoryUsage();
+      const heapUsedMB = Math.round(memoryInfo.heapUsed / 1024 / 1024);
+      const { high, critical } = appState.memoryThreshold;
       
-      if (appState.mainWindow) {
-        // 렌더러 프로세스에 백그라운드 모드 알림
-        appState.mainWindow.webContents.send('background-mode', true);
+      // 메모리 사용량이 임계값 초과 시 최적화 수행
+      if (heapUsedMB > critical) {
+        console.log(`메모리 사용량 위험 수준 (${heapUsedMB}MB > ${critical}MB), 긴급 최적화 수행`);
         
-        // 백그라운드에서 프레임 레이트 제한
-        appState.mainWindow.webContents.setFrameRate(10);
+        // 네이티브 모듈 사용 가능 시 네이티브 최적화 사용
+        if (isNativeModuleAvailable()) {
+          await optimizeMemory(4, true); // 레벨 4(긴급)로 최적화
+        } else {
+          // JavaScript 기반 메모리 최적화
+          global.gc && global.gc(true);
+        }
+      } else if (heapUsedMB > high) {
+        console.log(`메모리 사용량 높음 (${heapUsedMB}MB > ${high}MB), 일반 최적화 수행`);
         
-        // 필요하지 않은 리소스 해제
-        const { freeUpMemoryResources } = require('./memory-manager');
-        freeUpMemoryResources(false);
+        // 네이티브 모듈 사용 가능 시 네이티브 최적화 사용
+        if (isNativeModuleAvailable()) {
+          await optimizeMemory(2, false); // 레벨 2(중간)로 최적화
+        } else {
+          // JavaScript 기반 메모리 최적화
+          global.gc && global.gc();
+        }
+      }
+    } catch (error) {
+      console.error('메모리 사용량 확인 중 오류:', error);
+    }
+  };
+  
+  // 앱이 백그라운드로 전환될 때 메모리 최적화
+  app.on('browser-window-blur', async () => {
+    if (appState.settings?.reduceMemoryInBackground) {
+      try {
+        console.log('앱이 백그라운드로 전환됨, 메모리 최적화 수행');
+        
+        // 네이티브 모듈 사용 가능 시 네이티브 최적화 사용
+        if (isNativeModuleAvailable()) {
+          await optimizeMemory(3, false); // 레벨 3(높음)로 최적화
+        } else {
+          // JavaScript 기반 메모리 최적화
+          global.gc && global.gc();
+        }
+      } catch (error) {
+        console.error('백그라운드 메모리 최적화 중 오류:', error);
       }
     }
   });
   
-  // 앱이 포그라운드로 돌아왔을 때
-  app.on('browser-window-focus', () => {
-    if (appState.mainWindow) {
-      debugLog('앱이 포그라운드로 전환됨: 일반 모드로 복원');
+  // 렌더러에서 메모리 최적화 요청 처리
+  ipcMain.handle('optimize-memory', async (event, emergency = false) => {
+    try {
+      console.log(`메모리 최적화 요청 수신 (긴급: ${emergency})`);
       
-      // 렌더러 프로세스에 포그라운드 모드 알림
-      appState.mainWindow.webContents.send('background-mode', false);
-      
-      // 프레임 레이트 복원
-      appState.mainWindow.webContents.setFrameRate(60);
+      if (isNativeModuleAvailable()) {
+        const level = emergency ? 4 : 2;
+        const result = await optimizeMemory(level, emergency);
+        return { success: true, result };
+      } else {
+        // JavaScript 기반 메모리 최적화
+        global.gc && global.gc(emergency);
+        return { success: true };
+      }
+    } catch (error) {
+      console.error('메모리 최적화 요청 처리 중 오류:', error);
+      return { success: false, error: error.message };
     }
   });
   
-  // 앱이 일정 시간 유휴 상태일 때 메모리 정리
-  let idleTimer = null;
-  
-  app.on('browser-window-blur', () => {
-    if (idleTimer) clearTimeout(idleTimer);
-    
-    idleTimer = setTimeout(() => {
-      debugLog('앱 유휴 상태 감지: 메모리 정리 수행');
-      const { performGC } = require('./memory-manager');
-      performGC();
+  // 렌더러에서 GC 요청 처리
+  ipcMain.handle('request-gc', async (event, emergency = false) => {
+    try {
+      console.log(`GC 요청 수신 (긴급: ${emergency})`);
       
-      // 주기적 메모리 모니터링 시작
-      startMemoryMonitoring();
-    }, 60000); // 1분 후
-  });
-  
-  app.on('browser-window-focus', () => {
-    if (idleTimer) {
-      clearTimeout(idleTimer);
-      idleTimer = null;
+      if (isNativeModuleAvailable()) {
+        const result = await forceGarbageCollection();
+        return { success: true, result };
+      } else {
+        // JavaScript 기반 GC
+        global.gc && global.gc(emergency);
+        return { success: true };
+      }
+    } catch (error) {
+      console.error('GC 요청 처리 중 오류:', error);
+      return { success: false, error: error.message };
     }
   });
-}
-
-/**
- * 주기적 메모리 모니터링 시작
- */
-function startMemoryMonitoring() {
-  if (appState.memoryMonitorInterval <= 0) return;
   
-  // 이미 실행 중인 타이머가 있으면 제거
-  if (appState.memoryMonitorTimer) {
-    clearInterval(appState.memoryMonitorTimer);
+  // 주기적 메모리 모니터링 시작
+  if (memoryMonitorTimer) {
+    clearInterval(memoryMonitorTimer);
   }
   
-  // 새 타이머 설정
-  appState.memoryMonitorTimer = setInterval(() => {
-    const { checkMemoryUsage } = require('./memory-manager');
-    const memoryInfo = checkMemoryUsage();
-    
-    // 메모리 임계값 초과 시 자동 최적화
-    if (memoryInfo.heapUsedMB > appState.memoryThreshold.high) {
-      debugLog(`메모리 임계값 초과: ${memoryInfo.heapUsedMB}MB > ${appState.memoryThreshold.high}MB`);
-      
-      const { freeUpMemoryResources } = require('./memory-manager');
-      const isEmergency = memoryInfo.heapUsedMB > appState.memoryThreshold.critical;
-      
-      freeUpMemoryResources(isEmergency);
-      
-      // 심각한 경우 GC 직접 호출
-      if (isEmergency && global.gc) {
-        debugLog('긴급 메모리 상황: GC 직접 호출');
-        setTimeout(() => global.gc(), 100);
-      }
-    }
-  }, appState.memoryMonitorInterval);
+  memoryMonitorTimer = setInterval(checkMemoryUsage, appState.memoryMonitorInterval);
   
-  debugLog(`메모리 모니터링 시작: 간격=${appState.memoryMonitorInterval}ms`);
+  // 앱 종료 시 모니터링 중지
+  app.on('before-quit', () => {
+    if (memoryMonitorTimer) {
+      clearInterval(memoryMonitorTimer);
+      memoryMonitorTimer = null;
+    }
+  });
+  
+  console.log(`메모리 최적화 이벤트 리스너 설정 완료 (모니터링 간격: ${appState.memoryMonitorInterval}ms)`);
 }

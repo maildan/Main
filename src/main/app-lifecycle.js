@@ -12,7 +12,7 @@ const { switchToLowMemoryMode } = require('./stats');
 // GPU 설정 확인 및 적용 함수
 async function setupGpuConfiguration() {
   try {
-    debugLog('GPU 설정 적용 시작 - Chrome 스타일 구성');
+    debugLog('GPU 설정 적용 시작');
     
     // 설정 로드
     await loadSettings();
@@ -22,18 +22,35 @@ async function setupGpuConfiguration() {
     
     debugLog(`GPU 가속 설정 상태: ${useHardwareAcceleration ? '활성화됨' : '비활성화됨'}`);
     
-    // 이미 실행 중인 앱의 설정 변경인 경우, 재시작 필요 메시지 표시
-    if (appState.mainWindow && appState.gpuEnabled !== useHardwareAcceleration) {
-      debugLog('GPU 가속 설정이 변경되었습니다. 재시작이 필요합니다.');
+    // Rust 네이티브 모듈 사용 시도
+    try {
+      const nativeModule = require('../native-modules');
+      
+      if (nativeModule && typeof nativeModule.initialize_gpu_module === 'function') {
+        // Rust 네이티브 모듈로 GPU 초기화
+        const success = nativeModule.initialize_gpu_module();
+        debugLog(`Rust 네이티브 GPU 모듈 초기화: ${success ? '성공' : '실패'}`);
+        
+        // 초기화 성공 여부 저장
+        appState.gpuEnabled = success && useHardwareAcceleration;
+        
+        if (success) {
+          debugLog('네이티브 GPU 모듈이 설정을 적용함');
+          return true;
+        }
+      }
+    } catch (nativeError) {
+      debugLog('네이티브 GPU 모듈 초기화 실패, JS 구현으로 폴백:', nativeError);
     }
     
+    // 네이티브 모듈 사용 불가능한 경우 기본 Electron 설정 적용
     if (!useHardwareAcceleration) {
       // GPU 가속이 비활성화된 경우
       app.disableHardwareAcceleration();
       debugLog('사용자 설정에 따라 하드웨어 가속 비활성화됨');
       appState.gpuEnabled = false;
       
-      // 강제로 소프트웨어 렌더링 사용 (Chrome 스타일)
+      // 강제로 소프트웨어 렌더링 사용
       app.commandLine.appendSwitch('disable-gpu');
       app.commandLine.appendSwitch('disable-gpu-compositing');
       app.commandLine.appendSwitch('disable-accelerated-2d-canvas');
@@ -44,8 +61,8 @@ async function setupGpuConfiguration() {
       app.commandLine.appendSwitch('disable-webgl');
       debugLog('소프트웨어 렌더링 모드 활성화됨 (모든 GPU 기능 비활성화)');
     } else {
-      // Chrome 스타일의 GPU 가속 활성화 및 최적화 플래그 설정
-      debugLog('Chrome 스타일의 하드웨어 가속 활성화 시작');
+      // 기본 GPU 가속 활성화
+      debugLog('하드웨어 가속 활성화 시작');
       appState.gpuEnabled = true;
       
       // 기존 플래그 제거 (중복 적용 방지)
@@ -56,61 +73,22 @@ async function setupGpuConfiguration() {
         debugLog('기존 GPU 플래그 제거 중 오류 (무시됨):', e);
       }
       
-      // Chrome의 GPU 가속 최적화 플래그 추가
-      
-      // 1. 기본 GPU 가속 활성화
+      // 기본 GPU 가속 플래그 추가
       app.commandLine.appendSwitch('ignore-gpu-blocklist');
-      
-      // 2. 컴포지팅 및 래스터화 최적화 (Chrome 스타일)
       app.commandLine.appendSwitch('enable-gpu-rasterization');
       app.commandLine.appendSwitch('enable-zero-copy');
       app.commandLine.appendSwitch('enable-accelerated-2d-canvas');
-      app.commandLine.appendSwitch('enable-gpu-compositing');
       
-      // 3. 비디오 가속 (Chrome 스타일)
+      // 비디오 가속 
       app.commandLine.appendSwitch('enable-accelerated-video-decode');
       if (process.platform !== 'darwin') { // macOS에서는 지원 안 됨
         app.commandLine.appendSwitch('enable-accelerated-video-encode');
       }
       
-      // 4. WebGL 가속 (Chrome 스타일)
+      // WebGL 가속
       app.commandLine.appendSwitch('enable-webgl');
-      app.commandLine.appendSwitch('enable-webgl2');
       
-      // 5. 네이티브 GPU 메모리 버퍼 최적화 (Chrome 스타일)
-      app.commandLine.appendSwitch('enable-native-gpu-memory-buffers');
-      
-      // 6. 하드웨어 가속을 위한 플랫폼별 최적화 설정 (Chrome 스타일)
-      if (process.platform === 'win32') {
-        // Windows에서 DirectX 관련 최적화
-        app.commandLine.appendSwitch('enable-direct-composition');
-        app.commandLine.appendSwitch('enable-features', 'D3D11VideoDecoder,UseOzonePlatform,VaapiVideoDecoder');
-        
-        // ANGLE(Almost Native Graphics Layer) 설정 (Chrome 방식)
-        app.commandLine.appendSwitch('use-angle', 'gl'); // 또는 'd3d11', 'd3d9', 'metal'
-      } 
-      else if (process.platform === 'darwin') {
-        // macOS에서 Metal API 사용 (Chrome 방식)
-        app.commandLine.appendSwitch('use-metal');
-        app.commandLine.appendSwitch('enable-features', 'Metal');
-      } 
-      else if (process.platform === 'linux') {
-        // Linux에서 Vulkan/VA-API 최적화
-        app.commandLine.appendSwitch('enable-features', 'VaapiVideoDecoder,VaapiVideoEncoder,Vulkan');
-        
-        // OpenGL 최적화 설정
-        app.commandLine.appendSwitch('use-gl', 'desktop');
-      }
-      
-      // 7. GPU 프로세스 관리 최적화 (Chrome 스타일)
-      app.commandLine.appendSwitch('enable-gpu-memory-buffer-video-frames');
-      app.commandLine.appendSwitch('gpu-rasterization-msaa-sample-count', '0');
-      
-      // 8. 실험적 기능 활성화 (Chrome 방식)
-      app.commandLine.appendSwitch('enable-features', 
-        'CanvasOopRasterization,GpuMemoryBufferCompositor,LazyFrameGeneration,OverlayScrollbar');
-      
-      debugLog('Chrome 스타일의 GPU 가속 플래그 설정 완료');
+      debugLog('GPU 가속 플래그 설정 완료');
     }
     
     // 처리 모드 적용
@@ -121,10 +99,6 @@ async function setupGpuConfiguration() {
     const maxMemoryThreshold = appState.settings?.maxMemoryThreshold || 100;
     debugLog(`메모리 임계치 설정: ${maxMemoryThreshold}MB`);
     
-    // 설정 적용 시간 지연 추가 (안정화 시간)
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    debugLog('GPU 설정 적용 완료');
     return true;
   } catch (error) {
     console.error('GPU 설정 적용 중 오류:', error);
@@ -142,17 +116,13 @@ if (appState.settings && !appState.settings.useHardwareAcceleration) {
   }
 }
 
-// GC 플래그 확인 (이 시점에서는 변경 불가능, 정보 제공용)
+// GC 플래그 확인
 try {
   const hasGcFlag = process.argv.includes('--expose-gc') || 
                    process.execArgv.some(arg => arg.includes('--expose-gc'));
   
   debugLog('GC 플래그 상태:', hasGcFlag ? '사용 가능' : '사용 불가능');
-  debugLog('Process argv:', process.argv);
-  debugLog('Process execArgv:', process.execArgv);
-  
   appState.gcEnabled = typeof global.gc === 'function';
-  debugLog('GC 사용 가능 상태:', appState.gcEnabled);
 } catch (error) {
   debugLog('GC 상태 확인 중 오류:', error);
 }
@@ -177,12 +147,6 @@ async function initializeApp() {
     // 설정 로드 (이미 GPU 설정에서 로드했으므로 중복되지 않게 수정)
     if (!appState.settings) {
       await loadSettings();
-    }
-    
-    // 안정화를 위한 지연 추가 (필요한 경우에만)
-    if (appState.gpuEnabled) {
-      debugLog('GPU 초기화 안정화 대기 중...');
-      await new Promise(resolve => setTimeout(resolve, 500));
     }
     
     // 메인 윈도우 생성
@@ -479,6 +443,78 @@ function createFallbackMemoryManager() {
     }
   };
 }
+
+/**
+ * 앱 생명주기 관리
+ * 
+ * 앱의 시작, 실행, 종료 등 생명주기를 관리하고
+ * 메모리 및 리소스 관리를 담당합니다.
+ */
+
+const { initializeMemoryManager, stopMemoryMonitoring, forceMemoryOptimization } = require('./memory-manager');
+
+// 앱 시작 시 초기화
+function initializeAppLifecycle(settings) {
+  // 메모리 관리자 초기화
+  initializeMemoryManager({
+    monitoringInterval: settings?.reduceMemoryInBackground ? 30000 : 60000,
+    thresholds: {
+      normal: settings?.maxMemoryThreshold ? settings.maxMemoryThreshold * 0.7 : 100,
+      high: settings?.maxMemoryThreshold || 150,
+      critical: settings?.maxMemoryThreshold ? settings.maxMemoryThreshold * 1.5 : 200
+    },
+    enableAutoOptimization: true
+  });
+  
+  // 앱 종료 전 정리 작업
+  app.on('before-quit', async (event) => {
+    // 동기적으로 메모리 최적화를 수행하기 위해 이벤트 기본 동작 일시 중지
+    event.preventDefault();
+    
+    try {
+      console.log('앱 종료 전 정리 작업 수행 중...');
+      
+      // 메모리 모니터링 중지
+      stopMemoryMonitoring();
+      
+      // 마지막 메모리 최적화 수행
+      await forceMemoryOptimization(2, false);
+      
+      // 정리 작업 완료 후 앱 종료
+      console.log('정리 작업 완료, 앱 종료');
+      app.exit();
+    } catch (error) {
+      console.error('앱 종료 정리 작업 중 오류:', error);
+      app.exit();
+    }
+  });
+  
+  // 시스템 저전력 모드 감지
+  if (process.platform === 'darwin') {
+    app.on('battery-status-changed', (status) => {
+      // 배터리 부족 상태에서 메모리 최적화
+      if (status.percent < 20 && !status.charging) {
+        console.log('배터리 부족, 메모리 최적화 수행');
+        forceMemoryOptimization(3, false);
+      }
+    });
+  }
+  
+  // 앱이 백그라운드로 전환될 때 메모리 최적화
+  app.on('browser-window-blur', () => {
+    if (settings?.reduceMemoryInBackground) {
+      console.log('앱이 백그라운드로 전환됨, 메모리 최적화 수행');
+      forceMemoryOptimization(2, false);
+    }
+  });
+  
+  console.log('앱 생명주기 관리 초기화 완료');
+}
+
+// 모듈 내보내기
+module.exports = {
+  initializeAppLifecycle
+};
 
 module.exports = {
   initializeApp,

@@ -22,18 +22,15 @@ export interface MemoryOptimizerOptions {
 /**
  * 메모리 정보 인터페이스
  */
-export interface MemoryInfo {
+export interface MemoryUsageInfo {
   timestamp: number;
-  heapUsed: number;
-  heapTotal: number;
-  heapLimit?: number;
-  heapUsedMB: number;
-  percentUsed: number;
-  unavailable?: boolean;
-  error?: string;
-  totalJSHeapSize?: number;
-  usedJSHeapSize?: number;
-  jsHeapSizeLimit?: number;
+  heap_used: number;
+  heap_total: number;
+  heap_limit?: number; // 선택적으로 설정
+  rss: number;
+  heap_used_mb: number;
+  rss_mb: number;
+  percent_used: number;
 }
 
 /**
@@ -42,36 +39,58 @@ export interface MemoryInfo {
 export interface GCResult {
   success: boolean;
   timestamp: number;
-  memoryBefore?: MemoryInfo;
-  memoryAfter?: MemoryInfo;
-  freedMemory?: number;
-  freedMB?: number;
+  freedMemory: number; // 일관된 이름 사용
+  freedMB: number; // 수정: number | undefined -> number
+  duration?: number;
   error?: string;
 }
 
 /**
- * GC 결과 확장 인터페이스
+ * 확장 GC 결과 인터페이스
  */
 export interface ExtendedGCResult extends GCResult {
-  duration?: number;
   optimizationLevel?: number;
+  heapUsedBefore?: number;
+  heapUsedAfter?: number;
+  percentFreed?: number;
+  source?: string;
 }
 
 /**
  * 메모리 관련 타입 정의
  */
 
-// ElectronAPI 메모리 최적화 응답 타입
-export interface MemoryOptimizationResult {
-  success: boolean;
-  memoryInfo?: MemoryInfo;
-  error?: string;
+// 최적화 레벨 열거형
+export enum OptimizationLevel {
+  NONE = 0,
+  LOW = 1,
+  MEDIUM = 2,
+  HIGH = 3,
+  EXTREME = 4
 }
 
-// 전역 타입 확장은 global.d.ts 파일에 통합되었으므로 여기서는 제거
-// declare global {
-//   interface Window {
-//     __memoryOptimizer?: MemoryOptimizerUtility;
-//     ...
-//   }
-// }
+// 메모리 설정 인터페이스
+export interface MemorySettings {
+  enableAutomaticOptimization: boolean;
+  optimizationThreshold: number;
+  optimizationInterval: number;
+  aggressiveGC: boolean;
+  enableLogging: boolean;
+  enablePerformanceMetrics: boolean;
+  useHardwareAcceleration: boolean;
+  processingMode: string;
+  useMemoryPool: boolean;
+  poolCleanupInterval: number;
+}
+
+// DOM 정리 결과 인터페이스
+export interface DOMCleanupResult {
+  elementsRemoved: number;
+  listenersDetached: number;
+  memoryFreed: number;
+}
+
+// 함수 유형 정의
+export type MemoryInfoProvider = () => MemoryUsageInfo | Promise<MemoryUsageInfo>;
+export type MemoryOptimizer = (aggressive: boolean) => Promise<ExtendedGCResult>;
+export type GarbageCollector = (emergency: boolean) => Promise<GCResult>;

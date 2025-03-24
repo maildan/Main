@@ -4,41 +4,37 @@
  * Rust 네이티브 모듈과의 상호작용에 사용되는 타입들을 정의합니다.
  */
 
-// 최적화 레벨 열거형 - index.ts의 OptimizationLevel과 호환되는 네이밍으로 정의
+// 네이티브 모듈 최적화 레벨 열거형 (Rust enum과 일치)
 export enum OptimizationLevel {
-  Normal = 0,    // 대응: NONE
-  Low = 1,       // 대응: LOW
-  Medium = 2,    // 대응: MEDIUM
-  High = 3,      // 대응: HIGH
-  Critical = 4   // 대응: EXTREME
+  Normal = 0,
+  Low = 1,
+  Medium = 2,
+  High = 3,
+  Critical = 4
 }
 
-// 메모리 정보 인터페이스
+// 네이티브 모듈 메모리 정보 인터페이스 (Rust struct와 일치)
 export interface MemoryInfo {
-  // Rust 스타일 속성 (snake_case)
+  timestamp: number;
   heap_used: number;
   heap_total: number;
-  heap_limit?: number;
   rss: number;
-  external?: number;
   heap_used_mb: number;
   rss_mb: number;
   percent_used: number;
-  
-  // JavaScript 스타일 속성 (camelCase)
-  heapUsed: number;
-  heapTotal: number;
-  heapLimit?: number;
-  rssMB: number;
-  percentUsed: number;
-  
-  // 추가 정보
-  timestamp: number;
-  error?: string;
-  unavailable?: boolean;
+  heap_limit?: number;
 }
 
-// 최적화 결과 인터페이스
+// 네이티브 모듈 GC 결과 인터페이스 (Rust struct와 일치)
+export interface GCResult {
+  success: boolean;
+  timestamp: number;
+  freed_memory?: number; // Rust에서는 snake_case 사용
+  freed_mb?: number;     // Rust에서는 snake_case 사용
+  error?: string;
+}
+
+// 네이티브 모듈 최적화 결과 인터페이스 (Rust struct와 일치)
 export interface OptimizationResult {
   success: boolean;
   optimization_level: OptimizationLevel;
@@ -51,16 +47,25 @@ export interface OptimizationResult {
   error?: string;
 }
 
-// GC 결과 인터페이스
-export interface GCResult {
-  success: boolean;
-  memoryBefore?: MemoryInfo;
-  memoryAfter?: MemoryInfo;
-  freedMemory?: number;
-  freedMB?: number;
-  duration?: number;
+// 네이티브 GPU 타입 (Rust enum과 일치)
+export enum GPUType {
+  Unknown = 0,
+  Integrated = 1,
+  Discrete = 2,
+  Software = 3
+}
+
+// 네이티브 GPU 정보 인터페이스 (Rust struct와 일치)
+export interface GPUInfo {
+  name: string;
+  vendor: string;
+  device_type: GPUType;
+  available: boolean;
+  acceleration_enabled: boolean;
+  renderer?: string;
+  driver_info?: string;
+  backend?: string;
   timestamp: number;
-  error?: string;
 }
 
 // GPU 정보 인터페이스
@@ -138,4 +143,11 @@ export enum GpuTaskType {
   PatternDetection = 'pattern',
   TypingStatistics = 'typing',
   Custom = 'custom'
+}
+
+// GPU 가속 상태 인터페이스
+export interface GpuAccelerationStatus {
+  available: boolean;
+  enabled: boolean;
+  info?: GpuInfo;
 }

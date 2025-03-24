@@ -205,3 +205,93 @@ declare global {
     _dynamicModules?: Map<string, any>;
   }
 }
+
+/**
+ * 전역 타입 정의 파일
+ * Window 객체와 전역 인터페이스 확장
+ */
+
+import { MemoryInfo, GCResult, OptimizationResult } from '@/types/native-module';
+
+// Window 인터페이스 확장
+interface Window {
+  // 기존 API 확장
+  electronAPI?: ElectronAPI;
+  restartAPI?: RestartAPI;
+  
+  // 네이티브 모듈 관련
+  __nativeBinding?: boolean;
+  __memoryOptimizer?: {
+    getMemoryInfo?: () => any;
+    getMemoryUsagePercentage?: () => number;
+    optimizeMemory?: (aggressive: boolean) => Promise<any>;
+    suggestGarbageCollection?: () => void;
+    requestGC?: (emergency?: boolean) => Promise<any>;
+    setupPeriodicOptimization?: (interval?: number, threshold?: number) => void;
+    cleanupPeriodicOptimization?: () => void;
+  };
+  
+  // GPU 관련
+  __gpuInfo?: {
+    isAccelerated: () => boolean;
+    renderer: string;
+    vendor: string;
+    getGPUTier?: () => { tier: number; type: string; };
+    isHardwareAccelerated?: () => boolean;
+  };
+  
+  // 캐시 관련
+  __objectUrls?: Map<string, string>;
+  __widgetCache?: Map<string, any>;
+  __styleCache?: Record<string, any>;
+  __imageResizeCache?: Record<string, any>;
+  
+  // GC 관련
+  gc?: () => void;
+}
+
+// 특수 캐시 확장 Window 인터페이스
+interface WindowWithCache extends Window {
+  __cachedData?: Record<string, any>;
+  __bufferCache?: Record<string, ArrayBuffer>;
+  __memoryCache?: Map<string, any>;
+  __animationFrameIds?: number[];
+  __intervalIds?: number[];
+  __timeoutIds?: number[];
+}
+
+// 동적 모듈 인터페이스
+interface DynamicModule {
+  lastUsed: number;
+  loaded: boolean;
+  unload: () => void;
+}
+
+// 이벤트 리스너 데이터 인터페이스
+interface EventListenerData {
+  handler: EventListenerOrEventListenerObject;
+  options?: boolean | AddEventListenerOptions;
+}
+
+declare global {
+  // 전역 함수 정의
+  function normalizeMemoryInfo(info: any): MemoryInfo;
+  
+  // 네임스페이스 정의
+  namespace NodeJS {
+    interface Global {
+      gc?: () => void;
+    }
+  }
+}
+
+// 모듈 선언
+declare module '*.module.css' {
+  const classes: { [key: string]: string };
+  export default classes;
+}
+
+declare module '*.module.scss' {
+  const classes: { [key: string]: string };
+  export default classes;
+}

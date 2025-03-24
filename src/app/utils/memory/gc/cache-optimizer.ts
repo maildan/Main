@@ -55,26 +55,89 @@ export function clearAllLowPriorityCache(): void {
  * 모든 캐시 정리
  */
 export function clearAllCache(): void {
-  // 캐시 정리 작업 구현
   try {
-    // 앱 관련 모든 캐시 정리
-    clearAllLowPriorityCache();
+    // 브라우저 캐시 정리
+    clearBrowserCache();
     
-    // 웹 캐시 API 사용
-    if (window.caches) {
+    // 애플리케이션 캐시 정리
+    clearAppCache();
+    
+    console.log('모든 캐시 정리 완료');
+  } catch (error) {
+    console.error('캐시 정리 중 오류:', error);
+  }
+}
+
+/**
+ * 브라우저 캐시 정리 (가능한 경우)
+ */
+function clearBrowserCache(): void {
+  try {
+    // sessionStorage 초기화 (이 세션 전용)
+    if (window.sessionStorage) {
+      sessionStorage.clear();
+    }
+    
+    // Cache API를 사용하는 경우 (Service Worker 캐시 등)
+    if ('caches' in window) {
       caches.keys().then(cacheNames => {
         cacheNames.forEach(cacheName => {
-          caches.delete(cacheName);
+          // 앱 전용 캐시만 정리 (다른 웹사이트 캐시는 건드리지 않음)
+          if (cacheName.includes('typing-stats-app')) {
+            caches.delete(cacheName);
+          }
         });
-      });
-    }
-    
-    // 앱 특화 캐시 정리 (필요시 구현)
-    if (window._appCache && typeof window._appCache.clear === 'function') {
-      window._appCache.clear();
+      }).catch(e => console.warn('캐시 API 접근 오류:', e));
     }
   } catch (error) {
-    console.warn('모든 캐시 정리 중 오류:', error);
+    console.warn('브라우저 캐시 정리 중 오류:', error);
+  }
+}
+
+/**
+ * 애플리케이션 캐시 정리
+ */
+function clearAppCache(): void {
+  try {
+    // 앱 정의 캐시 객체 정리
+    
+    // 1. 이미지 변환 캐시
+    if (window.__imageResizeCache) {
+      if (window.__imageResizeCache instanceof Map) {
+        window.__imageResizeCache.clear();
+      } else {
+        window.__imageResizeCache = {};
+      }
+    }
+    
+    // 2. 객체 URL 캐시
+    if (window.__objectUrls instanceof Map) {
+      window.__objectUrls.forEach(url => {
+        try {
+          URL.revokeObjectURL(url);
+        } catch (e) {
+          // 무시
+        }
+      });
+      window.__objectUrls.clear();
+    }
+    
+    // 3. 일반 메모리 캐시
+    if (window.__memoryCache instanceof Map) {
+      window.__memoryCache.clear();
+    }
+    
+    // 4. 스타일 캐시
+    if (window.__styleCache) {
+      window.__styleCache = {};
+    }
+    
+    // 5. 위젯 캐시
+    if (window.__widgetCache instanceof Map) {
+      window.__widgetCache.clear();
+    }
+  } catch (error) {
+    console.warn('앱 캐시 정리 중 오류:', error);
   }
 }
 
@@ -141,5 +204,31 @@ export function clearStorageCaches(): void {
     }
   } catch (error) {
     console.warn('스토리지 캐시 정리 중 오류:', error);
+  }
+}
+
+/**
+ * 오래된 캐시 항목만 정리
+ */
+export function clearOldCache(): void {
+  try {
+    // 일정 기간 이상 지난 캐시만 정리
+    const now = Date.now();
+    const CACHE_EXPIRY = 24 * 60 * 60 * 1000; // 24시간
+    
+    // 메모리 캐시에서 오래된 항목 제거
+    if (window.__memoryCache instanceof Map) {
+      window.__memoryCache.forEach((value, key) => {
+        if (value && typeof value === 'object' && value.timestamp) {
+          if (now - value.timestamp > CACHE_EXPIRY) {
+            window.__memoryCache.delete(key);
+          }
+        }
+      });
+    }
+    
+    console.log('오래된 캐시 정리 완료');
+  } catch (error) {
+    console.warn('오래된 캐시 정리 중 오류:', error);
   }
 }

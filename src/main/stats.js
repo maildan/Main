@@ -466,28 +466,16 @@ function calculateStatsInWorker() {
           // 일반적인 경우 표준 계산 수행
           updateCalculatedStatsMain();
         }
-      } catch (innerError) {
-        console.error('폴백 계산 중 오류:', innerError);
-        // 최소한의 기본 계산만 수행
+      } catch (fallbackError) {
+        console.error('폴백 계산 중 오류:', fallbackError);
+        // 최소한의 상태 업데이트
         updateCalculatedStatsMinimal();
       }
     }
   } else {
-    // 워커가 준비되지 않은 경우 작업 큐에 추가
-    pendingTasks.push(message);
-    
-    // 워커 초기화
-    if (!statWorker) {
-      initializeWorker();
-    }
-    
-    // 폴백: 메인 스레드에서 간단히 계산
+    // 워커가 준비되지 않은 경우 표준 계산으로 폴백
+    debugLog('워커 사용 불가: 메인 스레드에서 계산');
     updateCalculatedStatsMain();
-  }
-  
-  // 주기적으로 워커 메모리 상태 확인
-  if (lastWorkerCheck === 0 || (Date.now() - lastWorkerCheck) > 60000) { // 1분마다
-    checkWorkerStatus();
   }
 }
 

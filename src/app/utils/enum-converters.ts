@@ -54,3 +54,36 @@ export function toAppOptimizationLevel(level: NativeOptimizationLevel): AppOptim
       return AppOptimizationLevel.MEDIUM;
   }
 }
+
+/**
+ * 타입 변환 유틸리티 - 네이티브 메모리 정보를 앱 메모리 정보로 변환
+ */
+export function convertNativeMemoryInfo(nativeInfo: any): any {
+  if (!nativeInfo) return null;
+  
+  return {
+    timestamp: nativeInfo.timestamp || Date.now(),
+    heapUsed: nativeInfo.heap_used,
+    heapTotal: nativeInfo.heap_total,
+    heapUsedMB: nativeInfo.heap_used_mb,
+    rss: nativeInfo.rss,
+    rssMB: nativeInfo.rss_mb,
+    percentUsed: nativeInfo.percent_used,
+    heapLimit: nativeInfo.heap_limit
+  };
+}
+
+/**
+ * 타입 변환 유틸리티 - 네이티브 GC 결과를 앱 GC 결과로 변환
+ */
+export function convertNativeGCResult(nativeResult: any): any {
+  if (!nativeResult) return null;
+  
+  return {
+    success: nativeResult.success,
+    timestamp: nativeResult.timestamp || Date.now(),
+    freedMemory: nativeResult.freed_memory,
+    freedMB: nativeResult.freed_mb,
+    error: nativeResult.error
+  };
+}

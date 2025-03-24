@@ -1,8 +1,9 @@
 /**
  * 리소스 최적화 유틸리티
- * 
  * 메모리를 많이 사용하는 리소스들을 최적화하고 해제하는 함수들을 제공합니다.
  */
+
+import { WindowWithCache } from '../types-extended';
 
 /**
  * 화면에 보이지 않는 리소스 언로드
@@ -251,44 +252,33 @@ export function optimizeDOM(): boolean {
  * 더 이상 사용되지 않는 Object URL을 해제하여 메모리를 절약합니다.
  */
 export function revokeUnusedObjectURLs(): void {
-  if (typeof window === 'undefined') return;
-  
   try {
-    // 전역 객체 URL 캐시 초기화
-    if (!window.__objectUrls) {
-      window.__objectUrls = new Map<string, string>();
+    const win = window as WindowWithCache;
+    
+    // 객체 URL 맵이 없으면 생성
+    if (!win.__objectUrls) {
+      win.__objectUrls = new Map<string, string>();
+      return;
     }
     
-    const urlMap = window.__objectUrls;
+    // 사용하지 않는 객체 URL 해제
+    const now = Date.now();
+    const expiryTime = 30000; // 30초
+    let revokedCount = 0;
     
-    // 모든 객체 URL 해제
-    urlMap.forEach((url) => {
-      try {
+    win.__objectUrls.forEach((creationTime, url) => {
+      if (now - parseInt(creationTime) > expiryTime) {
         URL.revokeObjectURL(url);
-      } catch (e) {
-        // 이미 해제된 URL은 무시
+        win.__objectUrls?.delete(url);
+        revokedCount++;
       }
     });
     
-    // 맵 비우기
-    urlMap.clear();
-    
-    // 추가적인 수동 객체 URL 탐색 (DOM에서)
-    const objectUrlElements = document.querySelectorAll('[data-object-url="true"]');
-    objectUrlElements.forEach(element => {
-      if (element instanceof HTMLImageElement || element instanceof HTMLVideoElement) {
-        const src = element.src;
-        if (src.startsWith('blob:')) {
-          try {
-            URL.revokeObjectURL(src);
-          } catch (e) {
-            // 이미 해제된 URL은 무시
-          }
-        }
-      }
-    });
+    if (revokedCount > 0) {
+      console.log(`${revokedCount}개의 미사용 객체 URL 해제됨`);
+    }
   } catch (error) {
-    console.warn('Object URL 정리 중 오류:', error);
+    console.warn('객체 URL 정리 중 오류:', error);
   }
 }
 
@@ -297,16 +287,21 @@ export function revokeUnusedObjectURLs(): void {
  * 커스텀 UI 위젯의 캐시를 정리합니다.
  */
 export function clearWidgetCache(): void {
-  if (typeof window === 'undefined') return;
-  
   try {
-    // 위젯 캐시 초기화
-    if (!window.__widgetCache) {
-      window.__widgetCache = new Map<string, any>();
-      return; // 이미 비어있어서 정리할 필요 없음
+    const win = window as WindowWithCache;
+    
+    // 위젯 캐시가 없으면 건너뜀
+    if (!win.__widgetCache) {
+      win.__widgetCache = new Map<string, any>();
+      return;
     }
     
-    window.__widgetCache.clear();
+    const size = win.__widgetCache.size;
+    win.__widgetCache.clear();
+    
+    if (size > 0) {
+      console.log(`위젯 캐시 정리: ${size}개 항목 제거됨`);
+    }
   } catch (error) {
     console.warn('위젯 캐시 정리 중 오류:', error);
   }
@@ -317,24 +312,22 @@ export function clearWidgetCache(): void {
  * 동적으로 생성된 스타일에 대한 참조를 정리합니다.
  */
 export function clearStyleCache(): void {
-  if (typeof window === 'undefined') return;
-  
   try {
-    // 스타일 캐시 초기화
-    if (!window.__styleCache) {
-      window.__styleCache = new Map<string, any>();
+    const win = window as WindowWithCache;
+    
+    // 스타일 캐시가 없으면 생성
+    if (!win.__styleCache) {
+      win.__styleCache = {};
       return;
     }
     
-    window.__styleCache.clear();
+    // 캐시 항목 수가 너무 많으면 모두 정리
+    const cacheSize = Object.keys(win.__styleCache).length;
+    win.__styleCache = {};
     
-    // 동적으로 추가된 스타일 요소 제거
-    const styleElements = document.querySelectorAll('style[data-dynamic="true"]');
-    styleElements.forEach(element => {
-      if (element.parentNode) {
-        element.parentNode.removeChild(element);
-      }
-    });
+    if (cacheSize > 0) {
+      console.log(`스타일 캐시 정리: ${cacheSize}개 항목 제거됨`);
+    }
   } catch (error) {
     console.warn('스타일 캐시 정리 중 오류:', error);
   }
@@ -345,18 +338,74 @@ export function clearStyleCache(): void {
  * 동적으로 리사이즈된 이미지에 대한 캐시를 정리합니다.
  */
 export function clearImageResizeCache(): void {
-  if (typeof window === 'undefined') return;
-  
   try {
-    // 이미지 리사이즈 캐시 초기화
-    if (!window.__imageResizeCache) {
-      window.__imageResizeCache = new Map<string, HTMLImageElement>();
+    const win = window as WindowWithCache;
+    
+    // 이미지 리사이즈 캐시가 없으면 생성
+    if (!win.__imageResizeCache) {
+      win.__imageResizeCache = {};
       return;
     }
     
-    window.__imageResizeCache.clear();
+    const cacheSize = Object.keys(win.__imageResizeCache).length;
+    win.__imageResizeCache = {};
+    
+    if (cacheSize > 0) {
+      console.log(`이미지 리사이즈 캐시 정리: ${cacheSize}개 항목 제거됨`);
+    }
   } catch (error) {
     console.warn('이미지 리사이즈 캐시 정리 중 오류:', error);
+  }
+}
+
+/**
+ * 텍스처 캐시 정리
+ * 사용되지 않는 텍스처 캐시를 정리합니다.
+ */
+export function cleanupTextureCache(): number {
+  try {
+    // 텍스처 캐시가 없으면 생성
+    if (!window.hasOwnProperty('__textureCache')) {
+      // 빈 Map으로 초기화 (타입 지정)
+      (window as any).__textureCache = new Map<string, string>();
+      return 0;
+    }
+    
+    // 이전 크기 기록
+    const cacheSize = (window as any).__textureCache.size || 0;
+    
+    // 캐시 초기화
+    (window as any).__textureCache.clear();
+    
+    return cacheSize;
+  } catch (error) {
+    console.error('텍스처 캐시 정리 오류:', error);
+    return 0;
+  }
+}
+
+/**
+ * 객체 캐시 정리
+ * 사용되지 않는 객체 캐시를 정리합니다.
+ */
+export function cleanupObjectCache(): number {
+  try {
+    // 객체 캐시가 없으면 생성
+    if (!window.hasOwnProperty('__objectCache')) {
+      (window as any).__objectCache = new Map<string, any>();
+      return 0;
+    }
+    
+    // 이전 크기 기록
+    const cacheSize = (window as any).__objectCache.size || 0;
+    
+    // 캐시 초기화
+    (window as any).__objectCache.clear();
+    
+    return cacheSize;
+  } catch (error) {
+    console.error('객체 캐시 정리 오류:', error);
+    return 0;
   }
 }
 
@@ -536,6 +585,115 @@ function optimizeCSSClasses(): void {
     });
   } catch (e) {
     console.warn('CSS 클래스 최적화 중 오류:', e);
+  }
+}
+
+/**
+ * 리소스 최적화 유틸리티
+ * 메모리에서 사용하지 않는 리소스를 해제하는 함수
+ */
+
+/**
+ * 동적 리소스 정리
+ * @returns {boolean} 성공 여부
+ */
+export function cleanupResources(): boolean {
+  try {
+    // 1. 사용하지 않는 캐시 지우기
+    clearUnusedCaches();
+    
+    // 2. 사용하지 않는 객체 참조 제거
+    removeUnusedObjectReferences();
+    
+    // 3. 대형 배열 및 버퍼 정리
+    cleanupLargeArrays();
+    
+    return true;
+  } catch (error) {
+    console.error('리소스 정리 중 오류:', error);
+    return false;
+  }
+}
+
+/**
+ * 사용하지 않는 캐시 정리
+ */
+function clearUnusedCaches(): void {
+  try {
+    // 애플리케이션 전용 캐시 정리
+    if (window.__memoryCache instanceof Map) {
+      // 일정 시간 이상 사용하지 않은 캐시 항목 제거
+      const now = Date.now();
+      const CACHE_TTL = 30 * 60 * 1000; // 30분
+      
+      window.__memoryCache.forEach((value, key) => {
+        if (value && typeof value === 'object' && value.lastAccess) {
+          if (now - value.lastAccess > CACHE_TTL) {
+            window.__memoryCache.delete(key);
+          }
+        }
+      });
+    }
+    
+    // 스타일 캐시 정리
+    if (window.__styleCache) {
+      window.__styleCache = {};
+    }
+  } catch (error) {
+    console.warn('캐시 정리 중 오류:', error);
+  }
+}
+
+/**
+ * 사용하지 않는 객체 참조 제거
+ */
+function removeUnusedObjectReferences(): void {
+  try {
+    // 동적 모듈 관리자를 통한 참조 정리 (있는 경우)
+    if (window._dynamicModules instanceof Map) {
+      const modules = window._dynamicModules;
+      const now = Date.now();
+      const MODULE_UNUSED_THRESHOLD = 60 * 60 * 1000; // 1시간
+      
+      modules.forEach((module, name) => {
+        if (module && typeof module === 'object' && module.lastUsed) {
+          // 오랫동안 사용하지 않은 모듈은 언로드
+          if (now - module.lastUsed > MODULE_UNUSED_THRESHOLD) {
+            if (typeof module.unload === 'function') {
+              try {
+                module.unload();
+              } catch (e) {
+                console.warn(`모듈 '${name}' 언로드 중 오류:`, e);
+              }
+            }
+            modules.delete(name);
+          }
+        }
+      });
+    }
+  } catch (error) {
+    console.warn('객체 참조 정리 중 오류:', error);
+  }
+}
+
+/**
+ * 대형 배열 및 버퍼 정리
+ */
+function cleanupLargeArrays(): void {
+  try {
+    // 버퍼 캐시 정리
+    if (window.__bufferCache) {
+      // 각 버퍼에 대해 참조 제거 여부 결정
+      Object.keys(window.__bufferCache).forEach(key => {
+        if (window.__bufferCache[key]) {
+          // 참조만 제거 (GC가 처리하도록)
+          window.__bufferCache[key] = null;
+          delete window.__bufferCache[key];
+        }
+      });
+    }
+  } catch (error) {
+    console.warn('배열 및 버퍼 정리 중 오류:', error);
   }
 }
 

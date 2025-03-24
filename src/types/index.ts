@@ -3,37 +3,11 @@
 // 네이티브 모듈 타입 재내보내기
 export * from './native-module';
 
-// 메모리 정보 인터페이스
-export interface MemoryInfo {
-  // 공통 필수 속성
-  timestamp: number;
-  
-  // Rust 스타일 속성 (snake_case)
-  heap_used: number;
-  heap_total: number;
-  heap_used_mb: number;
-  rss: number;
-  rss_mb: number;
-  percent_used: number;
-  
-  // 선택적 속성
-  heap_limit?: number;
-  external?: number;
-  
-  // JavaScript 스타일 속성 (camelCase)
-  heapUsed: number;
-  heapTotal: number;
-  heapUsedMB: number;
-  rssMB: number;
-  percentUsed: number;
-  heapLimit?: number;
-  
-  // 추가 정보
-  error?: string;
-  unavailable?: boolean;
-}
+/**
+ * 앱 전체에서 사용하는 공통 타입 정의
+ */
 
-// 앱 레벨 최적화 레벨 열거형 (0-4)
+// 메모리 최적화 레벨 열거형
 export enum OptimizationLevel {
   NONE = 0,
   LOW = 1,
@@ -42,36 +16,69 @@ export enum OptimizationLevel {
   EXTREME = 4
 }
 
-// 네이티브 모듈과의 호환성을 위한 타입 매핑
-export type OptimizationLevelType = OptimizationLevel;
-
-// 네이티브 OptimizationLevel 값을 AppOptimizationLevel로 안전하게 변환하는 런타임 타입 가드
-export function isValidOptimizationLevel(level: number): level is OptimizationLevel {
-  return level >= 0 && level <= 4;
-}
-
-// 최적화 결과 인터페이스
-export interface OptimizationResult {
-  success: boolean;
-  optimization_level: OptimizationLevel;
-  memory_before?: MemoryInfo;
-  memory_after?: MemoryInfo;
-  freed_memory?: number;
-  freed_mb?: number;
-  duration?: number;
-  timestamp: number;
-  error?: string;
-}
-
 // 가비지 컬렉션 결과 인터페이스
 export interface GCResult {
   success: boolean;
   timestamp: number;
-  memoryBefore?: MemoryInfo;
-  memoryAfter?: MemoryInfo;
+  freedMemory: number;
+  freedMB: number;
+  error?: string;
+}
+
+// 메모리 최적화 결과 인터페이스
+export interface OptimizationResult {
+  success: boolean;
+  level: OptimizationLevel;
   freedMemory?: number;
   freedMB?: number;
+  timestamp: number;
+  duration?: number;
   error?: string;
+}
+
+// 메모리 정보 인터페이스
+export interface MemoryInfo {
+  timestamp: number;
+  heap_used: number;
+  heap_total: number;
+  rss: number;
+  heap_used_mb: number;
+  rss_mb: number;
+  percent_used: number;
+  heap_limit?: number;
+}
+
+// 메모리 이벤트 타입 열거형
+export enum MemoryEventType {
+  INFO = 'info',
+  WARNING = 'warning',
+  ERROR = 'error',
+  GC = 'gc',
+  OPTIMIZATION = 'optimization'
+}
+
+// 메모리 이벤트 인터페이스
+export interface MemoryEvent {
+  type: MemoryEventType;
+  message: string;
+  timestamp: number;
+  data?: any;
+}
+
+// 메모리 최적화 옵션 인터페이스
+export interface MemoryOptimizerOptions {
+  threshold?: number;
+  checkInterval?: number;
+  showWarnings?: boolean;
+  autoOptimize?: boolean;
+  debug?: boolean;
+  preferNative?: boolean;
+}
+
+// 메모리 최적화 유틸리티 인터페이스
+export interface MemoryOptimizerUtility {
+  getMemoryInfo: () => MemoryInfo | null;
+  optimizeMemory: (emergency?: boolean) => Promise<GCResult>;
 }
 
 // GPU 정보 인터페이스

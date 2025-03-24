@@ -28,6 +28,28 @@ let isPoolInitialized = false;
 function initializeWorkerPool(size = MAX_WORKERS) {
   if (isPoolInitialized) return true;
   
+  // 네이티브 모듈 사용 시도
+  try {
+    const nativeModule = require('../../../native-modules');
+    
+    if (nativeModule && typeof nativeModule.initialize_worker_pool === 'function') {
+      // 네이티브 워커 풀 사용 시도
+      const success = nativeModule.initialize_worker_pool(size);
+      
+      if (success) {
+        console.log(`네이티브 워커 풀 초기화 완료 (크기: ${size})`);
+        isPoolInitialized = true;
+        workerEvents.emit('pool:initialized', { size, native: true });
+        return true;
+      } else {
+        console.warn('네이티브 워커 풀 초기화 실패, JavaScript 워커 풀로 폴백');
+      }
+    }
+  } catch (error) {
+    console.warn('네이티브 워커 모듈 로드 실패, JavaScript 워커 풀 사용:', error.message);
+  }
+  
+  // JavaScript 워커 풀 초기화 (폴백)
   try {
     const poolSize = Math.min(Math.max(1, size), os.cpus().length);
     console.log(`워커 풀 초기화 (크기: ${poolSize})`);
@@ -88,10 +110,10 @@ function initializeWorkerPool(size = MAX_WORKERS) {
     isPoolInitialized = workerPool.length > 0;
     
     if (isPoolInitialized) {
-      workerEvents.emit('pool:initialized', { size: workerPool.length });
+      workerEvents.emit('pool:initialized', { size: workerPool.length, native: false });
       return true;
     } else {
-      console.error('워커 풀 초기화 실패: 워커를 생성할 수 없습니다');
+      console.error('워커 풀 초기화 실패: 생성된 워커가 없습니다');
       return false;
     }
   } catch (error) {
@@ -186,6 +208,35 @@ function getAvailableWorker() {
  * @returns {Promise<any>} 작업 결과 Promise
  */
 function submitTask(taskType, data) {
+  // 네이티브 모듈 사용 시도
+  try {
+    const nativeModule = require('../../../native-modules');
+    
+    if (nativeModule && typeof nativeModule.submit_task === 'function') {
+      return new Promise((resolve, reject) => {
+        try {
+          // 데이터 JSON 변환
+          const dataString = typeof data === 'string' ? data : JSON.stringify(data);
+          
+          // 네이티브 모듈에 작업 제출
+          const resultJson = nativeModule.submit_task(taskType, dataString);
+          const result = JSON.parse(resultJson);
+          
+          if (result.success) {
+            resolve(result.result ? JSON.parse(result.result) : result);
+          } else {
+            reject(new Error(result.error || '작업 실패'));
+          }
+        } catch (error) {
+          reject(error);
+        }
+      });
+    }
+  } catch (error) {
+    console.warn('네이티브 작업 제출 모듈 로드 실패, JavaScript 워커 사용:', error.message);
+  }
+  
+  // JavaScript 워커에 작업 제출 (폴백)
   return new Promise((resolve, reject) => {
     const worker = getAvailableWorker();
     

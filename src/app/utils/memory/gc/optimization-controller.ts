@@ -1,368 +1,470 @@
 /**
- * 메모리 최적화 컨트롤러 - Rust 네이티브 모듈 통합
+ * 메모리 최적화 컨트롤러
+ * 다양한 최적화 레벨에 따른 메모리 최적화 기능 제공
  */
-import { 
-  requestNativeMemoryOptimization, 
-  determineOptimizationLevel 
-} from '@/app/utils/native-memory-bridge';
-import { OptimizationLevel as AppOptimizationLevel } from '@/types';
-import { OptimizationLevel as NativeOptimizationLevel } from '@/types/native-module';
-import { toNativeOptimizationLevel } from '@/app/utils/enum-converters';
-import { reportMemoryUsage } from './optimization-levels';
-import { getMemoryInfo } from '../memory-info';
-import { toggleGpuAcceleration, isGpuComputationActive } from '@/app/utils/gpu-acceleration';
-import { normalizeMemoryInfo } from '../format-utils';
 
-// 글로벌 선언 추가 - 전역 객체에 접근하는 오류 해결을 위한 인터페이스 선언
-interface WindowWithCache extends Window {
-  __cachedData?: Record<string, any>;
-  __bufferCache?: Record<string, any>;
-  __animationFrameIds?: number[];
-  __intervalIds?: number[];
-  __timeoutIds?: number[];
-  __appRecovery?: any;
-  __loadedModules?: Map<string, any>;
-  __memoryCache?: Map<string, any>;
-  __taskScheduler?: any;
-  __store?: any;
-  __errorBoundaries?: any[];
-  __apiClient?: any;
-}
+import { MemoryInfo, OptimizationLevel, GCResult } from '../../types';
+import { OptimizationResult } from '../../interfaces/memory-types';
+import { cleanupDOM } from './dom-cleanup-util';
+import { clearAllCache as clearCache } from './cache-optimizer';
+import { cleanupResources as cleanupDynamicResources } from './resource-optimizer';
+import { requestGC, suggestGarbageCollection } from './garbage-collector';
+import { emergencyMemoryRecovery } from './emergency-recovery';
+import { enableGPUAcceleration as gpuAccelerate } from '../gpu-accelerator';
+import { getMemoryInfo as fetchMemoryInfo } from '../memory-info';
 
-// 메모리 최적화 설정
-const MEMORY_THRESHOLDS = {
-  HIGH: 85, // 85% 이상 사용 시 높은 수준 최적화
-  CRITICAL: 92, // 92% 이상 사용 시 긴급 최적화
-  GPU_DISABLE: 90, // 90% 이상 사용 시 GPU 비활성화
-  RESTORE_GPU: 75 // 75% 미만으로 내려가면 GPU 재활성화
-};
-
-// 최적화 시도 상태 추적
-let lastOptimizationAttempt = 0;
-let consecutiveFailures = 0;
-let gpuDisabledDueToMemory = false;
+// 최적화 상태
+let isOptimizing = false;
+let lastOptimizationTime = 0;
+let optimizationCount = 0;
 
 /**
- * 최적화 수준에 따른 메모리 최적화 작업 수행
- * 이제 모든 최적화 작업은 Rust 네이티브 모듈을 통해 처리되며,
- * 메모리 임계치 초과 시 GPU에서 CPU로 전환합니다.
- * 
- * @param level 최적화 수준 (0-4)
- * @param emergency 긴급 상황 여부
- * @returns Promise<void>
+ * 메모리 최적화 컨트롤러 초기화
  */
-export async function performOptimizationByLevel(level: number, emergency: boolean = false): Promise<void> {
-  try {
-    // 현재 시간
-    const now = Date.now();
-    
-    // 연속 시도 제한 (초당 최대 1회)
-    if (now - lastOptimizationAttempt < 1000 && !emergency) {
-      console.log('최적화 요청이 너무 빈번합니다. 이전 요청 무시');
-      return;
-    }
-    
-    lastOptimizationAttempt = now;
-    
-    // 현재 메모리 상태 확인
-    const memoryInfo = await getMemoryInfo();
-    if (!memoryInfo) {
-      console.warn('메모리 정보를 얻을 수 없습니다');
-      return;
-    }
-    
-    const memoryUsagePercent = memoryInfo.percentUsed || 0;
-    
-    console.log(`현재 메모리 사용률: ${memoryUsagePercent.toFixed(1)}%`);
-    
-    // 메모리 사용량에 따른 긴급 상황 자동 감지
-    if (memoryUsagePercent > MEMORY_THRESHOLDS.CRITICAL) {
-      console.warn(`메모리 사용량 임계치 초과: ${memoryUsagePercent.toFixed(1)}% > ${MEMORY_THRESHOLDS.CRITICAL}%`);
-      emergency = true;
-      level = 4; // 최고 수준 최적화 강제
-    } else if (memoryUsagePercent > MEMORY_THRESHOLDS.HIGH) {
-      console.warn(`메모리 사용량 높음: ${memoryUsagePercent.toFixed(1)}% > ${MEMORY_THRESHOLDS.HIGH}%`);
-      level = Math.max(level, 3); // 최소 높은 수준 최적화 보장
-    }
-    
-    // GPU 가속화 관리 - 메모리 사용량이 높을 때 GPU 비활성화
-    await manageGpuAcceleration(memoryUsagePercent);
-    
-    // 최적화 수준 매핑
-    const appLevel = emergency ? AppOptimizationLevel.EXTREME :
-                   level >= 3 ? AppOptimizationLevel.HIGH :
-                   level >= 2 ? AppOptimizationLevel.MEDIUM :
-                   level >= 1 ? AppOptimizationLevel.LOW :
-                   AppOptimizationLevel.NONE;
-    
-    // 네이티브 최적화 모듈 호출 (최대 3번 재시도)
-    const nativeLevel = toNativeOptimizationLevel(appLevel);
-    let result = null;
-    let retries = 0;
-    
-    while (retries < 3 && result === null) {
-      try {
-        console.log(`Rust 네이티브 메모리 최적화 실행 (레벨: ${nativeLevel}, 긴급: ${emergency})`);
-        result = await requestNativeMemoryOptimization(nativeLevel, emergency);
-        
-        if (result) {
-          console.log(`메모리 최적화 성공: ${result.freed_mb?.toFixed(2) || 0}MB 해제됨`);
-          consecutiveFailures = 0;
-        } else {
-          throw new Error("네이티브 최적화 실패: 결과가 null");
-        }
-      } catch (error) {
-        retries++;
-        console.error(`네이티브 최적화 시도 ${retries}/3 실패:`, error);
-        
-        if (retries === 3) {
-          consecutiveFailures++;
-          console.warn(`연속 ${consecutiveFailures}회 최적화 실패. 폴백 없음 - 네이티브 모듈만 사용`);
-        } else {
-          // 재시도 전 짧은 지연
-          await new Promise(resolve => setTimeout(resolve, 100));
-        }
-      }
-    }
-    
-    // 메모리 사용 보고
-    reportMemoryUsage(level);
-    
-    // 긴급 상황이 해결되었는지 확인
-    if (emergency) {
-      const afterMemoryInfo = await getMemoryInfo();
-      if (!afterMemoryInfo) return;
-      
-      const afterUsagePercent = afterMemoryInfo.percentUsed || 0;
-      
-      if (afterUsagePercent > MEMORY_THRESHOLDS.CRITICAL) {
-        console.error(`긴급 메모리 상황이 지속됨: ${afterUsagePercent.toFixed(1)}%. 추가 조치 필요`);
-        // 추가 비상 조치 수행
-        await performEmergencyMeasures();
-      } else {
-        console.log(`메모리 상황 개선됨: ${afterUsagePercent.toFixed(1)}%`);
-      }
-    }
-  } catch (error) {
-    console.error('메모리 최적화 중 예기치 않은 오류:', error);
-    consecutiveFailures++;
-    
-    // 심각한 상황에서는 전체 애플리케이션 재초기화 고려
-    if (consecutiveFailures > 5) {
-      console.error('연속된 최적화 실패로 인한 심각한 메모리 상황. 앱 재로드를 권장합니다.');
-      
-      if (typeof window !== 'undefined') {
-        const shouldReload = window.confirm('메모리 최적화에 반복적으로 실패했습니다. 페이지를 새로고침하시겠습니까?');
-        if (shouldReload) {
-          window.location.reload();
-        }
-      }
-    }
+export function initializeOptimizationController(): void {
+  // 필요한 초기화 작업 수행
+  lastOptimizationTime = Date.now();
+  optimizationCount = 0;
+}
+
+/**
+ * 기본 최적화 수행
+ * 경량 메모리 정리 및 가비지 컬렉션 제안
+ */
+export async function performBasicOptimization(): Promise<OptimizationResult> {
+  if (isOptimizing) {
+    console.warn('이미 최적화가 진행 중입니다.');
+    return {
+      success: false,
+      optimization_level: OptimizationLevel.NONE,
+      error: '이미 최적화가 진행 중입니다.',
+      timestamp: Date.now()
+    };
   }
-}
-
-/**
- * GPU 가속화 상태 관리 
- * 메모리 사용량에 따라 GPU 활성화/비활성화
- */
-async function manageGpuAcceleration(memoryUsagePercent: number): Promise<void> {
-  try {
-    const isGpuActive = await isGpuComputationActive();
-    
-    // 메모리 사용량이 높을 때 GPU 비활성화
-    if (memoryUsagePercent > MEMORY_THRESHOLDS.GPU_DISABLE && isGpuActive && !gpuDisabledDueToMemory) {
-      console.warn(`메모리 사용량이 높아 GPU 가속화 비활성화: ${memoryUsagePercent.toFixed(1)}%`);
-      const result = await toggleGpuAcceleration(false);
-      gpuDisabledDueToMemory = result;
-    } 
-    // 메모리 상황이 개선되면 GPU 재활성화
-    else if (memoryUsagePercent < MEMORY_THRESHOLDS.RESTORE_GPU && gpuDisabledDueToMemory) {
-      console.log(`메모리 상황 개선되어 GPU 가속화 재활성화: ${memoryUsagePercent.toFixed(1)}%`);
-      const result = await toggleGpuAcceleration(true);
-      if (result) {
-        gpuDisabledDueToMemory = false;
-      }
-    }
-  } catch (error) {
-    console.error('GPU 가속화 상태 관리 중 오류:', error);
-  }
-}
-
-/**
- * 긴급 상황에 대한 추가 조치
- */
-async function performEmergencyMeasures(): Promise<void> {
-  console.warn('긴급 메모리 복구 조치 수행 중...');
   
   try {
-    // 1. GPU 비활성화 (이미 관리 로직에 있지만 긴급 상황에서 강제 적용)
-    if (await isGpuComputationActive()) {
-      await toggleGpuAcceleration(false);
-      gpuDisabledDueToMemory = true;
-    }
+    isOptimizing = true;
+    const startTime = Date.now();
     
-    // 2. 강제 가비지 컬렉션 요청
-    if (window.gc) {
-      window.gc();
-    }
+    // 1. 메모리 사용량 정보 수집
+    const memoryBefore = await getMemoryInfo();
     
-    // 3. 최고 수준 최적화 재시도
-    const result = await requestNativeMemoryOptimization(
-      NativeOptimizationLevel.Critical, 
-      true
-    );
+    // 2. 기본 최적화 작업 수행
+    console.log('기본 메모리 최적화 수행 중...');
     
-    console.log('긴급 메모리 복구 조치 결과:', result ? '성공' : '실패');
+    // 2.1. 미사용 메모리 해제
+    const clearedUnused = releaseUnusedMemory();
+    
+    // 2.2. GC 제안
+    suggestGarbageCollection();
+    
+    // 3. 최적화 후 메모리 정보 수집
+    await new Promise(resolve => setTimeout(resolve, 300));
+    const memoryAfter = await getMemoryInfo();
+    
+    // 4. 해제된 메모리 계산
+    const freedMemory = memoryBefore && memoryAfter 
+      ? memoryBefore.heap_used - memoryAfter.heap_used
+      : 0;
+    
+    const freedMB = freedMemory > 0 
+      ? Math.round(freedMemory / (1024 * 1024) * 100) / 100
+      : 0;
+    
+    // 5. 최적화 결과 반환
+    const duration = Date.now() - startTime;
+    lastOptimizationTime = Date.now();
+    optimizationCount++;
+    
+    console.log(`기본 최적화 완료: ${freedMB}MB 해제됨, ${duration}ms 소요됨`);
+    
+    return {
+      success: true,
+      optimization_level: OptimizationLevel.NONE,
+      memory_before: memoryBefore,
+      memory_after: memoryAfter,
+      freed_memory: freedMemory > 0 ? freedMemory : 0,
+      freed_mb: freedMB,
+      duration,
+      timestamp: Date.now()
+    };
   } catch (error) {
-    console.error('긴급 메모리 복구 조치 중 오류:', error);
+    console.error('기본 최적화 중 오류:', error);
+    return {
+      success: false,
+      optimization_level: OptimizationLevel.NONE,
+      error: error instanceof Error ? error.message : '알 수 없는 오류',
+      timestamp: Date.now()
+    };
+  } finally {
+    isOptimizing = false;
   }
 }
 
 /**
- * 앱 내부 자원 정리
+ * 중간 수준 최적화 수행
+ * 기본 최적화 + 캐시 정리
  */
-function cleanupAppResources(): void {
+export async function performMediumOptimization(): Promise<OptimizationResult> {
+  if (isOptimizing) {
+    console.warn('이미 최적화가 진행 중입니다.');
+    return {
+      success: false,
+      optimization_level: OptimizationLevel.MEDIUM,
+      error: '이미 최적화가 진행 중입니다.',
+      timestamp: Date.now()
+    };
+  }
+  
   try {
-    console.log('앱 내부 자원 정리 중...');
+    isOptimizing = true;
+    const startTime = Date.now();
     
-    // DOM 참조 정리
-    if (typeof document !== 'undefined') {
-      // 나중에 정리 필요한 참조 목록
-      const cleanupSelectors = [
-        '.cleanup-target',
-        '[data-memory-cleanup="true"]',
-        '.cached-content'
-      ];
-      
-      cleanupSelectors.forEach(selector => {
-        const elements = document.querySelectorAll(selector);
-        elements.forEach(el => {
-          if (el instanceof HTMLElement) {
-            el.innerHTML = '';
-          }
-        });
-      });
-    }
+    // 1. 메모리 사용량 정보 수집
+    const memoryBefore = await getMemoryInfo();
     
-    // 캐시 정리 (네이티브 모듈이 제공하는 기능에 의존)
+    // 2. 중간 수준 최적화 작업 수행
+    console.log('중간 수준 메모리 최적화 수행 중...');
+    
+    // 2.1. 기본 최적화 먼저 수행
+    await performBasicOptimization();
+    
+    // 2.2. 캐시 정리
+    clearCache();
+    
+    // 2.3. 동적 리소스 정리
+    cleanupDynamicResources();
+    
+    // 2.4. GC 요청
+    await requestGC(false);
+    
+    // 3. 최적화 후 메모리 정보 수집
+    await new Promise(resolve => setTimeout(resolve, 500));
+    const memoryAfter = await getMemoryInfo();
+    
+    // 4. 해제된 메모리 계산
+    const freedMemory = memoryBefore && memoryAfter 
+      ? memoryBefore.heap_used - memoryAfter.heap_used
+      : 0;
+    
+    const freedMB = freedMemory > 0 
+      ? Math.round(freedMemory / (1024 * 1024) * 100) / 100
+      : 0;
+    
+    // 5. 최적화 결과 반환
+    const duration = Date.now() - startTime;
+    lastOptimizationTime = Date.now();
+    optimizationCount++;
+    
+    console.log(`중간 수준 최적화 완료: ${freedMB}MB 해제됨, ${duration}ms 소요됨`);
+    
+    return {
+      success: true,
+      optimization_level: OptimizationLevel.MEDIUM,
+      memory_before: memoryBefore,
+      memory_after: memoryAfter,
+      freed_memory: freedMemory > 0 ? freedMemory : 0,
+      freed_mb: freedMB,
+      duration,
+      timestamp: Date.now()
+    };
   } catch (error) {
-    console.error('앱 자원 정리 중 오류:', error);
+    console.error('중간 수준 최적화 중 오류:', error);
+    return {
+      success: false,
+      optimization_level: OptimizationLevel.MEDIUM,
+      error: error instanceof Error ? error.message : '알 수 없는 오류',
+      timestamp: Date.now()
+    };
+  } finally {
+    isOptimizing = false;
   }
 }
 
 /**
- * 메모리 최적화 수준 결정
- * 현재 메모리 사용량에 기반하여 최적화 수준 결정
+ * 높은 수준 최적화 수행
+ * 중간 수준 최적화 + DOM 최적화
  */
-export async function determineMemoryOptimizationLevel(): Promise<number> {
-  try {
-    // 현재 메모리 정보 가져오기 
-    const memoryInfo = await getMemoryInfo();
-    
-    // 네이티브 모듈 호출 (memoryInfo가 null일 경우 기본값 사용)
-    if (memoryInfo) {
-      // 적절한 타입으로 변환 후 전달
-      try {
-        const { normalizeMemoryInfo } = await import('../format-utils');
-        const convertedMemoryInfo = normalizeMemoryInfo(memoryInfo);
-        const nativeLevel = await determineOptimizationLevel(convertedMemoryInfo);
-        if (typeof nativeLevel === 'number') {
-          return nativeLevel;
-        }
-      } catch (error) {
-        console.error('네이티브 최적화 레벨 결정 오류:', error);
-      }
-    }
-    
-    // 폴백: 자체 최적화 수준 결정
-    const usagePercent = memoryInfo?.percentUsed || 0;
-    
-    if (usagePercent > MEMORY_THRESHOLDS.CRITICAL) return 4;
-    if (usagePercent > MEMORY_THRESHOLDS.HIGH) return 3;
-    if (usagePercent > 70) return 2;
-    if (usagePercent > 50) return 1;
-    return 0;
-  } catch (error) {
-    console.error('최적화 수준 결정 중 오류:', error);
-    return 2; // 기본값으로 중간 수준 반환
+export async function performHighOptimization(): Promise<OptimizationResult> {
+  if (isOptimizing) {
+    console.warn('이미 최적화가 진행 중입니다.');
+    return {
+      success: false,
+      optimization_level: OptimizationLevel.HIGH,
+      error: '이미 최적화가 진행 중입니다.',
+      timestamp: Date.now()
+    };
   }
-}
-
-// 모든 export 함수를 한 곳에서 관리 (기존 코드와 동일)
-// DOM 최적화 모듈에서 필요한 함수들을 가져옵니다
-import {
-  cleanupDOM,
-  unloadUnusedImages
-} from '../dom-optimizer';
-
-// 이미지 최적화 모듈에서 필요한 함수들을 가져옵니다
-import {
-  clearImageCache,
-  optimizeImageResources
-} from '../image-optimizer';
-
-// 스토리지 관련 함수들 가져오기
-import {
-  cleanLocalStorage,
-  clearLargeObjectsAndCaches
-} from '../storage-cleaner';
-
-// 캐시 관련 최적화 함수 가져오기
-import {
-  clearStorageCaches,
-  clearAllCache,
-  releaseAllCaches
-} from './cache-optimizer';
-
-// 리소스 관련 최적화 함수 가져오기
-import {
-  unloadNonVisibleResources,
-  releaseUnusedResources,
-  freeUnusedMemory,
-  optimizeDOM
-} from './resource-optimizer';
-
-// 이벤트 관련 최적화 함수 가져오기
-import {
-  optimizeEventListeners,
-  unloadDynamicModules
-} from './event-optimizer';
-
-// 긴급 복구 모듈 가져오기
-import { emergencyMemoryRecovery } from './emergency-recovery';
-
-// 로컬에서만 사용하는 함수 - 외부 모듈에서 사용할 수 있는 함수들을 만듭니다
-/**
- * DOM 참조 정리 함수
- * 외부에서 사용할 수 있는 통합 함수
- */
-export function cleanupDOMReferences(): void {
+  
   try {
-    // 기본 DOM 정리 함수 사용
+    isOptimizing = true;
+    const startTime = Date.now();
+    
+    // 1. 메모리 사용량 정보 수집
+    const memoryBefore = await getMemoryInfo();
+    
+    // 2. 높은 수준 최적화 작업 수행
+    console.log('높은 수준 메모리 최적화 수행 중...');
+    
+    // 2.1. 중간 수준 최적화 먼저 수행
+    await performMediumOptimization();
+    
+    // 2.2. DOM 최적화
     cleanupDOM();
     
-    // 사용하지 않는 이미지 언로드
-    unloadUnusedImages();
+    // 2.3. DOM 참조 정리
+    cleanupInactiveReferences();
     
-    // 추가적인 DOM 참조 정리 수행
-    internalCleanupDOMReferences();
+    // 2.4. GC 요청 (약간의 공격성)
+    await requestGC(true);
+    
+    // 3. 최적화 후 메모리 정보 수집
+    await new Promise(resolve => setTimeout(resolve, 800));
+    const memoryAfter = await getMemoryInfo();
+    
+    // 4. 해제된 메모리 계산
+    const freedMemory = memoryBefore && memoryAfter 
+      ? memoryBefore.heap_used - memoryAfter.heap_used
+      : 0;
+    
+    const freedMB = freedMemory > 0 
+      ? Math.round(freedMemory / (1024 * 1024) * 100) / 100
+      : 0;
+    
+    // 5. 최적화 결과 반환
+    const duration = Date.now() - startTime;
+    lastOptimizationTime = Date.now();
+    optimizationCount++;
+    
+    console.log(`높은 수준 최적화 완료: ${freedMB}MB 해제됨, ${duration}ms 소요됨`);
+    
+    return {
+      success: true,
+      optimization_level: OptimizationLevel.HIGH,
+      memory_before: memoryBefore,
+      memory_after: memoryAfter,
+      freed_memory: freedMemory > 0 ? freedMemory : 0,
+      freed_mb: freedMB,
+      duration,
+      timestamp: Date.now()
+    };
   } catch (error) {
-    console.warn('DOM 참조 정리 중 오류:', error);
+    console.error('높은 수준 최적화 중 오류:', error);
+    return {
+      success: false,
+      optimization_level: OptimizationLevel.HIGH,
+      error: error instanceof Error ? error.message : '알 수 없는 오류',
+      timestamp: Date.now()
+    };
+  } finally {
+    isOptimizing = false;
   }
 }
 
-// 모든 export 함수를 한 곳에서 관리
-export {
-  cleanupDOM,
-  unloadUnusedImages,
-  clearStorageCaches,
-  clearAllCache,
-  releaseAllCaches,
-  unloadNonVisibleResources,
-  releaseUnusedResources,
-  freeUnusedMemory,
-  optimizeDOM,
-  optimizeEventListeners,
-  unloadDynamicModules,
-  emergencyMemoryRecovery
+/**
+ * 위험 수준 최적화 수행
+ * 긴급 메모리 복구
+ */
+export async function performCriticalOptimization(): Promise<OptimizationResult> {
+  if (isOptimizing) {
+    console.warn('이미 최적화가 진행 중입니다.');
+    return {
+      success: false,
+      optimization_level: OptimizationLevel.EXTREME,
+      error: '이미 최적화가 진행 중입니다.',
+      timestamp: Date.now()
+    };
+  }
+  
+  try {
+    isOptimizing = true;
+    const startTime = Date.now();
+    
+    // 1. 메모리 사용량 정보 수집
+    const memoryBefore = await getMemoryInfo();
+    
+    // 2. 위험 수준 최적화 작업 수행
+    console.warn('위험 수준 메모리 최적화 수행 중...');
+    
+    // 2.1. 긴급 메모리 복구 수행
+    const emergencyResult = await emergencyMemoryRecovery();
+    
+    // 3. 최적화 후 메모리 정보 수집
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    const memoryAfter = await getMemoryInfo();
+    
+    // 4. 해제된 메모리 계산
+    const freedMemory = memoryBefore && memoryAfter 
+      ? memoryBefore.heap_used - memoryAfter.heap_used
+      : 0;
+    
+    const freedMB = freedMemory > 0 
+      ? Math.round(freedMemory / (1024 * 1024) * 100) / 100
+      : 0;
+    
+    // 5. 최적화 결과 반환
+    const duration = Date.now() - startTime;
+    lastOptimizationTime = Date.now();
+    optimizationCount++;
+    
+    console.warn(`위험 수준 최적화 완료: ${freedMB}MB 해제됨, ${duration}ms 소요됨`);
+    
+    return {
+      success: true,
+      optimization_level: OptimizationLevel.EXTREME,
+      memory_before: memoryBefore,
+      memory_after: memoryAfter,
+      freed_memory: freedMemory > 0 ? freedMemory : 0,
+      freed_mb: freedMB,
+      duration,
+      timestamp: Date.now()
+    };
+  } catch (error) {
+    console.error('위험 수준 최적화 중 오류:', error);
+    return {
+      success: false,
+      optimization_level: OptimizationLevel.EXTREME,
+      error: error instanceof Error ? error.message : '알 수 없는 오류',
+      timestamp: Date.now()
+    };
+  } finally {
+    isOptimizing = false;
+  }
+}
+
+/**
+ * 최적화 레벨에 따른 메모리 최적화 수행
+ * @param level 최적화 레벨
+ */
+export async function performOptimization(level: OptimizationLevel): Promise<OptimizationResult> {
+  switch (level) {
+    case OptimizationLevel.NONE:
+      return performBasicOptimization();
+    case OptimizationLevel.LOW:
+      return performBasicOptimization();
+    case OptimizationLevel.MEDIUM:
+      return performMediumOptimization();
+    case OptimizationLevel.HIGH:
+      return performHighOptimization();
+    case OptimizationLevel.EXTREME:
+      return performCriticalOptimization();
+    default:
+      return performBasicOptimization();
+  }
+}
+
+/**
+ * 메모리 정보 가져오기
+ */
+async function getMemoryInfo(): Promise<MemoryInfo | null> {
+  try {
+    return await fetchMemoryInfo();
+  } catch (error) {
+    console.error('메모리 정보 가져오기 실패:', error);
+    return null;
+  }
+}
+
+/**
+ * 미사용 메모리 해제 함수
+ */
+function releaseUnusedMemory(): boolean {
+  try {
+    // 해제할 수 있는 미사용 메모리 처리
+    // 1. 이미지 캐시 비우기
+    cleanImageCache();
+    
+    // 2. 객체 참조 정리
+    clearObjectReferences();
+    
+    return true;
+  } catch (error) {
+    console.error('미사용 메모리 해제 중 오류:', error);
+    return false;
+  }
+}
+
+/**
+ * 이미지 캐시 정리
+ */
+function cleanImageCache(): void {
+  if (window.__imageResizeCache) {
+    window.__imageResizeCache = {};
+  }
+}
+
+/**
+ * 객체 참조 정리
+ */
+function clearObjectReferences(): void {
+  if (window.__objectUrls) {
+    // URL.revokeObjectURL 호출 후 Map 비우기
+    try {
+      const urls = window.__objectUrls;
+      if (urls instanceof Map) {
+        urls.forEach(url => {
+          try {
+            URL.revokeObjectURL(url);
+          } catch (e) {
+            // 무시
+          }
+        });
+        urls.clear();
+      }
+    } catch (e) {
+      console.warn('Object URL 참조 정리 중 오류:', e);
+    }
+  }
+}
+
+/**
+ * 비활성 참조 정리
+ */
+function cleanupInactiveReferences(): void {
+  try {
+    // 메모리 누수 가능성이 있는 DOM 참조 정리
+    if (window.__widgetCache) {
+      const cache = window.__widgetCache;
+      if (cache instanceof Map) {
+        // 일정 시간 이후 참조 제거
+        const now = Date.now();
+        const CACHE_EXPIRY = 10 * 60 * 1000; // 10분
+        
+        cache.forEach((value, key) => {
+          if (value && typeof value === 'object' && value.lastAccess && 
+              (now - value.lastAccess > CACHE_EXPIRY)) {
+            cache.delete(key);
+          }
+        });
+      }
+    }
+  } catch (e) {
+    console.warn('비활성 참조 정리 중 오류:', e);
+  }
+}
+
+/**
+ * 최적화 상태 가져오기
+ */
+export function getOptimizationStatus() {
+  return {
+    isOptimizing,
+    lastOptimizationTime,
+    optimizationCount
+  };
+}
+
+/**
+ * 타입 호환성 문제 수정 - 타입 변환/변경
+ */
+const memoryInfoFromNative = (nativeInfo: any): MemoryInfo => {
+  if (!nativeInfo) return null;
+  
+  return {
+    heapUsed: nativeInfo.heap_used,
+    heapTotal: nativeInfo.heap_total,
+    heapUsedMB: nativeInfo.heap_used_mb,
+    percentUsed: nativeInfo.percent_used,
+    // ...기타 필요한 속성들
+  } as MemoryInfo;
 };

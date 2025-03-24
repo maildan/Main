@@ -1,0 +1,289 @@
+.container {
+  padding: 1.5rem;
+  background-color: #f9f9f9;
+  border-radius: 0.5rem;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+  margin-bottom: 2rem;
+  transition: all 0.3s ease;
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.darkMode {
+  background-color: #2a2a2a;
+  color: #e0e0e0;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
+}
+
+.title {
+  font-size: 1.5rem;
+  margin-bottom: 1.5rem;
+  font-weight: 600;
+  color: #333;
+  border-bottom: 2px solid #eaeaea;
+  padding-bottom: 0.75rem;
+}
+
+.darkMode .title {
+  color: #f0f0f0;
+  border-bottom-color: #3a3a3a;
+}
+
+.loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 200px;
+  font-style: italic;
+  color: #777;
+}
+
+.darkMode .loading {
+  color: #aaa;
+}
+
+.infoSection, .settingsSection, .buttonSection, .noteSection {
+  margin-bottom: 2rem;
+}
+
+.gpuInfo {
+  background-color: #f0f0f0;
+  padding: 1rem;
+  border-radius: 0.4rem;
+  margin-bottom: 1rem;
+}
+
+.darkMode .gpuInfo {
+  background-color: #333;
+}
+
+.infoItem {
+  display: flex;
+  margin-bottom: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.label {
+  flex: 0 0 120px;
+  font-weight: 600;
+  color: #555;
+}
+
+.darkMode .label {
+  color: #ccc;
+}
+
+.value {
+  flex: 1;
+  color: #333;
+}
+
+.darkMode .value {
+  color: #e0e0e0;
+}
+
+.recommendation {
+  background-color: #e9f7fe;
+  padding: 1rem;
+  border-radius: 0.4rem;
+  border-left: 4px solid #2196f3;
+}
+
+.darkMode .recommendation {
+  background-color: #1e3a5a;
+  border-left-color: #4a8cff;
+}
+
+.recommendation h4 {
+  margin-top: 0;
+  margin-bottom: 0.5rem;
+  color: #1976d2;
+}
+
+.darkMode .recommendation h4 {
+  color: #64b5f6;
+}
+
+.recommendButton {
+  background-color: #2196f3;
+  color: white;
+  border: none;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.25rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+  margin-top: 0.75rem;
+  transition: background-color 0.2s;
+}
+
+.recommendButton:hover {
+  background-color: #1976d2;
+}
+
+.darkMode .recommendButton {
+  background-color: #1976d2;
+}
+
+.darkMode .recommendButton:hover {
+  background-color: #1565c0;
+}
+
+.settingItem {
+  margin-bottom: 1.25rem;
+}
+
+.settingItem label {
+  display: flex;
+  align-items: center;
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+}
+
+.settingItem input[type="checkbox"] {
+  margin-right: 0.75rem;
+  width: 1.15rem;
+  height: 1.15rem;
+}
+
+.settingItem select {
+  width: 100%;
+  padding: 0.5rem;
+  border-radius: 0.3rem;
+  border: 1px solid #ccc;
+  background-color: white;
+  font-size: 0.9rem;
+  margin-top: 0.25rem;
+  transition: border-color 0.2s;
+}
+
+.darkMode .settingItem select {
+  background-color: #333;
+  color: #e0e0e0;
+  border-color: #555;
+}
+
+.settingItem select:focus {
+  border-color: #2196f3;
+  outline: none;
+}
+
+.darkMode .settingItem select:focus {
+  border-color: #4a8cff;
+}
+
+.settingItem select:disabled {
+  background-color: #f5f5f5;
+  color: #999;
+  cursor: not-allowed;
+}
+
+.darkMode .settingItem select:disabled {
+  background-color: #2a2a2a;
+  color: #777;
+}
+
+.restartNotice {
+  margin-top: 0.5rem;
+  font-size: 0.85rem;
+  color: #f57c00;
+  background-color: #fff3e0;
+  padding: 0.5rem;
+  border-radius: 0.3rem;
+  border-left: 3px solid #ff9800;
+}
+
+.darkMode .restartNotice {
+  background-color: #3e2f1b;
+  color: #ffb74d;
+  border-left-color: #ff9800;
+}
+
+.disabledNote {
+  margin-top: 0.25rem;
+  font-size: 0.8rem;
+  color: #777;
+  font-style: italic;
+}
+
+.darkMode .disabledNote {
+  color: #999;
+}
+
+.buttonSection {
+  display: flex;
+  gap: 1rem;
+  margin-top: 2rem;
+}
+
+.saveButton, .restartButton {
+  padding: 0.75rem 1.5rem;
+  border-radius: 0.3rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: none;
+}
+
+.saveButton {
+  background-color: #4caf50;
+  color: white;
+  flex: 1;
+}
+
+.saveButton:hover {
+  background-color: #388e3c;
+}
+
+.saveButton.disabled {
+  background-color: #c8e6c9;
+  cursor: not-allowed;
+}
+
+.darkMode .saveButton {
+  background-color: #388e3c;
+}
+
+.darkMode .saveButton:hover {
+  background-color: #2e7d32;
+}
+
+.darkMode .saveButton.disabled {
+  background-color: #1e3e1e;
+  color: #86af86;
+}
+
+.restartButton {
+  background-color: #f44336;
+  color: white;
+}
+
+.restartButton:hover {
+  background-color: #d32f2f;
+}
+
+.darkMode .restartButton {
+  background-color: #d32f2f;
+}
+
+.darkMode .restartButton:hover {
+  background-color: #b71c1c;
+}
+
+.note {
+  font-size: 0.85rem;
+  color: #666;
+  line-height: 1.5;
+  margin-bottom: 0.75rem;
+}
+
+.darkMode .note {
+  color: #aaa;
+}
+
+.note strong {
+  color: #333;
+}
+
+.darkMode .note strong {
+  color: #f0f0f0;
+}

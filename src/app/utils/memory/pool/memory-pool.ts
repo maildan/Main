@@ -1,149 +1,148 @@
 /**
- * 메모리 풀 관련 기능 모듈
- * 메모리 풀링으로 메모리 단편화와 GC 압력 감소
+ * 메모리 풀 관리 유틸리티
+ * 
+ * 객체 생성 및 파괴로 인한 메모리 단편화와 GC 부하를 줄이기 위한
+ * 객체 풀링 메커니즘을 제공합니다.
  */
 
-// 메모리 풀 타입 정의
-export interface MemoryPoolsType {
-  analysisResults: Record<string, any>[];
-  arrays: {
-    small: any[][];
-    medium: any[][];
-    large: any[][];
-  };
-  objects: Record<string, any>[];
-  inUse: WeakMap<object, boolean>;
+// 메모리 풀 인터페이스
+interface MemoryPool<T> {
+  name: string;
+  pool: T[];
+  createObject: () => T;
+  resetObject?: (obj: T) => void;
+  maxSize: number;
+  lastUsed: number;
 }
 
-// 메모리 풀링을 위한 재사용 객체 - 선언과 동시에 초기화
-export const memoryPools: MemoryPoolsType = {
-  // 분석 결과 저장용 객체 풀
-  analysisResults: Array.from({ length: 10 }, () => ({})),
-  // 임시 배열 풀 (여러 크기의 배열 미리 할당)
-  arrays: {
-    small: Array.from({ length: 20 }, () => new Array(32)),
-    medium: Array.from({ length: 10 }, () => new Array(128)),
-    large: Array.from({ length: 5 }, () => new Array(512))
-  },
-  // 임시 객체 풀
-  objects: Array.from({ length: 15 }, () => ({})),
-  // 현재 사용 중인 풀 객체 추적
-  inUse: new WeakMap()
-};
+// 전역 메모리 풀 저장소
+export const memoryPools: Map<string, MemoryPool<any>> = new Map();
+
+// 마지막 풀 정리 시간
+let lastPoolCleanup = Date.now();
 
 /**
- * 메모리 풀에서 객체 획득
- * @param type 객체 유형 ('result', 'array', 'object')
- * @param size 배열의 경우 크기 카테고리 ('small', 'medium', 'large')
- * @returns 재사용 가능한 객체
+ * 메모리 풀에서 객체 가져오기
+ * @param poolName 풀 이름
+ * @returns 풀에서 가져온 객체
  */
-export function acquireFromPool(type: 'result' | 'array' | 'object', size?: 'small' | 'medium' | 'large'): any {
-  try {
-    if (type === 'result') {
-      // 결과 객체 풀에서 사용 가능한 객체 찾기
-      const availableResult = memoryPools.analysisResults.find(obj => !memoryPools.inUse.has(obj));
-      
-      if (availableResult) {
-        // 객체 초기화 및 사용 중 표시
-        Object.keys(availableResult).forEach(key => delete availableResult[key]);
-        memoryPools.inUse.set(availableResult, true);
-        return availableResult;
-      }
-      
-      // 모든 객체가 사용 중이면 새 객체 생성
-      const newResult = {} as Record<string, any>;
-      memoryPools.inUse.set(newResult, true);
-      return newResult;
-    } 
-    else if (type === 'array') {
-      // 적절한 크기의 배열 풀에서 배열 획득
-      const sizeCategory = size || 'small';
-      const availableArray = memoryPools.arrays[sizeCategory].find(arr => !memoryPools.inUse.has(arr));
-      
-      if (availableArray) {
-        availableArray.length = 0; // 배열 초기화
-        memoryPools.inUse.set(availableArray, true);
-        return availableArray;
-      }
-      
-      // 모든 배열이 사용 중이면 새 배열 생성
-      const newArray: any[] = [];
-      memoryPools.inUse.set(newArray, true);
-      return newArray;
-    }
-    else if (type === 'object') {
-      // 객체 풀에서 사용 가능한 객체 찾기
-      const availableObject = memoryPools.objects.find(obj => !memoryPools.inUse.has(obj));
-      
-      if (availableObject) {
-        Object.keys(availableObject).forEach(key => delete availableObject[key]);
-        memoryPools.inUse.set(availableObject, true);
-        return availableObject;
-      }
-      
-      // 모든 객체가 사용 중이면 새 객체 생성
-      const newObject = {} as Record<string, any>;
-      memoryPools.inUse.set(newObject, true);
-      return newObject;
-    }
-    
-    return null;
-  } catch (error) {
-    console.error('메모리 풀 획득 오류:', error);
-    // 폴백: 새 객체 생성
-    return type === 'array' ? [] : {};
+export function acquireFromPool<T>(poolName: string): T {
+  // 풀이 없으면 생성
+  if (!memoryPools.has(poolName)) {
+    console.warn(`메모리 풀 "${poolName}"이 존재하지 않습니다. 기본 풀을 생성합니다.`);
+    createPool(poolName, () => ({} as T), { maxSize: 50 });
   }
+  
+  const pool = memoryPools.get(poolName)!;
+  pool.lastUsed = Date.now();
+  
+  // 풀에 객체가 있으면 반환
+  if (pool.pool.length > 0) {
+    return pool.pool.pop()!;
+  }
+  
+  // 풀이 비어있으면 새 객체 생성
+  return pool.createObject();
 }
 
 /**
- * 풀로 객체 반환 (재사용 가능하도록)
+ * 객체를 메모리 풀에 반환
+ * @param poolName 풀 이름
  * @param obj 반환할 객체
  */
-export function releaseToPool(obj: any): void {
-  if (!obj) return;
-  
-  try {
-    // 사용 중 표시 제거
-    memoryPools.inUse.delete(obj);
-    
-    // 배열인 경우 초기화
-    if (Array.isArray(obj)) {
-      obj.length = 0;
-    }
-    // 객체인 경우 모든 속성 제거
-    else if (typeof obj === 'object') {
-      Object.keys(obj).forEach(key => delete obj[key]);
-    }
-  } catch (error) {
-    console.error('메모리 풀 반환 오류:', error);
+export function releaseToPool<T>(poolName: string, obj: T): void {
+  if (!memoryPools.has(poolName)) {
+    console.warn(`메모리 풀 "${poolName}"이 존재하지 않습니다. 객체는 폐기됩니다.`);
+    return;
   }
+  
+  const pool = memoryPools.get(poolName)!;
+  pool.lastUsed = Date.now();
+  
+  // 풀 크기가 최대 크기보다 작으면 객체 추가
+  if (pool.pool.length < pool.maxSize) {
+    // 객체 초기화 함수가 있으면 호출
+    if (pool.resetObject) {
+      pool.resetObject(obj);
+    }
+    
+    // 풀에 객체 추가
+    pool.pool.push(obj);
+  }
+  // 풀이 가득 찬 경우 객체는 자동으로 폐기됨
 }
 
 /**
- * 모든 풀링된 객체 해제
+ * 새 메모리 풀 생성
+ * @param name 풀 이름
+ * @param createFn 객체 생성 함수
+ * @param options 풀 옵션
+ */
+export function createPool<T>(
+  name: string,
+  createFn: () => T,
+  options: {
+    maxSize?: number;
+    resetFn?: (obj: T) => void;
+    prealloc?: number;
+  } = {}
+): void {
+  // 기본값 설정
+  const maxSize = options.maxSize || 100;
+  const prealloc = options.prealloc || 0;
+  
+  // 풀 생성
+  const pool: MemoryPool<T> = {
+    name,
+    pool: [],
+    createObject: createFn,
+    resetObject: options.resetFn,
+    maxSize,
+    lastUsed: Date.now()
+  };
+  
+  // 사전 할당
+  if (prealloc > 0) {
+    for (let i = 0; i < Math.min(prealloc, maxSize); i++) {
+      pool.pool.push(createFn());
+    }
+  }
+  
+  // 풀 저장
+  memoryPools.set(name, pool);
+}
+
+/**
+ * 모든 풀에서 메모리 객체 해제
  */
 export function releaseAllPooledObjects(): void {
-  try {
-    // 모든 결과 객체 초기화
-    memoryPools.analysisResults.forEach(obj => {
-      Object.keys(obj).forEach(key => delete obj[key]);
-      memoryPools.inUse.delete(obj);
-    });
-    
-    // 모든 배열 초기화
-    Object.values(memoryPools.arrays).forEach(arrayPool => {
-      arrayPool.forEach(arr => {
-        arr.length = 0;
-        memoryPools.inUse.delete(arr);
-      });
-    });
-    
-    // 모든 객체 초기화
-    memoryPools.objects.forEach(obj => {
-      Object.keys(obj).forEach(key => delete obj[key]);
-      memoryPools.inUse.delete(obj);
-    });
-  } catch (error) {
-    console.warn('풀링된 객체 해제 중 오류:', error);
+  memoryPools.forEach(pool => {
+    console.log(`메모리 풀 "${pool.name}" 정리: ${pool.pool.length}개 객체 해제`);
+    pool.pool.length = 0;
+  });
+}
+
+/**
+ * 오래된 메모리 풀 정리
+ * 일정 시간 사용되지 않은 풀 정리
+ * @param maxIdleTime 최대 유휴 시간 (밀리초)
+ */
+export function cleanupIdlePools(maxIdleTime: number = 5 * 60 * 1000): void {
+  const now = Date.now();
+  
+  // 너무 자주 실행되지 않도록 제한
+  if (now - lastPoolCleanup < 60000) {
+    return;
   }
+  
+  lastPoolCleanup = now;
+  
+  memoryPools.forEach((pool, name) => {
+    if (now - pool.lastUsed > maxIdleTime) {
+      // 오래된 풀 정리
+      pool.pool.length = 0;
+      memoryPools.delete(name);
+      console.log(`오래된 메모리 풀 "${name}" 제거됨`);
+    }
+  });
 }

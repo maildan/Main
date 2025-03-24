@@ -39,10 +39,10 @@ export async function getMemoryInfo(): Promise<MemoryUsageInfo | null> {
       heapUsed: response.memoryInfo.heap_used,
       heapTotal: response.memoryInfo.heap_total,
       heapLimit: response.memoryInfo.heap_limit || 0,
-      heapUsedMB: response.memoryInfo.heap_used_mb,
-      percentUsed: response.memoryInfo.percent_used,
       rss: response.memoryInfo.rss || 0,
+      heapUsedMB: response.memoryInfo.heap_used_mb,
       rssMB: response.memoryInfo.rss_mb || 0,
+      percentUsed: response.memoryInfo.percent_used,
       timestamp: response.memoryInfo.timestamp || Date.now()
     };
   } catch (error) {
@@ -55,9 +55,13 @@ export async function getMemoryInfo(): Promise<MemoryUsageInfo | null> {
  * 메모리 사용량 상태를 백분율로 계산
  * @returns {number} 사용 비율 (0-100%)
  */
-export async function getMemoryUsagePercentage(): Promise<number> {
-  const info = await getMemoryInfo();
-  return info ? info.percentUsed : 0;
+export function getMemoryUsagePercentage(): number {
+  // 동기 버전으로 변경 (Promise 반환하지 않음)
+  if (window.__memoryOptimizer?.getMemoryUsagePercentage) {
+    return window.__memoryOptimizer.getMemoryUsagePercentage();
+  }
+  
+  return 0; // 기본값 반환
 }
 
 /**
