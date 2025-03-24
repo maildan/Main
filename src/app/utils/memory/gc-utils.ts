@@ -1,4 +1,28 @@
-import { GCResult } from './types';
+/**
+ * 가비지 컬렉션 유틸리티 인덱스 파일
+ * 모든 모듈을 내보냅니다.
+ */
+
+// 메모리 풀 관련 기능
+export { 
+  acquireFromPool, 
+  releaseToPool, 
+  releaseAllPooledObjects,
+  memoryPools
+} from './pool/memory-pool';
+
+// 가비지 컬렉션 기능
+export {
+  determineOptimizationLevel,
+  ensureMemoryInfo,
+  induceGarbageCollection
+} from './gc/garbage-collector';
+
+/**
+ * 가비지 컬렉션 관련 유틸리티
+ * GC 관련 함수들을 제공합니다.
+ */
+import { GCResult, MemoryInfo } from './types'; 
 import { getMemoryUsage } from './memory-info';
 
 /**
@@ -21,8 +45,8 @@ export function suggestGarbageCollection(): void {
     }
     
     // Electron IPC를 통한 GC 요청
-    if (window.electronAPI && typeof window.electronAPI.requestGC === 'function') {
-      window.electronAPI.requestGC();
+    if (window.electronAPI) {
+      window.electronAPI.requestGC && window.electronAPI.requestGC();
     }
   } catch (error) {
     console.warn('GC 제안 중 오류:', error);
@@ -72,4 +96,46 @@ export async function requestGC(emergency = false): Promise<GCResult> {
       error: String(error)
     };
   }
+}
+
+// 최적화 관련 기능 - 새로운 모듈 구조 사용
+export {
+  performOptimizationByLevel,
+  clearImageCaches,
+  cleanupDOMReferences,
+  clearStorageCaches,
+  unloadNonVisibleResources,
+  optimizeEventListeners,
+  unloadDynamicModules,
+  emergencyMemoryRecovery
+} from './gc/optimization-controller';
+
+// 상수
+export { MEMORY_THRESHOLDS } from './constants/memory-thresholds';
+
+// 창에 전역 메모리 최적화 도구 노출 (디버깅용)
+if (typeof window !== 'undefined') {
+  import('./pool/memory-pool').then(memoryPool => {
+    import('./gc/garbage-collector').then(gc => {
+      import('./gc/optimization-controller').then(optimization => {
+        // 전역 객체에 함수 추가
+        (window as any).__memoryOptimizer = {
+          ...(window as any).__memoryOptimizer || {},
+          // 가비지 컬렉션 기능
+          requestGC: requestGC, // 로컬 함수 참조로 변경
+          suggestGarbageCollection: suggestGarbageCollection, // 로컬 함수 참조로 변경
+          determineOptimizationLevel: gc.determineOptimizationLevel,
+          // 메모리 풀 기능
+          acquireFromPool: memoryPool.acquireFromPool,
+          releaseToPool: memoryPool.releaseToPool,
+          // 최적화 기능
+          performOptimizationByLevel: optimization.performOptimizationByLevel,
+          clearImageCaches: optimization.clearImageCaches,
+          cleanupDOMReferences: optimization.cleanupDOMReferences,
+          clearStorageCaches: optimization.clearStorageCaches,
+          emergencyMemoryRecovery: optimization.emergencyMemoryRecovery
+        };
+      });
+    });
+  });
 }

@@ -108,6 +108,33 @@ interface ElectronAPI {
   checkAutoStart: (shouldAutoStart: boolean) => void;
   onAutoTrackingStarted: (callback: (data: any) => void) => () => void;
   
+  // 메모리 관련 메서드
+  getMemoryUsage?: () => Promise<MemoryInfo>;
+  optimizeMemory?: (emergency?: boolean) => Promise<any>;
+  requestGC?: () => Promise<any>;
+  rendererGCCompleted?: (data: any) => void;
+  onRequestGC?: (callback: (data: {emergency: boolean}) => void) => () => void;
+  
+  // 탭 전환 및 UI 상호작용 관련 메서드
+  onSwitchTab?: (callback: (tab: string) => void) => () => void;
+  onOpenSaveStatsDialog?: (callback: () => void) => () => void;
+  requestStatsUpdate?: () => void;
+  onMiniViewStatsUpdate?: (callback: (data: any) => void) => () => void;
+  toggleMiniView?: () => void;
+  
+  // 트레이 관련 메서드
+  updateTraySettings?: (settings: TraySettings) => Promise<any>;
+  quitApp?: () => void;
+  toggleWindow?: () => void;
+  onBackgroundModeChange?: (callback: (isBackground: boolean) => void) => () => void;
+  onTrayCommand?: (callback: (command: string) => void) => () => void;
+  
+  // 재시작 관련 API
+  restartApp: () => void;
+  showRestartPrompt: () => void;
+  closeWindow: () => void;
+  getDarkMode: () => Promise<boolean>;
+  
   /**
    * 재시작 로딩 상태 이벤트 수신
    * @param callback 재시작 로딩 상태 변경 핸들러
@@ -115,9 +142,7 @@ interface ElectronAPI {
   onShowRestartLoading?: (callback: (data: RestartLoadingData) => void) => () => void;
 }
 
-/**
- * 재시작 로딩 데이터 인터페이스
- */
+// RestartLoadingData 인터페이스 추가
 interface RestartLoadingData {
   message?: string;
   timeout?: number;

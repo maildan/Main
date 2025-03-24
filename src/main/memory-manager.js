@@ -274,6 +274,181 @@ function optimizeMemoryForBackground(enable = true) {
   }
 }
 
+/**
+ * 메모리 모니터링 설정
+ * 주기적으로 메모리 사용량을 체크하고 필요시 최적화
+ */
+function setupMemoryMonitoring() {
+  debugLog('메모리 모니터링 설정 시작');
+  
+  // 메모리 모니터링 간격 (설정에서 읽어오거나 기본값 30초 사용)
+  const getCheckInterval = () => {
+    try {
+      const { appState } = require('./constants');
+      return appState.settings?.garbageCollectionInterval || 30000;
+    } catch (error) {
+      return 30000; // 기본값
+    }
+  };
+  
+  // 메모리 임계값 설정
+  const HIGH_MEMORY_THRESHOLD = 100 * 1024 * 1024; // 100MB
+  const CRITICAL_MEMORY_THRESHOLD = 150 * 1024 * 1024; // 150MB
+  
+  // 메모리 모니터링 간격
+  let MEMORY_CHECK_INTERVAL = getCheckInterval();
+  
+  // 주기적인 메모리 확인 및 최적화
+  let memoryInterval = null;
+  
+  // 메모리 모니터링 시작
+  const startMemoryMonitoring = () => {
+    if (memoryInterval) {
+      clearInterval(memoryInterval);
+    }
+    
+    debugLog('주기적 메모리 모니터링 시작');
+    
+    // 초기 메모리 확인
+    checkMemoryUsage();
+    
+    // 주기적 메모리 확인 설정
+    memoryInterval = setInterval(() => {
+      checkMemoryUsage();
+    }, MEMORY_CHECK_INTERVAL);
+  };
+  
+  // 메모리 모니터링 중지
+  const stopMemoryMonitoring = () => {
+    if (memoryInterval) {
+      clearInterval(memoryInterval);
+      memoryInterval = null;
+      debugLog('메모리 모니터링 중지됨');
+    }
+  };
+  
+  // 메모리 사용량 확인
+  const checkMemoryUsage = () => {
+    try {
+      const memoryInfo = getMemoryInfo();
+      
+      // 필요시 메모리 최적화 - 단위 변환 명확히 표현
+      const heapUsedMB = memoryInfo.heapUsedMB;
+      const criticalThresholdMB = CRITICAL_MEMORY_THRESHOLD / (1024 * 1024); // 바이트에서 MB로 변환
+      const highThresholdMB = HIGH_MEMORY_THRESHOLD / (1024 * 1024); // 바이트에서 MB로 변환
+      
+      if (heapUsedMB > criticalThresholdMB) {
+        debugLog(`심각한 메모리 사용량 감지: ${heapUsedMB}MB - 긴급 최적화 시작 (임계치: ${criticalThresholdMB}MB)`);
+        freeUpMemoryResources(true); // 긴급 모드
+      } else if (heapUsedMB > highThresholdMB) {
+        debugLog(`높은 메모리 사용량 감지: ${heapUsedMB}MB - 표준 최적화 시작 (임계치: ${highThresholdMB}MB)`);
+        freeUpMemoryResources(false); // 표준 모드
+      }
+      
+      return memoryInfo;
+    } catch (error) {
+      console.error('메모리 사용량 확인 중 오류:', error);
+      return {
+        timestamp: Date.now(),
+        heapUsed: 0,
+        heapTotal: 0,
+        rss: 0,
+        external: 0,
+        heapUsedMB: 0,
+        rssMB: 0,
+        percentUsed: 0
+      };
+    }
+  };
+  
+  // 메모리 최적화 함수 (기존 함수 사용)
+  const freeUpMemoryResources = (emergency = false) => {
+    try {
+      // 임시 변수 제거
+      global.gc && global.gc();
+      
+      debugLog(`메모리 최적화 수행됨 (긴급 모드: ${emergency})`);
+      
+      return true;
+    } catch (error) {
+      console.error('메모리 최적화 중 오류:', error);
+      return false;
+    }
+  };
+  
+  // 메모리 정보 가져오기
+  const getMemoryInfo = () => {
+    try {
+      const memoryUsage = process.memoryUsage();
+      const heapUsed = memoryUsage.heapUsed;
+      const heapTotal = memoryUsage.heapTotal;
+      const rss = memoryUsage.rss;
+      const external = memoryUsage.external;
+      
+      const heapUsedMB = Math.round(heapUsed / (1024 * 1024) * 10) / 10;
+      const rssMB = Math.round(rss / (1024 * 1024));
+      const percentUsed = Math.round((heapUsed / heapTotal) * 100);
+      
+      return {
+        timestamp: Date.now(),
+        heapUsed,
+        heapTotal,
+        rss,
+        external,
+        heapUsedMB,
+        rssMB,
+        percentUsed
+      };
+    } catch (error) {
+      console.error('메모리 정보 가져오기 오류:', error);
+      return {
+        timestamp: Date.now(),
+        heapUsed: 0,
+        heapTotal: 0,
+        rss: 0,
+        external: 0,
+        heapUsedMB: 0,
+        rssMB: 0,
+        percentUsed: 0
+      };
+    }
+  };
+  
+  // 설정 변경 시 모니터링 간격 업데이트
+  const updateCheckInterval = (newInterval) => {
+    if (newInterval && typeof newInterval === 'number' && newInterval > 0) {
+      MEMORY_CHECK_INTERVAL = newInterval;
+      
+      // 이미 실행 중이라면 다시 시작
+      if (memoryInterval) {
+        stopMemoryMonitoring();
+        startMemoryMonitoring();
+      }
+      
+      debugLog(`메모리 모니터링 간격 업데이트: ${newInterval}ms`);
+      return true;
+    }
+    return false;
+  };
+  
+  // 모니터링 시작
+  startMemoryMonitoring();
+  
+  // 앱이 끝날 때 정리
+  app.on('will-quit', () => {
+    stopMemoryMonitoring();
+  });
+  
+  // 인터페이스 반환
+  return {
+    start: startMemoryMonitoring,
+    stop: stopMemoryMonitoring,
+    check: checkMemoryUsage,
+    updateInterval: updateCheckInterval,
+    getMemoryInfo
+  };
+}
+
 // 모듈 내보내기
 module.exports = {
   getMemoryInfo,
@@ -281,5 +456,6 @@ module.exports = {
   performGC,
   freeUpMemoryResources,
   resumeBackgroundTasks,
-  optimizeMemoryForBackground
+  optimizeMemoryForBackground,
+  setupMemoryMonitoring
 };

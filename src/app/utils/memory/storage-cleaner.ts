@@ -1,26 +1,7 @@
 /**
- * 대형 객체 캐시 처리를 위한 WeakMap
- * 순환 참조 방지와 GC 허용을 위해 WeakMap 사용
+ * 스토리지 정리 관련 유틸리티
+ * 로컬 스토리지 정리 및 캐시 관리 기능 제공
  */
-const objectCache = new WeakMap<object, boolean>();
-
-/**
- * 객체를 약한 참조로 캐싱
- * @param key 객체 키 (참조형만 가능)
- * @param value 저장할 값
- */
-export function weakCache<T extends object>(key: T, value: boolean = true): void {
-  objectCache.set(key, value);
-}
-
-/**
- * 약한 참조 캐시에서 객체 확인
- * @param key 객체 키
- * @returns {boolean} 캐시 존재 여부
- */
-export function hasWeakCache<T extends object>(key: T): boolean {
-  return objectCache.has(key);
-}
 
 /**
  * LocalStorage 정리
@@ -31,9 +12,9 @@ export function cleanLocalStorage(): void {
     // 임시 데이터 정리 (예: 'temp_' 로 시작하는 항목들)
     const keysToRemove: string[] = [];
     
-    for (let i = 0; localStorage.length; i++) {
+    for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
-      if (key && (key.startsWith('temp_') || key.startsWith('cache_'))) {
+      if (key && key.startsWith('temp_')) {
         keysToRemove.push(key);
       }
     }
@@ -70,5 +51,29 @@ export function clearLargeObjectsAndCaches(): void {
     }
   } catch (error) {
     console.error('캐시 정리 오류:', error);
+  }
+}
+
+/**
+ * 세션 스토리지 정리
+ * 임시 세션 데이터 정리
+ */
+export function cleanSessionStorage(): void {
+  try {
+    // 세션 스토리지에서 임시 데이터 정리
+    if (window.sessionStorage) {
+      const keysToRemove: string[] = [];
+      
+      for (let i = 0; i < sessionStorage.length; i++) {
+        const key = sessionStorage.key(i);
+        if (key && (key.startsWith('temp_') || key.includes('cache'))) {
+          keysToRemove.push(key);
+        }
+      }
+      
+      keysToRemove.forEach(key => sessionStorage.removeItem(key));
+    }
+  } catch (error) {
+    console.warn('세션 스토리지 정리 중 오류:', error);
   }
 }

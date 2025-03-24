@@ -144,7 +144,7 @@ const electronAPI = {
    */
   windowControl: (command) => {
     // 지원하는 명령 명시적으로 검증
-    const validCommands = ['minimize', 'maximize', 'close'];
+    const validCommands = ['minimize', 'maximize', 'close', 'setTitle'];
     
     if (!validCommands.includes(command)) {
       // showHeader와 hideHeader 명령에 대한 특수 처리
@@ -370,6 +370,69 @@ const electronAPI = {
     return () => {
       ipcRenderer.removeListener('show-restart-loading', handler);
     };
+  },
+
+  /**
+   * 통계 저장 결과 이벤트 수신
+   * @param {Function} callback - 통계 저장 결과를 처리할 콜백 함수
+   * @returns {Function} - 이벤트 리스너 제거 함수
+   */
+  onStatsSaved: (callback) => {
+    if (!callback || typeof callback !== 'function') {
+      console.error('유효한 콜백 함수가 필요합니다');
+      return () => {};
+    }
+
+    const handler = (_event, data) => {
+      console.log('통계 저장 결과 수신:', data);
+      callback(data);
+    };
+
+    ipcRenderer.on('stats-saved', handler);
+
+    return () => {
+      ipcRenderer.removeListener('stats-saved', handler);
+    };
+  },
+
+  /**
+   * 윈도우 모드 가져오기
+   * @returns {Promise<string>} - 현재 윈도우 모드
+   */
+  getWindowMode: () => {
+    console.log('현재 윈도우 모드 요청');
+    return ipcRenderer.invoke('get-window-mode');
+  },
+
+  /**
+   * 미니뷰 통계 업데이트 이벤트 수신
+   * @param {Function} callback - 미니뷰 통계 업데이트 콜백
+   * @returns {Function} - 이벤트 리스너 제거 함수
+   */
+  onMiniViewStatsUpdate: (callback) => {
+    if (!callback || typeof callback !== 'function') {
+      console.error('유효한 콜백 함수가 필요합니다');
+      return () => {};
+    }
+
+    const handler = (_event, data) => {
+      console.log('미니뷰 통계 업데이트 수신:', data);
+      callback(data);
+    };
+
+    ipcRenderer.on('mini-view-stats-update', handler);
+
+    return () => {
+      ipcRenderer.removeListener('mini-view-stats-update', handler);
+    };
+  },
+
+  /**
+   * 미니뷰 토글
+   */
+  toggleMiniView: () => {
+    console.log('미니뷰 토글 요청');
+    ipcRenderer.send('toggle-mini-view');
   }
 };
 
@@ -381,9 +444,18 @@ contextBridge.exposeInMainWorld('electron', electronAPI);
 
 // 재시작 창을 위한 별도의 API (restart.html에서 사용)
 contextBridge.exposeInMainWorld('restartAPI', {
-  restartApp: electronAPI.restartApp,
-  closeWindow: electronAPI.closeWindow,
-  getDarkMode: electronAPI.getDarkMode
+  restartApp: () => {
+    console.log('재시작 창에서 앱 재시작 요청');
+    ipcRenderer.send('restart-app-from-dialog');
+  },
+  closeWindow: () => {
+    console.log('재시작 창 닫기 요청');
+    ipcRenderer.send('close-restart-window-from-dialog'); // 채널 이름 확인 완료
+  },
+  getDarkMode: () => {
+    console.log('다크 모드 설정 요청');
+    return ipcRenderer.invoke('get-dark-mode');
+  }
 });
 
 // 디버그용 로그

@@ -2,37 +2,7 @@
 
 type WindowModeType = 'windowed' | 'fullscreen' | 'fullscreen-auto-hide';
 
-interface ElectronAPI {
-  onTypingStatsUpdate: (callback: (data: TypingStatsUpdate) => void) => () => void;
-  onStatsSaved: (callback: (data: StatsSaved) => void) => () => void;
-  startTracking: () => void;
-  stopTracking: () => void;
-  saveStats: (content: string) => void;
-  getCurrentBrowserInfo: () => Promise<{
-    name: string | null;
-    isGoogleDocs: boolean;
-    title: string | null;
-  }>;
-  getDebugInfo: () => Promise<DebugInfo>;
-  saveSettings: (settings: SettingsState) => Promise<any>;
-  loadSettings: () => Promise<SettingsState>;
-  setDarkMode: (enabled: boolean) => Promise<any>;
-  setWindowMode: (mode: WindowModeType) => Promise<any>;
-  getWindowMode: () => Promise<WindowModeType>;
-  windowControl: (command: 'minimize' | 'maximize' | 'close') => void;
-  checkAutoStart: (shouldAutoStart: boolean) => void;
-  onAutoTrackingStarted: (callback: (data: any) => void) => () => void;
-  onShowRestartLoading?: (callback: (data: RestartLoadingData) => void) => () => void;
-  // 메모리 관련 API 추가
-  getMemoryUsage?: () => Promise<MemoryInfo>;
-  requestGC?: () => Promise<any>;
-  optimizeMemory?: (emergency?: boolean) => Promise<any>;
-  rendererGCCompleted?: (data: any) => void;
-  onRequestGC?: (callback: (data: {emergency: boolean}) => void) => () => void;
-  // 재시작 관련 API 추가
-  restartApp: () => void;
-  showRestartPrompt: () => void;
-}
+// ElectronAPI 인터페이스는 global.d.ts에서 확장
 
 // 통합된 MemoryInfo 인터페이스 - 각 속성에 설명 추가
 interface MemoryInfo {
@@ -56,11 +26,19 @@ interface MemoryInfo {
   jsHeapSizeLimit?: number; // JS 힙 크기 제한 (바이트)
 }
 
-// Window 인터페이스 확장
+// Window 인터페이스 확장 - 타입 충돌 해결
 interface Window {
   electronAPI?: ElectronAPI;
   electron?: ElectronAPI;
+  restartAPI?: RestartAPI;
   gc?: () => void;
+}
+
+// RestartAPI 인터페이스 명시적 정의
+interface RestartAPI {
+  getDarkMode: () => Promise<boolean>;
+  restartApp: () => void;
+  closeWindow: () => void;
 }
 
 // Performance 인터페이스 확장

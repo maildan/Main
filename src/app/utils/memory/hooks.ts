@@ -2,14 +2,14 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useToast } from '../../components/ToastContext';
 import { MemoryOptimizerOptions } from './types';
 import { getMemoryInfo, getMemoryUsagePercentage } from './memory-info';
-import { requestGC } from './gc-utils';
-import { cleanupDOM } from './dom-optimizer';
-import { clearLargeObjectsAndCaches } from './storage-cleaner';
+import { internalOptimizeMemory } from './optimizer';
 import { optimizeImageResources } from './image-optimizer';
+import { requestGC } from './gc-utils';
 
 /**
- * 메모리 최적화 훅
- * React 컴포넌트에서 메모리 관리를 위한 커스텀 훅
+ * 메모리 최적화 훅 (통합 버전)
+ * 이 훅은 memory-optimizer.ts의 버전을 대체합니다.
+ * 
  * @param {MemoryOptimizerOptions} options 메모리 최적화 옵션
  * @returns {Object} 메모리 정보 및 컨트롤 함수
  */
@@ -53,13 +53,13 @@ export function useMemoryOptimizer(options: MemoryOptimizerOptions = {}) {
   
   // 메모리 최적화 실행 함수
   const runMemoryOptimization = useCallback(async () => {
+    if (isOptimizing) return; // 이미 최적화 중이면 중복 실행 방지
+    
     try {
-      if (isOptimizing) return; // 이미 최적화 중이면 중복 실행 방지
-      
       setIsOptimizing(true);
       
       // 메모리 최적화 실행
-      await optimizeMemory(false);
+      internalOptimizeMemory(false);
       
       // GC 요청이 처리될 시간 제공
       await new Promise(resolve => setTimeout(resolve, 500));
@@ -80,14 +80,17 @@ export function useMemoryOptimizer(options: MemoryOptimizerOptions = {}) {
   
   // 긴급 메모리 최적화 실행 함수
   const runEmergencyOptimization = useCallback(async () => {
+    if (isOptimizing) return;
+    
     try {
-      if (isOptimizing) return;
-      
       setIsOptimizing(true);
       showToast('긴급 메모리 최적화를 실행합니다...', 'info');
       
       // 적극적인 메모리 최적화 실행
-      await optimizeMemory(true);
+      internalOptimizeMemory(true);
+      
+      // 이미지 리소스도 최적화
+      await optimizeImageResources();
       
       // GC 요청 후 충분한 처리 시간 제공
       await new Promise(resolve => setTimeout(resolve, 1000));
@@ -171,40 +174,6 @@ export function useMemoryOptimizer(options: MemoryOptimizerOptions = {}) {
     isOptimizing,
     updateMemoryInfo,
     optimizeMemory: runMemoryOptimization,
-    emergencyOptimize: runEmergencyOptimization,
+    emergencyOptimize: runEmergencyOptimization
   };
-}
-
-/**
- * 메모리 최적화 수행 함수
- * 불필요한 캐시 정리, 대형 객체 참조 해제 등 수행
- * @param {boolean} aggressive 적극적 최적화 여부
- */
-export async function optimizeMemory(aggressive = false): Promise<boolean> {
-  try {
-    // 큰 객체와 캐시 정리
-    clearLargeObjectsAndCaches();
-    
-    // DOM 요소 정리
-    cleanupDOM();
-    
-    // 심층 정리 모드인 경우 추가 작업
-    if (aggressive) {
-      // 이미지 리소스 최적화
-      await optimizeImageResources();
-    }
-    
-    // GC 요청
-    await requestGC(aggressive);
-    
-    // 백엔드에도 메모리 최적화 요청
-    if (window.electronAPI && typeof window.electronAPI.optimizeMemory === 'function') {
-      await window.electronAPI.optimizeMemory(aggressive);
-    }
-    
-    return true;
-  } catch (error) {
-    console.error('메모리 최적화 오류:', error);
-    return false;
-  }
 }

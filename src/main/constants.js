@@ -66,7 +66,8 @@ const appState = {
   },
   inBackgroundMode: false,
   gpuEnabled: false, // GPU 가속 사용 여부
-  gpuResources: null // GPU 관련 리소스 저장 객체
+  gpuResources: null, // GPU 관련 리소스 저장 객체
+  isRestarting: false // 재시작 관련 상태 추가
 };
 
 // IDLE 시간 기준 증가

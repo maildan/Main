@@ -172,17 +172,3 @@ export function useMemoryManagement({
     checkMemoryUsage
   };
 }
-
-// useMemoryOptimizer와 호환성을 위한 타입 확장
-declare global {
-  interface Window {
-    __memoryOptimizer?: {
-      getMemoryInfo: () => MemoryInfo | null;
-      optimizeMemory: (aggressive?: boolean) => void;
-      suggestGarbageCollection: () => void;
-      getMemoryUsagePercentage: () => number;
-      optimizeImageResources: () => Promise<boolean>;
-    };
-    gc?: () => void;
-  }
-}

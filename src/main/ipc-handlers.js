@@ -228,36 +228,92 @@ function setupIpcHandlers() {
     }
   });
   
-  // 앱 재시작 핸들러
+  // 앱 재시작 핸들러 - 명확하게 재정의
   ipcMain.on('restart-app', () => {
     debugLog('앱 재시작 요청 수신');
-    
+    restartApplication();
+  });
+
+  // 재시작 창에서 재시작 요청 핸들러 - 명확하게 재정의
+  ipcMain.on('restart-app-from-dialog', () => {
+    debugLog('재시작 창에서 재시작 요청 수신');
+    restartApplication();
+  });
+
+  // 재시작 안내 창 표시 핸들러 - 명확하게 재정의
+  ipcMain.on('show-restart-prompt', async () => {
+    debugLog('재시작 안내 창 표시 요청 수신');
     try {
-      // 재시작 전에 로딩 화면 표시
-      if (appState.mainWindow && !appState.mainWindow.isDestroyed()) {
-        appState.mainWindow.webContents.send('show-restart-loading', { 
-          message: '재시작 중입니다...',
-          timeout: 1500
-        });
+      const response = await showRestartPrompt();
+      
+      if (response === 0) {
+        // 사용자가 재시작 선택
+        restartApplication();
+      }
+    } catch (error) {
+      console.error('재시작 안내 창 표시 중 오류:', error);
+    }
+  });
+
+  // 대화 상자에서 재시작 요청 처리 (대화 상자 전용 채널)
+  ipcMain.on('restart-app-from-dialog', () => {
+    debugLog('대화 상자에서 재시작 요청 수신');
+    
+    // 중복 재시작 방지를 위한 검사
+    if (appState.isRestarting) {
+      debugLog('이미 재시작이 진행 중입니다. 중복 요청 무시');
+      return;
+    }
+    
+    // 재시작 플래그 설정
+    appState.isRestarting = true;
+    
+    // 재시작 관련 모든 창 정리
+    const cleanupWindows = () => {
+      // 재시작 창 닫기
+      if (appState.restartWindow && !appState.restartWindow.isDestroyed()) {
+        appState.restartWindow.close();
+        appState.restartWindow = null;
       }
       
+      // 기타 모달 창 정리 (추가적인 창이 있는 경우)
+      Object.keys(appState).forEach(key => {
+        if (key.toLowerCase().includes('window') && key !== 'mainWindow' && appState[key]) {
+          const win = appState[key];
+          if (win && typeof win.close === 'function' && !win.isDestroyed()) {
+            try {
+              win.close();
+            } catch (e) {
+              console.debug(`창 닫기 오류 (무시됨): ${e.message}`);
+            }
+          }
+        }
+      });
+    };
+    
+    // 재시작 로직
+    try {
       // 안전한 종료를 위한 플래그 설정
       appState.allowQuit = true;
       
-      // 설정 저장 확인
+      // 모든 창 정리
+      cleanupWindows();
+      
+      // 설정 저장 후 재시작
       saveSettings(appState.settings)
         .then(() => {
           debugLog('재시작 전 설정 저장 완료');
           
           // 약간의 지연 후 재시작 (로딩 화면을 보여주기 위해)
           setTimeout(() => {
-            debugLog('앱 재시작 실행');
+            debugLog('앱 재시작 실행 (대화 상자에서)');
             app.relaunch();
             app.exit(0);
           }, 1000);
         })
         .catch(error => {
           console.error('재시작 전 설정 저장 중 오류:', error);
+          
           // 오류가 있어도 재시작 시도
           setTimeout(() => {
             app.relaunch();
@@ -265,7 +321,8 @@ function setupIpcHandlers() {
           }, 1000);
         });
     } catch (error) {
-      console.error('앱 재시작 처리 중 오류:', error);
+      console.error('앱 재시작 처리 중 오류 (대화 상자):', error);
+      
       // 오류 발생해도 재시작 시도
       setTimeout(() => {
         app.relaunch();
@@ -369,8 +426,15 @@ function setupIpcHandlers() {
     debugLog('창 제어 요청 받음:', command, param);
     
     try {
-      if (!appState.mainWindow) {
+      if (!appState.mainWindow || appState.mainWindow.isDestroyed()) {
         console.error('창 제어를 위한 유효한 윈도우가 없습니다');
+        return;
+      }
+      
+      // 명시적으로 유효한 명령만 처리
+      const validCommands = ['minimize', 'maximize', 'close', 'setTitle'];
+      if (!validCommands.includes(command)) {
+        console.error(`유효하지 않은 창 제어 명령: ${command}`);
         return;
       }
       
@@ -388,21 +452,11 @@ function setupIpcHandlers() {
         case 'close':
           appState.mainWindow.close();
           break;
-        case 'showHeader':
-          // 헤더 표시 기능은 사용하지 않거나 제거
-          debugLog('showHeader 명령은 더 이상 사용되지 않습니다');
-          break;
-        case 'hideHeader':
-          // 헤더 숨기기 기능은 사용하지 않거나 제거
-          debugLog('hideHeader 명령은 더 이상 사용되지 않습니다');
-          break;
         case 'setTitle':
           if (param) {
             appState.mainWindow.setTitle(param);
           }
           break;
-        default:
-          console.warn('알 수 없는 창 제어 명령:', command);
       }
     } catch (error) {
       console.error('창 제어 중 오류 발생:', error);

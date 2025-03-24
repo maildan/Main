@@ -6,7 +6,7 @@ export function AppFooter() {
   return (
     <footer className="footer">
       <div className="copyright">
-        © {year} notion
+        © {year} loop. All rights reserved.
       </div>
     </footer>
   );

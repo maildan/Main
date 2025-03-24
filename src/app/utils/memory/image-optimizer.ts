@@ -1,3 +1,7 @@
+/**
+ * 이미지 최적화 관련 유틸리티
+ * 이미지 캐시 정리 및 최적화 기능 제공
+ */
 import { isElementInViewport } from './dom-optimizer';
 
 /**
@@ -97,7 +101,6 @@ export async function optimizeImageResources(): Promise<boolean> {
           const rect = element.getBoundingClientRect();
           if (rect.top < -window.innerHeight || rect.bottom > window.innerHeight * 2) {
             element.setAttribute('data-optimized', 'hidden');
-            
             // HTMLElement로 타입 캐스팅하여 style 속성에 접근
             const htmlElement = element as HTMLElement;
             htmlElement.setAttribute('data-original-display', htmlElement.style.display);

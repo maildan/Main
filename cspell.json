@@ -18,7 +18,7 @@
     "unmaximize",
     "ALTGR",
     "linecap",
-    "darkmode", // Added "darkmode" to the list
+    "darkmode",
     "hdpi",
     "miniview",
     "webaudio",
@@ -29,7 +29,14 @@
     "fieldtrials",
     "appcache",
     "serviceworkers",
-    "COOLDOWN"
+    "COOLDOWN",
+    "Radeon",
+    "llvmpipe",
+    "framebuffers",
+    "MSCSS",
+    "SwiftShader",
+    "WEBGL",
+    "vsync"
   ],
   "ignorePaths": [
     "node_modules/**",

@@ -62,7 +62,11 @@ const createDummyElectronAPI = (): ElectronAPI => ({
   onTrayCommand: () => () => {},
   restartApp: () => console.log('개발용 restartApp 호출'),
   // showRestartPrompt 메서드 추가
-  showRestartPrompt: () => console.log('개발용 showRestartPrompt 호출')
+  showRestartPrompt: () => console.log('개발용 showRestartPrompt 호출'),
+  // closeWindow 메서드 추가
+  closeWindow: () => console.log('개발용 closeWindow 호출'),
+  // getDarkMode 메서드 추가
+  getDarkMode: () => Promise.resolve(false)
 });
 
 export function useElectronApi() {

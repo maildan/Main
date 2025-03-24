@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import styles from './Settings.module.css';
 import { useToast } from './ToastContext';
 import SaveConfirmDialog from './dialogs/SaveConfirmDialog';
@@ -231,54 +231,52 @@ export function Settings({
     setShowSaveConfirm(false);
   };
 
-  // 재시작 버튼 클릭 핸들러 수정 및 디버깅 기능 추가
-  const handleRestartClick = () => {
-    // 사용 가능한 API 목록 로깅 추가 
-    console.log('전자 API 객체:', window.electronAPI);
-    
+  // 재시작 버튼 클릭 핸들러 수정 - 실무적인 방식으로 개선
+  const handleRestartClick = useCallback(() => {
     try {
-      if (window.electronAPI) {
-        const apiInfo = Object.keys(window.electronAPI)
-          .map(key => {
-            const type = typeof (window.electronAPI as any)[key];
-            return `${key}: ${type}`;
-          })
-          .join('\n');
-        
-        setApiDebugInfo(apiInfo);
-        console.log('API 정보:', apiInfo);
-        
-        if (typeof window.electronAPI.restartApp === 'function') {
-          window.electronAPI.restartApp();
-        } else {
-          console.error('restartApp 함수가 정의되지 않았습니다.');
-          showToast('restartApp 함수를 찾을 수 없습니다. API가 올바르게 로드되었는지 확인하세요.', 'error');
-          
-          // 대체 방법: showRestartPrompt API 사용 시도
-          if (typeof window.electronAPI.showRestartPrompt === 'function') {
-            window.electronAPI.showRestartPrompt();
-          } else {
-            showToast('재시작 기능을 사용할 수 없습니다. 앱을 수동으로 재시작하세요.', 'warning');
-            
-            // 디버깅 정보 표시
-            setShowDebugInfo(true);
-          }
-        }
-      } else {
-        console.error('electronAPI가 정의되지 않았습니다.');
-        showToast('electronAPI를 찾을 수 없습니다. preload 스크립트가 올바르게 로드되었는지 확인하세요.', 'error');
-        setApiDebugInfo('electronAPI가 정의되지 않았습니다');
-        setShowDebugInfo(true);
+      // API 객체가 정의되어 있는지 먼저 확인
+      if (!window.electronAPI) {
+        showToast('Electron API를 찾을 수 없습니다. preload 스크립트가 올바르게 로드되었는지 확인하세요.', 'error');
+        return;
       }
-    } catch (error) {
-      console.error('앱 재시작 중 오류:', error);
-      showToast('앱 재시작 중 오류가 발생했습니다: ' + (error as Error).message, 'error');
+
+      // API 정보 수집 (디버깅용)
+      const apiInfo = Object.keys(window.electronAPI)
+        .map(key => `${key}: ${typeof (window.electronAPI as any)[key]}`)
+        .join('\n');
       
-      // 디버깅 정보 수집
+      console.log('사용 가능한 API 목록:', apiInfo);
+      setApiDebugInfo(apiInfo);
+      
+      // 앱 재시작 요청 전송 시도
+      if (typeof window.electronAPI.restartApp === 'function') {
+        window.electronAPI.restartApp();
+        return;
+      } 
+      
+      // 첫 번째 방식이 실패한 경우 재시작 안내 창 사용 시도
+      if (typeof window.electronAPI.showRestartPrompt === 'function') {
+        window.electronAPI.showRestartPrompt();
+        return;
+      }
+      
+      // 두 방법 모두 실패했을 경우 일반 IPC 직접 호출 시도
+      if (window.electron && typeof window.electron.restartApp === 'function') {
+        window.electron.restartApp();
+        return;
+      }
+      
+      // 모든 방법이 실패한 경우 오류 메시지 표시
+      showToast('재시작 기능을 사용할 수 없습니다. 앱을 수동으로 재시작하세요.', 'warning');
+      setShowDebugInfo(true);
+      
+    } catch (error) {
+      console.error('앱 재시작 시도 중 오류:', error);
+      showToast(`재시작 중 오류: ${(error as Error).message}`, 'error');
       setApiDebugInfo(String(error));
       setShowDebugInfo(true);
     }
-  };
+  }, [showToast]);
 
   // API 디버그 정보 표시 함수 추가
   const toggleDebugInfo = () => {
