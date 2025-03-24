@@ -2,12 +2,11 @@
   "version": 1,
   "config": {
     "env": {},
-    "webpack": null,
     "eslint": {
       "ignoreDuringBuilds": false
     },
     "typescript": {
-      "ignoreBuildErrors": false,
+      "ignoreBuildErrors": true,
       "tsconfigPath": "tsconfig.json"
     },
     "distDir": "dist",
@@ -75,12 +74,12 @@
     "sassOptions": {},
     "trailingSlash": false,
     "i18n": null,
-    "productionBrowserSourceMaps": false,
+    "productionBrowserSourceMaps": true,
     "excludeDefaultMomentLocales": true,
     "serverRuntimeConfig": {},
     "publicRuntimeConfig": {},
     "reactProductionProfiling": false,
-    "reactStrictMode": null,
+    "reactStrictMode": true,
     "reactMaxHeadersLength": 6000,
     "httpAgentOptions": {
       "keepAlive": true

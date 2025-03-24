@@ -1,10 +1,11 @@
 {
   "/api/db-test/route": "/api/db-test",
   "/api/init-db/route": "/api/init-db",
-  "/api/saveLogs/route": "/api/saveLogs",
   "/_not-found/page": "/_not-found",
   "/favicon.ico/route": "/favicon.ico",
-  "/page": "/",
+  "/api/saveLogs/route": "/api/saveLogs",
   "/api/getLogs/route": "/api/getLogs",
+  "/restart/page": "/restart",
+  "/page": "/",
   "/mini-view/page": "/mini-view"
 }

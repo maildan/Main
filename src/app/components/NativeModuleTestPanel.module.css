@@ -1,0 +1,220 @@
+.container {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 20px;
+  background-color: var(--card-bg, white);
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.title {
+  font-size: 24px;
+  margin-top: 0;
+  margin-bottom: 20px;
+  color: var(--heading-color, #333);
+  text-align: center;
+  border-bottom: 1px solid var(--border-color, #eee);
+  padding-bottom: 10px;
+}
+
+.section {
+  margin-bottom: 30px;
+  padding: 20px;
+  background-color: var(--section-bg, #fff);
+  border-radius: 6px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.sectionTitle {
+  font-size: 18px;
+  margin-top: 0;
+  margin-bottom: 15px;
+  color: var(--heading-color, #333);
+  border-bottom: 1px solid var(--border-color, #eee);
+  padding-bottom: 8px;
+}
+
+.buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 15px;
+}
+
+.button {
+  background-color: var(--primary-color, #4d7cfe);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 8px 16px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background-color 0.2s, transform 0.1s;
+  margin-right: 10px;
+  margin-bottom: 10px;
+}
+
+.button:hover {
+  background-color: var(--primary-dark, #3a66d3);
+  transform: translateY(-1px);
+}
+
+.button:disabled {
+  background-color: var(--disabled-color, #ccc);
+  cursor: not-allowed;
+  transform: none;
+}
+
+.optimizationButtons, .computationButtons {
+  margin-top: 15px;
+}
+
+.optimizationButtons h4, .computationButtons h4 {
+  margin-bottom: 10px;
+  font-size: 14px;
+  color: var(--text-color, #666);
+}
+
+.level0 {
+  background-color: #9e9e9e;
+}
+
+.level0:hover {
+  background-color: #7e7e7e;
+}
+
+.level1 {
+  background-color: #4caf50;
+}
+
+.level1:hover {
+  background-color: #388e3c;
+}
+
+.level2 {
+  background-color: #2196f3;
+}
+
+.level2:hover {
+  background-color: #1976d2;
+}
+
+.level3 {
+  background-color: #ff9800;
+}
+
+.level3:hover {
+  background-color: #f57c00;
+}
+
+.level4 {
+  background-color: #f44336;
+}
+
+.level4:hover {
+  background-color: #d32f2f;
+}
+
+.enableButton {
+  background-color: var(--enable-button, #4caf50);
+}
+
+.enableButton:hover {
+  background-color: var(--enable-button-hover, #388e3c);
+}
+
+.disableButton {
+  background-color: var(--disable-button, #f44336);
+}
+
+.disableButton:hover {
+  background-color: var(--disable-button-hover, #d32f2f);
+}
+
+.resultContainer {
+  background-color: var(--result-bg, #fff);
+  border-radius: 6px;
+  padding: 20px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 200px;
+  color: var(--text-secondary, #666);
+  font-style: italic;
+  margin: 10px 0;
+}
+
+.loading::after {
+  content: '';
+  width: 20px;
+  height: 20px;
+  margin-left: 10px;
+  border: 2px solid #4d7cfe;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+.results {
+  background-color: var(--code-bg, #f5f5f5);
+  padding: 15px;
+  border-radius: 4px;
+  overflow: auto;
+  max-height: 400px;
+  font-family: monospace;
+  font-size: 14px;
+  white-space: pre-wrap;
+  line-height: 1.5;
+  color: var(--code-color, #333);
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.infoContainer {
+  background-color: var(--info-bg, #f5f5f5);
+  padding: 15px;
+  border-radius: 4px;
+  margin-top: 10px;
+  font-size: 14px;
+}
+
+.infoContainer p {
+  margin: 5px 0;
+}
+
+.error {
+  background-color: var(--error-bg, #ffebee);
+  color: var(--error-color, #f44336);
+  padding: 10px 15px;
+  border-radius: 4px;
+  margin-bottom: 20px;
+  font-size: 14px;
+}
+
+/* 다크 모드 지원 */
+:global(.dark-mode) .container {
+  --card-bg: #1e1e1e;
+  --heading-color: #e0e0e0;
+  --section-bg: #252525;
+  --section-title: #e0e0e0;
+  --primary-color: #4d7cfe;
+  --primary-dark: #6495ed;
+  --disabled-color: #555555;
+  --border-color: #444;
+  --text-color: #aaaaaa;
+  --result-bg: #252525;
+  --loading-color: #aaaaaa;
+  --code-bg: #2d2d2d;
+  --code-color: #e0e0e0;
+  --info-bg: #2a2a2a;
+  --text-secondary: #aaa;
+  --error-bg: #3c2626;
+}

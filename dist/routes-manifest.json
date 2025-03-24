@@ -38,6 +38,12 @@
       "regex": "^/mini\\-view(?:/)?$",
       "routeKeys": {},
       "namedRegex": "^/mini\\-view(?:/)?$"
+    },
+    {
+      "page": "/restart",
+      "regex": "^/restart(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/restart(?:/)?$"
     }
   ],
   "dataRoutes": [],
