@@ -1,271 +1,627 @@
 /**
  * 네이티브 모듈 폴백 구현
- * Rust 네이티브 모듈 사용 불가 시 JS로 구현된 대체 기능
+ * 
+ * 이 파일은 Rust 네이티브 모듈이 사용 불가능한 경우의 JavaScript 구현을 제공합니다.
+ * 모든 함수에 대한 기본 동작을 제공하되, 성능이나 기능이 제한될 수 있습니다.
  */
 
-// 메모리 기능 구현
-const memory = {
-  get_memory_info: () => {
-    const memUsage = process.memoryUsage();
-    return JSON.stringify({
-      timestamp: Date.now(),
-      heap_used: memUsage.heapUsed,
-      heap_total: memUsage.heapTotal,
-      heap_limit: memUsage.heapTotal * 1.5,
-      heap_used_mb: Math.round(memUsage.heapUsed / (1024 * 1024) * 10) / 10,
-      percent_used: Math.round((memUsage.heapUsed / memUsage.heapTotal) * 100),
-      unavailable: false
-    });
-  },
+const os = require('os');
+const { Worker } = require('worker_threads');
+const { performance } = require('perf_hooks');
+const path = require('path');
 
-  determine_optimization_level: () => {
-    const memUsage = process.memoryUsage();
-    const percentUsed = (memUsage.heapUsed / memUsage.heapTotal) * 100;
-    
-    if (percentUsed < 50) return 0;
-    if (percentUsed < 70) return 1;
-    if (percentUsed < 85) return 2;
-    if (percentUsed < 95) return 3;
-    return 4;
-  },
-
-  optimize_memory: (level = 2, emergency = false) => {
-    const before = process.memoryUsage();
-    
-    // 최적화 시도를 시뮬레이션합니다
-    if (global.gc && typeof global.gc === 'function') {
-      global.gc();
+// 모듈 상태
+const state = {
+  memoryPools: new Map(),
+  workerPool: {
+    initialized: false,
+    threads: [],
+    tasks: new Map(),
+    stats: {
+      active: 0,
+      completed: 0,
+      failed: 0,
+      lastTaskId: 0
     }
-    
-    const after = process.memoryUsage();
-    const freedMemory = Math.max(0, before.heapUsed - after.heapUsed);
-    
-    return JSON.stringify({
-      success: true,
-      optimization_level: level,
-      memory_before: {
-        timestamp: Date.now() - 100,
-        heap_used: before.heapUsed,
-        heap_total: before.heapTotal,
-        heap_used_mb: Math.round(before.heapUsed / (1024 * 1024) * 10) / 10,
-        percent_used: Math.round((before.heapUsed / before.heapTotal) * 100),
-      },
-      memory_after: {
-        timestamp: Date.now(),
-        heap_used: after.heapUsed,
-        heap_total: after.heapTotal,
-        heap_used_mb: Math.round(after.heapUsed / (1024 * 1024) * 10) / 10,
-        percent_used: Math.round((after.heapUsed / after.heapTotal) * 100),
-      },
-      freed_memory: freedMemory,
-      freed_mb: Math.round(freedMemory / (1024 * 1024) * 10) / 10,
-      duration: 50, // 가상의 소요 시간 (50ms)
-      timestamp: Date.now(),
-      emergency
-    });
   },
-
-  force_garbage_collection: () => {
-    const before = process.memoryUsage();
-    
-    // GC 시도
-    if (global.gc && typeof global.gc === 'function') {
-      global.gc();
-    }
-    
-    const after = process.memoryUsage();
-    const freedMemory = Math.max(0, before.heapUsed - after.heapUsed);
-    
-    return JSON.stringify({
-      success: true,
-      memory_before: {
-        timestamp: Date.now() - 100,
-        heap_used: before.heapUsed,
-        heap_total: before.heapTotal,
-        heap_used_mb: Math.round(before.heapUsed / (1024 * 1024) * 10) / 10,
-        percent_used: Math.round((before.heapUsed / before.heapTotal) * 100),
-      },
-      memory_after: {
-        timestamp: Date.now(),
-        heap_used: after.heapUsed,
-        heap_total: after.heapTotal,
-        heap_used_mb: Math.round(after.heapUsed / (1024 * 1024) * 10) / 10,
-        percent_used: Math.round((after.heapUsed / after.heapTotal) * 100),
-      },
-      freed_memory: freedMemory,
-      freed_mb: Math.round(freedMemory / (1024 * 1024) * 10) / 10,
-      timestamp: Date.now()
-    });
-  }
+  gpu: {
+    enabled: false,
+    lastOperation: null
+  },
+  startTime: Date.now()
 };
 
-// GPU 관련 기능 구현
-const gpu = {
-  is_gpu_acceleration_available: () => false,
-  
-  enable_gpu_acceleration: () => false,
-  
-  disable_gpu_acceleration: () => true,
-  
-  get_gpu_info: () => JSON.stringify({
-    name: "JavaScript Fallback GPU",
-    vendor: "None (JS Fallback)",
-    driver: "None (JS Fallback)",
-    device_type: "CPU",
-    backend: "None",
-    acceleration_enabled: false
-  }),
-  
-  perform_gpu_computation: (dataJson, computationType) => {
-    try {
-      let result;
-      const data = JSON.parse(dataJson);
-      
-      switch (computationType) {
-        case 'matrix':
-          result = {
-            operation: "matrix_multiplication",
-            size: data.size || "small",
-            dimensions: "100x100",
-            execution_time_ms: 50,
-            accelerated: false,
-            result_summary: {
-              operation_count: 1000000,
-              flops: 2000000
-            }
-          };
-          break;
-          
-        case 'text':
-          const text = data.text || "";
-          result = {
-            operation: "text_analysis",
-            text_length: text.length,
-            execution_time_ms: 30,
-            accelerated: false,
-            result_summary: {
-              word_count: text.split(/\s+/).length,
-              char_count: text.length,
-              alphabetic_count: text.replace(/[^a-zA-Z가-힣]/g, '').length,
-              numeric_count: text.replace(/[^0-9]/g, '').length
-            }
-          };
-          break;
-          
-        case 'typing':
-          result = {
-            operation: "typing_statistics",
-            key_count: data.keyCount || 0,
-            typing_time_ms: data.typingTime || 0,
-            accelerated: false,
-            result_summary: {
-              wpm: 0,
-              accuracy: data.accuracy || 100.0,
-              performance_index: 0,
-              consistency_score: 0,
-              fatigue_analysis: { score: 0, recommendation: "데이터 부족" }
-            }
-          };
-          break;
-          
-        default:
-          result = {
-            operation: computationType,
-            execution_time_ms: 20,
-            accelerated: false,
-            message: "JS Fallback computation performed"
-          };
-      }
-      
-      return JSON.stringify({
-        success: true,
-        computation_type: computationType,
-        ...result
-      });
-      
-    } catch (error) {
-      return JSON.stringify({
-        success: false,
-        computation_type: computationType,
-        error: `Fallback computation error: ${error.message}`
-      });
-    }
-  }
-};
+/**
+ * 타임스탬프 생성 (밀리초)
+ * @returns {number} 현재 타임스탬프
+ */
+function getCurrentTimestamp() {
+  return Date.now();
+}
 
-// 워커 관련 기능 구현
-const worker = {
-  initialize_worker_pool: () => true,
+/**
+ * 고유 작업 ID 생성
+ * @returns {string} 작업 ID
+ */
+function generateTaskId() {
+  const id = ++state.workerPool.stats.lastTaskId;
+  return `task_${id}_${Date.now()}`;
+}
+
+/**
+ * 작업 폴백 구현 (동기)
+ * @param {string} taskType 작업 유형
+ * @param {string} data 작업 데이터
+ * @returns {Object} 작업 결과
+ */
+function processTaskSync(taskType, data) {
+  const startTime = performance.now();
+  let result;
   
-  shutdown_worker_pool: () => true,
-  
-  submit_task: (taskType, data) => {
-    return JSON.stringify({
-      success: true,
+  try {
+    switch (taskType) {
+      case 'optimize_memory':
+        result = {
+          success: true,
+          message: "메모리 최적화 완료 (JS 폴백)",
+          optimization_level: 2,
+          freed_mb: 0
+        };
+        break;
+      
+      case 'echo':
+        result = {
+          success: true,
+          message: `Echo: ${data}`
+        };
+        break;
+      
+      case 'compute':
+        result = {
+          success: true,
+          message: "계산 완료 (JS 폴백)",
+          value: Math.random() * 100
+        };
+        break;
+      
+      default:
+        result = {
+          success: false,
+          message: `알 수 없는 작업 유형: ${taskType}`
+        };
+    }
+    
+    const duration = performance.now() - startTime;
+    
+    return {
+      ...result,
       task_type: taskType,
-      execution_time_ms: 30,
-      timestamp: Date.now(),
-      results: { message: "JavaScript fallback task processed", data },
-      error: null
-    });
-  },
-  
-  get_worker_pool_stats: () => JSON.stringify({
-    thread_count: 1,
-    active_tasks: 0,
-    completed_tasks: 0
-  })
-};
+      duration_ms: duration,
+      timestamp: getCurrentTimestamp()
+    };
+  } catch (error) {
+    return {
+      success: false,
+      task_type: taskType,
+      error: error.message,
+      duration_ms: performance.now() - startTime,
+      timestamp: getCurrentTimestamp()
+    };
+  }
+}
 
-// 유틸리티 기능 구현
-const utils = {
-  get_timestamp: () => Date.now(),
+/**
+ * 메모리 정보 가져오기
+ * @returns {string} JSON 형식의 메모리 정보
+ */
+function get_memory_info() {
+  const memoryUsage = process.memoryUsage();
   
-  get_platform_info: () => JSON.stringify({
-    os: process.platform,
-    arch: process.arch,
-    node_version: process.version,
-    timestamp: Date.now()
-  }),
+  const heapUsed = memoryUsage.heapUsed;
+  const heapTotal = memoryUsage.heapTotal;
+  const rss = memoryUsage.rss;
+  const external = memoryUsage.external || 0;
   
-  get_native_module_info: () => JSON.stringify({
-    name: "typing-stats-native",
-    version: "0.1.0-js-fallback",
-    description: "JavaScript fallback implementation for typing stats native module",
-    authors: "TypeStats Team",
+  const memoryInfo = {
+    heap_used: heapUsed,
+    heap_total: heapTotal,
+    heap_limit: heapTotal * 2, // 가상의 힙 제한
+    rss: rss,
+    external: external,
+    heap_used_mb: heapUsed / (1024 * 1024),
+    rss_mb: rss / (1024 * 1024),
+    percent_used: (heapUsed / heapTotal) * 100,
+    timestamp: getCurrentTimestamp()
+  };
+  
+  return JSON.stringify(memoryInfo);
+}
+
+/**
+ * 최적화 수준 결정
+ * @returns {number} 최적화 수준 (0-4)
+ */
+function determine_optimization_level() {
+  const memoryUsage = process.memoryUsage();
+  const ratio = memoryUsage.heapUsed / memoryUsage.heapTotal;
+  
+  if (ratio > 0.9) return 4; // Critical
+  if (ratio > 0.8) return 3; // High
+  if (ratio > 0.7) return 2; // Medium
+  if (ratio > 0.5) return 1; // Low
+  return 0; // Normal
+}
+
+/**
+ * 메모리 최적화 수행
+ * @param {number} level 최적화 수준 (0-4)
+ * @param {boolean} emergency 긴급 최적화 여부
+ * @returns {string} JSON 형식의 최적화 결과
+ */
+function optimize_memory(level, emergency) {
+  const startTime = performance.now();
+  
+  // 메모리 최적화 전 상태
+  const memoryBefore = process.memoryUsage();
+  
+  // 가비지 컬렉션 요청 (--expose-gc가 활성화된 경우 작동)
+  if (global.gc) {
+    global.gc();
+  }
+  
+  // 메모리 해제 시뮬레이션을 위한 지연
+  const delay = emergency ? 10 : (level * 10 + 50);
+  const start = Date.now();
+  while (Date.now() - start < delay) {
+    // 인위적인 지연
+  }
+  
+  // 메모리 최적화 후 상태
+  const memoryAfter = process.memoryUsage();
+  
+  // 해제된 메모리 계산 (heapUsed 감소량)
+  const freedMemory = Math.max(0, memoryBefore.heapUsed - memoryAfter.heapUsed);
+  
+  const result = {
+    success: true,
+    optimization_level: level,
+    memory_before: {
+      heap_used: memoryBefore.heapUsed,
+      heap_total: memoryBefore.heapTotal,
+      rss: memoryBefore.rss,
+      heap_used_mb: memoryBefore.heapUsed / (1024 * 1024),
+      rss_mb: memoryBefore.rss / (1024 * 1024),
+      percent_used: (memoryBefore.heapUsed / memoryBefore.heapTotal) * 100,
+      timestamp: getCurrentTimestamp()
+    },
+    memory_after: {
+      heap_used: memoryAfter.heapUsed,
+      heap_total: memoryAfter.heapTotal,
+      rss: memoryAfter.rss,
+      heap_used_mb: memoryAfter.heapUsed / (1024 * 1024),
+      rss_mb: memoryAfter.rss / (1024 * 1024),
+      percent_used: (memoryAfter.heapUsed / memoryAfter.heapTotal) * 100,
+      timestamp: getCurrentTimestamp()
+    },
+    freed_memory: freedMemory,
+    freed_mb: freedMemory / (1024 * 1024),
+    duration: performance.now() - startTime,
+    timestamp: getCurrentTimestamp(),
+    error: null
+  };
+  
+  return JSON.stringify(result);
+}
+
+/**
+ * 가비지 컬렉션 강제 수행
+ * @returns {string} JSON 형식의 GC 결과
+ */
+function force_garbage_collection() {
+  const startTime = performance.now();
+  
+  // 메모리 GC 전 상태
+  const memoryBefore = process.memoryUsage();
+  
+  // 가비지 컬렉션 요청 (--expose-gc가 활성화된 경우 작동)
+  if (global.gc) {
+    global.gc();
+    
+    // 메모리 GC 후 상태
+    const memoryAfter = process.memoryUsage();
+    
+    // 해제된 메모리 계산 (heapUsed 감소량)
+    const freedMemory = Math.max(0, memoryBefore.heapUsed - memoryAfter.heapUsed);
+    
+    const result = {
+      success: true,
+      timestamp: getCurrentTimestamp(),
+      freed_memory: freedMemory,
+      freed_mb: freedMemory / (1024 * 1024),
+      duration: performance.now() - startTime,
+      error: null
+    };
+    
+    return JSON.stringify(result);
+  }
+  
+  // GC 실행 불가능한 경우
+  const result = {
+    success: false,
+    timestamp: getCurrentTimestamp(),
+    freed_memory: 0,
+    freed_mb: 0,
+    duration: performance.now() - startTime,
+    error: "가비지 컬렉션을 직접 호출할 수 없습니다. Node.js 실행 시 --expose-gc 플래그를 사용하세요."
+  };
+  
+  return JSON.stringify(result);
+}
+
+/**
+ * GPU 가속 가능 여부 확인
+ * @returns {boolean} GPU 가속 가능 여부 (항상 false)
+ */
+function is_gpu_acceleration_available() {
+  return false;
+}
+
+/**
+ * GPU 가속 활성화 (폴백에서는 항상 실패)
+ * @returns {boolean} 성공 여부 (항상 false)
+ */
+function enable_gpu_acceleration() {
+  state.gpu.enabled = false;
+  return false;
+}
+
+/**
+ * GPU 가속 비활성화
+ * @returns {boolean} 성공 여부 (항상 true)
+ */
+function disable_gpu_acceleration() {
+  state.gpu.enabled = false;
+  return true;
+}
+
+/**
+ * GPU 정보 가져오기
+ * @returns {string} JSON 형식의 GPU 정보
+ */
+function get_gpu_info() {
+  const gpuInfo = {
+    name: 'JavaScript Fallback GPU',
+    vendor: 'Node.js',
+    driver_info: 'JavaScript 폴백 구현',
+    device_type: 'CPU',
+    backend: 'JavaScript',
+    available: false
+  };
+  
+  return JSON.stringify(gpuInfo);
+}
+
+/**
+ * GPU 계산 수행 (동기)
+ * @param {string} data 계산 데이터
+ * @param {string} computationType 계산 유형
+ * @returns {string} JSON 형식의 계산 결과
+ */
+function perform_gpu_computation_sync(data, computationType) {
+  const startTime = performance.now();
+  
+  // 계산 유형별 가상 구현
+  let result;
+  
+  try {
+    switch (computationType) {
+      case 'matrix':
+        result = {
+          success: true,
+          task_type: 'matrix',
+          result: JSON.stringify({
+            dimensions: [10, 10],
+            sample: "행렬 계산 결과 (JS 폴백)"
+          }),
+          error: null
+        };
+        break;
+      
+      case 'text':
+        result = {
+          success: true,
+          task_type: 'text',
+          result: JSON.stringify({
+            word_count: data.split(' ').length,
+            sample: "텍스트 분석 결과 (JS 폴백)"
+          }),
+          error: null
+        };
+        break;
+      
+      case 'image':
+        result = {
+          success: true,
+          task_type: 'image',
+          result: JSON.stringify({
+            dimensions: [800, 600],
+            sample: "이미지 처리 결과 (JS 폴백)"
+          }),
+          error: null
+        };
+        break;
+      
+      default:
+        result = {
+          success: false,
+          task_type: computationType,
+          result: null,
+          error: `지원되지 않는 계산 유형: ${computationType}`
+        };
+    }
+    
+    // 상태 업데이트
+    state.gpu.lastOperation = {
+      type: computationType,
+      timestamp: getCurrentTimestamp()
+    };
+    
+    // 공통 필드 추가
+    result.duration_ms = performance.now() - startTime;
+    result.timestamp = getCurrentTimestamp();
+    
+    return JSON.stringify(result);
+  } catch (error) {
+    const errorResult = {
+      success: false,
+      task_type: computationType,
+      duration_ms: performance.now() - startTime,
+      result: null,
+      error: error.message,
+      timestamp: getCurrentTimestamp()
+    };
+    
+    return JSON.stringify(errorResult);
+  }
+}
+
+/**
+ * GPU 계산 수행 (비동기 버전)
+ * @param {string} data 계산 데이터
+ * @param {string} computationType 계산 유형
+ * @returns {Promise<string>} JSON 형식의 계산 결과
+ */
+async function perform_gpu_computation(data, computationType) {
+  // 약간의 비동기 지연 추가
+  await new Promise(resolve => setTimeout(resolve, 50));
+  
+  // 동기 함수 호출
+  return perform_gpu_computation_sync(data, computationType);
+}
+
+/**
+ * 워커 풀 초기화
+ * @param {number} threadCount 스레드 수
+ * @returns {boolean} 성공 여부
+ */
+function initialize_worker_pool(threadCount) {
+  if (state.workerPool.initialized) {
+    return true;
+  }
+  
+  const threads = threadCount || Math.max(1, os.cpus().length - 1);
+  
+  try {
+    // 스레드 수 저장
+    state.workerPool.threads = new Array(threads).fill(null);
+    state.workerPool.initialized = true;
+    
+    return true;
+  } catch (error) {
+    console.error('워커 풀 초기화 오류:', error);
+    return false;
+  }
+}
+
+/**
+ * 워커 풀 종료
+ * @returns {boolean} 성공 여부
+ */
+function shutdown_worker_pool() {
+  if (!state.workerPool.initialized) {
+    return true;
+  }
+  
+  try {
+    // 워커 풀 상태 재설정
+    state.workerPool.threads = [];
+    state.workerPool.tasks.clear();
+    state.workerPool.initialized = false;
+    
+    return true;
+  } catch (error) {
+    console.error('워커 풀 종료 오류:', error);
+    return false;
+  }
+}
+
+/**
+ * 작업 제출
+ * @param {string} taskType 작업 유형
+ * @param {string} data 작업 데이터
+ * @returns {Promise<string>} JSON 형식의 작업 결과
+ */
+async function submit_task(taskType, data) {
+  if (!state.workerPool.initialized) {
+    return JSON.stringify({
+      success: false,
+      task_id: null,
+      task_type: taskType,
+      duration_ms: 0,
+      result: null,
+      error: "워커 풀이 초기화되지 않았습니다",
+      timestamp: getCurrentTimestamp()
+    });
+  }
+  
+  const taskId = generateTaskId();
+  const startTime = performance.now();
+  
+  try {
+    // 활성 작업 수 증가
+    state.workerPool.stats.active++;
+    
+    // 약간의 비동기 지연 추가
+    await new Promise(resolve => setTimeout(resolve, 20));
+    
+    // 작업 처리 (동기 함수 호출)
+    const taskResult = processTaskSync(taskType, data);
+    
+    // 작업 완료 통계 업데이트
+    state.workerPool.stats.active--;
+    state.workerPool.stats.completed++;
+    
+    const result = {
+      success: true,
+      task_id: taskId,
+      task_type: taskType,
+      duration_ms: performance.now() - startTime,
+      result: JSON.stringify(taskResult),
+      error: null,
+      timestamp: getCurrentTimestamp()
+    };
+    
+    return JSON.stringify(result);
+  } catch (error) {
+    // 실패 통계 업데이트
+    state.workerPool.stats.active--;
+    state.workerPool.stats.failed++;
+    
+    const result = {
+      success: false,
+      task_id: taskId,
+      task_type: taskType,
+      duration_ms: performance.now() - startTime,
+      result: null,
+      error: error.message,
+      timestamp: getCurrentTimestamp()
+    };
+    
+    return JSON.stringify(result);
+  }
+}
+
+/**
+ * 워커 풀 통계 가져오기
+ * @returns {string} JSON 형식의 워커 풀 통계
+ */
+function get_worker_pool_stats() {
+  const threadCount = state.workerPool.threads.length;
+  
+  const stats = {
+    thread_count: threadCount,
+    active_tasks: state.workerPool.stats.active,
+    completed_tasks: state.workerPool.stats.completed,
+    active_workers: 0,
+    idle_workers: threadCount,
+    pending_tasks: 0,
+    failed_tasks: state.workerPool.stats.failed,
+    total_tasks: state.workerPool.stats.completed + state.workerPool.stats.failed,
+    uptime_ms: Date.now() - state.startTime,
+    timestamp: getCurrentTimestamp()
+  };
+  
+  return JSON.stringify(stats);
+}
+
+/**
+ * 네이티브 모듈 버전 가져오기
+ * @returns {string} 버전 정보
+ */
+function get_native_module_version() {
+  return 'typing_stats_native v0.1.0-js-fallback';
+}
+
+/**
+ * 네이티브 모듈 정보 가져오기
+ * @returns {string} JSON 형식의 모듈 정보
+ */
+function get_native_module_info() {
+  const info = {
+    name: 'typing-stats-native',
+    version: '0.1.0-js-fallback',
+    description: 'JavaScript fallback for typing-stats-native',
     features: {
       memory_optimization: true,
       gpu_acceleration: false,
       worker_threads: true
+    },
+    system: {
+      os: process.platform,
+      arch: process.arch,
+      cpu_cores: os.cpus().length,
+      node_version: process.version
     }
-  })
-};
+  };
+  
+  return JSON.stringify(info);
+}
 
-// 기본 초기화/정리 함수
+/**
+ * 타임스탬프 가져오기
+ * @returns {number} 현재 타임스탬프
+ */
+function get_timestamp() {
+  return getCurrentTimestamp();
+}
+
+/**
+ * 네이티브 모듈 초기화
+ * @returns {boolean} 성공 여부
+ */
 function initialize_native_modules() {
-  console.log("JavaScript fallback native module initialized");
+  state.startTime = Date.now();
+  console.log('[JS-Fallback] JavaScript 폴백 모듈이 초기화되었습니다');
   return true;
 }
 
+/**
+ * 네이티브 모듈 정리
+ * @returns {boolean} 성공 여부
+ */
 function cleanup_native_modules() {
-  console.log("JavaScript fallback native module cleaned up");
+  console.log('[JS-Fallback] JavaScript 폴백 모듈이 정리되었습니다');
   return true;
-}
-
-function get_native_module_version() {
-  return "0.1.0-js-fallback";
 }
 
 // 모듈 내보내기
 module.exports = {
-  // 기본 함수
+  // 기본 모듈 정보
+  get_native_module_version,
+  get_native_module_info,
   initialize_native_modules,
   cleanup_native_modules,
-  get_native_module_version,
   
-  // 기능별 그룹화
-  memory,
-  gpu,
-  worker,
-  utils
+  // 메모리 관리 함수
+  get_memory_info,
+  determine_optimization_level,
+  optimize_memory,
+  force_garbage_collection,
+  
+  // GPU 관련 함수
+  is_gpu_acceleration_available,
+  enable_gpu_acceleration,
+  disable_gpu_acceleration,
+  get_gpu_info,
+  perform_gpu_computation_sync,
+  perform_gpu_computation,
+  
+  // 워커 관련 함수
+  initialize_worker_pool,
+  shutdown_worker_pool,
+  submit_task,
+  get_worker_pool_stats,
+  
+  // 유틸리티 함수
+  get_timestamp
 };

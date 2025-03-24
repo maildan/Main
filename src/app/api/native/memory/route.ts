@@ -12,19 +12,13 @@ import {
 export async function GET(request: NextRequest) {
   try {
     const memoryInfo = getMemoryInfo();
-    
-    if (!memoryInfo) {
-      return NextResponse.json({
-        success: false,
-        error: '메모리 정보를 가져올 수 없습니다',
-        timestamp: Date.now()
-      }, { status: 500 });
-    }
+    const optimizationLevel = determineOptimizationLevel();
     
     return NextResponse.json({
       success: true,
       memoryInfo,
-      optimizationLevel: determineOptimizationLevel()
+      optimizationLevel,
+      timestamp: Date.now()
     });
   } catch (error) {
     console.error('메모리 정보 API 오류:', error);

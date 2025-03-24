@@ -32,7 +32,7 @@ pub struct OptimizationResult {
     pub memory_before: Option<MemoryInfo>,
     pub memory_after: Option<MemoryInfo>,
     pub freed_memory: Option<u64>,
-    pub freed_mb: Option<u64>,
+    pub freed_mb: Option<u64>, // f64에서 u64로 변경
     pub duration: Option<u64>,
     pub timestamp: u64,
     pub error: Option<String>,

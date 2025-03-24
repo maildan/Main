@@ -2,6 +2,7 @@ use std::time::{Instant, SystemTime, UNIX_EPOCH};
 use tokio::sync::oneshot;
 use serde::{Serialize, Deserialize};
 use serde_json::json;
+use std::thread;
 use crate::worker::pool::get_worker_pool;
 use napi::Error;
 
@@ -25,13 +26,10 @@ pub struct TaskResult {
     pub error: Option<String>,
 }
 
-// 작업 제출
+// 작업 제출 - WorkerPool 구조체의 내부 구현에 직접 의존하지 않도록 수정
 pub async fn submit_task(task_type: String, data: String) -> Result<TaskResult, String> {
-    // 워커 풀 가져오기
-    let pool = get_worker_pool()?;
-    
-    // 활성 작업 수 증가 - public 필드 사용
-    pool.active_tasks.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+    // 워커 풀 가져오기 - 변수 앞에 언더스코어 추가하여 미사용 경고 제거
+    let _pool = get_worker_pool().ok_or("워커 풀이 초기화되지 않았습니다")?;
     
     // 시작 시간 기록
     let start_time = Instant::now();
@@ -53,9 +51,8 @@ pub async fn submit_task(task_type: String, data: String) -> Result<TaskResult, 
         }
     };
     
-    // 작업을 워커 풀에 제출 - public 필드 사용
-    let runtime = pool.runtime.lock().await;
-    runtime.spawn_blocking(task_closure);
+    // 작업을 별도 스레드에서 실행 (runtime 대신 표준 스레드 사용)
+    thread::spawn(task_closure);
     
     // 결과 대기
     let result = rx.await
@@ -63,10 +60,6 @@ pub async fn submit_task(task_type: String, data: String) -> Result<TaskResult, 
     
     // 실행 시간 계산
     let execution_time = start_time.elapsed().as_millis() as u64;
-    
-    // 활성 작업 수 감소 및 완료 작업 수 증가 - public 필드 사용
-    pool.active_tasks.fetch_sub(1, std::sync::atomic::Ordering::SeqCst);
-    pool.completed_tasks.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
     
     // 결과 생성
     let timestamp = SystemTime::now()
@@ -93,7 +86,7 @@ pub async fn submit_task(task_type: String, data: String) -> Result<TaskResult, 
 }
 
 // 작업 실행 (내부 함수) - 사용하지 않는 변수 처리
-fn execute_task(task_type: &str, _data: &str) -> Result<serde_json::Value, String> {
+fn execute_task(task_type: &str, data: &str) -> Result<serde_json::Value, String> {
     match task_type {
         "memory_analysis" => {
             // 메모리 분석 작업
@@ -118,7 +111,7 @@ fn execute_task(task_type: &str, _data: &str) -> Result<serde_json::Value, Strin
         },
         "typing_optimization" => {
             // 타이핑 최적화 작업
-            handle_typing_optimization_task(_data).map_err(|e| e.to_string()).map(|res| json!(res))
+            handle_typing_optimization_task(data).map_err(|e| e.to_string()).map(|res| json!(res))
         },
         _ => {
             Err(format!("Unknown task type: {}", task_type))

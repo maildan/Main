@@ -116,7 +116,8 @@ fn get_macos_memory_info() -> Result<MemoryInfo, Error> {
     get_fallback_memory_info()
 }
 
-/// 폴백 메모리 정보 가져오기
+/// 폴백 메모리 정보 가져오기 - 미사용 경고 제거를 위한 속성 추가
+#[allow(dead_code)]
 fn get_fallback_memory_info() -> Result<MemoryInfo, Error> {
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)

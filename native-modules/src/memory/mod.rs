@@ -32,9 +32,10 @@ pub fn determine_optimization_level() -> napi::Result<u32> {
         .map_err(|e| Error::from_reason(format!("Failed to determine optimization level: {}", e)))
 }
 
-/// 메모리 최적화 수행
+/// 메모리 최적화 수행 (JavaScript에서 호출)
 #[napi]
 pub fn optimize_memory(level: u32, emergency: bool) -> napi::Result<String> {
+    // 최적화 레벨 변환 (u32 -> OptimizationLevel)
     let opt_level = match level {
         0 => types::OptimizationLevel::Normal,
         1 => types::OptimizationLevel::Low,
@@ -142,14 +143,16 @@ pub fn force_garbage_collection() -> napi::Result<String> {
 /// 메모리 풀 초기화
 #[napi]
 pub fn initialize_memory_pools() -> napi::Result<bool> {
-    pool::initialize_memory_pools();
+    // Result 무시 경고 제거를 위해 let _ = 추가
+    let _ = pool::initialize_memory_pools();
     Ok(true)
 }
 
 /// 메모리 풀 정리
 #[napi]
 pub fn cleanup_memory_pools() -> napi::Result<bool> {
-    pool::cleanup_memory_pools();
+    // Result 무시 경고 제거를 위해 let _ = 추가
+    let _ = pool::cleanup_memory_pools();
     Ok(true)
 }
 

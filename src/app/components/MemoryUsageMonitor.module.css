@@ -1,0 +1,253 @@
+.container {
+  background-color: var(--card-bg, #fff);
+  border: 1px solid var(--border-color, #e0e0e0);
+  border-radius: 8px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+  margin-bottom: 20px;
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background-color: var(--header-bg, #f8f9fa);
+  cursor: pointer;
+  user-select: none;
+}
+
+.title {
+  display: flex;
+  align-items: center;
+  font-weight: 600;
+  color: var(--title-color, #333);
+}
+
+.icon {
+  margin-right: 8px;
+  font-size: 18px;
+}
+
+.status {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.memoryUsage {
+  font-size: 14px;
+  color: var(--text-color, #555);
+}
+
+.level {
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: white;
+}
+
+.expandButton {
+  background: none;
+  border: none;
+  font-size: 16px;
+  color: var(--text-color, #555);
+  cursor: pointer;
+  padding: 0 0 0 10px;
+}
+
+.controls {
+  padding: 16px;
+  border-top: 1px solid var(--border-color, #e0e0e0);
+}
+
+.buttonGroup {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.button {
+  padding: 8px 12px;
+  border: none;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  color: white;
+  cursor: pointer;
+  transition: background-color 0.2s, transform 0.1s;
+}
+
+.button:hover {
+  transform: translateY(-1px);
+}
+
+.button:active {
+  transform: translateY(1px);
+}
+
+.button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.lowButton {
+  background-color: #4caf50;
+}
+
+.lowButton:hover {
+  background-color: #388e3c;
+}
+
+.mediumButton {
+  background-color: #2196f3;
+}
+
+.mediumButton:hover {
+  background-color: #1976d2;
+}
+
+.highButton {
+  background-color: #ff9800;
+}
+
+.highButton:hover {
+  background-color: #f57c00;
+}
+
+.criticalButton {
+  background-color: #f44336;
+}
+
+.criticalButton:hover {
+  background-color: #d32f2f;
+}
+
+.gcButton {
+  background-color: #9e9e9e;
+}
+
+.gcButton:hover {
+  background-color: #757575;
+}
+
+.optimizeStatus {
+  margin: 8px 0;
+  padding: 8px;
+  background-color: var(--info-bg, #e3f2fd);
+  border-radius: 4px;
+  font-size: 13px;
+  color: var(--info-text, #0277bd);
+  text-align: center;
+}
+
+.details {
+  margin-top: 12px;
+  background-color: var(--details-bg, #f5f5f5);
+  padding: 12px;
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+.detailItem {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.detailItem:last-child {
+  margin-bottom: 0;
+}
+
+.label {
+  color: var(--label-color, #666);
+}
+
+.value {
+  font-weight: 500;
+  color: var(--value-color, #333);
+}
+
+.loading {
+  display: inline-block;
+  animation: pulse 1.5s infinite ease-in-out;
+  color: var(--text-secondary, #888);
+}
+
+/* 최적화 레벨에 따른 색상 */
+.normal {
+  background-color: #f5f5f5;
+  border-color: #e0e0e0;
+}
+
+.normal .level {
+  background-color: #9e9e9e;
+}
+
+.low {
+  background-color: #e8f5e9;
+  border-color: #c8e6c9;
+}
+
+.low .level {
+  background-color: #4caf50;
+}
+
+.medium {
+  background-color: #e3f2fd;
+  border-color: #bbdefb;
+}
+
+.medium .level {
+  background-color: #2196f3;
+}
+
+.high {
+  background-color: #fff3e0;
+  border-color: #ffe0b2;
+}
+
+.high .level {
+  background-color: #ff9800;
+}
+
+.critical {
+  background-color: #ffebee;
+  border-color: #ffcdd2;
+}
+
+.critical .level {
+  background-color: #f44336;
+}
+
+/* 애니메이션 */
+@keyframes pulse {
+  0% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.6;
+  }
+}
+
+/* 다크 모드 지원 */
+:global(.dark-mode) .container {
+  --card-bg: #1e1e1e;
+  --border-color: #333;
+  --header-bg: #252525;
+  --title-color: #e0e0e0;
+  --text-color: #aaa;
+  --info-bg: #1a2b3d;
+  --info-text: #64b5f6;
+  --details-bg: #2a2a2a;
+  --label-color: #999;
+  --value-color: #ddd;
+  --text-secondary: #888;
+}

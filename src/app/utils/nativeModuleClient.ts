@@ -6,11 +6,11 @@ import type {
   MemoryInfo, 
   OptimizationResult, 
   GCResult, 
-  OptimizationLevel,
   GpuInfo,
   GpuComputationResult,
   TaskResult
 } from '@/types/native-module';
+import { OptimizationLevel } from '@/types/native-module';
 
 /**
  * 메모리 정보 가져오기
@@ -18,11 +18,7 @@ import type {
  */
 export async function getMemoryInfo() {
   try {
-    // API 엔드포인트를 통해 네이티브 메모리 정보 가져오기
-    const response = await fetch('/api/native/memory', {
-      method: 'GET',
-      headers: { 'Content-Type': 'application/json' }
-    });
+    const response = await fetch('/api/native/memory');
     
     if (!response.ok) {
       throw new Error(`메모리 정보 요청 실패: ${response.status}`);
@@ -35,7 +31,8 @@ export async function getMemoryInfo() {
       success: false,
       memoryInfo: null,
       optimizationLevel: 0,
-      error: error instanceof Error ? error.message : '알 수 없는 오류'
+      error: error instanceof Error ? error.message : '알 수 없는 오류',
+      timestamp: Date.now()
     };
   }
 }
@@ -65,7 +62,8 @@ export async function optimizeMemory(level: OptimizationLevel = OptimizationLeve
     return {
       success: false,
       result: null,
-      error: error instanceof Error ? error.message : '알 수 없는 오류'
+      error: error instanceof Error ? error.message : '알 수 없는 오류',
+      timestamp: Date.now()
     };
   }
 }
@@ -76,23 +74,22 @@ export async function optimizeMemory(level: OptimizationLevel = OptimizationLeve
  */
 export async function forceGarbageCollection() {
   try {
-    // API 엔드포인트를 통해 네이티브 GC 수행
     const response = await fetch('/api/native/memory', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' }
+      method: 'PUT'
     });
     
     if (!response.ok) {
-      throw new Error(`GC 요청 실패: ${response.status}`);
+      throw new Error(`가비지 컬렉션 요청 실패: ${response.status}`);
     }
     
     return await response.json();
   } catch (error) {
-    console.error('GC 수행 오류:', error);
+    console.error('가비지 컬렉션 오류:', error);
     return {
       success: false,
       result: null,
-      error: error instanceof Error ? error.message : '알 수 없는 오류'
+      error: error instanceof Error ? error.message : '알 수 없는 오류',
+      timestamp: Date.now()
     };
   }
 }
@@ -103,11 +100,7 @@ export async function forceGarbageCollection() {
  */
 export async function getGpuInfo() {
   try {
-    // API 엔드포인트를 통해 네이티브 GPU 정보 가져오기
-    const response = await fetch('/api/native/gpu', {
-      method: 'GET',
-      headers: { 'Content-Type': 'application/json' }
-    });
+    const response = await fetch('/api/native/gpu');
     
     if (!response.ok) {
       throw new Error(`GPU 정보 요청 실패: ${response.status}`);
@@ -120,7 +113,8 @@ export async function getGpuInfo() {
       success: false,
       available: false,
       gpuInfo: null,
-      error: error instanceof Error ? error.message : '알 수 없는 오류'
+      error: error instanceof Error ? error.message : '알 수 없는 오류',
+      timestamp: Date.now()
     };
   }
 }
@@ -132,7 +126,6 @@ export async function getGpuInfo() {
  */
 export async function setGpuAcceleration(enable: boolean) {
   try {
-    // API 엔드포인트를 통해 네이티브 GPU 가속 설정
     const response = await fetch('/api/native/gpu', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -150,7 +143,8 @@ export async function setGpuAcceleration(enable: boolean) {
       success: false,
       enabled: false,
       result: false,
-      error: error instanceof Error ? error.message : '알 수 없는 오류'
+      error: error instanceof Error ? error.message : '알 수 없는 오류',
+      timestamp: Date.now()
     };
   }
 }
@@ -163,14 +157,10 @@ export async function setGpuAcceleration(enable: boolean) {
  */
 export async function performGpuComputation<T = any>(data: any, computationType: string) {
   try {
-    // API 엔드포인트를 통해 네이티브 GPU 계산 수행
     const response = await fetch('/api/native/gpu', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ 
-        data: JSON.stringify(data), 
-        computationType 
-      })
+      body: JSON.stringify({ data, computationType })
     });
     
     if (!response.ok) {
@@ -183,7 +173,8 @@ export async function performGpuComputation<T = any>(data: any, computationType:
     return {
       success: false,
       result: null,
-      error: error instanceof Error ? error.message : '알 수 없는 오류'
+      error: error instanceof Error ? error.message : '알 수 없는 오류',
+      timestamp: Date.now()
     };
   }
 }
@@ -194,14 +185,10 @@ export async function performGpuComputation<T = any>(data: any, computationType:
  */
 export async function getNativeModuleStatus() {
   try {
-    // API 엔드포인트를 통해 네이티브 모듈 상태 확인
-    const response = await fetch('/api/native/status', {
-      method: 'GET',
-      headers: { 'Content-Type': 'application/json' }
-    });
+    const response = await fetch('/api/native/status');
     
     if (!response.ok) {
-      throw new Error(`네이티브 모듈 상태 요청 실패: ${response.status}`);
+      throw new Error(`상태 확인 요청 실패: ${response.status}`);
     }
     
     return await response.json();
@@ -212,8 +199,38 @@ export async function getNativeModuleStatus() {
       fallbackMode: true,
       version: null,
       info: null,
-      timestamp: Date.now(),
-      error: error instanceof Error ? error.message : '알 수 없는 오류'
+      error: error instanceof Error ? error.message : '알 수 없는 오류',
+      timestamp: Date.now()
+    };
+  }
+}
+
+/**
+ * 작업 제출
+ * @param taskType 작업 유형
+ * @param data 작업 데이터
+ * @returns Promise<{success: boolean, result: TaskResult | null, error?: string}>
+ */
+export async function submitTask<T = any>(taskType: string, data: any) {
+  try {
+    const response = await fetch('/api/native/worker', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ taskType, data })
+    });
+    
+    if (!response.ok) {
+      throw new Error(`작업 제출 요청 실패: ${response.status}`);
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error('작업 제출 오류:', error);
+    return {
+      success: false,
+      result: null,
+      error: error instanceof Error ? error.message : '알 수 없는 오류',
+      timestamp: Date.now()
     };
   }
 }

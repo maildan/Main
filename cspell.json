@@ -56,7 +56,8 @@
     "cpus",
     "processthreadsapi",
     "memoryapi",
-    "Deque"
+    "Deque",
+    "xlarge"
   ],
   "ignorePaths": [
     "node_modules/**",

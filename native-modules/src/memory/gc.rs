@@ -1,7 +1,6 @@
 use napi::Error;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
-use serde_json::{json, Value};
 
 use crate::memory::types::GCResult;
 use crate::memory::analyzer;

@@ -19,11 +19,12 @@ pub enum GpuTaskType {
     TextAnalysis,
     ImageProcessing,
     DataAggregation,
-    PatternDetection,  // 누락된 변형 추가
-    Custom,            // 누락된 변형 추가
+    PatternDetection,
+    TypingStatistics,  // 타이핑 통계 처리 추가
+    Custom,
 }
 
-/// GPU 워크로드 크기 - 누락된 타입 추가
+/// GPU 워크로드 크기
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum GpuWorkloadSize {
     Small,
@@ -53,7 +54,7 @@ pub struct GpuDeviceInfo {
     pub backend: wgpu::Backend,
 }
 
-// 필드 직렬화를 위한 커스텀 함수 구현
+// DeviceType과 Backend는 wgpu에서 오는 외부 타입이므로 직접 Serialize 구현
 impl Serialize for GpuDeviceInfo {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -66,7 +67,7 @@ impl Serialize for GpuDeviceInfo {
         s.serialize_field("vendor", &self.vendor)?;
         s.serialize_field("driver_info", &self.driver_info)?;
         
-        // 열거형을 문자열로 변환
+        // DeviceType을 문자열로 변환
         let device_type_str = match self.device_type {
             wgpu::DeviceType::DiscreteGpu => "DiscreteGpu",
             wgpu::DeviceType::IntegratedGpu => "IntegratedGpu",
@@ -76,6 +77,7 @@ impl Serialize for GpuDeviceInfo {
         };
         s.serialize_field("device_type", device_type_str)?;
         
+        // Backend를 문자열로 변환
         let backend_str = match self.backend {
             wgpu::Backend::Vulkan => "Vulkan",
             wgpu::Backend::Metal => "Metal",
@@ -89,4 +91,17 @@ impl Serialize for GpuDeviceInfo {
         
         s.end()
     }
+}
+
+/// 타이핑 통계 정보
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TypingStatistics {
+    pub wpm: f64,
+    pub accuracy: f64,
+    pub key_count: u64,
+    pub char_count: usize,
+    pub word_count: usize,
+    pub typing_time_ms: u64,
+    pub consistency_score: f64,
+    pub fatigue_score: f64,
 }

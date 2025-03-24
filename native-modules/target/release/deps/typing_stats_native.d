@@ -19,4 +19,6 @@ src\worker\pool.rs:
 src\worker\task.rs:
 src\utils\mod.rs:
 
+# env-dep:CARGO_PKG_DESCRIPTION=Native modules for typing statistics app
+# env-dep:CARGO_PKG_NAME=typing-stats-native
 # env-dep:CARGO_PKG_VERSION=0.1.0

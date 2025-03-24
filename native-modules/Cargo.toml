@@ -18,7 +18,7 @@ parking_lot = "0.12.1"
 serde = { version = "1.0.188", features = ["derive"] }
 serde_json = "1.0.107"
 tokio = { version = "1.31.0", features = ["full"] }
-wgpu = "0.17.0"
+wgpu = { version = "0.17.0", features = ["serde"] }
 async-std = "1.12.0"
 bytemuck = { version = "1.14.0", features = ["derive"] }
 libc = "0.2.148"
@@ -26,7 +26,8 @@ num_cpus = "1.16.0"
 rustc_version_runtime = "0.2.1"
 env_logger = "0.10.0"
 log = "0.4.20"
-rayon = "1.7.0"  # 추가: rayon 라이브러리 추가
+rayon = "1.7.0"
+pollster = "0.3.0"  # 추가: pollster 의존성
 
 [target.'cfg(target_os = "windows")'.dependencies]
 winapi = { version = "0.3.9", features = ["processthreadsapi", "psapi", "memoryapi"] }

@@ -48,27 +48,30 @@ pub struct WorkerPoolStats {
     pub timestamp: u64,
 }
 
-// 워커 풀 구조체 정의 (추가됨)
+// 워커 풀 구조체 정의 - 미사용 필드 경고 제거를 위한 속성 추가
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct WorkerPool {
     workers: Vec<Worker>,
     max_workers: usize,
     task_queue: VecDeque<Task>,
     active: bool,
     task_handlers: HashMap<String, fn(&str) -> Result<String, Error>>,
-    stats: WorkerPoolStats,
+    pub stats: WorkerPoolStats,
 }
 
-// 워커 구조체 정의 (추가됨)
+// 워커 구조체 정의 - 미사용 필드 경고 제거를 위한 속성 추가
 #[derive(Debug)]
+#[allow(dead_code)]
 struct Worker {
     id: usize,
     active: bool,
     task_count: u64,
 }
 
-// 작업 구조체 정의 (추가됨)
+// 작업 구조체 정의 - 미사용 필드 경고 제거를 위한 속성 추가
 #[derive(Debug)]
+#[allow(dead_code)]
 struct Task {
     id: String,
     task_type: String,
@@ -80,11 +83,12 @@ struct Task {
 static WORKER_POOL_INSTANCE: OnceCell<Mutex<WorkerPool>> = OnceCell::new();
 
 /// 워커 풀 초기화
+#[napi]
 pub fn initialize_worker_pool(thread_count: u32) -> Result<bool, Error> {
     // 이미 초기화되었는지 확인
     {
         let pool = WORKER_POOL.read();
-        if (pool.initialized) {
+        if pool.initialized {
             return Ok(true);
         }
     }
@@ -212,7 +216,8 @@ pub fn get_worker_pool() -> Option<&'static Mutex<WorkerPool>> {
 }
 
 /// 작업 제출
-pub fn submit_task(task_type: &str, data: &str) -> Result<String, Error> {
+#[napi]
+pub fn submit_task(task_type: String, data: String) -> Result<String, Error> {
     // 워커 풀 초기화 확인
     if !POOL_RUNNING.load(Ordering::SeqCst) {
         return Err(Error::from_reason("Worker pool is not initialized"));
@@ -226,14 +231,14 @@ pub fn submit_task(task_type: &str, data: &str) -> Result<String, Error> {
     
     // 작업 핸들러 찾기 및 실행
     let handlers = TASK_HANDLERS.read();
-    let handler = handlers.get(task_type).ok_or_else(|| {
+    let handler = handlers.get(&task_type).ok_or_else(|| {
         // 활성 작업 카운터 감소 (오류 발생 시)
         ACTIVE_TASKS.fetch_sub(1, Ordering::SeqCst);
         Error::from_reason(format!("Unknown task type: {}", task_type))
     })?;
     
     // 작업 실행
-    let result = handler(data);
+    let result = handler(&data);
     
     // 처리 시간 계산
     let execution_time = start.elapsed().as_millis() as u64;
@@ -295,7 +300,8 @@ fn register_default_task_handlers() {
             .and_then(|v| v.as_bool())
             .unwrap_or(false);
         
-        let result = crate::memory::optimize_memory(level, emergency)?;
+        // u8에서 u32로 변환
+        let result = crate::memory::optimize_memory(level.into(), emergency)?;
         Ok(result)
     });
     
