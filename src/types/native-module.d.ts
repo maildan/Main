@@ -1,8 +1,10 @@
 /**
- * 네이티브 모듈 인터페이스 타입 정의
+ * 네이티브 모듈 타입 정의
+ * 
+ * Rust 네이티브 모듈과의 상호작용에 사용되는 타입들을 정의합니다.
  */
 
-// 메모리 최적화 수준
+// 최적화 레벨 열거형
 export enum OptimizationLevel {
   Normal = 0,
   Low = 1,
@@ -11,8 +13,9 @@ export enum OptimizationLevel {
   Critical = 4
 }
 
-// 메모리 정보 인터페이스
+// 메모리 정보 인터페이스 - snake_case와 camelCase 모두 지원
 export interface MemoryInfo {
+  // snake_case 속성 (Rust와 호환)
   heap_used: number;
   heap_total: number;
   heap_limit?: number;
@@ -21,10 +24,22 @@ export interface MemoryInfo {
   heap_used_mb: number;
   rss_mb: number;
   percent_used: number;
+  
+  // camelCase 속성 (TypeScript 규칙)
+  heapUsed: number;
+  heapTotal: number;
+  heapLimit?: number;
+  rssMB: number;
+  percentUsed: number;
+  heapUsedMB: number;
+  
+  // 공통 속성
   timestamp: number;
+  error?: string;
+  unavailable?: boolean;
 }
 
-// 메모리 최적화 결과 인터페이스
+// 최적화 결과 인터페이스
 export interface OptimizationResult {
   success: boolean;
   optimization_level: OptimizationLevel;
@@ -37,13 +52,14 @@ export interface OptimizationResult {
   error?: string;
 }
 
-// 가비지 컬렉션 결과 인터페이스
+// GC 결과 인터페이스
 export interface GCResult {
   success: boolean;
+  memoryBefore?: MemoryInfo;
+  memoryAfter?: MemoryInfo;
+  freedMemory?: number;
+  freedMB?: number;
   timestamp: number;
-  freed_memory?: number;
-  freed_mb?: number;
-  duration?: number;
   error?: string;
 }
 
@@ -62,112 +78,82 @@ export interface GpuComputationResult {
   success: boolean;
   task_type: string;
   duration_ms: number;
-  result?: string;
+  result: any;
   error?: string;
+  accelerated: boolean;
   timestamp: number;
 }
 
-// 워커 작업 결과 인터페이스
+// 작업 결과 인터페이스
 export interface TaskResult {
   success: boolean;
   task_id: string;
   task_type: string;
   duration_ms: number;
-  result?: string;
+  result: any;
   error?: string;
   timestamp: number;
 }
 
-// 워커 풀 통계 인터페이스
+// 워커 풀 상태 인터페이스
 export interface WorkerPoolStats {
+  thread_count: number;
+  active_tasks: number;
+  completed_tasks: number;
   active_workers: number;
   idle_workers: number;
   pending_tasks: number;
-  completed_tasks: number;
   failed_tasks: number;
   total_tasks: number;
   uptime_ms: number;
   timestamp: number;
 }
 
-// 네이티브 모듈 상태 인터페이스
-export interface NativeModuleStatus {
-  available: boolean;
-  fallbackMode: boolean;
-  version: string | null;
-  info: {
-    name: string;
-    version: string;
-    description: string;
-    features: {
-      memory_optimization: boolean;
-      gpu_acceleration: boolean;
-      worker_threads: boolean;
-    };
-    system?: {
-      os: string;
-      arch: string;
-      cpu_cores: number;
-      rust_version: string;
-    };
-  } | null;
+// 성능 지표 인터페이스
+export interface PerformanceMetrics {
+  calls: number;
+  errors: number;
+  avgExecutionTime: number;
+  lastGcTime: number;
+  totalExecutionTime: number;
   timestamp: number;
-  error?: string;
 }
 
-// 네이티브 모듈 인터페이스
-export interface NativeModule {
-  // 기본 함수
-  isNativeModuleAvailable(): boolean;
-  isFallbackMode(): boolean;
-  getNativeModuleVersion(): string | null;
-  getNativeModuleInfo(): NativeModuleInfo | null;
-  
-  // 메모리 최적화 관련
-  getMemoryInfo(): MemoryInfo | null;
-  determineOptimizationLevel(): number;
-  optimizeMemory(level?: number, emergency?: boolean): Promise<OptimizationResult | null>;
-  forceGarbageCollection(): GCResult | null;
-  
-  // GPU 가속 관련
-  isGpuAccelerationAvailable(): boolean;
-  enableGpuAcceleration(): boolean;
-  disableGpuAcceleration(): boolean;
-  getGpuInfo(): GpuInfo | null;
-  performGpuComputation(dataJson: string, computationType: string): Promise<GpuComputationResult | null>;
-  
-  // 워커 스레드 관련
-  initializeWorkerPool(threadCount?: number): boolean;
-  shutdownWorkerPool(): boolean;
-  submitTask(taskType: string, data: string): Promise<TaskResult | null>;
-  getWorkerPoolStats(): WorkerPoolStats | null;
-  
-  // 유틸리티
-  getTimestamp(): number;
-}
-
-// 모듈 선언
-declare module '@/server/native' {
-  export const isNativeModuleAvailable: () => boolean;
-  export const isFallbackMode: () => boolean;
-  export const getNativeModuleVersion: () => string | null;
-  export const getNativeModuleInfo: () => NativeModuleInfo | null;
-  
-  export const getMemoryInfo: () => MemoryInfo | null;
-  export const determineOptimizationLevel: () => number;
-  export const optimizeMemory: (level?: number, emergency?: boolean) => Promise<OptimizationResult | null>;
-  export const forceGarbageCollection: () => GCResult | null;
-  
-  export const isGpuAccelerationAvailable: () => boolean;
-  export const enableGpuAcceleration: () => boolean;
-  export const disableGpuAcceleration: () => boolean;
-  export const getGpuInfo: () => GpuInfo | null;
-  export const performGpuComputation: (dataJson: string, computationType: string) => Promise<GpuComputationResult | null>;
-  
-  export const initializeWorkerPool: (threadCount?: number) => boolean;
-  export const shutdownWorkerPool: () => boolean;
-  export const submitTask: (taskType: string, data: string) => Promise<TaskResult | null>;
-  export const getWorkerPoolStats: () => WorkerPoolStats | null;
-  
-  export const getTimestamp: () => number;
+// ElectronAPI 확장 (window.electronAPI)
+declare global {
+  interface Window {
+    electronAPI?: {
+      requestGC: () => Promise<void>;
+      optimizeMemory: (aggressive: boolean) => Promise<void>;
+      getMemoryUsage: () => Promise<MemoryInfo>;
+      onRequestGC: (callback: (data: { emergency: boolean }) => void) => (() => void);
+      rendererGCCompleted: (data: { timestamp: number, success: boolean, memoryInfo: any }) => void;
+    };
+    
+    // 전역 메모리 최적화 유틸리티
+    __memoryOptimizer?: {
+      getMemoryInfo: () => any;
+      optimizeMemory: (aggressive: boolean) => any;
+      suggestGarbageCollection: () => void;
+      requestGC: (emergency?: boolean) => Promise<GCResult>;
+      getMemoryUsagePercentage: () => number;
+      optimizeImageResources: () => Promise<boolean>;
+      determineOptimizationLevel?: (memoryInfo: MemoryInfo) => number;
+      acquireFromPool?: (poolName: string) => any;
+      releaseToPool?: (obj: any) => void;
+      setupPeriodicOptimization?: (interval?: number, threshold?: number) => () => void;
+    };
+    
+    // Chrome 브라우저 메모리 정보 인터페이스
+    performance?: {
+      memory?: {
+        usedJSHeapSize: number;
+        totalJSHeapSize: number;
+        jsHeapSizeLimit: number;
+      };
+    };
+    
+    // V8 GC 접근 (--expose-gc 옵션 사용 시)
+    gc?: () => void;
+  }
 }

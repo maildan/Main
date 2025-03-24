@@ -15,6 +15,8 @@ export interface MemoryOptimizerOptions {
   autoOptimize?: boolean;
   /** 디버그 로그 활성화 여부 */
   debug?: boolean;
+  /** 네이티브 구현 선호 여부 */
+  preferNative?: boolean;
 }
 
 /**

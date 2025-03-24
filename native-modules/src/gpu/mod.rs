@@ -2,7 +2,6 @@ pub mod types;
 pub mod context;
 pub mod shader;
 pub mod accelerator;
-
 use napi_derive::napi;
 use napi::Error;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -10,7 +9,8 @@ use parking_lot::Mutex;
 use once_cell::sync::OnceCell;
 use std::collections::HashMap;
 use serde_json::{json, Value};
-use types::{GpuTaskType};  // 미사용 import 정리
+use types::GpuTaskType;  // 미사용 import 정리
+use wgpu;  // 불필요한 중괄호 제거
 
 // GPU 가속 상태
 static GPU_ACCELERATION_ENABLED: AtomicBool = AtomicBool::new(false);

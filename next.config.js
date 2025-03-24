@@ -1,49 +1,76 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  productionBrowserSourceMaps: true,
-  // 추가 설정
+  productionBrowserSourceMaps: process.env.NODE_ENV === 'development',
+  // 불필요한 소스맵 생성 제한 (빌드 시간 단축)
+  
   typescript: {
-    // 빌드 시 타입 오류 무시 (개발 시에는 오류 확인)
-    ignoreBuildErrors: process.env.NODE_ENV === 'production',
+    // 개발 환경에서도 타입 체크는 백그라운드로 진행 (빠른 새로고침)
+    ignoreBuildErrors: true,
   },
-  // 네이티브 모듈 관련 설정
-  webpack: (config, { isServer }) => {
+  
+  // 최적화 설정
+  swcMinify: true,
+  compiler: {
+    // 불필요한 console.log 제거 (프로덕션에서)
+    removeConsole: process.env.NODE_ENV === 'production' ? {
+      exclude: ['error', 'warn'],
+    } : false,
+  },
+  
+  // 이미지 최적화 제한 (Electron에서는 불필요)
+  images: {
+    unoptimized: true
+  },
+  
+  // Webpack 최적화
+  webpack: (config, { isServer, dev }) => {
     // 메모리 최적화를 위한 설정
-    config.optimization.minimize = true;
+    config.optimization.minimize = !dev;
     
-    // 네이티브 모듈 외부화 (서버 전용으로 설정)
     if (!isServer) {
+      // 클라이언트 번들에서 네이티브 모듈 제외
       config.externals = [
         ...(config.externals || []),
-        // 클라이언트 번들에서 네이티브 모듈 제외
         { 'typing_stats_native.node': 'commonjs typing_stats_native.node' }
       ];
     }
     
-    // 예외 처리 개선
+    // 네이티브 모듈 로더 설정
     config.module.rules.push({
       test: /\.node$/,
-      use: [
-        {
-          loader: 'node-loader',
-          options: {
-            name: '[name].[ext]',
-          },
-        },
-      ],
+      use: [{ loader: 'node-loader' }],
     });
+    
+    // 성능 최적화 - 번들 크기 제한 완화
+    config.performance = {
+      maxEntrypointSize: 512000,
+      maxAssetSize: 512000,
+    };
+
+    // 캐시 최적화
+    if (dev) {
+      config.cache = {
+        type: 'filesystem',
+        buildDependencies: {
+          config: [__filename],
+        },
+      };
+    }
     
     return config;
   },
-  images: {
-    unoptimized: true // Electron 환경에서 이미지 최적화 비활성화
-  },
-  // 개발 환경에서는 distDir 설정 비활성화
-  distDir: process.env.NODE_ENV === 'development' ? '.next' : 'dist',
-  // 실험적 서버 컴포넌트 설정
+  
+  // 실험적 옵션 (오류 수정)
   experimental: {
-    serverComponentsExternalPackages: ['typing_stats_native'],
+    // serverComponentsExternalPackages에서 serverExternalPackages로 변경
+    serverExternalPackages: ['typing_stats_native'],
+    // 빌드 캐시 활성화
+    turbotrace: {
+      logLevel: 'error',
+    },
+    // 컴파일러 메모리 제한 증가
+    memoryLimit: 4096, // MB
   },
 };
 

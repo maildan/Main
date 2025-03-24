@@ -9,8 +9,8 @@ import type {
   GpuInfo,
   GpuComputationResult,
   TaskResult
-} from '@/types/native-module';
-import { OptimizationLevel } from '@/types/native-module';
+} from '@/types';
+import { OptimizationLevel } from '@/types';
 
 /**
  * 메모리 정보 가져오기
@@ -43,7 +43,7 @@ export async function getMemoryInfo() {
  * @param emergency 긴급 상황 여부
  * @returns Promise<{success: boolean, result: OptimizationResult | null, error?: string}>
  */
-export async function optimizeMemory(level: OptimizationLevel = OptimizationLevel.Medium, emergency: boolean = false) {
+export async function optimizeMemory(level: OptimizationLevel = OptimizationLevel.MEDIUM, emergency: boolean = false) {
   try {
     // API 엔드포인트를 통해 네이티브 메모리 최적화 수행
     const response = await fetch('/api/native/memory', {

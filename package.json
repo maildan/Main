@@ -5,7 +5,7 @@
   "main": "main.js",
   "scripts": {
     "dev": "concurrently \"npm run next:dev\" \"npm run electron:wait\"",
-    "next:dev": "next dev",
+    "next:dev": "cross-env NEXT_TELEMETRY_DISABLED=1 NODE_OPTIONS='--max-old-space-size=4096' next dev",
     "electron:wait": "wait-on http://localhost:3000 && npm run electron:dev",
     "build": "next build",
     "start": "next start",
@@ -19,7 +19,9 @@
     "copy-native": "node scripts/copy-native.js",
     "copy-native-debug": "node scripts/copy-native.js --debug",
     "postinstall": "node scripts/install-native.js",
-    "install:native": "node scripts/install-native.js"
+    "install:native": "node scripts/install-native.js",
+    "dev:fast": "cross-env NEXT_TELEMETRY_DISABLED=1 NODE_OPTIONS='--max-old-space-size=8192 --no-warnings' NODE_ENV=development next dev --turbo",
+    "dev:memory": "cross-env NODE_OPTIONS='--max-old-space-size=8192' npm run dev"
   },
   "dependencies": {
     "@prisma/client": "^6.5.0",

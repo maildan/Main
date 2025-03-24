@@ -7,7 +7,7 @@ import {
   getMemoryInfo as fetchMemoryInfo, 
   forceGarbageCollection as fetchGC 
 } from './nativeModuleClient';
-import { OptimizationLevel, MemoryInfo, OptimizationResult, GCResult } from '@/types/native-module';
+import { OptimizationLevel, MemoryInfo, OptimizationResult, GCResult } from '@/types';
 
 /**
  * 네이티브 메모리 최적화 요청
@@ -83,11 +83,11 @@ export function determineOptimizationLevel(memoryInfo: MemoryInfo): Optimization
   // 메모리 사용률에 따른 최적화 수준 결정
   const percentUsed = memoryInfo.percent_used || 0;
   
-  if (percentUsed > 90) return OptimizationLevel.Critical;
-  if (percentUsed > 80) return OptimizationLevel.High;
-  if (percentUsed > 70) return OptimizationLevel.Medium;
-  if (percentUsed > 50) return OptimizationLevel.Low;
-  return OptimizationLevel.Normal;
+  if (percentUsed > 90) return OptimizationLevel.EXTREME;
+  if (percentUsed > 80) return OptimizationLevel.HIGH;
+  if (percentUsed > 70) return OptimizationLevel.MEDIUM;
+  if (percentUsed > 50) return OptimizationLevel.LOW;
+  return OptimizationLevel.NONE;
 }
 
 /**
@@ -117,7 +117,7 @@ export function setupPeriodicMemoryOptimization(
         
         // 자동 최적화 수준 결정
         const level = determineOptimizationLevel(memoryInfo);
-        const emergency = level === OptimizationLevel.Critical;
+        const emergency = level === OptimizationLevel.EXTREME;
         
         // 메모리 최적화 수행
         await requestNativeMemoryOptimization(level, emergency);
@@ -144,7 +144,7 @@ export function addMemoryOptimizationListeners() {
       document.addEventListener('visibilitychange', async () => {
         if (document.visibilityState === 'hidden') {
           console.log('페이지가 백그라운드로 전환됨: 메모리 최적화 수행');
-          await requestNativeMemoryOptimization(OptimizationLevel.Medium, false);
+          await requestNativeMemoryOptimization(OptimizationLevel.MEDIUM, false);
         }
       });
       
@@ -154,7 +154,7 @@ export function addMemoryOptimizationListeners() {
         clearTimeout(resizeTimer);
         resizeTimer = setTimeout(async () => {
           console.log('창 크기 조정 완료: 가벼운 메모리 최적화 수행');
-          await requestNativeMemoryOptimization(OptimizationLevel.Low, false);
+          await requestNativeMemoryOptimization(OptimizationLevel.LOW, false);
         }, 500);
       });
     }

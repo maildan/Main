@@ -1,28 +1,14 @@
 /**
- * 메모리 및 GPU 최적화 유틸리티 모듈
- * 실무 최적화 전략을 따르는 통합 API 제공
+ * 메모리 최적화 유틸리티 통합 모듈
+ * 
+ * 이 파일은 기존 메모리 최적화 기능과 새로운 네이티브 모듈 기능을 통합하여
+ * 애플리케이션에 단일 인터페이스를 제공합니다.
  */
 
-// 메모리 정보 및 내부 타입
-export * from './types';
+// 기본 메모리 최적화 기능
 export * from './memory-info';
-
-// 가비지 컬렉션 및 메모리 최적화
+export * from './optimizer';
 export * from './gc-utils';
-export { internalOptimizeMemory, optimizeMemory } from './optimizer';
-
-// DOM 및 스토리지 최적화
-export * from './dom-optimizer';
-
-// 스토리지 관련 - 명시적으로 내보내기
-export { 
-  cleanLocalStorage, 
-  clearLargeObjectsAndCaches,
-  cleanSessionStorage 
-} from './storage-cleaner';
-
-// 캐시 유틸리티 - 명시적으로 내보내기
-export { weakCache, hasWeakCache, reusableObject } from './cache-utils';
 
 // 이미지 최적화
 export * from './image-optimizer';
@@ -33,32 +19,78 @@ export * from './hooks';
 // GPU 가속화
 export * from './gpu-accelerator';
 
-// 전역 메모리 최적화 API 설정
+// 네이티브 모듈 브릿지 (새 기능) - determineOptimizationLevel 명시적 재내보내기
+import { 
+  requestNativeMemoryOptimization, 
+  requestNativeGarbageCollection,
+  setupPeriodicMemoryOptimization,
+  determineOptimizationLevel as nativeDetermineOptimizationLevel 
+} from '../native-memory-bridge';
+export { 
+  requestNativeMemoryOptimization, 
+  requestNativeGarbageCollection,
+  setupPeriodicMemoryOptimization,
+  nativeDetermineOptimizationLevel 
+};
+
+// 전역 메모리 최적화 API 설정 - 중복 등록 방지 및 통합
 if (typeof window !== 'undefined') {
-  import('./memory-info').then(memoryInfo => {
-    import('./optimizer').then(optimizer => {
-      import('./gc-utils').then(gcUtils => {
-        import('./image-optimizer').then(imageOptimizer => {
-          // 전역 객체에 함수 추가
-          (window as any).__memoryOptimizer = {
-            ...(window as any).__memoryOptimizer || {},
-            // 메모리 정보 함수
-            getMemoryInfo: memoryInfo.getMemoryInfo,
-            getMemoryUsagePercentage: memoryInfo.getMemoryUsagePercentage,
-            
-            // 최적화 함수
-            optimizeMemory: optimizer.internalOptimizeMemory,
-            
-            // GC 함수
-            suggestGarbageCollection: gcUtils.suggestGarbageCollection,
-            requestGC: gcUtils.requestGC,
-            
-            // 이미지 최적화
-            optimizeImageResources: imageOptimizer.optimizeImageResources
-          };
-        });
-      });
-    });
+  // 이미 초기화되었는지 확인
+  if (!(window as any).__memoryOptimizer) {
+    (window as any).__memoryOptimizer = {};
+  }
+  
+  // 모듈들 비동기 로드 및 기능 통합
+  Promise.all([
+    import('./memory-info'),
+    import('./optimizer'),
+    import('./gc-utils'),
+    import('./image-optimizer'),
+    import('../native-memory-bridge')
+  ]).then(([memoryInfo, optimizer, gcUtils, imageOptimizer, nativeBridge]) => {
+    const memOptimizer = (window as any).__memoryOptimizer;
+    
+    // 메모리 정보 함수
+    memOptimizer.getMemoryInfo = memoryInfo.getMemoryInfo;
+    memOptimizer.getMemoryUsagePercentage = memoryInfo.getMemoryUsagePercentage;
+    
+    // 최적화 함수 - 기존 함수를 새 네이티브 함수로 점진적 대체
+    memOptimizer.optimizeMemory = async (aggressive: boolean) => {
+      // 네이티브 모듈 최적화 시도
+      try {
+        const level = aggressive ? 3 : 2; // 적극적이면 HIGH, 아니면 MEDIUM
+        const result = await nativeBridge.requestNativeMemoryOptimization(level, aggressive);
+        if (result) return result;
+      } catch (e) {
+        console.warn('네이티브 최적화 실패, 폴백 사용:', e);
+      }
+      
+      // 폴백: 기존 JS 기반 최적화
+      return optimizer.internalOptimizeMemory(aggressive);
+    };
+    
+    // GC 함수
+    memOptimizer.suggestGarbageCollection = gcUtils.suggestGarbageCollection;
+    memOptimizer.requestGC = async (emergency: boolean) => {
+      // 네이티브 GC 시도 후 폴백
+      try {
+        const result = await nativeBridge.requestNativeGarbageCollection();
+        if (result) return result;
+      } catch (e) {
+        console.warn('네이티브 GC 실패, 폴백 사용:', e);
+      }
+      
+      return gcUtils.requestGC(emergency);
+    };
+    
+    // 이미지 최적화
+    memOptimizer.optimizeImageResources = imageOptimizer.optimizeImageResources;
+    
+    // 네이티브 모듈 특정 기능
+    memOptimizer.determineOptimizationLevel = nativeBridge.determineOptimizationLevel;
+    memOptimizer.setupPeriodicOptimization = nativeBridge.setupPeriodicMemoryOptimization;
+    
+    console.log('메모리 최적화 통합 유틸리티 초기화 완료');
   });
 }
 

@@ -18,6 +18,8 @@
     "isolatedModules": true,
     "jsx": "preserve",
     "incremental": true,
+    // 증분 빌드 성능 강화
+    "tsBuildInfoFile": "./.next/cache/tsbuildinfo.json",
     "plugins": [
       {
         "name": "next"
@@ -26,7 +28,9 @@
     "paths": {
       "@/*": [
         "./src/*"
-      ]
+      ],
+      "@/types": ["./src/types"],
+      "@/types/*": ["./src/types/*"]
     }
   },
   "include": [
@@ -37,6 +41,9 @@
     "dist/types/**/*.ts"
   ],
   "exclude": [
-    "node_modules"
+    "node_modules",
+    ".next",
+    "out",
+    "native-modules"
   ]
 }

@@ -57,7 +57,9 @@
     "processthreadsapi",
     "memoryapi",
     "Deque",
-    "xlarge"
+    "xlarge",
+    "INDEXEDDB",
+    "turbotrace"
   ],
   "ignorePaths": [
     "node_modules/**",
