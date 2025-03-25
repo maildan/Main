@@ -63,8 +63,26 @@
     "workgroups",
     "Adreno",
     "stddev",
-    "prealloc"
-    
+    "prealloc",
+    "SOFTPIPE",
+    "virgl",
+    "powervr",
+    "geforce",
+    "quadro",
+    "firepro",
+    "directx",
+    "opengl",
+    "GLSL",
+    "glsl",
+    "HLSL",
+    "hlsl",
+    "Spir",
+    "SPIR",
+    "spirv",
+    "glslang",
+    "shaderc",
+    "chrono",
+    "DXGI"
   ],
   "ignorePaths": [
     "node_modules/**",

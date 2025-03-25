@@ -970,3 +970,286 @@ module.exports = {
   // 유틸리티
   getNativeModuleInfo
 };
+
+const { logInfo, logError, logWarning } = require('./utils/logger');
+
+// 모듈 캐싱
+let nativeModule = null;
+let fallbackModule = null;
+let lastLoadAttempt = 0;
+const LOAD_COOLDOWN = 5000; // 재시도 간격 (5초)
+
+/**
+ * 네이티브 모듈 로드 시도
+ * @returns {Promise<Object|null>} 네이티브 모듈 또는 null
+ */
+async function getNativeModule() {
+  // 캐싱된 모듈이 있으면 반환
+  if (nativeModule !== null) {
+    return nativeModule;
+  }
+  
+  // 마지막 시도 후 일정 시간이 지나지 않았으면 null 반환
+  const now = Date.now();
+  if (now - lastLoadAttempt < LOAD_COOLDOWN) {
+    return null;
+  }
+  
+  lastLoadAttempt = now;
+  
+  // 가능한 네이티브 모듈 경로
+  const possiblePaths = [
+    // 개발 환경 경로
+    path.join(process.cwd(), 'native-modules', 'target', 'release', 'typing_stats_native.node'),
+    path.join(process.cwd(), 'native-modules', 'target', 'debug', 'typing_stats_native.node'),
+    // 프로덕션 환경 경로
+    path.join(process.cwd(), 'node_modules', 'typing-stats-native', 'index.node'),
+    path.join(process.cwd(), '..', 'native-modules', 'target', 'release', 'typing_stats_native.node'),
+    path.join(process.cwd(), '..', 'native-modules', 'target', 'debug', 'typing_stats_native.node')
+  ];
+  
+  logInfo('네이티브 모듈 로드 시도', { paths: possiblePaths });
+  
+  // 각 경로 시도
+  for (const modulePath of possiblePaths) {
+    try {
+      if (fs.existsSync(modulePath)) {
+        const loadedModule = require(modulePath);
+        nativeModule = loadedModule;
+        logInfo(`네이티브 모듈 로드 성공: ${modulePath}`);
+        return nativeModule;
+      }
+    } catch (error) {
+      logWarning(`모듈 로드 실패: ${modulePath}`, { error: error.message });
+    }
+  }
+  
+  logWarning('네이티브 모듈을 찾을 수 없음, 폴백 모듈 사용 시도');
+  return null;
+}
+
+/**
+ * 폴백 모듈 로드 시도
+ * @returns {Promise<Object|null>} 폴백 모듈 또는 null
+ */
+async function getNativeFallback() {
+  // 캐싱된 모듈이 있으면 반환
+  if (fallbackModule !== null) {
+    return fallbackModule;
+  }
+  
+  // 폴백 모듈 경로 - 여러 가능한 경로 시도
+  const possibleFallbackPaths = [
+    path.join(process.cwd(), 'src', 'server', 'native', 'fallback', 'index.js'),
+    path.join(process.cwd(), 'dist', 'server', 'native', 'fallback', 'index.js'),
+    path.join(__dirname, 'fallback', 'index.js'),
+  ];
+  
+  // 로그에 모든 시도 경로 기록
+  logInfo('폴백 모듈 로드 시도', { paths: possibleFallbackPaths });
+  
+  // 각 경로 시도
+  for (const fallbackPath of possibleFallbackPaths) {
+    try {
+      if (fs.existsSync(fallbackPath)) {
+        fallbackModule = require(fallbackPath);
+        logInfo(`폴백 모듈 로드: ${fallbackPath}`);
+        return fallbackModule;
+      }
+    } catch (error) {
+      logWarning(`폴백 모듈 로드 실패: ${fallbackPath}`, { error: error.message });
+    }
+  }
+  
+  logError('폴백 모듈을 찾을 수 없음');
+  return null;
+}
+
+/**
+ * 네이티브 모듈 사용 가능 여부 확인
+ * @returns {boolean} 네이티브 모듈 사용 가능 여부
+ */
+function isNativeModuleAvailable() {
+  return nativeModule !== null;
+}
+
+/**
+ * 폴백 모듈 사용 가능 여부 확인
+ * @returns {boolean} 폴백 모듈 사용 가능 여부
+ */
+function isFallbackModuleAvailable() {
+  return fallbackModule !== null;
+}
+
+/**
+ * 네이티브 모듈 정보 가져오기
+ * @returns {Promise<Object>} 네이티브 모듈 정보
+ */
+async function getNativeModuleInfo() {
+  const module = await getNativeModule();
+  const fallback = module ? null : await getNativeFallback();
+  
+  return {
+    available: module !== null || fallback !== null,
+    usingNative: module !== null,
+    usingFallback: module === null && fallback !== null,
+    noModuleAvailable: module === null && fallback === null,
+    timestamp: Date.now()
+  };
+}
+
+/**
+ * 네이티브 함수 래핑
+ * 네이티브 모듈이 없으면 폴백을 사용하고, 두 모듈 모두 없으면 에러 반환
+ * @param {string} functionName 함수 이름
+ * @param {Array} args 함수 인자
+ * @returns {Promise<any>} 함수 실행 결과
+ */
+async function callNativeFunction(functionName, ...args) {
+  // 네이티브 모듈 로드 시도
+  const nativeModule = await getNativeModule();
+  
+  if (nativeModule && typeof nativeModule[functionName] === 'function') {
+    // 네이티브 모듈 함수 호출
+    return nativeModule[functionName](...args);
+  }
+  
+  // 폴백 모듈 로드 시도
+  const fallbackModule = await getNativeFallback();
+  
+  if (fallbackModule && typeof fallbackModule[functionName] === 'function') {
+    // 폴백 모듈 함수 호출
+    return fallbackModule[functionName](...args);
+  }
+  
+  // 두 모듈 모두 사용할 수 없음 - 기본값 반환
+  logError(`${functionName} 함수를 네이티브 모듈과 폴백 모듈 모두에서 찾을 수 없습니다`);
+  
+  // 함수별 기본 응답 생성
+  return createDefaultResponse(functionName);
+}
+
+/**
+ * 함수별 기본 응답 생성
+ * @param {string} functionName 함수 이름
+ * @returns {any} 기본 응답
+ */
+function createDefaultResponse(functionName) {
+  const timestamp = Date.now();
+  
+  switch (functionName) {
+    case 'get_memory_info':
+      return JSON.stringify({
+        success: false,
+        timestamp,
+        heap_used: 0,
+        heap_total: 0,
+        heap_used_mb: 0,
+        rss: 0,
+        rss_mb: 0,
+        percent_used: 0,
+        error: "Memory info not available"
+      });
+      
+    case 'force_garbage_collection':
+      return JSON.stringify({
+        success: false,
+        timestamp,
+        freed_memory: 0,
+        freed_mb: 0,
+        duration: 0,
+        error: "Garbage collection not available"
+      });
+      
+    case 'optimize_memory':
+      return JSON.stringify({
+        success: false,
+        timestamp,
+        optimization_level: "none",
+        freed_memory: 0,
+        freed_mb: 0,
+        duration: 0,
+        error: "Memory optimization not available"
+      });
+      
+    case 'get_gpu_info':
+      return JSON.stringify({
+        success: false,
+        timestamp,
+        available: false,
+        acceleration_enabled: false,
+        name: "Software Renderer",
+        vendor: "None",
+        error: "GPU info not available"
+      });
+      
+    default:
+      return JSON.stringify({
+        success: false,
+        timestamp,
+        error: `Function ${functionName} not implemented`
+      });
+  }
+}
+
+// 공통 네이티브 모듈 함수들
+module.exports = {
+  getNativeModule,
+  getNativeFallback,
+  getNativeModuleInfo,
+  callNativeFunction,
+  isNativeModuleAvailable,
+  isFallbackModuleAvailable,
+  
+  // 보다 간편한 사용을 위한 일반적인 함수들
+  getMemoryInfo: async () => {
+    try {
+      return await callNativeFunction('get_memory_info');
+    } catch (error) {
+      logError('메모리 정보 가져오기 실패', { error: error.message });
+      return createDefaultResponse('get_memory_info');
+    }
+  },
+  
+  forceGarbageCollection: async () => {
+    try {
+      return await callNativeFunction('force_garbage_collection');
+    } catch (error) {
+      logError('가비지 컬렉션 수행 실패', { error: error.message });
+      return createDefaultResponse('force_garbage_collection');
+    }
+  },
+  
+  optimizeMemory: async (level = 'medium', emergency = false) => {
+    try {
+      return await callNativeFunction('optimize_memory', level, emergency);
+    } catch (error) {
+      logError('메모리 최적화 실패', { error: error.message });
+      return createDefaultResponse('optimize_memory');
+    }
+  },
+  
+  getGpuInfo: async () => {
+    try {
+      return await callNativeFunction('get_gpu_info');
+    } catch (error) {
+      logError('GPU 정보 가져오기 실패', { error: error.message });
+      return createDefaultResponse('get_gpu_info');
+    }
+  },
+  
+  setGpuAcceleration: async (enable) => {
+    try {
+      const functionName = enable ? 'enable_gpu_acceleration' : 'disable_gpu_acceleration';
+      return await callNativeFunction(functionName);
+    } catch (error) {
+      logError(`GPU 가속화 ${enable ? '활성화' : '비활성화'} 실패`, { error: error.message });
+      return JSON.stringify({
+        success: false,
+        timestamp: Date.now(),
+        enabled: false,
+        error: `GPU acceleration ${enable ? 'enable' : 'disable'} failed: ${error.message}`
+      });
+    }
+  }
+};

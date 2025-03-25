@@ -5,7 +5,6 @@ use crate::memory::types::{MemoryInfo, OptimizationLevel};
 /// 프로세스 메모리 정보 가져오기
 /// types::MemoryInfo 구조체를 직접 반환하도록 수정
 pub fn get_process_memory_info() -> Result<MemoryInfo, Error> {
-    // 플랫폼별 메모리 정보 구현
     #[cfg(target_os = "windows")]
     return get_windows_memory_info();
     
@@ -15,7 +14,6 @@ pub fn get_process_memory_info() -> Result<MemoryInfo, Error> {
     #[cfg(target_os = "macos")]
     return get_macos_memory_info();
     
-    // 기본 구현
     #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
     return get_fallback_memory_info();
 }
@@ -67,52 +65,31 @@ fn get_windows_memory_info() -> Result<MemoryInfo, Error> {
             heap_used,
             heap_total,
             heap_limit: Some(2 * heap_total), // 추정값
-            rss: pmc.WorkingSetSize,
+            rss: Some(pmc.WorkingSetSize),
+            rss_mb: Some(pmc.WorkingSetSize as f64 / (1024.0 * 1024.0)),
             external: Some(pmc.QuotaPagedPoolUsage),
+            array_buffers: Some(0), // 기본값 설정
             heap_used_mb: heap_used as f64 / (1024.0 * 1024.0),
-            rss_mb: pmc.WorkingSetSize as f64 / (1024.0 * 1024.0),
             percent_used: (heap_used as f64 / heap_total as f64) * 100.0,
             timestamp: now,
         });
     }
     
-    // winapi 기능이 비활성화된 경우 폴백 구현
-    let now = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis() as u64;
-    
-    let heap_used = 100 * 1024 * 1024; // 100MB
-    let heap_total = 200 * 1024 * 1024; // 200MB
-    
-    Ok(MemoryInfo {
-        heap_used,
-        heap_total,
-        heap_limit: Some(1024 * 1024 * 1024), // 1GB
-        rss: 150 * 1024 * 1024, // 150MB
-        external: Some(10 * 1024 * 1024), // 10MB
-        heap_used_mb: heap_used as f64 / (1024.0 * 1024.0),
-        rss_mb: 150.0,
-        percent_used: (heap_used as f64 / heap_total as f64) * 100.0,
-        timestamp: now,
-    })
+    // winapi 구현이 비활성화된 경우 대체 구현 사용
+    get_fallback_memory_info()
 }
 
 /// Linux 메모리 정보 가져오기
 #[cfg(target_os = "linux")]
 fn get_linux_memory_info() -> Result<MemoryInfo, Error> {
-    // 실제 구현은 procfs 사용... (간략화)
-    
-    // 더미 구현과 동일
+    // 실제 구현 코드 추가 필요
     get_fallback_memory_info()
 }
 
 /// macOS 메모리 정보 가져오기
 #[cfg(target_os = "macos")]
 fn get_macos_memory_info() -> Result<MemoryInfo, Error> {
-    // 실제 구현은 libc 사용... (간략화)
-    
-    // 더미 구현과 동일
+    // 실제 구현 코드 추가 필요
     get_fallback_memory_info()
 }
 
@@ -131,10 +108,11 @@ fn get_fallback_memory_info() -> Result<MemoryInfo, Error> {
         heap_used,
         heap_total,
         heap_limit: Some(1024 * 1024 * 1024), // 1GB
-        rss: 150 * 1024 * 1024, // 150MB
+        rss: Some(150 * 1024 * 1024), // 150MB
         external: Some(10 * 1024 * 1024), // 10MB
+        array_buffers: Some(5 * 1024 * 1024), // 5MB
         heap_used_mb: heap_used as f64 / (1024.0 * 1024.0),
-        rss_mb: 150.0,
+        rss_mb: Some(150.0),
         percent_used: (heap_used as f64 / heap_total as f64) * 100.0,
         timestamp: now,
     })
@@ -164,28 +142,31 @@ pub fn determine_memory_optimization_level() -> Result<u8, Error> {
 pub fn analyze_memory_usage_severity() -> Result<(OptimizationLevel, String), Error> {
     let memory_info = get_process_memory_info()?;
     
-    // 메모리 사용량 비율에 따라 심각도 및 권장 조치 결정
-    let (level, description) = match memory_info.percent_used {
-        p if p < 50.0 => (
-            OptimizationLevel::Normal,
-            "메모리 사용량이 정상입니다.".to_string()
-        ),
-        p if p < 70.0 => (
-            OptimizationLevel::Low,
-            "메모리 사용량이 증가하고 있습니다. 불필요한 리소스를 정리하는 것이 좋습니다.".to_string()
-        ),
-        p if p < 85.0 => (
-            OptimizationLevel::Medium,
-            "메모리 사용량이 높습니다. 사용하지 않는 기능을 비활성화하세요.".to_string()
-        ),
-        p if p < 95.0 => (
-            OptimizationLevel::High,
-            "메모리 사용량이 매우 높습니다. 즉시 메모리 최적화가 필요합니다.".to_string()
-        ),
-        _ => (
+    let (level, description) = if memory_info.percent_used > 90.0 {
+        (
             OptimizationLevel::Critical,
-            "메모리 사용량이 위험 수준입니다. 즉시 작업을 저장하고 앱을 재시작하세요.".to_string()
-        ),
+            format!("심각: 메모리 사용량이 매우 높음 ({:.1}%)", memory_info.percent_used)
+        )
+    } else if memory_info.percent_used > 80.0 {
+        (
+            OptimizationLevel::High,
+            format!("경고: 메모리 사용량이 높음 ({:.1}%)", memory_info.percent_used)
+        )
+    } else if memory_info.percent_used > 70.0 {
+        (
+            OptimizationLevel::Medium,
+            format!("주의: 메모리 사용량이 증가 중 ({:.1}%)", memory_info.percent_used)
+        )
+    } else if memory_info.percent_used > 50.0 {
+        (
+            OptimizationLevel::Low,
+            format!("정상: 메모리 사용량이 적정 수준 ({:.1}%)", memory_info.percent_used)
+        )
+    } else {
+        (
+            OptimizationLevel::Normal,
+            format!("양호: 메모리 사용량이 낮음 ({:.1}%)", memory_info.percent_used)
+        )
     };
     
     Ok((level, description))

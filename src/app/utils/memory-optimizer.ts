@@ -1,32 +1,27 @@
 /**
- * 렌더러 프로세스 메모리 최적화 유틸리티
+ * 메모리 최적화 유틸리티
+ * 
  * 모든 메모리 최적화 작업은 네이티브 모듈을 통해 처리됩니다.
  */
 
 import { getMemoryInfo as getNativeMemoryInfo, optimizeMemory as performNativeOptimization } from './nativeModuleClient';
-import { MemoryUsageInfo } from '../../types/app-types';
+import { OptimizationLevel } from '@/types';
+import { convertNativeMemoryInfo } from './enum-converters';
 
-// 메모리 최적화 설정 인터페이스
+// 메모리 최적화 설정 인터페이스 유지(호환성)
 export interface MemoryOptimizerOptions {
-  /** 메모리 사용량 임계치 (MB) */
   threshold?: number;
-  /** 모니터링 간격 (ms) */
   checkInterval?: number;
-  /** 경고 표시 여부 */
   showWarnings?: boolean;
-  /** 자동 최적화 활성화 여부 */
   autoOptimize?: boolean;
-  /** 디버그 로그 활성화 여부 */
   debug?: boolean;
 }
 
 /**
- * 현재 메모리 사용량 정보 얻기
- * @returns {MemoryUsageInfo | null} 메모리 사용량 정보
+ * 메모리 정보 가져오기
  */
-export async function getMemoryInfo(): Promise<MemoryUsageInfo | null> {
+export async function getMemoryInfo() {
   try {
-    // 네이티브 모듈에서 메모리 정보 요청
     const response = await getNativeMemoryInfo();
     
     if (!response.success || !response.memoryInfo) {
@@ -34,17 +29,8 @@ export async function getMemoryInfo(): Promise<MemoryUsageInfo | null> {
       return null;
     }
     
-    // 네이티브 모듈에서 받은 데이터 형식 변환
-    return {
-      heapUsed: response.memoryInfo.heap_used,
-      heapTotal: response.memoryInfo.heap_total,
-      heapLimit: response.memoryInfo.heap_limit || 0,
-      rss: response.memoryInfo.rss || 0,
-      heapUsedMB: response.memoryInfo.heap_used_mb,
-      rssMB: response.memoryInfo.rss_mb || 0,
-      percentUsed: response.memoryInfo.percent_used,
-      timestamp: response.memoryInfo.timestamp || Date.now()
-    };
+    // 필드 이름 호환성을 위해 변환
+    return convertNativeMemoryInfo(response.memoryInfo);
   } catch (error) {
     console.error('메모리 정보 가져오기 오류:', error);
     return null;
@@ -52,45 +38,31 @@ export async function getMemoryInfo(): Promise<MemoryUsageInfo | null> {
 }
 
 /**
- * 메모리 사용량 상태를 백분율로 계산
- * @returns {number} 사용 비율 (0-100%)
+ * 메모리 최적화 수행
+ * @param level 최적화 레벨 (0-4)
+ * @param emergency 긴급 상황 여부
  */
-export function getMemoryUsagePercentage(): number {
-  // 동기 버전으로 변경 (Promise 반환하지 않음)
-  if (window.__memoryOptimizer?.getMemoryUsagePercentage) {
-    return window.__memoryOptimizer.getMemoryUsagePercentage();
-  }
-  
-  return 0; // 기본값 반환
-}
-
-/**
- * 메모리 최적화 수행 함수
- * 네이티브 모듈을 통해 메모리 최적화 수행
- * @param {boolean} deepCleanup 심층 정리 여부
- * @returns {Promise<boolean>} 성공 여부
- */
-export async function optimizeMemory(deepCleanup = false): Promise<boolean> {
+export async function optimizeMemory(level = OptimizationLevel.MEDIUM, emergency = false) {
   try {
-    // 네이티브 모듈 호출
-    const result = await performNativeOptimization(deepCleanup ? 3 : 2, deepCleanup);
+    const result = await performNativeOptimization(level, emergency);
     
-    if (!result.success) {
-      console.warn('네이티브 메모리 최적화 실패:', result.error);
-      return false;
+    // 필드 이름 호환성 처리
+    if (result.success && result.result) {
+      result.result.freedMB = result.result.freed_mb;
+      result.result.freedMemory = result.result.freed_memory;
     }
     
-    return true;
+    return result;
   } catch (error) {
     console.error('메모리 최적화 오류:', error);
-    return false;
+    return { success: false, error: String(error) };
   }
 }
 
 /**
- * 가비지 컬렉션 힌트 제공
+ * 가비지 컬렉션 제안
  */
-export function suggestGarbageCollection(): void {
+export function suggestGarbageCollection() {
   if (window.gc) {
     window.gc();
   }
@@ -99,19 +71,9 @@ export function suggestGarbageCollection(): void {
 // 전역 네임스페이스에 노출 (디버깅 및 콘솔 접근용)
 if (typeof window !== 'undefined') {
   window.__memoryOptimizer = {
+    ...window.__memoryOptimizer,
     getMemoryInfo,
     optimizeMemory,
-    suggestGarbageCollection,
-    getMemoryUsagePercentage
+    suggestGarbageCollection
   };
-}
-
-// 전역 인터페이스 확장
-declare global {
-  interface Window {
-    gc?: () => void;
-    __memoryOptimizer?: {
-      [key: string]: any;
-    };
-  }
 }

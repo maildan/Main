@@ -1,56 +1,70 @@
 /**
  * 최적화 레벨 열거형 변환 유틸리티
- * 
- * 타입스크립트 네임스페이스에서 서로 다른 최적화 레벨 열거형 간의
- * 변환을 제공하는 유틸리티 함수들입니다.
  */
-
 import { OptimizationLevel as AppOptimizationLevel } from '@/types';
 import { OptimizationLevel as NativeOptimizationLevel } from '@/types/native-module';
+
+// 열거형 값 매핑 테이블 (더 안전한 방식)
+const APP_TO_NATIVE_LEVEL_MAP: Record<AppOptimizationLevel, NativeOptimizationLevel> = {
+  [AppOptimizationLevel.NONE]: NativeOptimizationLevel.Normal,
+  [AppOptimizationLevel.LOW]: NativeOptimizationLevel.Low,
+  [AppOptimizationLevel.MEDIUM]: NativeOptimizationLevel.Medium,
+  [AppOptimizationLevel.HIGH]: NativeOptimizationLevel.High,
+  [AppOptimizationLevel.EXTREME]: NativeOptimizationLevel.Critical
+};
+
+const NATIVE_TO_APP_LEVEL_MAP: Record<NativeOptimizationLevel, AppOptimizationLevel> = {
+  [NativeOptimizationLevel.Normal]: AppOptimizationLevel.NONE,
+  [NativeOptimizationLevel.Low]: AppOptimizationLevel.LOW,
+  [NativeOptimizationLevel.Medium]: AppOptimizationLevel.MEDIUM,
+  [NativeOptimizationLevel.High]: AppOptimizationLevel.HIGH,
+  [NativeOptimizationLevel.Critical]: AppOptimizationLevel.EXTREME
+};
 
 /**
  * 애플리케이션 OptimizationLevel을 네이티브 OptimizationLevel로 변환
  */
 export function toNativeOptimizationLevel(level: AppOptimizationLevel): NativeOptimizationLevel {
-  // 숫자 값으로 변환 후 네이티브 OptimizationLevel 타입으로 캐스팅
-  // 이렇게 하면 타입스크립트가 열거형 간의 구조적 차이를 무시함
-  const numericLevel = level as number;
+  // 매핑 테이블에서 바로 조회 (더 안전하고 직관적임)
+  const nativeLevel = APP_TO_NATIVE_LEVEL_MAP[level];
   
-  switch (numericLevel) {
-    case AppOptimizationLevel.NONE:
-      return NativeOptimizationLevel.Normal;
-    case AppOptimizationLevel.LOW:
-      return NativeOptimizationLevel.Low;
-    case AppOptimizationLevel.MEDIUM:
-      return NativeOptimizationLevel.Medium;
-    case AppOptimizationLevel.HIGH:
-      return NativeOptimizationLevel.High;
-    case AppOptimizationLevel.EXTREME:
-      return NativeOptimizationLevel.Critical;
-    default:
-      return NativeOptimizationLevel.Medium;
+  // 매핑 테이블에 없는 경우 기본값 반환
+  if (nativeLevel === undefined) {
+    console.warn(`알 수 없는 최적화 레벨 (${level}), 기본값 사용`);
+    return NativeOptimizationLevel.Medium;
   }
+  
+  return nativeLevel;
 }
 
 /**
  * 네이티브 OptimizationLevel을 애플리케이션 OptimizationLevel로 변환
  */
 export function toAppOptimizationLevel(level: NativeOptimizationLevel): AppOptimizationLevel {
-  // 숫자 값으로 변환 후 앱 OptimizationLevel 타입으로 캐스팅
-  const numericLevel = level as number;
+  // 매핑 테이블에서 바로 조회 (더 안전하고 직관적임)
+  const appLevel = NATIVE_TO_APP_LEVEL_MAP[level];
   
-  switch (numericLevel) {
-    case NativeOptimizationLevel.Normal:
-      return AppOptimizationLevel.NONE;
-    case NativeOptimizationLevel.Low:
-      return AppOptimizationLevel.LOW;
-    case NativeOptimizationLevel.Medium:
-      return AppOptimizationLevel.MEDIUM;
-    case NativeOptimizationLevel.High:
-      return AppOptimizationLevel.HIGH;
-    case NativeOptimizationLevel.Critical:
-      return AppOptimizationLevel.EXTREME;
+  // 매핑 테이블에 없는 경우 기본값 반환
+  if (appLevel === undefined) {
+    console.warn(`알 수 없는 네이티브 최적화 레벨 (${level}), 기본값 사용`);
+    return AppOptimizationLevel.MEDIUM;
+  }
+  
+  return appLevel;
+}
+
+/**
+ * 숫자를 적절한 최적화 레벨로 안전하게 변환
+ */
+export function safeOptimizationLevel(level: number): AppOptimizationLevel {
+  switch (level) {
+    case 0: return AppOptimizationLevel.NONE;
+    case 1: return AppOptimizationLevel.LOW;
+    case 2: return AppOptimizationLevel.MEDIUM;
+    case 3: return AppOptimizationLevel.HIGH;
+    case 4: return AppOptimizationLevel.EXTREME;
     default:
+      console.warn(`유효하지 않은 최적화 레벨 (${level}), 기본값 사용`);
       return AppOptimizationLevel.MEDIUM;
   }
 }
@@ -63,12 +77,18 @@ export function convertNativeMemoryInfo(nativeInfo: any): any {
   
   return {
     timestamp: nativeInfo.timestamp || Date.now(),
+    heap_used: nativeInfo.heap_used,
     heapUsed: nativeInfo.heap_used,
+    heap_total: nativeInfo.heap_total,
     heapTotal: nativeInfo.heap_total,
+    heap_used_mb: nativeInfo.heap_used_mb,
     heapUsedMB: nativeInfo.heap_used_mb,
     rss: nativeInfo.rss,
+    rss_mb: nativeInfo.rss_mb,
     rssMB: nativeInfo.rss_mb,
+    percent_used: nativeInfo.percent_used,
     percentUsed: nativeInfo.percent_used,
+    heap_limit: nativeInfo.heap_limit,
     heapLimit: nativeInfo.heap_limit
   };
 }
@@ -83,7 +103,9 @@ export function convertNativeGCResult(nativeResult: any): any {
     success: nativeResult.success,
     timestamp: nativeResult.timestamp || Date.now(),
     freedMemory: nativeResult.freed_memory,
+    freed_memory: nativeResult.freed_memory,
     freedMB: nativeResult.freed_mb,
+    freed_mb: nativeResult.freed_mb,
     error: nativeResult.error
   };
 }

@@ -1,0 +1,188 @@
+.container {
+  background-color: #ffffff;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  padding: 20px;
+  margin-bottom: 20px;
+  transition: all 0.3s ease;
+}
+
+.darkMode {
+  background-color: #2d3748;
+  color: #e2e8f0;
+}
+
+.title {
+  font-size: 18px;
+  font-weight: 600;
+  margin-top: 0;
+  margin-bottom: 15px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.chartContainer {
+  position: relative;
+  width: 100%;
+  margin-bottom: 20px;
+}
+
+.statsContainer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 15px;
+  margin-bottom: 20px;
+  padding: 15px;
+  border-radius: 6px;
+  background-color: #f8fafc;
+  transition: background-color 0.3s ease;
+}
+
+.darkMode .statsContainer {
+  background-color: #384659;
+}
+
+.statsContainer.safe {
+  background-color: #ebfaf5;
+  border-left: 4px solid #38b2ac;
+}
+
+.statsContainer.warning {
+  background-color: #fefae6;
+  border-left: 4px solid #f6ad55;
+}
+
+.statsContainer.danger {
+  background-color: #fee6e2;
+  border-left: 4px solid #e53e3e;
+}
+
+.darkMode .statsContainer.safe {
+  background-color: #2c4a3e;
+  border-left: 4px solid #38b2ac;
+}
+
+.darkMode .statsContainer.warning {
+  background-color: #4a452c;
+  border-left: 4px solid #f6ad55;
+}
+
+.darkMode .statsContainer.danger {
+  background-color: #4a352c;
+  border-left: 4px solid #e53e3e;
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  min-width: 100px;
+}
+
+.statLabel {
+  font-size: 12px;
+  color: #718096;
+  margin-bottom: 5px;
+}
+
+.darkMode .statLabel {
+  color: #a0aec0;
+}
+
+.statValue {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.controls {
+  display: flex;
+  gap: 10px;
+  margin-top: 15px;
+}
+
+.refreshButton, .gcButton {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.refreshButton {
+  background-color: #4299e1;
+  color: white;
+}
+
+.refreshButton:hover {
+  background-color: #3182ce;
+}
+
+.refreshButton:disabled {
+  background-color: #a0aec0;
+  cursor: not-allowed;
+}
+
+.gcButton {
+  background-color: #38b2ac;
+  color: white;
+}
+
+.gcButton:hover {
+  background-color: #2c7a7b;
+}
+
+.gcButton:disabled {
+  background-color: #a0aec0;
+  cursor: not-allowed;
+}
+
+.loading {
+  width: 100%;
+  text-align: center;
+  padding: 20px;
+  color: #718096;
+  font-style: italic;
+}
+
+.statusIndicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 5px 10px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  max-width: 100px;
+  margin-top: 10px;
+}
+
+.statusIndicator.safe {
+  background-color: #ebfaf5;
+  color: #38b2ac;
+}
+
+.statusIndicator.warning {
+  background-color: #fefae6;
+  color: #dd6b20;
+}
+
+.statusIndicator.danger {
+  background-color: #fee6e2;
+  color: #e53e3e;
+}
+
+.darkMode .statusIndicator.safe {
+  background-color: #2c4a3e;
+  color: #4fd1c5;
+}
+
+.darkMode .statusIndicator.warning {
+  background-color: #4a452c;
+  color: #fbd38d;
+}
+
+.darkMode .statusIndicator.danger {
+  background-color: #4a352c;
+  color: #fc8181;
+}

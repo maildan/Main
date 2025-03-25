@@ -1,35 +1,31 @@
 /**
- * 공통 유틸리티 함수 및 모듈
+ * 유틸리티 함수 모음
  */
 
-// 기본 유틸리티 함수 내보내기
+// Storage utilities
+export * from './localStorage';
+
+// Format utilities
 export * from './date-utils';
 export * from './string-utils';
 export * from './math-utils';
 export * from './format-utils';
-export * from './localStorage';
 
-// 스토리지 유틸리티 - 올바른 경로 지정
-export { 
-  getLocalStorage, 
-  setLocalStorage,
-  clearLocalStorage
-} from './storage-utils';
+// Memory management
+export * from './memory/memory-info';
+export * from './memory/types';
+export * from './memory/hooks';
 
-// 메모리 최적화 및 관리
-export * from './memory-optimizer';
-export * from './memory-settings-manager';
-export * from './performance-optimizer';
-export * from './nativeModuleClient';
+// GPU utilities
+export * from './gpu-acceleration';
+export * from './gpu-detection';
+export * from './gpu-settings-bridge';
+export * from './gpu-settings';
 
-// TypeScript 문법 오류 수정 - 모듈 경로 수정 및 문자열 종결
-export * from './memory/gpu-accelerator';
-export * from './enum-converters';
-export * from './performance-metrics';
-export * from './performance-optimizer';
+// Specific utility functions
+export { default as nativeModuleClient } from './nativeModuleClient';
+export * from './system-monitor';
+export * from './type-converters';
 
-// 타입 정의
-export type { 
-  MemoryInfo, 
-  OptimizationResult 
-} from '@/types';
+// GPU namespace export
+export * as gpu from './gpu/functions';

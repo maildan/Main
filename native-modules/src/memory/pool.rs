@@ -8,11 +8,11 @@ use log::{info, debug, warn};
 use crate::memory::types::{MemoryPoolStats, PoolDetail};
 
 // 메모리 풀 크기 상수 (바이트) - 더 세분화된 버퍼 크기
-const TINY_BUFFER_SIZE: usize = 1 * 1024;       // 1KB
-const EXTRA_SMALL_BUFFER_SIZE: usize = 4 * 1024;    // 4KB
-const SMALL_BUFFER_SIZE: usize = 16 * 1024;     // 16KB
-const MEDIUM_SMALL_BUFFER_SIZE: usize = 32 * 1024;  // 32KB
-const MEDIUM_BUFFER_SIZE: usize = 64 * 1024;    // 64KB
+const TINY_BUFFER_SIZE: usize = 128;       // 128 바이트
+const EXTRA_SMALL_BUFFER_SIZE: usize = 512; // 512 바이트
+const SMALL_BUFFER_SIZE: usize = 2 * 1024;  // 2KB
+const MEDIUM_SMALL_BUFFER_SIZE: usize = 8 * 1024;  // 8KB
+const MEDIUM_BUFFER_SIZE: usize = 32 * 1024; // 32KB
 const MEDIUM_LARGE_BUFFER_SIZE: usize = 128 * 1024; // 128KB
 const LARGE_BUFFER_SIZE: usize = 256 * 1024;    // 256KB
 const EXTRA_LARGE_BUFFER_SIZE: usize = 1024 * 1024; // 1MB
@@ -33,19 +33,18 @@ const MAX_HUGE_POOL_SIZE: usize = 5;            // 적게 필요한 큰 버퍼
 struct PoolItem {
     buffer: Vec<u8>,
     last_used: u64,
-    times_used: u32,
 }
 
 /// 메모리 풀 구조
 struct MemoryPool {
     name: String,
     item_size: usize,
+    max_items: usize,
     available_items: Vec<PoolItem>,
+    active_count: AtomicU64,
     total_allocated: AtomicU64,
     total_freed: AtomicU64,
     reuse_count: AtomicU64,
-    max_items: usize,
-    active_count: AtomicU64,
 }
 
 impl MemoryPool {
@@ -53,41 +52,33 @@ impl MemoryPool {
         Self {
             name: name.to_string(),
             item_size,
+            max_items,
             available_items: Vec::with_capacity(max_items),
+            active_count: AtomicU64::new(0),
             total_allocated: AtomicU64::new(0),
             total_freed: AtomicU64::new(0),
             reuse_count: AtomicU64::new(0),
-            max_items,
-            active_count: AtomicU64::new(0),
         }
     }
     
     // 버퍼 획득
     fn acquire_buffer(&mut self) -> Vec<u8> {
-        let now = SystemTime::now()
+        let _now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap_or_default()
             .as_millis() as u64;
         
-        // 재사용 가능한 버퍼가 있으면 반환
-        if let Some(mut item) = self.available_items.pop() {
+        // 사용 가능한 아이템이 있으면 재사용
+        if let Some(item) = self.available_items.pop() {
             self.reuse_count.fetch_add(1, Ordering::Relaxed);
             self.active_count.fetch_add(1, Ordering::Relaxed);
-            
-            item.last_used = now;
-            item.times_used += 1;
-            
-            // 버퍼 내용 초기화 (보안/버그 방지)
-            item.buffer.fill(0);
             return item.buffer;
         }
         
-        // 새 버퍼 할당
+        // 새 버퍼 생성
+        let buffer = Vec::with_capacity(self.item_size);
         self.total_allocated.fetch_add(self.item_size as u64, Ordering::Relaxed);
         self.active_count.fetch_add(1, Ordering::Relaxed);
-        
-        let mut buffer = Vec::with_capacity(self.item_size);
-        buffer.resize(self.item_size, 0);
         buffer
     }
     
@@ -98,29 +89,25 @@ impl MemoryPool {
             .unwrap_or_default()
             .as_millis() as u64;
         
-        // 풀이 가득 찼으면 버퍼 버림
-        if self.available_items.len() >= self.max_items {
-            self.total_freed.fetch_add(buffer.capacity() as u64, Ordering::Relaxed);
-            self.active_count.fetch_sub(1, Ordering::Relaxed);
+        self.active_count.fetch_sub(1, Ordering::Relaxed);
+        
+        // 버퍼 크기가 맞지 않으면 무시
+        if buffer.capacity() != self.item_size {
             return;
         }
         
-        // 버퍼 초기화 및 풀에 반환
-        buffer.clear();
-        
-        // 용량이 맞지 않으면 재조정
-        if buffer.capacity() != self.item_size {
-            buffer.shrink_to_fit();
-            buffer.reserve_exact(self.item_size);
+        // 최대 아이템 수를 초과하지 않도록 확인
+        if self.available_items.len() < self.max_items {
+            // 버퍼 내용 초기화 및 재사용을 위해 저장
+            buffer.clear();
+            self.available_items.push(PoolItem {
+                buffer,
+                last_used: now,
+            });
+        } else {
+            // 풀이 가득 찼으므로 버퍼를 버림
+            self.total_freed.fetch_add(self.item_size as u64, Ordering::Relaxed);
         }
-        
-        self.available_items.push(PoolItem {
-            buffer,
-            last_used: now,
-            times_used: 1,
-        });
-        
-        self.active_count.fetch_sub(1, Ordering::Relaxed);
     }
     
     // 오래된 버퍼 정리
@@ -169,162 +156,126 @@ static LAST_CLEANUP_TIME: AtomicU64 = AtomicU64::new(0);
 
 /// 메모리 풀 초기화
 pub fn initialize_memory_pools() -> Result<(), Error> {
-    let now = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis() as u64;
-    
-    info!("메모리 풀 초기화 시작");
     let mut pools = MEMORY_POOLS.write();
     
-    // 이미 초기화되었으면 중복 초기화 방지
     if !pools.is_empty() {
-        debug!("메모리 풀이 이미 초기화됨");
+        debug!("메모리 풀이 이미 초기화되었습니다.");
         return Ok(());
     }
     
-    // 다양한 크기의 메모리 풀 생성 - 세분화된 크기
+    // 다양한 크기의 메모리 풀 생성
     let pool_configs = [
-        ("tiny_buffer", TINY_BUFFER_SIZE, MAX_TINY_POOL_SIZE),
-        ("extra_small_buffer", EXTRA_SMALL_BUFFER_SIZE, MAX_EXTRA_SMALL_POOL_SIZE),
-        ("small_buffer", SMALL_BUFFER_SIZE, MAX_SMALL_POOL_SIZE),
-        ("medium_small_buffer", MEDIUM_SMALL_BUFFER_SIZE, MAX_MEDIUM_SMALL_POOL_SIZE),
-        ("medium_buffer", MEDIUM_BUFFER_SIZE, MAX_MEDIUM_POOL_SIZE),
-        ("medium_large_buffer", MEDIUM_LARGE_BUFFER_SIZE, MAX_MEDIUM_LARGE_POOL_SIZE),
-        ("large_buffer", LARGE_BUFFER_SIZE, MAX_LARGE_POOL_SIZE),
-        ("extra_large_buffer", EXTRA_LARGE_BUFFER_SIZE, MAX_EXTRA_LARGE_POOL_SIZE),
-        ("huge_buffer", HUGE_BUFFER_SIZE, MAX_HUGE_POOL_SIZE),
-        // 특수 목적 버퍼
-        ("str_buffer", 1024, 200),
-        ("json_buffer", 16 * 1024, 30),
-        ("xml_buffer", 32 * 1024, 20),
-        ("blob_buffer", 128 * 1024, 10),
+        ("tiny", TINY_BUFFER_SIZE, MAX_TINY_POOL_SIZE),
+        ("extra_small", EXTRA_SMALL_BUFFER_SIZE, MAX_EXTRA_SMALL_POOL_SIZE),
+        ("small", SMALL_BUFFER_SIZE, MAX_SMALL_POOL_SIZE),
+        ("medium_small", MEDIUM_SMALL_BUFFER_SIZE, MAX_MEDIUM_SMALL_POOL_SIZE),
+        ("medium", MEDIUM_BUFFER_SIZE, MAX_MEDIUM_POOL_SIZE),
+        ("medium_large", MEDIUM_LARGE_BUFFER_SIZE, MAX_MEDIUM_LARGE_POOL_SIZE),
+        ("large", LARGE_BUFFER_SIZE, MAX_LARGE_POOL_SIZE),
+        ("extra_large", EXTRA_LARGE_BUFFER_SIZE, MAX_EXTRA_LARGE_POOL_SIZE),
+        ("huge", HUGE_BUFFER_SIZE, MAX_HUGE_POOL_SIZE),
     ];
     
-    for (name, size, max_items) in pool_configs.iter() {
-        pools.insert(
-            name.to_string(),
-            RwLock::new(MemoryPool::new(name, *size, *max_items))
-        );
+    for (name, size, max_items) in &pool_configs {
+        let pool = MemoryPool::new(name, *size, *max_items);
+        pools.insert(name.to_string(), RwLock::new(pool));
     }
     
-    LAST_CLEANUP_TIME.store(now, Ordering::SeqCst);
-    info!("메모리 풀 초기화 완료: {} 풀 생성됨", pools.len());
-    Ok(())
-}
-
-/// 메모리 풀 정리
-pub fn cleanup_memory_pools() -> Result<(), Error> {
-    info!("메모리 풀 정리 시작");
-    let pools = MEMORY_POOLS.read();
+    // 초기화 시간 저장
+    LAST_CLEANUP_TIME.store(
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis() as u64,
+        Ordering::SeqCst
+    );
     
-    if pools.is_empty() {
-        debug!("정리할 메모리 풀 없음");
-        return Ok(());
-    }
-    
-    // 모든 풀 정리
-    for (name, pool) in pools.iter() {
-        let mut pool_guard = pool.write();
-        let item_count = pool_guard.available_items.len();
-        pool_guard.available_items.clear();
-        debug!("풀 정리: {} (항목 {} 개 해제)", name, item_count);
-    }
-    
-    info!("메모리 풀 정리 완료");
+    info!("메모리 풀 초기화 완료: {} 개의 풀 생성됨", pool_configs.len());
     Ok(())
 }
 
 /// 메모리 풀에서 버퍼 획득
-pub fn acquire_buffer(pool_name: &str, size: usize) -> Result<Vec<u8>, Error> {
-    POOL_ALLOCATIONS.fetch_add(1, Ordering::Relaxed);
-    
-    // 풀 초기화 확인
+pub fn acquire_buffer(size: usize) -> Result<Vec<u8>, Error> {
+    // 초기화 필요한 경우 초기화
     if MEMORY_POOLS.read().is_empty() {
-        let _ = initialize_memory_pools();
+        initialize_memory_pools()?;
     }
     
-    // 풀 이름으로 적합한 풀 결정
-    let actual_pool_name = determine_pool_name(pool_name, size);
+    // 요청 크기에 적합한 풀 찾기
+    let pool_name = match size {
+        s if s <= TINY_BUFFER_SIZE => "tiny",
+        s if s <= EXTRA_SMALL_BUFFER_SIZE => "extra_small",
+        s if s <= SMALL_BUFFER_SIZE => "small",
+        s if s <= MEDIUM_SMALL_BUFFER_SIZE => "medium_small",
+        s if s <= MEDIUM_BUFFER_SIZE => "medium",
+        s if s <= MEDIUM_LARGE_BUFFER_SIZE => "medium_large",
+        s if s <= LARGE_BUFFER_SIZE => "large",
+        s if s <= EXTRA_LARGE_BUFFER_SIZE => "extra_large",
+        s if s <= HUGE_BUFFER_SIZE => "huge",
+        _ => return Err(Error::from_reason(format!("요청된 크기가 너무 큼: {}B", size))),
+    };
     
-    // 풀에서 버퍼 획득
+    // 선택된 풀에서 버퍼 획득
     let pools = MEMORY_POOLS.read();
-    if let Some(pool) = pools.get(&actual_pool_name) {
+    if let Some(pool) = pools.get(pool_name) {
         let mut pool_guard = pool.write();
-        let buffer = pool_guard.acquire_buffer();
-        POOL_REUSES.fetch_add(1, Ordering::Relaxed);
-        return Ok(buffer);
+        POOL_ALLOCATIONS.fetch_add(1, Ordering::Relaxed);
+        return Ok(pool_guard.acquire_buffer());
     }
     
-    // 풀이 없으면 직접 할당
-    debug!("요청된 풀 없음: {}, 직접 할당", actual_pool_name);
-    let mut buffer = Vec::with_capacity(size);
-    buffer.resize(size, 0);
-    Ok(buffer)
+    // 풀을 찾을 수 없는 경우 직접 생성
+    Err(Error::from_reason(format!("메모리 풀을 찾을 수 없음: {}", pool_name)))
 }
 
-/// 버퍼를 메모리 풀로 반환
-pub fn release_buffer(pool_name: &str, buffer: Vec<u8>) -> Result<(), Error> {
-    // 풀 초기화 확인
+/// 메모리 풀에 버퍼 반환
+pub fn release_buffer(buffer: Vec<u8>) -> Result<(), Error> {
+    // 초기화 필요한 경우 초기화
     if MEMORY_POOLS.read().is_empty() {
-        return Ok(());
+        initialize_memory_pools()?;
     }
     
-    // 풀 이름으로 적합한 풀 결정
-    let capacity = buffer.capacity();
-    let actual_pool_name = determine_pool_name(pool_name, capacity);
+    // 버퍼 크기에 적합한 풀 찾기
+    let size = buffer.capacity();
+    let pool_name = match size {
+        s if s == TINY_BUFFER_SIZE => "tiny",
+        s if s == EXTRA_SMALL_BUFFER_SIZE => "extra_small",
+        s if s == SMALL_BUFFER_SIZE => "small",
+        s if s == MEDIUM_SMALL_BUFFER_SIZE => "medium_small",
+        s if s == MEDIUM_BUFFER_SIZE => "medium",
+        s if s == MEDIUM_LARGE_BUFFER_SIZE => "medium_large",
+        s if s == LARGE_BUFFER_SIZE => "large",
+        s if s == EXTRA_LARGE_BUFFER_SIZE => "extra_large",
+        s if s == HUGE_BUFFER_SIZE => "huge",
+        _ => return Ok(()),  // 적합한 풀이 없으면 버퍼 버림
+    };
     
-    // 풀에 버퍼 반환
+    // 버퍼를 풀에 반환
     let pools = MEMORY_POOLS.read();
-    if let Some(pool) = pools.get(&actual_pool_name) {
+    if let Some(pool) = pools.get(pool_name) {
         let mut pool_guard = pool.write();
         pool_guard.release_buffer(buffer);
+        return Ok(());
     }
     
     Ok(())
 }
 
-/// 버퍼 크기에 적합한 풀 이름 결정
-fn determine_pool_name(preferred_name: &str, size: usize) -> String {
-    // 우선 선호하는 풀 이름으로 검색
-    let pools = MEMORY_POOLS.read();
-    if pools.contains_key(preferred_name) {
-        return preferred_name.to_string();
-    }
-    
-    // 크기에 맞는 적절한 풀 선택
-    let pool_name = if size <= TINY_BUFFER_SIZE {
-        "tiny_buffer"
-    } else if size <= EXTRA_SMALL_BUFFER_SIZE {
-        "extra_small_buffer"
-    } else if size <= SMALL_BUFFER_SIZE {
-        "small_buffer"
-    } else if size <= MEDIUM_SMALL_BUFFER_SIZE {
-        "medium_small_buffer"
-    } else if size <= MEDIUM_BUFFER_SIZE {
-        "medium_buffer"
-    } else if size <= MEDIUM_LARGE_BUFFER_SIZE {
-        "medium_large_buffer"
-    } else if size <= LARGE_BUFFER_SIZE {
-        "large_buffer"
-    } else if size <= EXTRA_LARGE_BUFFER_SIZE {
-        "extra_large_buffer"
-    } else {
-        "huge_buffer"
+/// 특정 크기의 버퍼 풀 가져오기
+pub fn get_pool_for_size(size: usize) -> Result<String, Error> {
+    let pool_name = match size {
+        s if s <= TINY_BUFFER_SIZE => "tiny",
+        s if s <= EXTRA_SMALL_BUFFER_SIZE => "extra_small",
+        s if s <= SMALL_BUFFER_SIZE => "small",
+        s if s <= MEDIUM_SMALL_BUFFER_SIZE => "medium_small",
+        s if s <= MEDIUM_BUFFER_SIZE => "medium",
+        s if s <= MEDIUM_LARGE_BUFFER_SIZE => "medium_large",
+        s if s <= LARGE_BUFFER_SIZE => "large",
+        s if s <= EXTRA_LARGE_BUFFER_SIZE => "extra_large",
+        s if s <= HUGE_BUFFER_SIZE => "huge",
+        _ => return Err(Error::from_reason(format!("요청된 크기가 너무 큼: {}B", size))),
     };
     
-    // 특수 목적 풀 확인 (크기보다 특별한 목적이 더 중요)
-    if preferred_name.contains("str") || preferred_name.contains("string") {
-        return "str_buffer".to_string();
-    } else if preferred_name.contains("json") {
-        return "json_buffer".to_string();
-    } else if preferred_name.contains("xml") {
-        return "xml_buffer".to_string();
-    } else if preferred_name.contains("blob") || preferred_name.contains("binary") {
-        return "blob_buffer".to_string();
-    }
-    
-    pool_name.to_string()
+    Ok(pool_name.to_string())
 }
 
 /// 비활성 풀 정리
@@ -348,6 +299,7 @@ pub fn cleanup_inactive_pools() -> Result<(), Error> {
     for (name, pool) in pools.iter() {
         let mut pool_guard = pool.write();
         let removed = pool_guard.cleanup_old_buffers(300000);  // 5분 이상 미사용
+        
         if removed > 0 {
             debug!("풀 {} 에서 {} 항목 정리됨", name, removed);
             total_removed += removed;
@@ -360,34 +312,6 @@ pub fn cleanup_inactive_pools() -> Result<(), Error> {
         info!("비활성 메모리 풀 정리 완료: 총 {} 항목 해제됨", total_removed);
     } else {
         debug!("비활성 메모리 풀 정리 완료: 해제된 항목 없음");
-    }
-    
-    Ok(())
-}
-
-/// 유휴 객체 회수
-pub fn reclaim_idle_objects() -> Result<(), Error> {
-    debug!("유휴 객체 회수 시작");
-    let pools = MEMORY_POOLS.read();
-    let mut total_reclaimed = 0;
-    
-    // 각 풀에서 항목의 절반만 유지
-    for (name, pool) in pools.iter() {
-        let mut pool_guard = pool.write();
-        let available = pool_guard.available_items.len();
-        
-        if available > 5 {  // 최소 5개는 유지
-            let remove_count = available / 2;
-            pool_guard.available_items.truncate(available - remove_count);
-            total_reclaimed += remove_count;
-            debug!("풀 {}에서 {} 항목 회수됨", name, remove_count);
-        }
-    }
-    
-    if total_reclaimed > 0 {
-        info!("유휴 객체 회수 완료: 총 {} 항목 해제됨", total_reclaimed);
-    } else {
-        debug!("유휴 객체 회수 완료: 해제된 항목 없음");
     }
     
     Ok(())
@@ -519,25 +443,21 @@ pub fn get_pool_stats() -> Result<MemoryPoolStats, Error> {
         pool_details.push(pool_guard.get_stats());
     }
     
-    // 캐시 히트율 계산 (재사용된 버퍼 / 모든 요청)
-    let allocations = POOL_ALLOCATIONS.load(Ordering::Relaxed);
-    let cache_hit_rate = if allocations > 0 {
-        (reuse_count as f64 / allocations as f64) * 100.0
-    } else {
-        0.0
-    };
+    // 통계 결과 생성
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as u64;
     
     let stats = MemoryPoolStats {
-        total_allocated,
-        total_freed,
-        current_usage: total_allocated.saturating_sub(total_freed),
-        pool_count: pools.len(),
-        timestamp: SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_millis() as u64,
-        reuse_count,
-        cache_hit_rate,
+        timestamp: now,
+        total_pools: pools.len(),
+        total_allocations: POOL_ALLOCATIONS.load(Ordering::Relaxed),
+        total_reuses: POOL_REUSES.load(Ordering::Relaxed),
+        total_reclamations: total_freed,
+        current_memory_usage: total_allocated - total_freed,
+        peak_memory_usage: total_allocated,
+        memory_saved: reuse_count * 1024, // 재사용으로 인한 메모리 절약 추정 (바이트)
         pools: pool_details,
     };
     
@@ -546,25 +466,25 @@ pub fn get_pool_stats() -> Result<MemoryPoolStats, Error> {
 
 /// 메모리 풀 초기화 (완전 초기화)
 pub fn reset_memory_pools() -> Result<(), Error> {
-    warn!("메모리 풀 완전 초기화 중");
+    warn!("메모리 풀 완전 초기화 시작");
     
-    // 기존 풀 정리
-    let _ = cleanup_memory_pools();
-    
-    // 모든 풀 삭제
-    {
-        let mut pools = MEMORY_POOLS.write();
-        pools.clear();
-    }
+    // 모든 풀 초기화
+    let mut pools = MEMORY_POOLS.write();
+    pools.clear();
     
     // 카운터 초기화
-    POOL_ALLOCATIONS.store(0, Ordering::SeqCst);
-    POOL_REUSES.store(0, Ordering::SeqCst);
+    POOL_ALLOCATIONS.store(0, Ordering::Relaxed);
+    POOL_REUSES.store(0, Ordering::Relaxed);
+    LAST_CLEANUP_TIME.store(
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis() as u64,
+        Ordering::SeqCst
+    );
     
-    // 새 풀 초기화
+    warn!("메모리 풀 완전 초기화 완료");
     initialize_memory_pools()?;
-    
-    info!("메모리 풀 완전 초기화 완료");
     Ok(())
 }
 
@@ -575,63 +495,65 @@ pub fn get_pool_names() -> Result<Vec<String>, Error> {
     Ok(names)
 }
 
-/// 메모리 풀 사용 추천 (최적의 풀 이름과 크기 추천)
-pub fn recommend_pool(expected_size: usize, usage_hint: &str) -> (String, usize) {
-    // 사용 힌트에 따른 특수 풀 추천
-    if usage_hint.contains("str") || usage_hint.contains("string") {
-        if expected_size <= 1024 {
-            return ("str_buffer".to_string(), 1024);
+/// 유휴 객체 회수
+pub fn reclaim_idle_objects() -> Result<(), Error> {
+    debug!("유휴 객체 회수 시작");
+    let pools = MEMORY_POOLS.read();
+    let mut total_reclaimed = 0;
+    
+    // 각 풀에서 항목의 절반만 유지
+    for (name, pool) in pools.iter() {
+        let mut pool_guard = pool.write();
+        let available = pool_guard.available_items.len();
+        
+        if available > 5 {  // 최소 5개는 유지
+            let remove_count = available / 2;
+            pool_guard.available_items.truncate(available - remove_count);
+            total_reclaimed += remove_count;
+            debug!("풀 {}에서 {} 항목 회수됨", name, remove_count);
         }
-    } else if usage_hint.contains("json") {
-        return ("json_buffer".to_string(), 16 * 1024);
-    } else if usage_hint.contains("xml") {
-        return ("xml_buffer".to_string(), 32 * 1024);
-    } else if usage_hint.contains("blob") || usage_hint.contains("binary") {
-        return ("blob_buffer".to_string(), 128 * 1024);
     }
     
-    // 크기에 따른 표준 풀 추천
-    let (pool_name, size) = if expected_size <= TINY_BUFFER_SIZE {
-        ("tiny_buffer", TINY_BUFFER_SIZE)
-    } else if expected_size <= EXTRA_SMALL_BUFFER_SIZE {
-        ("extra_small_buffer", EXTRA_SMALL_BUFFER_SIZE)
-    } else if expected_size <= SMALL_BUFFER_SIZE {
-        ("small_buffer", SMALL_BUFFER_SIZE)
-    } else if expected_size <= MEDIUM_SMALL_BUFFER_SIZE {
-        ("medium_small_buffer", MEDIUM_SMALL_BUFFER_SIZE)
-    } else if expected_size <= MEDIUM_BUFFER_SIZE {
-        ("medium_buffer", MEDIUM_BUFFER_SIZE)
-    } else if expected_size <= MEDIUM_LARGE_BUFFER_SIZE {
-        ("medium_large_buffer", MEDIUM_LARGE_BUFFER_SIZE)
-    } else if expected_size <= LARGE_BUFFER_SIZE {
-        ("large_buffer", LARGE_BUFFER_SIZE)
-    } else if expected_size <= EXTRA_LARGE_BUFFER_SIZE {
-        ("extra_large_buffer", EXTRA_LARGE_BUFFER_SIZE)
+    if total_reclaimed > 0 {
+        info!("유휴 객체 회수 완료: 총 {} 항목 해제됨", total_reclaimed);
     } else {
-        ("huge_buffer", HUGE_BUFFER_SIZE)
-    };
+        debug!("유휴 객체 회수 완료: 해제할 항목 없음");
+    }
     
-    (pool_name.to_string(), size)
+    Ok(())
 }
 
 /// 메모리 사용량 예측 (여러 풀의 현재 사용량을 기반으로)
 pub fn estimate_memory_usage() -> Result<u64, Error> {
     let pools = MEMORY_POOLS.read();
-    let mut active_memory: u64 = 0;
-    let mut pooled_memory: u64 = 0;
+    let mut total_estimate: u64 = 0;
     
-    // 모든 풀에서 메모리 사용량 계산
     for (_, pool) in pools.iter() {
         let pool_guard = pool.read();
+        let active_objects = pool_guard.active_count.load(Ordering::Relaxed);
+        let object_size = pool_guard.item_size as u64;
         
-        // 활성 메모리 (현재 사용 중인 버퍼)
-        let active_count = pool_guard.active_count.load(Ordering::Relaxed);
-        active_memory += (active_count as u64) * (pool_guard.item_size as u64);
-        
-        // 풀링된 메모리 (재사용 대기 중인 버퍼)
-        pooled_memory += (pool_guard.available_items.len() as u64) * (pool_guard.item_size as u64);
+        total_estimate += active_objects * object_size;
     }
     
-    // 총 메모리 사용량 반환
-    Ok(active_memory + pooled_memory)
+    Ok(total_estimate)
+}
+
+/// 메모리 풀 사용 추천 (최적의 풀 이름과 크기 추천)
+pub fn recommend_pool(expected_size: usize, _usage_hint: &str) -> (String, usize) {
+    // 적절한 풀 선택
+    let (pool_name, size) = match expected_size {
+        s if s <= TINY_BUFFER_SIZE => ("tiny", TINY_BUFFER_SIZE),
+        s if s <= EXTRA_SMALL_BUFFER_SIZE => ("extra_small", EXTRA_SMALL_BUFFER_SIZE),
+        s if s <= SMALL_BUFFER_SIZE => ("small", SMALL_BUFFER_SIZE),
+        s if s <= MEDIUM_SMALL_BUFFER_SIZE => ("medium_small", MEDIUM_SMALL_BUFFER_SIZE),
+        s if s <= MEDIUM_BUFFER_SIZE => ("medium", MEDIUM_BUFFER_SIZE),
+        s if s <= MEDIUM_LARGE_BUFFER_SIZE => ("medium_large", MEDIUM_LARGE_BUFFER_SIZE),
+        s if s <= LARGE_BUFFER_SIZE => ("large", LARGE_BUFFER_SIZE),
+        s if s <= EXTRA_LARGE_BUFFER_SIZE => ("extra_large", EXTRA_LARGE_BUFFER_SIZE),
+        s if s <= HUGE_BUFFER_SIZE => ("huge", HUGE_BUFFER_SIZE),
+        _ => ("custom", expected_size), // 맞는 풀이 없으면 custom 반환
+    };
+    
+    (pool_name.to_string(), size)
 }

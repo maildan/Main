@@ -13,6 +13,8 @@ import { requestNativeMemoryOptimization, requestNativeGarbageCollection } from 
 import { OptimizationLevel as AppOptimizationLevel } from '@/types';
 import { OptimizationLevel as NativeOptimizationLevel } from '@/types/native-module';
 import { toNativeOptimizationLevel } from '../enum-converters';
+import { optimizeMemory, getMemoryInfo as fetchMemoryInfo } from '../memory-optimizer';
+import { OptimizationLevel } from './types';
 
 /**
  * 메모리 최적화 훅 (통합 버전)
@@ -49,25 +51,30 @@ export function useMemoryOptimizer(options: MemoryOptimizerOptions = {}) {
   
   // 메모리 정보 갱신 함수
   const updateMemoryInfo = useCallback(() => {
-    const info = getMemoryInfo();
-    setMemoryInfo(info);
-    
-    // 임계치 초과 체크
-    if (info && showWarnings && info.heapUsedMB > threshold) {
-      if (debug) {
-        console.warn(`메모리 사용량 경고: ${info.heapUsedMB}MB (임계치: ${threshold}MB)`);
+    getMemoryInfo().then(info => {
+      if (info) {
+        setMemoryInfo(info);
+        
+        // 임계치 초과 체크 - 필드 이름 호환성 처리
+        const heapUsedMB = info.heap_used_mb || (info.heapUsedMB as number);
+        
+        if (showWarnings && heapUsedMB > threshold) {
+          if (debug) {
+            console.warn(`메모리 사용량 경고: ${heapUsedMB}MB (임계치: ${threshold}MB)`);
+          }
+          
+          // 토스트 메시지로 경고 표시
+          showToast(`메모리 사용량이 높습니다: ${heapUsedMB}MB`, 'warning');
+          
+          // 자동 최적화가 활성화된 경우 메모리 정리 수행
+          if (autoOptimize) {
+            runMemoryOptimization();
+          }
+        }
       }
       
-      // 토스트 메시지로 경고 표시
-      showToast(`메모리 사용량이 높습니다: ${info.heapUsedMB}MB`, 'warning');
-      
-      // 자동 최적화가 활성화된 경우 메모리 정리 수행
-      if (autoOptimize) {
-        runMemoryOptimization();
-      }
-    }
-    
-    return info;
+      return info;
+    });
   }, [threshold, showWarnings, autoOptimize, debug, showToast]);
   
   // 메모리 최적화 실행 함수 (통합 버전)
@@ -119,7 +126,7 @@ export function useMemoryOptimizer(options: MemoryOptimizerOptions = {}) {
       setOptimizationStats(prev => ({
         lastRun: Date.now(),
         totalOptimizations: prev.totalOptimizations + 1,
-        freedMemory: prev.freedMemory + (optimizationResult?.freed_mb || 0)
+        freedMemory: prev.freedMemory + (optimizationResult?.freedMB || optimizationResult?.freed_mb || 0)
       }));
       
       // GC 요청이 처리될 시간 제공
@@ -185,7 +192,7 @@ export function useMemoryOptimizer(options: MemoryOptimizerOptions = {}) {
       setOptimizationStats(prev => ({
         lastRun: Date.now(),
         totalOptimizations: prev.totalOptimizations + 1,
-        freedMemory: prev.freedMemory + (optimizationResult?.freed_mb || 0)
+        freedMemory: prev.freedMemory + (optimizationResult?.freedMB || optimizationResult?.freed_mb || 0)
       }));
       
       // GC 요청 후 충분한 처리 시간 제공
@@ -272,5 +279,212 @@ export function useMemoryOptimizer(options: MemoryOptimizerOptions = {}) {
     updateMemoryInfo,
     optimizeMemory: runMemoryOptimization,
     emergencyOptimize: runEmergencyOptimization,
+  };
+}
+
+/**
+ * 메모리 정보 훅
+ * @returns 메모리 정보, 로딩 상태, 오류
+ */
+export function useMemoryInfo(refreshInterval = 5000) {
+  const [memoryInfo, setMemoryInfo] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  
+  const fetchData = useCallback(async () => {
+    try {
+      setLoading(true);
+      const info = await fetchMemoryInfo();
+      setMemoryInfo(info);
+      setError(null);
+    } catch (err) {
+      console.error('메모리 정보 가져오기 오류:', err);
+      setError(err instanceof Error ? err.message : '메모리 정보를 가져오는 데 실패했습니다');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+  
+  useEffect(() => {
+    fetchData();
+    
+    if (refreshInterval > 0) {
+      const intervalId = setInterval(fetchData, refreshInterval);
+      return () => clearInterval(intervalId);
+    }
+  }, [fetchData, refreshInterval]);
+  
+  const refresh = useCallback(() => {
+    fetchData();
+  }, [fetchData]);
+  
+  return { memoryInfo, loading, error, refresh };
+}
+
+/**
+ * 메모리 사용량 표시 훅
+ * @returns 메모리 정보 및 표시 상태
+ */
+export function useMemoryDisplay(refreshInterval = 5000) {
+  const { memoryInfo, loading, error, refresh } = useMemoryInfo(refreshInterval);
+  const [displayData, setDisplayData] = useState({
+    heapUsedMB: 0,
+    percentUsed: 0,
+    status: 'normal'
+  });
+  
+  useEffect(() => {
+    if (memoryInfo) {
+      // 안전하게 heap_used_mb 속성 사용
+      const heapUsedMB = memoryInfo.heap_used_mb || memoryInfo.heapUsedMB || 0;
+      const percentUsed = memoryInfo.percent_used || memoryInfo.percentUsed || 0;
+      
+      let status = 'normal';
+      if (percentUsed > 90) status = 'critical';
+      else if (percentUsed > 75) status = 'high';
+      else if (percentUsed > 60) status = 'medium';
+      
+      setDisplayData({
+        heapUsedMB,
+        percentUsed,
+        status
+      });
+    }
+  }, [memoryInfo]);
+  
+  return { 
+    ...displayData, 
+    memoryInfo, 
+    loading, 
+    error, 
+    refresh 
+  };
+}
+
+/**
+ * 메모리 최적화 훅
+ * @returns 최적화 함수, 결과, 로딩 상태
+ */
+export function useMemoryOptimization() {
+  const [optimizationResult, setOptimizationResult] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  
+  const optimizeWithLevel = useCallback(async (level = OptimizationLevel.MEDIUM) => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const result = await optimizeMemory(level);
+      setOptimizationResult(result);
+      
+      return result;
+    } catch (err) {
+      console.error('메모리 최적화 오류:', err);
+      setError(err instanceof Error ? err.message : '메모리 최적화 실패');
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+  
+  const optimize = useCallback(async (aggressive = false) => {
+    const level = aggressive ? OptimizationLevel.HIGH : OptimizationLevel.MEDIUM;
+    return optimizeWithLevel(level);
+  }, [optimizeWithLevel]);
+  
+  return {
+    optimize,
+    optimizeWithLevel,
+    optimizationResult,
+    loading,
+    error,
+    // 결과 내 속성에 안전하게 접근
+    freedMB: optimizationResult?.freed_mb ?? optimizationResult?.freedMB ?? 0
+  };
+}
+
+/**
+ * 자동 메모리 최적화 훅
+ * @param options 최적화 옵션
+ */
+export function useAutomaticMemoryOptimization(options = {}) {
+  const {
+    enabled = true,
+    thresholdMB = 100,
+    thresholdPercent = 75,
+    checkInterval = 30000,
+    aggressiveThresholdMB = 200,
+    aggressiveThresholdPercent = 90
+  } = options;
+  
+  const [isActive, setIsActive] = useState(enabled);
+  const [status, setStatus] = useState('idle');
+  const [lastOptimized, setLastOptimized] = useState(0);
+  const [memoryInfo, setMemoryInfo] = useState(null);
+  
+  const intervalRef = useRef<number | null>(null);
+  const { optimize } = useMemoryOptimization();
+  
+  // 메모리 체크 함수
+  const checkMemory = useCallback(async () => {
+    if (!isActive) return;
+    
+    try {
+      setStatus('checking');
+      const info = await fetchMemoryInfo();
+      setMemoryInfo(info);
+      
+      if (!info) return;
+      
+      // 힙 사용량 안전하게 접근
+      const heapUsedMB = info.heap_used_mb || info.heapUsedMB || 0;
+      const percentUsed = info.percent_used || info.percentUsed || 0;
+      
+      const needsOptimization = heapUsedMB > thresholdMB || percentUsed > thresholdPercent;
+      const needsAggressiveOptimization = heapUsedMB > aggressiveThresholdMB || percentUsed > aggressiveThresholdPercent;
+      
+      if (needsOptimization) {
+        setStatus('optimizing');
+        await optimize(needsAggressiveOptimization);
+        setLastOptimized(Date.now());
+        setStatus('idle');
+      }
+    } catch (err) {
+      console.error('자동 메모리 최적화 오류:', err);
+      setStatus('error');
+    }
+  }, [isActive, optimize, thresholdMB, thresholdPercent, aggressiveThresholdMB, aggressiveThresholdPercent]);
+  
+  // 자동 최적화 시작/중지
+  useEffect(() => {
+    if (isActive && !intervalRef.current && checkInterval > 0) {
+      // 초기 체크
+      checkMemory();
+      // 주기적 체크 시작
+      intervalRef.current = window.setInterval(checkMemory, checkInterval) as unknown as number;
+    }
+    
+    return () => {
+      if (intervalRef.current) {
+        window.clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    };
+  }, [isActive, checkInterval, checkMemory]);
+  
+  // 사용자 제어 함수
+  const start = useCallback(() => setIsActive(true), []);
+  const stop = useCallback(() => setIsActive(false), []);
+  const check = useCallback(() => checkMemory(), [checkMemory]);
+  
+  return {
+    isActive,
+    status,
+    memoryInfo,
+    lastOptimized,
+    start,
+    stop,
+    check
   };
 }

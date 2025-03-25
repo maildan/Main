@@ -60,6 +60,80 @@ export interface ExtendedGCResult extends GCResult {
  * 메모리 관련 타입 정의
  */
 
+export enum OptimizationLevel {
+  NONE = 0,
+  LOW = 1,
+  MEDIUM = 2,
+  HIGH = 3,
+  EXTREME = 4
+}
+
+// 최적화 결과 인터페이스
+export interface OptimizationResult {
+  success: boolean;
+  optimization_level: OptimizationLevel;
+  freed_memory?: number;
+  freed_mb?: number;
+  freedMemory?: number;  // 호환성 유지
+  freedMB?: number;      // 호환성 유지
+  duration?: number;
+  memory_before?: MemoryInfo;
+  memory_after?: MemoryInfo;
+  timestamp: number;
+  error?: string | null;
+}
+
+// 메모리 정보 인터페이스
+export interface MemoryInfo {
+  heap_used: number;
+  heapUsed?: number;    // 호환성 유지
+  heap_total: number;
+  heapTotal?: number;   // 호환성 유지
+  heap_used_mb: number;
+  heapUsedMB?: number;  // 호환성 유지
+  rss: number;
+  rss_mb: number;
+  rssMB?: number;       // 호환성 유지
+  percent_used: number;
+  percentUsed?: number; // 호환성 유지
+  heap_limit?: number;
+  timestamp: number;
+}
+
+// 가비지 컬렉션 결과 인터페이스
+export interface GCResult {
+  success: boolean;
+  freed_memory: number;
+  freedMemory?: number;  // 호환성 유지
+  freed_mb: number;
+  freedMB?: number;      // 호환성 유지
+  duration: number;
+  timestamp: number;
+  error?: string | null;
+}
+
+// 이벤트 리스너 데이터
+export interface EventListenerData {
+  listener: EventListener;
+  options?: boolean | AddEventListenerOptions;
+  lastUsed: number;
+}
+
+// 동적 모듈 정의
+export interface DynamicModule {
+  id: string;
+  lastUsed: number;
+  unload: () => void;
+}
+
+// 메모리 사용량 정보
+export interface MemoryUsageInfo {
+  total: number;
+  used: number;
+  free: number;
+  percentage: number;
+}
+
 // 최적화 레벨 열거형
 export enum OptimizationLevel {
   NONE = 0,

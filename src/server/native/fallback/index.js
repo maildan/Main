@@ -1,8 +1,6 @@
 /**
  * 네이티브 모듈 폴백 구현
- * 
- * 이 파일은 Rust 네이티브 모듈이 사용 불가능한 경우의 JavaScript 구현을 제공합니다.
- * 모든 함수에 대한 기본 동작을 제공하되, 성능이나 기능이 제한될 수 있습니다.
+ * 네이티브 모듈을 로드할 수 없을 때 기본적인 기능을 제공합니다.
  */
 
 const os = require('os');
@@ -32,8 +30,8 @@ const state = {
 };
 
 /**
- * 타임스탬프 생성 (밀리초)
- * @returns {number} 현재 타임스탬프
+ * 현재 타임스탬프 가져오기
+ * @returns {number} 현재 타임스탬프(ms)
  */
 function getCurrentTimestamp() {
   return Date.now();
@@ -116,25 +114,29 @@ function processTaskSync(taskType, data) {
  */
 function get_memory_info() {
   const memoryUsage = process.memoryUsage();
-  
   const heapUsed = memoryUsage.heapUsed;
   const heapTotal = memoryUsage.heapTotal;
   const rss = memoryUsage.rss;
-  const external = memoryUsage.external || 0;
   
-  const memoryInfo = {
+  // MB 단위로 변환
+  const heapUsedMB = Math.round(heapUsed / (1024 * 1024) * 100) / 100;
+  const heapTotalMB = Math.round(heapTotal / (1024 * 1024) * 100) / 100;
+  const rssMB = Math.round(rss / (1024 * 1024) * 100) / 100;
+  
+  const result = {
+    success: true,
+    timestamp: getCurrentTimestamp(),
     heap_used: heapUsed,
     heap_total: heapTotal,
-    heap_limit: heapTotal * 2, // 가상의 힙 제한
     rss: rss,
-    external: external,
-    heap_used_mb: heapUsed / (1024 * 1024),
-    rss_mb: rss / (1024 * 1024),
-    percent_used: (heapUsed / heapTotal) * 100,
-    timestamp: getCurrentTimestamp()
+    heap_used_mb: heapUsedMB,
+    heap_total_mb: heapTotalMB,
+    rss_mb: rssMB,
+    percent_used: Math.round((heapUsed / heapTotal) * 100),
+    error: null
   };
   
-  return JSON.stringify(memoryInfo);
+  return JSON.stringify(result);
 }
 
 /**
@@ -154,59 +156,58 @@ function determine_optimization_level() {
 
 /**
  * 메모리 최적화 수행
- * @param {number} level 최적화 수준 (0-4)
- * @param {boolean} emergency 긴급 최적화 여부
+ * @param {string} level 최적화 레벨 - 'normal', 'low', 'medium', 'high', 'critical'
+ * @param {boolean} emergency 긴급 모드 여부
  * @returns {string} JSON 형식의 최적화 결과
  */
-function optimize_memory(level, emergency) {
+function optimize_memory(level = 'medium', emergency = false) {
   const startTime = performance.now();
   
   // 메모리 최적화 전 상태
   const memoryBefore = process.memoryUsage();
   
-  // 가비지 컬렉션 요청 (--expose-gc가 활성화된 경우 작동)
+  // 가비지 컬렉션 요청
   if (global.gc) {
     global.gc();
   }
   
-  // 메모리 해제 시뮬레이션을 위한 지연
-  const delay = emergency ? 10 : (level * 10 + 50);
-  const start = Date.now();
-  while (Date.now() - start < delay) {
-    // 인위적인 지연
+  // 대용량 배열 생성 및 삭제로 GC 유도
+  try {
+    const arrSize = emergency ? 100 * 1024 * 1024 : 50 * 1024 * 1024; // 50MB 또는 100MB
+    const arr = new Array(arrSize / 8).fill(0); // 8바이트 단위로 나눔 (number 타입)
+    arr.length = 0;
+  } catch (error) {
+    console.warn('메모리 할당 중 오류:', error);
   }
+  
+  // 메모리 해제를 위한 대기
+  const endTime = performance.now();
   
   // 메모리 최적화 후 상태
   const memoryAfter = process.memoryUsage();
   
-  // 해제된 메모리 계산 (heapUsed 감소량)
+  // 해제된 메모리 계산
   const freedMemory = Math.max(0, memoryBefore.heapUsed - memoryAfter.heapUsed);
   
   const result = {
     success: true,
+    timestamp: getCurrentTimestamp(),
     optimization_level: level,
     memory_before: {
       heap_used: memoryBefore.heapUsed,
       heap_total: memoryBefore.heapTotal,
-      rss: memoryBefore.rss,
       heap_used_mb: memoryBefore.heapUsed / (1024 * 1024),
-      rss_mb: memoryBefore.rss / (1024 * 1024),
-      percent_used: (memoryBefore.heapUsed / memoryBefore.heapTotal) * 100,
-      timestamp: getCurrentTimestamp()
+      percent_used: Math.round((memoryBefore.heapUsed / memoryBefore.heapTotal) * 100)
     },
     memory_after: {
       heap_used: memoryAfter.heapUsed,
       heap_total: memoryAfter.heapTotal,
-      rss: memoryAfter.rss,
       heap_used_mb: memoryAfter.heapUsed / (1024 * 1024),
-      rss_mb: memoryAfter.rss / (1024 * 1024),
-      percent_used: (memoryAfter.heapUsed / memoryAfter.heapTotal) * 100,
-      timestamp: getCurrentTimestamp()
+      percent_used: Math.round((memoryAfter.heapUsed / memoryAfter.heapTotal) * 100)
     },
     freed_memory: freedMemory,
     freed_mb: freedMemory / (1024 * 1024),
-    duration: performance.now() - startTime,
-    timestamp: getCurrentTimestamp(),
+    duration: endTime - startTime,
     error: null
   };
   
@@ -289,16 +290,21 @@ function disable_gpu_acceleration() {
  * @returns {string} JSON 형식의 GPU 정보
  */
 function get_gpu_info() {
-  const gpuInfo = {
-    name: 'JavaScript Fallback GPU',
-    vendor: 'Node.js',
-    driver_info: 'JavaScript 폴백 구현',
-    device_type: 'CPU',
-    backend: 'JavaScript',
-    available: false
+  const result = {
+    success: true,
+    timestamp: getCurrentTimestamp(),
+    name: "Software Renderer",
+    vendor: "JavaScript Fallback",
+    driver_info: "Pure JavaScript implementation",
+    device_type: "CPU",
+    backend: "JavaScript",
+    available: true,
+    acceleration_enabled: false,
+    settings_enabled: false,
+    processing_mode: "normal"
   };
   
-  return JSON.stringify(gpuInfo);
+  return JSON.stringify(result);
 }
 
 /**
@@ -594,6 +600,23 @@ function cleanup_native_modules() {
   return true;
 }
 
+/**
+ * 텍스트 처리 작업 수행 (가상)
+ * @param {string} text 처리할 텍스트
+ * @returns {string} JSON 형식의 결과
+ */
+function process_text(text) {
+  const result = {
+    success: true,
+    timestamp: getCurrentTimestamp(),
+    charCount: text.length,
+    wordCount: text.split(/\s+/).filter(Boolean).length,
+    error: null
+  };
+  
+  return JSON.stringify(result);
+}
+
 // 모듈 내보내기
 module.exports = {
   // 기본 모듈 정보
@@ -623,5 +646,15 @@ module.exports = {
   get_worker_pool_stats,
   
   // 유틸리티 함수
-  get_timestamp
+  get_timestamp,
+  process_text,
+  
+  // 가독성을 위한 별칭 추가
+  getMemoryInfo: get_memory_info,
+  forceGarbageCollection: force_garbage_collection,
+  optimizeMemory: optimize_memory,
+  getGpuInfo: get_gpu_info,
+  enableGpuAcceleration: enable_gpu_acceleration,
+  disableGpuAcceleration: disable_gpu_acceleration,
+  processText: process_text
 };

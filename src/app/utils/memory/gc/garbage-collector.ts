@@ -1,219 +1,200 @@
 /**
- * 가비지 컬렉션 관련 기능 모듈
+ * 가비지 컬렉션 유틸리티
+ * 
+ * 메모리 GC 및 최적화 기능을 제공합니다.
  */
-import { GCResult, MemoryInfo, ExtendedGCResult } from '../types';
+
+import { MemoryInfo, OptimizationLevel, GCResult } from '../types';
 import { MEMORY_THRESHOLDS } from '../constants/memory-thresholds';
 import { getMemoryUsage } from '../memory-info';
-import { performOptimizationByLevel } from './optimization-controller';
+
+// 마지막 GC 시간 추적
+let lastGCTime = 0;
+const MIN_GC_INTERVAL = MEMORY_THRESHOLDS.MIN_GC_INTERVAL; // 30초
 
 /**
- * MemoryUsageInfo를 MemoryInfo로 변환
- * timestamp가 항상 존재하도록 보장
+ * 메모리 정보 확인 또는 생성
  */
-export function ensureMemoryInfo(memoryData: any): MemoryInfo {
-  // 기본값이 있는 객체 생성 (요구사항 1: timestamp 보장)
+export async function ensureMemoryInfo(): Promise<MemoryInfo> {
+  try {
+    const info = await getMemoryUsage();
+    if (info) {
+      return info;
+    }
+  } catch (error) {
+    console.error('메모리 정보 가져오기 실패:', error);
+  }
+  
+  // 오류 발생 시 기본값 반환
   return {
-    timestamp: memoryData.timestamp || Date.now(),
-    heapUsed: memoryData.heapUsed || 0,
-    heapTotal: memoryData.heapTotal || 0,
-    heapUsedMB: memoryData.heapUsedMB || 0,
-    percentUsed: memoryData.percentUsed || 0,
-    heapLimit: memoryData.heapLimit
+    heap_used: 0,
+    heapUsed: 0,
+    heap_total: 0,
+    heapTotal: 0,
+    heap_used_mb: 0,
+    heapUsedMB: 0,
+    rss: 0,
+    rss_mb: 0,
+    rssMB: 0,
+    percent_used: 0,
+    percentUsed: 0,
+    heap_limit: 0,
+    timestamp: Date.now()
   };
 }
 
 /**
- * 메모리 사용량 임계값에 따른 최적화 수준 결정
- * @param memoryInfo 현재 메모리 정보
- * @returns 최적화 수준 (0-3: 정상, 주의, 경고, 위험)
+ * 최적화 레벨 결정
  */
-export function determineOptimizationLevel(memoryInfo: MemoryInfo): number {
-  const heapUsed = memoryInfo.heapUsed;
+export function determineOptimizationLevel(info: MemoryInfo): OptimizationLevel {
+  const usedMB = info.heap_used_mb;
   
-  // 임계값 기반 최적화 수준 결정
-  if (heapUsed > MEMORY_THRESHOLDS.CRITICAL) return 3;  // 위험 단계 (최대 수준 최적화)
-  if (heapUsed > MEMORY_THRESHOLDS.HIGH) return 2;      // 경고 단계 (고수준 최적화)
-  if (heapUsed > MEMORY_THRESHOLDS.MEDIUM) return 1;    // 주의 단계 (중간 수준 최적화)
-  if (heapUsed > MEMORY_THRESHOLDS.LOW) return 0.5;     // 관찰 단계 (경량 최적화)
-  return 0;                                             // 정상 단계 (최적화 필요 없음)
-}
-
-/**
- * 가비지 컬렉션 제안
- * 브라우저에게 GC를 수행하도록 힌트 제공
- */
-export function suggestGarbageCollection(): void {
-  try {
-    // 1. 메모리 단편화 완화를 위한 작은 객체 생성/해제
-    const temp = [];
-    for (let i = 0; i < 100; i++) {
-      temp.push(new ArrayBuffer(1024));
-    }
-    temp.length = 0;
-    
-    // 2. window.gc가 지원되는 경우 (Chrome에서 --js-flags='--expose-gc' 옵션 필요)
-    if (typeof window.gc === 'function') {
-      window.gc();
-    }
-    
-    console.log('가비지 컬렉션 제안됨');
-  } catch (error) {
-    console.warn('가비지 컬렉션 제안 중 오류:', error);
+  if (usedMB < MEMORY_THRESHOLDS.LOW) {
+    return OptimizationLevel.NONE;
+  } else if (usedMB < MEMORY_THRESHOLDS.MEDIUM) {
+    return OptimizationLevel.LOW;
+  } else if (usedMB < MEMORY_THRESHOLDS.HIGH) {
+    return OptimizationLevel.MEDIUM;
+  } else if (usedMB < MEMORY_THRESHOLDS.CRITICAL) {
+    return OptimizationLevel.HIGH;
+  } else {
+    return OptimizationLevel.EXTREME;
   }
 }
 
 /**
- * 가비지 컬렉션 강제 유도
- * 여러 기법을 사용하여 GC 유도
+ * 기본 GC 수행
  */
-export function induceGarbageCollection(): void {
-  try {
-    // 1. 대형 배열 생성 후 해제
-    let arr = new Array(1000000).fill(Math.random());
-    arr = null;
-    
-    // 2. 순환 참조 객체 생성 후 해제
-    let obj1: any = {};
-    let obj2: any = {};
-    obj1.ref = obj2;
-    obj2.ref = obj1;
-    obj1 = null;
-    obj2 = null;
-    
-    // 3. 빈 객체 반복 생성/해제
-    for (let i = 0; i < 1000; i++) {
-      const o = {};
-      void(o);
-    }
-    
-    // 4. window.gc 호출 (지원되는 경우)
-    if (typeof window.gc === 'function') {
+export async function performGC(emergency: boolean = false): Promise<GCResult> {
+  console.log(`[GC] ${emergency ? '긴급' : '기본'} 가비지 컬렉션 요청`);
+  
+  // 네이티브 GC 함수 호출 시도
+  if (window.gc) {
+    try {
+      console.log('[GC] 네이티브 GC 함수 호출 시도');
       window.gc();
+      console.log('[GC] 네이티브 GC 성공');
+      
+      return {
+        success: true,
+        freed_memory: 0, // 실제 해제된 메모리는 알 수 없음
+        freedMemory: 0,
+        freed_mb: 0,
+        freedMB: 0,
+        duration: 0,
+        timestamp: Date.now()
+      };
+    } catch (error) {
+      console.error('[GC] 네이티브 GC 함수 호출 실패:', error);
     }
-    
-    console.log('가비지 컬렉션 유도됨');
-  } catch (error) {
-    console.warn('가비지 컬렉션 유도 중 오류:', error);
   }
-}
-
-/**
- * 가비지 컬렉션 요청
- * Electron IPC를 통한 GC 요청 또는 브라우저 내장 GC 힌트
- * @param emergency 긴급 GC 여부
- */
-export async function requestGC(emergency: boolean = false): Promise<GCResult> {
+  
+  // GC를 유도하기 위한 대안 방법
   try {
-    console.log(`${emergency ? '긴급' : '일반'} 가비지 컬렉션 요청`);
+    const memoryBefore = await ensureMemoryInfo();
     
-    // 마지막 GC 요청 후 충분한 시간이 지났는지 확인 (너무 자주 호출하면 성능 저하)
+    // 마지막 GC 이후 최소 간격 확인
     const now = Date.now();
-    if (!emergency && now - lastGCTime < MIN_GC_INTERVAL) {
-      console.log(`GC 호출 간격이 너무 짧습니다 (${now - lastGCTime}ms). 건너뜁니다.`);
+    if (now - lastGCTime < MIN_GC_INTERVAL && !emergency) {
+      console.warn(`[GC] 최소 간격(${MIN_GC_INTERVAL}ms) 내에 GC 요청, 생략됨`);
       return {
         success: false,
-        timestamp: now,
+        freed_memory: 0,
         freedMemory: 0,
+        freed_mb: 0,
         freedMB: 0,
-        error: 'GC 호출 간격이 너무 짧습니다'
+        duration: 0,
+        timestamp: now,
+        error: '최소 GC 간격 내에 요청됨'
       };
     }
     
-    // 메모리 GC 전 상태 저장
-    const memoryBefore = await getMemoryUsage();
+    console.log('[GC] 대체 GC 전략 시도');
+    const startTime = performance.now();
     
-    // 1. Electron API 통해 GC 요청 (지원되는 경우)
-    if (window.electronAPI && window.electronAPI.requestGC) {
-      await window.electronAPI.requestGC(emergency);
+    // 대규모 임시 메모리 할당 후 해제 (GC 유도)
+    const size = emergency ? 100 * 1024 * 1024 : 10 * 1024 * 1024; // 100MB or 10MB
+    const tempArrays = [];
+    
+    // 여러 개의 큰 배열 생성
+    const arrayCount = emergency ? 5 : 2;
+    for (let i = 0; i < arrayCount; i++) {
+      tempArrays.push(new Array(size).fill(0));
     }
     
-    // 2. 자체 GC 유도 로직 실행
+    // 배열 해제
+    tempArrays.length = 0;
+    
+    // 추가 GC 유도
     if (emergency) {
-      induceGarbageCollection();
-    } else {
-      suggestGarbageCollection();
+      // 추가 임시 객체 생성 및 해제
+      for (let i = 0; i < 10; i++) {
+        const tempObj = {};
+        for (let j = 0; j < 1000; j++) {
+          (tempObj as any)[`key_${j}`] = new Array(1000).fill(j);
+        }
+      }
     }
     
-    // GC 실행 후 잠시 대기 (GC가 완료될 시간 제공)
-    await new Promise(resolve => setTimeout(resolve, emergency ? 300 : 150));
+    const endTime = performance.now();
+    const duration = endTime - startTime;
     
-    // 메모리 GC 후 상태 확인
-    const memoryAfter = await getMemoryUsage();
+    // 메모리 상태 다시 확인
+    const memoryAfter = await ensureMemoryInfo();
     
-    // 메모리 해제량 계산
-    const freedMemory = memoryBefore && memoryAfter 
-      ? memoryBefore.heapUsed - memoryAfter.heapUsed 
-      : 0;
+    // 해제된 메모리 계산
+    const freedMemory = Math.max(0, memoryBefore.heap_used - memoryAfter.heap_used);
+    const freedMB = freedMemory / (1024 * 1024);
     
-    const freedMB = freedMemory > 0
-      ? Math.round(freedMemory / (1024 * 1024) * 100) / 100
-      : 0;
-    
-    // 마지막 GC 시간 업데이트
+    // GC 시간 업데이트
     lastGCTime = now;
+    
+    console.log(`[GC] 메모리 해제됨: ${freedMB.toFixed(2)}MB, 소요시간: ${duration.toFixed(2)}ms`);
     
     return {
       success: true,
-      timestamp: now,
-      freedMemory: freedMemory > 0 ? freedMemory : 0,
-      freedMB: freedMB > 0 ? freedMB : 0
+      freed_memory: freedMemory,
+      freedMemory: freedMemory,
+      freed_mb: freedMB,
+      freedMB: freedMB,
+      duration,
+      timestamp: now
     };
   } catch (error) {
-    console.error('GC 요청 중 오류:', error);
+    console.error('[GC] 대체 GC 전략 실패:', error);
     return {
       success: false,
-      timestamp: Date.now(),
+      freed_memory: 0,
       freedMemory: 0,
+      freed_mb: 0,
       freedMB: 0,
-      error: String(error)
+      duration: 0,
+      timestamp: Date.now(),
+      error: error instanceof Error ? error.message : String(error)
     };
   }
 }
 
 /**
- * 메모리 상태에 따른 최적화 수준 결정
- * @param memory 현재 메모리 상태
- * @returns 최적화 수준 (0-4)
+ * GC 수행 횟수 및 마지막 GC 시간 조회 함수
  */
-export function determineOptimizationLevel(memory: any): number {
-  try {
-    // 메모리 정보가 없는 경우 기본값 반환
-    if (!memory) return 2; // 기본적으로 중간 수준
-    
-    // 메모리 사용률에 따른 최적화 수준 결정
-    const percentUsed = memory.percentUsed || memory.percent_used || 0;
-    
-    if (percentUsed > 90) return 4; // 극단적 수준
-    if (percentUsed > 80) return 3; // 높은 수준
-    if (percentUsed > 65) return 2; // 중간 수준
-    if (percentUsed > 50) return 1; // 낮은 수준
-    return 0; // 최적화 불필요
-  } catch (error) {
-    console.warn('최적화 수준 결정 중 오류:', error);
-    return 2; // 오류 발생 시 중간 수준 반환
-  }
+export function getGCStats() {
+  return {
+    lastGCTime,
+    totalGCCalls: 0 // 실제 구현에서는 카운터 추가
+  };
 }
 
 /**
- * 메모리 정보 유효성 보장
- * 누락된 필드가 있는 경우 기본값으로 채움
- * @param memory 메모리 정보 객체
- * @returns 완전한 메모리 정보
+ * 마지막 GC 시간 조회
  */
-export function ensureMemoryInfo(memory: any): any {
-  if (!memory) return {
-    heapUsed: 0,
-    heapTotal: 0,
-    heapUsedMB: 0,
-    percentUsed: 0,
-    timestamp: Date.now()
-  };
-  
-  return {
-    heapUsed: memory.heapUsed || memory.heap_used || 0,
-    heapTotal: memory.heapTotal || memory.heap_total || 0,
-    heapUsedMB: memory.heapUsedMB || memory.heap_used_mb || 0,
-    percentUsed: memory.percentUsed || memory.percent_used || 0,
-    timestamp: memory.timestamp || Date.now()
-  };
+export function getLastGCTime(): number {
+  return lastGCTime;
+}
+
+/**
+ * 총 GC 수행 횟수 조회
+ */
+export function getTotalGCCount(): number {
+  return 0; // 실제 구현에서는 카운터 추가
 }

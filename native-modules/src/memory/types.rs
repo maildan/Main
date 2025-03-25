@@ -1,191 +1,150 @@
-use serde::{Deserialize, Serialize};
+use serde::{Serialize, Deserialize};
+
+/// 최적화 레벨 열거형
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub enum OptimizationLevel {
+    /// 기본 최적화 (경량)
+    Normal,
+    
+    /// 낮은 수준 최적화
+    Low,
+    
+    /// 중간 수준 최적화
+    Medium,
+    
+    /// 높은 수준 최적화
+    High,
+    
+    /// 최대 수준 최적화 (긴급 상황용)
+    Critical,
+}
 
 /// 메모리 정보 구조체
-/// 
-/// 시스템의 전반적인 메모리 사용 현황을 나타냅니다.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MemoryInfo {
-    /// 현재 사용 중인 힙 메모리 (바이트)
+    /// 타임스탬프 (밀리초)
+    pub timestamp: u64,
+    
+    /// 힙 사용량 (바이트)
     pub heap_used: u64,
     
-    /// 총 할당된 힙 메모리 (바이트)
+    /// 힙 총량 (바이트)
     pub heap_total: u64,
     
-    /// 힙 메모리 최대 제한 (바이트, 옵션)
-    pub heap_limit: Option<u64>,
-    
-    /// Resident Set Size - 물리 메모리 사용량 (바이트)
-    pub rss: u64,
-    
-    /// 외부 메모리 사용량 (바이트, 옵션)
-    pub external: Option<u64>,
-    
-    /// 사용 중인 힙 메모리 (MB)
+    /// 힙 사용량 (MB)
     pub heap_used_mb: f64,
     
-    /// RSS 메모리 (MB)
-    pub rss_mb: f64,
+    /// RSS (바이트)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rss: Option<u64>,
     
-    /// 힙 사용률 (%)
+    /// RSS (MB)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rss_mb: Option<f64>,
+    
+    /// 사용량 비율 (%)
     pub percent_used: f64,
     
-    /// 측정 시간 (UNIX 타임스탬프, 밀리초)
-    pub timestamp: u64,
-}
-
-/// 메모리 최적화 수준
-/// 
-/// 메모리 사용 상황에 따라 필요한 최적화 수준을 정의합니다.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum OptimizationLevel {
-    /// 정상 상태: 최적화 필요 없음
-    Normal = 0,
+    /// 힙 제한 (바이트, 옵션)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub heap_limit: Option<u64>,
     
-    /// 낮은 수준: 기본적인 최적화 필요
-    Low = 1,
+    /// 외부 메모리 (바이트, 옵션)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub external: Option<u64>,
     
-    /// 중간 수준: 적극적인 최적화 권장
-    Medium = 2,
-    
-    /// 높은 수준: 높은 우선순위의 최적화 필요
-    High = 3,
-    
-    /// 위험 수준: 긴급 메모리 복구 필요
-    Critical = 4,
-}
-
-/// 최적화 결과 구조체
-/// 
-/// 메모리 최적화 작업의 결과를 담습니다.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct OptimizationResult {
-    /// 성공 여부
-    pub success: bool,
-    
-    /// 적용된 최적화 수준
-    pub optimization_level: OptimizationLevel,
-    
-    /// 최적화 전 메모리 상태
-    pub memory_before: Option<MemoryInfo>,
-    
-    /// 최적화 후 메모리 상태
-    pub memory_after: Option<MemoryInfo>,
-    
-    /// 해제된 메모리 (바이트)
-    pub freed_memory: Option<u64>,
-    
-    /// 해제된 메모리 (MB)
-    pub freed_mb: Option<u64>,
-    
-    /// 소요 시간 (밀리초)
-    pub duration: Option<u64>,
-    
-    /// 타임스탬프 (UNIX 밀리초)
-    pub timestamp: u64,
-    
-    /// 오류 메시지 (실패 시)
-    pub error: Option<String>,
+    /// 배열 버퍼 (바이트, 옵션)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub array_buffers: Option<u64>,
 }
 
 /// 가비지 컬렉션 결과 구조체
-/// 
-/// GC 수행 결과를 담습니다.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GCResult {
     /// 성공 여부
     pub success: bool,
     
-    /// 타임스탬프 (UNIX 밀리초)
+    /// 타임스탬프 (밀리초)
     pub timestamp: u64,
     
     /// 해제된 메모리 (바이트)
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub freed_memory: Option<u64>,
     
     /// 해제된 메모리 (MB)
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub freed_mb: Option<u64>,
     
     /// 소요 시간 (밀리초)
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub duration: Option<u64>,
     
     /// 오류 메시지 (실패 시)
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
 }
 
-/// 메모리 임계값 설정
-/// 
-/// 메모리 사용량 모니터링 및 최적화 전략에 사용되는 임계값입니다.
+/// 최적화 결과 구조체
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct MemoryThresholds {
-    /// 낮은 메모리 경고 임계값 (바이트)
-    pub low_memory_threshold: u64,
+pub struct OptimizationResult {
+    /// 성공 여부
+    pub success: bool,
     
-    /// 위험 메모리 경고 임계값 (바이트)
-    pub critical_memory_threshold: u64,
+    /// 최적화 레벨
+    pub optimization_level: OptimizationLevel,
     
-    /// 최대 메모리 사용률 (%)
-    pub max_memory_percentage: f64,
+    /// 최적화 전 메모리 상태
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub memory_before: Option<MemoryInfo>,
     
-    /// 최적화 간격 (밀리초)
-    pub optimization_interval: u64,
-}
-
-impl Default for MemoryThresholds {
-    fn default() -> Self {
-        Self {
-            // 기본 임계값 설정
-            low_memory_threshold: 100 * 1024 * 1024, // 100MB
-            critical_memory_threshold: 500 * 1024 * 1024, // 500MB
-            max_memory_percentage: 80.0, // 80%
-            optimization_interval: 60000, // 1분
-        }
-    }
-}
-
-/// 메모리 풀 설정
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct MemoryPoolConfig {
-    /// 초기 메모리 풀 크기 (바이트)
-    pub initial_size: u64,
+    /// 최적화 후 메모리 상태
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub memory_after: Option<MemoryInfo>,
     
-    /// 풀 확장 단위 (바이트)
-    pub expansion_unit: u64,
+    /// 해제된 메모리 (바이트)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub freed_memory: Option<u64>,
     
-    /// 최대 풀 크기 (바이트)
-    pub max_size: u64,
+    /// 해제된 메모리 (MB)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub freed_mb: Option<u64>,
     
-    /// 풀 정리 간격 (밀리초)
-    pub cleanup_interval: u64,
-}
-
-/// 메모리 풀 통계
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct MemoryPoolStats {
-    /// 총 할당된 메모리 (바이트)
-    pub total_allocated: u64,
+    /// 소요 시간 (밀리초)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub duration: Option<u64>,
     
-    /// 총 해제된 메모리 (바이트)
-    pub total_freed: u64,
-    
-    /// 현재 사용량 (바이트)
-    pub current_usage: u64,
-    
-    /// 풀 개수
-    pub pool_count: usize,
-    
-    /// 타임스탬프 (UNIX 밀리초)
+    /// 타임스탬프 (밀리초)
     pub timestamp: u64,
     
-    /// 재사용 횟수
-    pub reuse_count: u64,
-    
-    /// 캐시 히트율 (%)
-    pub cache_hit_rate: f64,
-    
-    /// 세부 풀 통계
-    pub pools: Vec<PoolDetail>,
+    /// 오류 메시지 (실패 시)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
 }
 
-/// 풀 세부 정보
+/// 성능 프로파일 구조체
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PerformanceProfile {
+    /// 프로파일 이름
+    pub name: String,
+    
+    /// 작업 유형
+    pub task_type: String,
+    
+    /// 소요 시간 (밀리초)
+    pub duration_ms: u64,
+    
+    /// 메모리 사용량 (바이트)
+    pub memory_used: u64,
+    
+    /// 타임스탬프 (밀리초)
+    pub timestamp: u64,
+    
+    /// 추가 정보
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub additional_info: Option<String>,
+}
+
+/// 메모리 풀 세부 정보 구조체
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PoolDetail {
     /// 풀 이름
@@ -194,12 +153,43 @@ pub struct PoolDetail {
     /// 객체 크기 (바이트)
     pub object_size: u64,
     
-    /// 현재 활성 객체 수
+    /// 활성 객체 수
     pub active_objects: usize,
     
-    /// 대기 중인 객체 수
+    /// 사용 가능한 객체 수
     pub available_objects: usize,
     
     /// 총 할당 횟수
     pub allocations: u64,
+}
+
+/// 메모리 풀 통계 구조체
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MemoryPoolStats {
+    /// 타임스탬프 (밀리초)
+    pub timestamp: u64,
+    
+    /// 총 풀 수
+    pub total_pools: usize,
+    
+    /// 총 할당 횟수
+    pub total_allocations: u64,
+    
+    /// 총 재사용 횟수
+    pub total_reuses: u64,
+    
+    /// 총 회수 횟수
+    pub total_reclamations: u64,
+    
+    /// 현재 메모리 사용량 (바이트)
+    pub current_memory_usage: u64,
+    
+    /// 피크 메모리 사용량 (바이트)
+    pub peak_memory_usage: u64,
+    
+    /// 메모리 절약량 (바이트)
+    pub memory_saved: u64,
+    
+    /// 각 풀 세부 정보
+    pub pools: Vec<PoolDetail>,
 }

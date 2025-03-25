@@ -10,31 +10,130 @@ import type {
   GpuComputationResult,
   TaskResult
 } from '@/types';
-import { OptimizationLevel } from '@/types';
+import { OptimizationLevel } from '@/types/native-module';
 
 /**
- * 메모리 정보 가져오기
- * @returns Promise<{success: boolean, memoryInfo: MemoryInfo | null, optimizationLevel: number, error?: string}>
+ * 기본 API 요청 옵션
  */
-export async function getMemoryInfo() {
-  try {
-    const response = await fetch('/api/native/memory');
+const DEFAULT_REQUEST_OPTIONS = {
+  retryCount: 2,       // 재시도 횟수
+  retryDelay: 300,     // 재시도 지연 시간 (ms)
+  timeout: 5000        // 타임아웃 (ms)
+};
+
+// 메모리 캐시 - 응답을 짧은 시간 동안 캐싱하여 중복 요청 방지
+const responseCache = new Map<string, {data: any, timestamp: number}>();
+const CACHE_TTL = 500; // 캐시 유효시간 (ms)
+
+/**
+ * 향상된 API 요청 함수 - 재시도, 타임아웃, 캐싱 지원
+ */
+async function enhancedFetch(
+  url: string,
+  options: RequestInit = {},
+  retryOptions: {
+    retryCount?: number;
+    retryDelay?: number;
+    timeout?: number;
+    useCache?: boolean;
+  } = DEFAULT_REQUEST_OPTIONS
+): Promise<Response> {
+  const { 
+    retryCount = DEFAULT_REQUEST_OPTIONS.retryCount, 
+    retryDelay = DEFAULT_REQUEST_OPTIONS.retryDelay,
+    timeout = DEFAULT_REQUEST_OPTIONS.timeout,
+    useCache = false
+  } = retryOptions;
+  
+  // 캐싱 처리 (GET 요청만 캐싱)
+  const cacheKey = options.method === 'GET' || !options.method ? url : '';
+  if (useCache && cacheKey && options.method !== 'POST' && options.method !== 'PUT') {
+    const cachedResponse = responseCache.get(cacheKey);
+    const now = Date.now();
     
-    if (!response.ok) {
-      throw new Error(`메모리 정보 요청 실패: ${response.status}`);
+    // 유효한 캐시가 있으면 사용
+    if (cachedResponse && (now - cachedResponse.timestamp < CACHE_TTL)) {
+      return new Response(JSON.stringify(cachedResponse.data), {
+        headers: { 'Content-Type': 'application/json' },
+        status: 200
+      });
     }
-    
-    return await response.json();
-  } catch (error) {
-    console.error('메모리 정보 가져오기 오류:', error);
-    return {
-      success: false,
-      memoryInfo: null,
-      optimizationLevel: 0,
-      error: error instanceof Error ? error.message : '알 수 없는 오류',
-      timestamp: Date.now()
-    };
   }
+  
+  // AbortController로 타임아웃 구현 (더 신뢰성 있는 방식)
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeout);
+  
+  // 원래 옵션에 신호 추가
+  const enhancedOptions = {
+    ...options,
+    signal: controller.signal
+  };
+  
+  // 재시도 로직
+  let lastError: Error | null = null;
+  let attempt = 0;
+  
+  while (attempt <= retryCount) {
+    try {
+      // 첫 번째 시도가 아닌 경우 지연
+      if (attempt > 0) {
+        await new Promise(resolve => setTimeout(resolve, retryDelay * attempt)); // 점진적 백오프
+        console.log(`[API] ${url} 재시도 중... (${attempt}/${retryCount})`);
+      }
+      
+      // 요청 실행
+      const response = await fetch(url, enhancedOptions);
+      
+      // 타임아웃 클리어
+      clearTimeout(timeoutId);
+      
+      // 4xx, 5xx 에러 처리 (4xx는 재시도하지 않음)
+      if (!response.ok) {
+        if (response.status >= 500 && attempt < retryCount) {
+          throw new Error(`서버 오류: ${response.status}`);
+        }
+        return response;
+      }
+      
+      // 응답 캐싱 (GET 요청인 경우만)
+      if (useCache && cacheKey && (options.method === 'GET' || !options.method)) {
+        try {
+          // 응답을 복제하여 캐싱 (Response는 일회성이므로)
+          const clonedResponse = response.clone();
+          const data = await clonedResponse.json();
+          responseCache.set(cacheKey, {
+            data,
+            timestamp: Date.now()
+          });
+        } catch (e) {
+          // 캐싱 실패는 무시 (중요하지 않음)
+          console.debug('응답 캐싱 실패:', e);
+        }
+      }
+      
+      return response;
+    } catch (error) {
+      // AbortError는 타임아웃을 의미
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        lastError = new Error(`요청 타임아웃 (${timeout}ms)`);
+      } else {
+        lastError = error instanceof Error ? error : new Error(String(error));
+      }
+      
+      // 마지막 시도가 아닌 경우 다시 시도
+      if (attempt === retryCount) {
+        clearTimeout(timeoutId);
+        throw lastError;
+      }
+      
+      attempt++;
+    }
+  }
+  
+  // 코드가 여기까지 도달하지 않아야 하지만, 타입 안전성을 위해 추가
+  clearTimeout(timeoutId);
+  throw lastError || new Error('알 수 없는 요청 오류');
 }
 
 /**
@@ -45,13 +144,23 @@ export async function getMemoryInfo() {
  */
 export async function optimizeMemory(level: OptimizationLevel = OptimizationLevel.MEDIUM, emergency: boolean = false) {
   try {
-    // API 엔드포인트를 통해 네이티브 메모리 최적화 수행
-    const response = await fetch('/api/native/memory', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ level, emergency })
+    // 요청 데이터 준비
+    const requestBody = JSON.stringify({
+      type: 'optimize',
+      level: level as number,
+      emergency
     });
     
+    // 요청 보내기
+    const response = await enhancedFetch('/api/native/memory', {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: requestBody
+    });
+    
+    // 응답 처리
     if (!response.ok) {
       throw new Error(`메모리 최적화 요청 실패: ${response.status}`);
     }
@@ -74,10 +183,21 @@ export async function optimizeMemory(level: OptimizationLevel = OptimizationLeve
  */
 export async function forceGarbageCollection() {
   try {
-    const response = await fetch('/api/native/memory', {
-      method: 'PUT'
+    // 요청 데이터 준비
+    const requestBody = JSON.stringify({
+      type: 'gc'
     });
     
+    // 요청 보내기
+    const response = await enhancedFetch('/api/native/memory', {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: requestBody
+    });
+    
+    // 응답 처리
     if (!response.ok) {
       throw new Error(`가비지 컬렉션 요청 실패: ${response.status}`);
     }
@@ -95,13 +215,48 @@ export async function forceGarbageCollection() {
 }
 
 /**
+ * 메모리 정보 가져오기
+ * @returns Promise<{success: boolean, memoryInfo: MemoryInfo | null, optimizationLevel: number, error?: string}>
+ */
+export async function getMemoryInfo() {
+  try {
+    // 요청 보내기
+    const response = await enhancedFetch('/api/native/memory', {
+      method: 'GET',
+      retryOptions: { useCache: true }
+    });
+    
+    // 응답 처리
+    if (!response.ok) {
+      throw new Error(`메모리 정보 요청 실패: ${response.status}`);
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error('메모리 정보 가져오기 오류:', error);
+    return {
+      success: false,
+      memoryInfo: null,
+      optimizationLevel: 0,
+      error: error instanceof Error ? error.message : '알 수 없는 오류',
+      timestamp: Date.now()
+    };
+  }
+}
+
+/**
  * GPU 정보 가져오기
  * @returns Promise<{success: boolean, available: boolean, gpuInfo: GpuInfo | null, error?: string}>
  */
 export async function getGpuInfo() {
   try {
-    const response = await fetch('/api/native/gpu');
+    // 요청 보내기
+    const response = await enhancedFetch('/api/native/gpu', {
+      method: 'GET',
+      retryOptions: { useCache: true }
+    });
     
+    // 응답 처리
     if (!response.ok) {
       throw new Error(`GPU 정보 요청 실패: ${response.status}`);
     }
@@ -126,12 +281,21 @@ export async function getGpuInfo() {
  */
 export async function setGpuAcceleration(enable: boolean) {
   try {
-    const response = await fetch('/api/native/gpu', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ enable })
+    // 요청 데이터 준비
+    const requestBody = JSON.stringify({
+      enable
     });
     
+    // 요청 보내기
+    const response = await enhancedFetch('/api/native/gpu/acceleration', {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: requestBody
+    });
+    
+    // 응답 처리
     if (!response.ok) {
       throw new Error(`GPU 가속 설정 요청 실패: ${response.status}`);
     }
@@ -185,8 +349,13 @@ export async function performGpuComputation<T = any>(data: any, computationType:
  */
 export async function getNativeModuleStatus() {
   try {
-    const response = await fetch('/api/native/status');
+    // 요청 보내기
+    const response = await enhancedFetch('/api/native/status', {
+      method: 'GET',
+      retryOptions: { useCache: true }
+    });
     
+    // 응답 처리
     if (!response.ok) {
       throw new Error(`상태 확인 요청 실패: ${response.status}`);
     }

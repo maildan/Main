@@ -20,6 +20,36 @@ export interface ExtendedGCResult extends GCResult {
   optimizationSource?: string;
 }
 
+/**
+ * 확장된 GC 결과 인터페이스
+ */
+export interface ExtendedGCResult extends GCResult {
+  /**
+   * 최적화 레벨
+   */
+  optimizationLevel?: number;
+  
+  /**
+   * GC 전 힙 사용량
+   */
+  heapUsedBefore?: number;
+  
+  /**
+   * GC 후 힙 사용량
+   */
+  heapUsedAfter?: number;
+  
+  /**
+   * 해제된 메모리 비율
+   */
+  percentFreed?: number;
+  
+  /**
+   * 소스 정보
+   */
+  source?: string;
+}
+
 // Window 인터페이스 확장 (캐시 관련)
 export interface WindowWithCache extends Window {
   __cachedData?: Record<string, any>;
@@ -78,40 +108,65 @@ import { MemoryInfo, GCResult, ExtendedGCResult } from './types';
  * window.__memoryOptimizer의 타입 정의
  */
 export interface MemoryOptimizerUtility {
-  // 메모리 최적화 기본 기능
-  optimizeMemory?: (aggressive: boolean) => void;
-  optimizeImageResources?: () => Promise<boolean>;
-  getMemoryInfo?: () => MemoryInfo | null;
-  suggestGarbageCollection?: () => void;
-  getMemoryUsagePercentage?: () => number;
+  /**
+   * 메모리 정보 가져오기
+   */
+  getMemoryInfo: () => Promise<MemoryInfo | null>;
   
-  // GC 컨트롤러 기능
-  requestGC?: (emergency?: boolean) => Promise<GCResult>;
-  determineOptimizationLevel?: (memoryInfo: MemoryInfo) => number;
+  /**
+   * 메모리 사용률 가져오기
+   */
+  getMemoryUsagePercent: () => Promise<number>;
   
-  // 메모리 풀 기능
-  acquireFromPool?: (type: string) => any;
-  releaseToPool?: (obj: any) => void;
+  /**
+   * 메모리 최적화 수행
+   */
+  optimizeMemory: (aggressive: boolean) => Promise<OptimizationResult>;
   
-  // 최적화 관련 유틸리티
-  optimizeEvents?: () => void;
-  cleanupDOM?: () => void;
-  clearCaches?: () => void;
+  /**
+   * 가비지 컬렉션 제안
+   */
+  suggestGarbageCollection: () => Promise<GCResult>;
   
-  // 이벤트 최적화
-  optimizeEventListeners?: () => void;
-  unloadDynamicModules?: () => void;
+  /**
+   * 자동 최적화 설정
+   */
+  setupAutomaticOptimization: (options: MemoryOptimizerOptions) => () => void;
+}
+
+/**
+ * 메모리 최적화 옵션 인터페이스
+ */
+export interface MemoryOptimizerOptions {
+  /**
+   * 모니터링 간격 (ms)
+   */
+  interval?: number;
   
-  // 모니터링 기능
-  startMemoryMonitoring?: (interval?: number) => () => void;
-  getMemoryUsageStats?: () => {
-    current: number;
-    peak: number;
-    optimizations: number;
-  };
+  /**
+   * 최적화 임계값 (MB)
+   */
+  threshold?: number;
   
-  // 추가 기능
-  setupPeriodicOptimization?: (interval?: number, threshold?: number) => () => void;
+  /**
+   * 힙 사용률 임계값 (%)
+   */
+  usageThreshold?: number;
+  
+  /**
+   * 자동 최적화 활성화 여부
+   */
+  enableAutoOptimize?: boolean;
+  
+  /**
+   * 네이티브 GC 선호 여부
+   */
+  preferNativeGC?: boolean;
+  
+  /**
+   * 메모리 최적화 모드
+   */
+  mode?: 'conservative' | 'balanced' | 'aggressive';
 }
 
 /**

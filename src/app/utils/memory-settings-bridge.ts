@@ -1,57 +1,115 @@
 /**
- * 메모리 설정 관련 네이티브 모듈 통신 브릿지
+ * 메모리 설정 브릿지
  */
 import { initializeMemorySettings, updateMemorySettings, getMemorySettings } from './nativeModuleClient';
 
+// 요청 상태 추적 및 중복 요청 방지
+const requestStatus = {
+  pendingRequests: new Map<string, Promise<any>>(),
+  lastRequestTime: new Map<string, number>(),
+  minRequestInterval: 500 // ms
+};
+
 /**
- * 메모리 설정 초기화
- * @param settings 메모리 설정 객체
- * @returns Promise<boolean>
+ * 중복 요청 방지 및 병합 래퍼
+ */
+async function debouncedRequest<T>(
+  key: string, 
+  requestFn: () => Promise<T>
+): Promise<T> {
+  const now = Date.now();
+  const lastTime = requestStatus.lastRequestTime.get(key) || 0;
+  
+  // 진행 중인 동일 요청이 있으면 재사용
+  if (requestStatus.pendingRequests.has(key)) {
+    return requestStatus.pendingRequests.get(key) as Promise<T>;
+  }
+  
+  // 마지막 요청 후 최소 간격이 지나지 않았으면 대기
+  if (now - lastTime < requestStatus.minRequestInterval) {
+    await new Promise(resolve => 
+      setTimeout(resolve, requestStatus.minRequestInterval - (now - lastTime))
+    );
+  }
+  
+  // 새 요청 생성 및 상태 업데이트
+  const requestPromise = requestFn();
+  requestStatus.pendingRequests.set(key, requestPromise);
+  requestStatus.lastRequestTime.set(key, Date.now());
+  
+  try {
+    return await requestPromise;
+  } finally {
+    // 완료 후 pendingRequests에서 제거
+    requestStatus.pendingRequests.delete(key);
+  }
+}
+
+/**
+ * 네이티브 메모리 설정 초기화
  */
 export async function initializeNativeMemorySettings(settings: any): Promise<boolean> {
-  try {
-    const settingsJson = JSON.stringify(settings);
-    const response = await initializeMemorySettings(settingsJson);
-    
-    if (response.success) {
-      return true;
+  return debouncedRequest('initSettings', async () => {
+    try {
+      // 유효성 검사
+      if (!settings || typeof settings !== 'object') {
+        throw new Error('유효하지 않은 설정 객체');
+      }
+      
+      // 필수 필드 확인
+      const requiredFields = ['enableAutomaticOptimization', 'optimizationThreshold'];
+      for (const field of requiredFields) {
+        if (!(field in settings)) {
+          throw new Error(`필수 설정 필드 누락: ${field}`);
+        }
+      }
+      
+      // 형식 변환
+      const settingsForNative = convertToNativeSettings(settings);
+      const settingsJson = JSON.stringify(settingsForNative);
+      
+      // 네이티브 모듈에 전달
+      const response = await initializeMemorySettings(settingsJson);
+      
+      return response.success;
+    } catch (error) {
+      console.error('네이티브 메모리 설정 초기화 오류:', error);
+      return false;
     }
-    
-    console.warn('네이티브 메모리 설정 초기화 실패:', response.error);
-    return false;
-  } catch (error) {
-    console.error('네이티브 메모리 설정 초기화 중 오류:', error);
-    return false;
-  }
+  });
 }
 
 /**
- * 메모리 설정 업데이트
- * @param settings 메모리 설정 객체
- * @returns Promise<boolean>
+ * 네이티브 메모리 설정 업데이트
  */
 export async function updateNativeMemorySettings(settings: any): Promise<boolean> {
-  try {
-    const settingsJson = JSON.stringify(settings);
-    const response = await updateMemorySettings(settingsJson);
-    
-    if (response.success) {
-      return true;
+  return debouncedRequest('updateSettings', async () => {
+    try {
+      // 유효성 검사
+      if (!settings || typeof settings !== 'object') {
+        throw new Error('유효하지 않은 설정 객체');
+      }
+      
+      // 형식 변환
+      const settingsForNative = convertToNativeSettings(settings);
+      const settingsJson = JSON.stringify(settingsForNative);
+      
+      // 네이티브 모듈에 전달
+      const response = await updateMemorySettings(settingsJson);
+      
+      return response.success;
+    } catch (error) {
+      console.error('네이티브 메모리 설정 업데이트 오류:', error);
+      return false;
     }
-    
-    console.warn('네이티브 메모리 설정 업데이트 실패:', response.error);
-    return false;
-  } catch (error) {
-    console.error('네이티브 메모리 설정 업데이트 중 오류:', error);
-    return false;
-  }
+  });
 }
 
 /**
- * 현재 메모리 설정 가져오기
- * @returns Promise<any|null>
+ * 네이티브 메모리 설정 가져오기
+ * @returns 설정 객체
  */
-export async function getNativeMemorySettings(): Promise<any | null> {
+export async function getNativeMemorySettings(): Promise<any> {
   try {
     const response = await getMemorySettings();
     
@@ -59,10 +117,9 @@ export async function getNativeMemorySettings(): Promise<any | null> {
       return response.settings;
     }
     
-    console.warn('네이티브 메모리 설정 가져오기 실패:', response.error);
     return null;
   } catch (error) {
-    console.error('네이티브 메모리 설정 가져오기 중 오류:', error);
+    console.error('네이티브 메모리 설정 가져오기 오류:', error);
     return null;
   }
 }

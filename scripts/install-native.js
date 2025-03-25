@@ -1,156 +1,156 @@
 /**
  * 네이티브 모듈 설치 스크립트
- * Rust 툴체인 확인 및 네이티브 모듈 빌드를 처리합니다.
+ * 
+ * 이 스크립트는 Rust 네이티브 모듈을 빌드하고 적절한 위치에 복사합니다.
  */
-const { execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
-const os = require('os');
+const { execSync } = require('child_process');
 
-// 로그 출력 함수
-function log(message) {
-  console.log(`[install-native] ${message}`);
+// 모듈이 이미 존재하는지 확인
+function checkNativeModule() {
+  const releaseModulePath = path.join(__dirname, '../native-modules/target/release/typing_stats_native.node');
+  const debugModulePath = path.join(__dirname, '../native-modules/target/debug/typing_stats_native.node');
+  
+  const releaseExists = fs.existsSync(releaseModulePath);
+  const debugExists = fs.existsSync(debugModulePath);
+  
+  return { releaseExists, debugExists };
 }
 
-// 오류 로그 함수
-function error(message) {
-  console.error(`[install-native] ❌ ${message}`);
-}
-
-// 성공 로그 함수
-function success(message) {
-  console.log(`[install-native] ✅ ${message}`);
-}
-
-// 경로 설정
-const rootDir = path.resolve(__dirname, '..');
-const nativeModulesDir = path.join(rootDir, 'native-modules');
-const targetDir = path.join(rootDir, 'src', 'server', 'native');
-
-// Rust 설치 확인
-function checkRustInstalled() {
-  try {
-    const rustcVersion = execSync('rustc --version', { encoding: 'utf8' });
-    log(`Rust 설치 확인됨: ${rustcVersion.trim()}`);
-    return true;
-  } catch (e) {
-    error('Rust가 설치되어 있지 않습니다. https://rustup.rs/ 에서 설치해주세요.');
-    return false;
+// 폴백 모듈 경로 확인 및 생성
+function ensureFallbackModule() {
+  const fallbackDir = path.join(__dirname, '../src/server/native/fallback');
+  const fallbackFile = path.join(fallbackDir, 'index.js');
+  
+  // 폴백 디렉토리가 없으면 생성
+  if (!fs.existsSync(fallbackDir)) {
+    console.log('폴백 모듈 디렉토리 생성...');
+    fs.mkdirSync(fallbackDir, { recursive: true });
+  }
+  
+  // 폴백 파일이 없으면 기본 구현 생성
+  if (!fs.existsSync(fallbackFile)) {
+    console.log('기본 폴백 모듈 생성...');
+    const fallbackContent = `
+      /**
+       * 네이티브 모듈 폴백 구현
+       * 네이티브 모듈을 로드할 수 없을 때 기본적인 기능을 제공합니다.
+       */
+      
+      function getCurrentTimestamp() {
+        return Date.now();
+      }
+      
+      function get_memory_info() {
+        const memoryUsage = process.memoryUsage();
+        return JSON.stringify({
+          success: true,
+          timestamp: getCurrentTimestamp(),
+          heap_used: memoryUsage.heapUsed,
+          heap_total: memoryUsage.heapTotal,
+          heap_used_mb: memoryUsage.heapUsed / (1024 * 1024),
+          percent_used: Math.round((memoryUsage.heapUsed / memoryUsage.heapTotal) * 100),
+          error: null
+        });
+      }
+      
+      function force_garbage_collection() {
+        return JSON.stringify({
+          success: false,
+          timestamp: getCurrentTimestamp(),
+          freed_memory: 0,
+          freed_mb: 0,
+          error: "가비지 컬렉션을 직접 호출할 수 없습니다"
+        });
+      }
+      
+      function optimize_memory() {
+        return JSON.stringify({
+          success: false,
+          timestamp: getCurrentTimestamp(),
+          error: "메모리 최적화 기능을 사용할 수 없습니다"
+        });
+      }
+      
+      module.exports = {
+        get_memory_info,
+        force_garbage_collection,
+        optimize_memory
+      };
+    `;
+    
+    fs.writeFileSync(fallbackFile, fallbackContent.trim());
   }
 }
 
-// Cargo 확인
+// Cargo 설치 확인
 function checkCargoInstalled() {
   try {
-    const cargoVersion = execSync('cargo --version', { encoding: 'utf8' });
-    log(`Cargo 설치 확인됨: ${cargoVersion.trim()}`);
+    const output = execSync('cargo --version', { encoding: 'utf8' });
+    console.log('Cargo 버전:', output.trim());
     return true;
-  } catch (e) {
-    error('Cargo가 설치되어 있지 않습니다. Rust와 함께 설치되어야 합니다.');
+  } catch (error) {
+    console.error('Cargo가 설치되어 있지 않습니다.');
     return false;
   }
-}
-
-// 네이티브 모듈이 빌드 가능한지 확인
-function checkNativeModuleBuildable() {
-  if (!fs.existsSync(nativeModulesDir)) {
-    error(`네이티브 모듈 디렉토리를 찾을 수 없습니다: ${nativeModulesDir}`);
-    return false;
-  }
-  
-  const cargoTomlPath = path.join(nativeModulesDir, 'Cargo.toml');
-  if (!fs.existsSync(cargoTomlPath)) {
-    error(`Cargo.toml을 찾을 수 없습니다: ${cargoTomlPath}`);
-    return false;
-  }
-  
-  return true;
 }
 
 // 네이티브 모듈 빌드
 function buildNativeModule() {
   try {
-    log('네이티브 모듈 빌드 중...');
+    console.log('네이티브 모듈 빌드 중...');
+    // 현재 작업 디렉토리 변경
+    process.chdir(path.join(__dirname, '../native-modules'));
     
-    // 빌드 디렉토리로 이동하고 빌드 명령 실행
-    process.chdir(nativeModulesDir);
-    
-    // 운영체제에 따라 다른 빌드 옵션 사용
-    const isWindows = os.platform() === 'win32';
-    const buildCommand = isWindows
-      ? 'cargo build --release --target-dir target'
-      : 'cargo build --release';
-    
-    execSync(buildCommand, { stdio: 'inherit' });
-    
-    success('네이티브 모듈 빌드 완료!');
+    // 릴리즈 모드로 빌드
+    execSync('cargo build --release', { stdio: 'inherit' });
+    console.log('네이티브 모듈 빌드 완료');
     return true;
-  } catch (e) {
-    error(`네이티브 모듈 빌드 중 오류 발생: ${e.message}`);
-    return false;
-  } finally {
-    // 원래 디렉토리로 돌아가기
-    process.chdir(rootDir);
-  }
-}
-
-// 빌드된 네이티브 모듈 복사
-function copyNativeModule() {
-  try {
-    log('빌드된 네이티브 모듈 복사 중...');
-    
-    // 타겟 디렉토리 생성 (없는 경우)
-    if (!fs.existsSync(targetDir)) {
-      fs.mkdirSync(targetDir, { recursive: true });
-      log(`타겟 디렉토리 생성됨: ${targetDir}`);
-    }
-    
-    // 복사 스크립트 실행
-    execSync('node scripts/copy-native.js', { stdio: 'inherit' });
-    
-    success('네이티브 모듈 복사 완료!');
-    return true;
-  } catch (e) {
-    error(`네이티브 모듈 복사 중 오류 발생: ${e.message}`);
+  } catch (error) {
+    console.error('네이티브 모듈 빌드 실패:', error.message);
     return false;
   }
 }
 
-// 메인 설치 함수
-function installNativeModule() {
-  log('네이티브 모듈 설치 시작...');
+// 메인 함수
+async function main() {
+  console.log('네이티브 모듈 설치를 시작합니다...');
   
-  // 전제 조건 확인
-  const rustInstalled = checkRustInstalled();
-  const cargoInstalled = checkCargoInstalled();
-  const buildable = checkNativeModuleBuildable();
+  // 폴백 모듈 확인 및 생성
+  ensureFallbackModule();
   
-  if (!rustInstalled || !cargoInstalled || !buildable) {
-    error('네이티브 모듈 설치를 위한 전제 조건이 충족되지 않았습니다.');
-    return false;
+  // 이미 빌드된 모듈 확인
+  const { releaseExists, debugExists } = checkNativeModule();
+  
+  if (releaseExists) {
+    console.log('릴리즈 모드 네이티브 모듈이 이미 존재합니다.');
+    return;
   }
   
-  // 빌드 및 복사
+  if (debugExists) {
+    console.log('디버그 모드 네이티브 모듈이 이미 존재합니다.');
+    return;
+  }
+  
+  // Cargo 설치 확인
+  if (!checkCargoInstalled()) {
+    console.log('빌드를 건너뜁니다. 폴백 모듈을 사용합니다.');
+    return;
+  }
+  
+  // 네이티브 모듈 빌드
   const buildSuccess = buildNativeModule();
-  if (!buildSuccess) {
-    error('네이티브 모듈 빌드에 실패했습니다.');
-    return false;
-  }
   
-  const copySuccess = copyNativeModule();
-  if (!copySuccess) {
-    error('네이티브 모듈 복사에 실패했습니다.');
-    return false;
+  if (buildSuccess) {
+    console.log('네이티브 모듈 설치가 완료되었습니다.');
+  } else {
+    console.log('네이티브 모듈 빌드에 실패했습니다. 폴백 모듈을 사용합니다.');
   }
-  
-  success('네이티브 모듈 설치가 성공적으로 완료되었습니다!');
-  return true;
 }
 
 // 스크립트 실행
-if (installNativeModule()) {
-  process.exit(0);
-} else {
-  log('네이티브 모듈 없이 JS 폴백 모드로 실행됩니다.');
-  process.exit(0); // 비정상 종료 코드로 변경해서는 안 됨 (npm install 실패로 간주됨)
-}
+main().catch(error => {
+  console.error('설치 중 오류 발생:', error);
+  process.exit(1);
+});

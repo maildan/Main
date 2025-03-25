@@ -1,125 +1,102 @@
 /**
- * GPU 가속화 관리
+ * GPU 가속화 유틸리티
  * 
- * 모든 GPU 관련 작업은 Rust 네이티브 모듈로 처리합니다.
+ * 이 모듈은 Rust 네이티브 모듈을 사용하여 GPU 가속화를 관리합니다.
+ * 모든 GPU 관련 작업은 네이티브 모듈에서 처리됩니다.
  */
-import { setGpuAcceleration, getGpuInfo, performGpuComputation as nativePerformGpuComputation } from './nativeModuleClient';
 
-// 상태 캐싱
-let lastGpuStatusCheck = 0;
-const GPU_STATUS_CHECK_INTERVAL = 60000; // 1분마다 상태 확인
-let cachedGpuAccelerationStatus = false;
+import { getGpuInfo, setGpuAcceleration } from './nativeModuleClient';
+
+/**
+ * GPU 가속화 상태 확인
+ * @returns 가속화 활성화 여부
+ */
+export async function isGpuAccelerationEnabled(): Promise<boolean> {
+  try {
+    const { getGpuInfo } = await import('./nativeModuleClient');
+    const response = await getGpuInfo();
+    
+    if (response.success && response.gpuInfo) {
+      return response.gpuInfo.accelerationEnabled || false;
+    }
+    return false;
+  } catch (error) {
+    console.error('GPU 가속 상태 확인 오류:', error);
+    return false;
+  }
+}
+
+/**
+ * GPU 정보 가져오기
+ * @returns GPU 정보 객체
+ */
+export async function getGpuInformation() {
+  try {
+    const response = await getGpuInfo();
+    
+    if (!response.success || !response.gpuInfo) {
+      return null;
+    }
+    
+    return response.gpuInfo;
+  } catch (error) {
+    console.error('GPU 정보 가져오기 오류:', error);
+    return null;
+  }
+}
 
 /**
  * GPU 가속화 활성화/비활성화
  * @param enable 활성화 여부
- * @returns Promise<boolean> 성공 여부
+ * @returns 성공 여부
  */
 export async function toggleGpuAcceleration(enable: boolean): Promise<boolean> {
   try {
     const response = await setGpuAcceleration(enable);
     
-    if (response.success) {
-      cachedGpuAccelerationStatus = response.enabled;
-      lastGpuStatusCheck = Date.now();
-      console.log(`GPU 가속화 ${enable ? '활성화' : '비활성화'} 성공`);
-      return true;
-    } else {
-      console.warn('GPU 가속화 설정 변경 실패:', response.error);
-      return false;
-    }
-  } catch (error) {
-    console.error('GPU 가속화 설정 변경 중 오류:', error);
-    return false;
-  }
-}
-
-/**
- * GPU 연산 수행
- */
-export async function executeGpuComputation<T = any>(
-  data: any,
-  computationType: string = 'default'
-): Promise<T> {
-  try {
-    const nativeResult = await nativePerformGpuComputation(data, computationType);
-    
-    if (nativeResult && nativeResult.success && nativeResult.result) {
-      return nativeResult.result as T;
+    // 앱 재시작이 필요한 경우 처리
+    if (response.success && response.result && typeof window !== 'undefined') {
+      // 설정 변경이 재시작을 필요로 할 수 있음을 알림
+      if (window.localStorage) {
+        window.localStorage.setItem('gpu-acceleration-change', 'true');
+      }
+      
+      // 선택적: electron API를 통해 재시작 프롬프트 표시
+      if (window.electronAPI?.showRestartPrompt) {
+        window.electronAPI.showRestartPrompt('GPU 가속 설정이 변경되었습니다.');
+      }
     }
     
-    throw new Error(nativeResult?.error || 'GPU 연산 실패');
+    return response.success && response.result === true;
   } catch (error) {
-    console.error('GPU 연산 오류:', error);
-    throw error;
-  }
-}
-
-/**
- * GPU 가용성 확인
- */
-export async function checkGpuAvailability(): Promise<boolean> {
-  try {
-    const gpuInfo = await getGpuInfo();
-    cachedGpuAccelerationStatus = gpuInfo.available && gpuInfo.gpuInfo?.acceleration_enabled;
-    lastGpuStatusCheck = Date.now();
-    return cachedGpuAccelerationStatus;
-  } catch (error) {
-    console.error('GPU 가용성 확인 중 오류:', error);
+    console.error('GPU 가속화 설정 오류:', error);
     return false;
   }
 }
 
 /**
- * 현재 GPU 가속화 활성화 상태 확인
+ * GPU 가속화 활성화
+ * @returns 성공 여부
  */
-export async function isGpuComputationActive(): Promise<boolean> {
-  if (Date.now() - lastGpuStatusCheck > GPU_STATUS_CHECK_INTERVAL) {
-    await checkGpuAvailability();
-  }
-  return cachedGpuAccelerationStatus;
+export async function enableGpuAcceleration(): Promise<boolean> {
+  return toggleGpuAcceleration(true);
 }
 
 /**
- * GPU 가속화가 활성화되어 있는지 확인
+ * GPU 가속화 비활성화
+ * @returns 성공 여부
  */
-export function isGpuAccelerationEnabled(): boolean {
-  return cachedGpuAccelerationStatus;
+export async function disableGpuAcceleration(): Promise<boolean> {
+  return toggleGpuAcceleration(false);
 }
 
-/**
- * 시스템에서 GPU 지원 여부 확인
- */
-export async function isGpuSupported(): Promise<boolean> {
-  try {
-    const gpuInfo = await getGpuInfo();
-    return gpuInfo.available;
-  } catch (error) {
-    console.error('GPU 지원 확인 중 오류:', error);
-    return false;
-  }
-}
-
-/**
- * GPU 모듈 초기화
- */
-export async function initializeGpuAcceleration(): Promise<void> {
-  await checkGpuAvailability();
-  console.log(`GPU 가속화 초기화 완료 (활성화: ${cachedGpuAccelerationStatus})`);
-}
-
-/**
- * GPU 정보 가져오기
- */
-export async function getGpuAccelerationInfo(): Promise<any> {
-  try {
-    return await getGpuInfo();
-  } catch (error) {
-    console.error('GPU 정보 가져오기 오류:', error);
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : '알 수 없는 오류',
-      timestamp: Date.now()
-    };
-  }
+// 간단한 전역 API 설정
+if (typeof window !== 'undefined') {
+  window.__gpuAccelerator = {
+    isGpuAccelerationEnabled,
+    getGpuInformation,
+    toggleGpuAcceleration,
+    enableGpuAcceleration,
+    disableGpuAcceleration
+  };
 }

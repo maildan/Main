@@ -131,7 +131,7 @@ interface ElectronAPI {
   
   // 재시작 관련 API
   restartApp: () => void;
-  showRestartPrompt: () => void;
+  showRestartPrompt: (message: string) => void;
   closeWindow: () => void;
   getDarkMode: () => Promise<boolean>;
   

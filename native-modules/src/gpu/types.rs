@@ -55,6 +55,7 @@ pub struct GpuDeviceInfo {
     pub driver_info: String,
     pub device_type: wgpu::DeviceType,
     pub backend: wgpu::Backend,
+    pub timestamp: u64,
 }
 
 /// GPU 프로필 - GPU 유형별 성능 설정
@@ -73,6 +74,8 @@ pub struct GpuCapabilities {
     pub max_invocations: u32,
     pub supports_timestamp_query: bool,
     pub supports_pipeline_statistics_query: bool,
+    pub compute_supported: bool,
+    pub shading_supported: bool,
 }
 
 /// GPU 성능 측정 결과
@@ -127,6 +130,7 @@ impl Serialize for GpuDeviceInfo {
             _ => 1,
         };
         s.serialize_field("performance_class", &performance_class)?;
+        s.serialize_field("timestamp", &self.timestamp)?;
         
         s.end()
     }
@@ -144,4 +148,40 @@ pub struct TypingStatistics {
     pub complexity_score: Option<f64>,
     pub processed_with_gpu: bool,
     pub device_type: String,
+}
+
+/// 워크로드 사이즈 열거형
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum WorkloadSize {
+    Small,
+    Medium,
+    Large,
+    Custom(usize),
+}
+
+impl WorkloadSize {
+    pub fn get_size(&self) -> usize {
+        match self {
+            WorkloadSize::Small => 1024,
+            WorkloadSize::Medium => 4096,
+            WorkloadSize::Large => 16384,
+            WorkloadSize::Custom(size) => *size,
+        }
+    }
+    
+    pub fn from_str(s: &str) -> Self {
+        match s.to_lowercase().as_str() {
+            "small" => WorkloadSize::Small,
+            "medium" => WorkloadSize::Medium,
+            "large" => WorkloadSize::Large,
+            _ => {
+                // 문자열을 숫자로 변환 시도
+                if let Ok(size) = s.parse::<usize>() {
+                    WorkloadSize::Custom(size)
+                } else {
+                    WorkloadSize::Medium // 기본값
+                }
+            }
+        }
+    }
 }

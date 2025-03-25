@@ -1,150 +1,153 @@
 /**
- * 가비지 컬렉션 유틸리티 인덱스 파일
- * 모든 모듈을 내보냅니다.
+ * 가비지 컬렉션 유틸리티
+ * 
+ * 메모리 최적화 및 GC 요청 관련 유틸리티 함수들을 제공합니다.
  */
 
-// 메모리 풀 관련 기능
-export { 
-  acquireFromPool, 
-  releaseToPool, 
-  releaseAllPooledObjects,
-  memoryPools
-} from './pool/memory-pool';
+import { GCResult } from '@/types';
+import { requestNativeGarbageCollection } from '../native-memory-bridge';
 
-// 가비지 컬렉션 기능
-export {
-  determineOptimizationLevel,
-  ensureMemoryInfo,
-  induceGarbageCollection,
-  suggestGarbageCollection,
-  requestGC
-} from './gc/garbage-collector';
+// 마지막 GC 요청 시간
+let lastGCTime = 0;
+// 최소 GC 요청 간격 (ms)
+const MIN_GC_INTERVAL = 5000;
 
 /**
- * 가비지 컬렉션 관련 유틸리티
- * GC 관련 함수들을 제공합니다.
- */
-import { GCResult, MemoryInfo } from './types'; 
-import { getMemoryUsage } from './memory-info';
-
-/**
- * 메모리 해제를 권장하는 함수
- * 실제 GC를 강제하지는 않지만, 힌트를 제공함
+ * 가비지 컬렉션 제안 함수
+ * 
+ * 브라우저 환경에서 가비지 컬렉션을 제안합니다.
+ * window.gc가 있는 환경(크롬 --js-flags="--expose-gc")에서만 작동합니다.
  */
 export function suggestGarbageCollection(): void {
-  try {
-    // 대형 배열 생성 및 삭제로 GC 유도
-    if (!window.gc) {
-      const arr = [];
-      for (let i = 0; i < 10; i++) {
-        arr.push(new ArrayBuffer(1024 * 1024)); // 각 1MB
-      }
-      // 배열 참조 해제
-      arr.length = 0;
-    } else {
-      // window.gc가 있는 경우 직접 호출
+  if (typeof window !== 'undefined') {
+    if (window.gc) {
       window.gc();
+    } else {
+      // GC를 직접 호출할 수 없는 경우 간접적으로 메모리 압박을 가함
+      const now = Date.now();
+      
+      // 너무 자주 호출되지 않도록 조절
+      if (now - lastGCTime < MIN_GC_INTERVAL) {
+        return;
+      }
+      
+      lastGCTime = now;
+      
+      // 메모리 할당 후 해제하여 GC 유도
+      try {
+        const arr = new Array(10000).fill({});
+        arr.length = 0;
+      } catch (e) {
+        console.warn('GC 간접 호출 중 오류:', e);
+      }
     }
-    
-    // Electron IPC를 통한 GC 요청
-    if (window.electronAPI) {
-      window.electronAPI.requestGC && window.electronAPI.requestGC();
-    }
-  } catch (error) {
-    console.warn('GC 제안 중 오류:', error);
   }
 }
 
 /**
- * 수동으로 가비지 컬렉션을 요청합니다.
- * @param {boolean} emergency - 긴급 모드 여부
- * @returns Promise<GCResult>
+ * GC 요청 함수
+ * 
+ * 네이티브 모듈을 통해 GC를 요청합니다.
+ * 
+ * @param {boolean} emergency 긴급 GC 여부
+ * @returns {Promise<GCResult>} GC 결과
  */
 export async function requestGC(emergency = false): Promise<GCResult> {
   try {
-    // 메모리 정보 수집 (GC 전)
-    const memoryBefore = await getMemoryUsage();
+    // 네이티브 GC 요청
+    const result = await requestNativeGarbageCollection();
     
-    // Electron API를 통한 GC 요청
-    if (window.electronAPI && typeof window.electronAPI.requestGC === 'function') {
-      await window.electronAPI.requestGC();
+    if (result) {
+      return result;
     }
     
-    // 브라우저 창 객체를 통한 메모리 힌트
-    if (window.gc) {
-      window.gc();
-    }
+    // 네이티브 모듈 사용 불가능한 경우 JS 폴백
+    suggestGarbageCollection();
     
-    // 약간의 지연 후 메모리 정보 다시 수집 (GC 이후)
-    await new Promise(resolve => setTimeout(resolve, 100));
-    const memoryAfter = await getMemoryUsage();
-    
-    const freedMemory = memoryBefore.heapUsed - memoryAfter.heapUsed;
-    const freedMB = Math.round(freedMemory / (1024 * 1024) * 100) / 100;
-    
+    // 폴백 결과 생성
     return {
       success: true,
-      memoryBefore,
-      memoryAfter,
-      freedMemory,
-      freedMB,
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      freedMemory: 0,
+      freedMB: 0
     };
   } catch (error) {
     console.error('GC 요청 오류:', error);
+    
+    // 오류 발생 시에도 JS 폴백 시도
+    suggestGarbageCollection();
+    
     return {
       success: false,
       timestamp: Date.now(),
-      error: String(error)
+      error: error instanceof Error ? error.message : '알 수 없는 오류'
     };
   }
 }
 
-// 최적화 관련 기능 - 새로운 모듈 구조 사용
-export {
-  performOptimizationByLevel,
-  clearImageCaches,
-  cleanupDOMReferences,
-  clearStorageCaches,
-  unloadNonVisibleResources,
-  optimizeEventListeners,
-  unloadDynamicModules,
-  emergencyMemoryRecovery
-} from './gc/optimization-controller';
+/**
+ * 브라우저 캐시 정리
+ */
+export async function clearBrowserCaches(): Promise<boolean> {
+  try {
+    if (typeof window === 'undefined') return false;
+    
+    // 사용 가능한 캐시 API가 있으면 정리
+    if ('caches' in window) {
+      const cacheNames = await window.caches.keys();
+      await Promise.all(
+        cacheNames.map(cacheName => window.caches.delete(cacheName))
+      );
+    }
+    
+    return true;
+  } catch (error) {
+    console.error('브라우저 캐시 정리 오류:', error);
+    return false;
+  }
+}
 
-// 상수
-export { MEMORY_THRESHOLDS } from './constants/memory-thresholds';
+/**
+ * 브라우저 스토리지 정리
+ */
+export function clearStorageCaches(): boolean {
+  try {
+    if (typeof window === 'undefined') return false;
+    
+    // 세션 스토리지는 완전히 정리
+    if (window.sessionStorage) {
+      window.sessionStorage.clear();
+    }
+    
+    // 로컬 스토리지는 임시 데이터만 정리
+    if (window.localStorage) {
+      const keysToDelete = [];
+      
+      for (let i = 0; i < window.localStorage.length; i++) {
+        const key = window.localStorage.key(i);
+        if (key && key.startsWith('temp_') || key.startsWith('cache_')) {
+          keysToDelete.push(key);
+        }
+      }
+      
+      keysToDelete.forEach(key => window.localStorage.removeItem(key));
+    }
+    
+    return true;
+  } catch (error) {
+    console.error('스토리지 캐시 정리 오류:', error);
+    return false;
+  }
+}
 
-// 창에 전역 메모리 최적화 도구 노출 (디버깅용)
+// 전역 API 노출
 if (typeof window !== 'undefined') {
-  import('./pool/memory-pool').then(memoryPool => {
-    import('./gc/garbage-collector').then(gc => {
-      import('./gc/optimization-controller').then(optimization => {
-        // 전역 객체에 함수 추가
-        (window as any).__memoryOptimizer = {
-          ...(window as any).__memoryOptimizer || {},
-          // 가비지 컬렉션 기능
-          requestGC: gc.requestGC,
-          suggestGarbageCollection: gc.suggestGarbageCollection,
-          determineOptimizationLevel: gc.determineOptimizationLevel,
-          // 메모리 풀 기능
-          acquireFromPool: memoryPool.acquireFromPool,
-          releaseToPool: memoryPool.releaseToPool,
-          // 최적화 기능
-          performOptimizationByLevel: optimization.performOptimizationByLevel,
-          clearImageCaches: optimization.clearImageCaches,
-          cleanupDOMReferences: optimization.cleanupDOMReferences,
-          clearStorageCaches: optimization.clearStorageCaches
-        };
-        
-        console.log('메모리 최적화 유틸리티 초기화 완료');
-      }).catch(error => {
-        console.error('최적화 컨트롤러 로드 중 오류:', error);
-      });
-    }).catch(error => {
-      console.error('가비지 컬렉터 로드 중 오류:', error);
-    });
-  }).catch(error => {
-    console.error('메모리 풀 로드 중 오류:', error);
-  });
+  if (!window.__memoryOptimizer) {
+    window.__memoryOptimizer = {};
+  }
+  
+  window.__memoryOptimizer.suggestGarbageCollection = suggestGarbageCollection;
+  window.__memoryOptimizer.requestGC = requestGC;
+  window.__memoryOptimizer.clearBrowserCaches = clearBrowserCaches;
+  window.__memoryOptimizer.clearStorageCaches = clearStorageCaches;
 }

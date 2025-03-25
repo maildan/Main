@@ -1,10 +1,8 @@
 /**
  * 네이티브 모듈 타입 정의
- * 
- * Rust 네이티브 모듈과의 상호작용에 사용되는 타입들을 정의합니다.
  */
 
-// 네이티브 모듈 최적화 레벨 열거형 (Rust enum과 일치)
+// 네이티브 모듈 최적화 레벨
 export enum OptimizationLevel {
   Normal = 0,
   Low = 1,
@@ -13,38 +11,55 @@ export enum OptimizationLevel {
   Critical = 4
 }
 
-// 네이티브 모듈 메모리 정보 인터페이스 (Rust struct와 일치)
-export interface MemoryInfo {
+// GPU 장치 정보 인터페이스
+export interface GpuDeviceInfo {
+  name: string;
+  vendor: string;
+  driver_info: string;
+  device_type: string;
+  backend: string;
   timestamp: number;
-  heap_used: number;
-  heap_total: number;
-  rss: number;
-  heap_used_mb: number;
-  rss_mb: number;
-  percent_used: number;
-  heap_limit?: number;
 }
 
-// 네이티브 모듈 GC 결과 인터페이스 (Rust struct와 일치)
-export interface GCResult {
-  success: boolean;
+// GPU 정보 인터페이스
+export interface GpuInfo {
+  name: string;
+  vendor: string;
+  driver_info: string;
+  device_type: string;
+  backend: string;
+  available: boolean;
   timestamp: number;
-  freed_memory?: number; // Rust에서는 snake_case 사용
-  freed_mb?: number;     // Rust에서는 snake_case 사용
-  error?: string;
 }
 
-// 네이티브 모듈 최적화 결과 인터페이스 (Rust struct와 일치)
-export interface OptimizationResult {
-  success: boolean;
-  optimization_level: OptimizationLevel;
-  memory_before?: MemoryInfo;
-  memory_after?: MemoryInfo;
-  freed_memory?: number;
-  freed_mb?: number;
-  duration?: number;
+// GPU 작업 결과 인터페이스
+export interface GpuTaskResult {
+  task_id: string;
+  task_type: string;
+  duration_ms: number;
+  result: any;
   timestamp: number;
-  error?: string;
+}
+
+// 메모리 정보 인터페이스 - 중복 선언 해결
+import { MemoryInfo, OptimizationResult, GCResult } from '../app/utils/memory/types';
+export { MemoryInfo, OptimizationResult, GCResult };
+
+// 작업 결과 인터페이스
+export interface TaskResult {
+  task_id: string;
+  task_type: string;
+  duration_ms: number;
+  result: any;
+  timestamp: number;
+}
+
+// GPU 계산 결과 인터페이스
+export interface GpuComputationResult {
+  computation_type: string;
+  duration_ms: number;
+  result: any;
+  timestamp: number;
 }
 
 // 네이티브 GPU 타입 (Rust enum과 일치)
@@ -65,38 +80,6 @@ export interface GPUInfo {
   renderer?: string;
   driver_info?: string;
   backend?: string;
-  timestamp: number;
-}
-
-// GPU 정보 인터페이스
-export interface GpuInfo {
-  name: string;
-  vendor: string;
-  driver_info: string;
-  device_type: string;
-  backend: string;
-  available: boolean;
-}
-
-// GPU 계산 결과 인터페이스
-export interface GpuComputationResult {
-  success: boolean;
-  task_type: string;
-  duration_ms: number;
-  result: any;
-  error?: string;
-  accelerated: boolean;
-  timestamp: number;
-}
-
-// 작업 결과 인터페이스
-export interface TaskResult {
-  success: boolean;
-  task_id: string;
-  task_type: string;
-  duration_ms: number;
-  result: any;
-  error?: string;
   timestamp: number;
 }
 

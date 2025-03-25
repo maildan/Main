@@ -1,348 +1,276 @@
 /**
  * 긴급 메모리 복구 모듈
+ * 
+ * 메모리 누수 또는 과도한 메모리 사용 상황에서 
+ * 긴급 메모리 복구 기능을 제공합니다.
  */
-import { getMemoryInfo } from '../memory-info';
-import { toggleGpuAcceleration } from '@/app/utils/gpu-acceleration';
-import { logMemoryUsage, MemoryEventType } from '../logger';
-import { OptimizationResult } from '@/types';
-import { normalizeMemoryInfo } from '../format-utils';
 
-// Window 확장 인터페이스 정의 추가
-interface WindowWithCache extends Window {
-  __cachedData?: Record<string, any>;
-  __bufferCache?: Record<string, any>;
-  __animationFrameIds?: number[];
-  __intervalIds?: number[];
-  __timeoutIds?: number[];
-  __appRecovery?: any;
-  __loadedModules?: Map<string, any>;
-  __memoryCache?: Map<string, any>;
-  __taskScheduler?: any;
-  __store?: any;
-  __errorBoundaries?: any[];
-  __apiClient?: any;
-  gc?: () => void;
-}
+import { requestNativeMemoryOptimization, requestNativeGarbageCollection } from '../../native-memory-bridge';
+import { OptimizationLevel } from '@/types';
+
+// 마지막 긴급 복구 시간
+let lastEmergencyRecoveryTime = 0;
+// 최소 긴급 복구 간격 (10초)
+const MIN_RECOVERY_INTERVAL = 10000;
 
 /**
  * 긴급 메모리 복구 수행
  * 
- * 애플리케이션이 매우 높은 메모리 사용량을 보일 때 호출됩니다.
- * 가장 적극적인 메모리 최적화를 수행하고 비필수적인 기능을 일시적으로 비활성화합니다.
+ * 메모리 부족 상황에서 긴급으로 메모리를 회수합니다.
+ * 이 함수는 다른 기능을 중단시키고 최대한 많은 메모리를 확보하려고 시도합니다.
  * 
- * @returns Promise<OptimizationResult> 긴급 복구 결과
+ * @returns {Promise<boolean>} 복구 성공 여부
  */
-export async function emergencyMemoryRecovery(): Promise<OptimizationResult> {
+export async function performEmergencyMemoryRecovery(): Promise<boolean> {
   try {
-    // 긴급 복구 로그 기록
-    await logMemoryUsage(
-      MemoryEventType.OPTIMIZATION,
-      '긴급 메모리 복구 수행 시작'
-    );
+    const now = Date.now();
     
-    const memoryBefore = await getMemoryInfo();
-    
-    if (!memoryBefore) {
-      throw new Error('메모리 정보를 가져올 수 없습니다');
+    // 너무 자주 호출되는 것을 방지
+    if (now - lastEmergencyRecoveryTime < MIN_RECOVERY_INTERVAL) {
+      console.warn('긴급 메모리 복구 요청이 너무 자주 호출됩니다.');
+      return false;
     }
     
-    // 1. GPU 가속화 비활성화
-    try {
-      await toggleGpuAcceleration(false);
-      console.log('GPU 가속화 비활성화 완료');
-    } catch (error) {
-      console.error('GPU 가속화 비활성화 오류:', error);
-    }
+    lastEmergencyRecoveryTime = now;
     
-    // 2. 모든 애니메이션 프레임 및 타이머 취소
-    cancelAllTimers();
+    console.warn('긴급 메모리 복구 시작...');
     
-    // 3. 캐시 및 버퍼 정리
+    // 1. 네이티브 모듈을 통한 긴급 메모리 최적화
+    await requestNativeMemoryOptimization(OptimizationLevel.EXTREME, true);
+    
+    // 2. 네이티브 모듈을 통한 강제 GC
+    await requestNativeGarbageCollection();
+    
+    // 3. DOM 정리
+    cleanupDOM();
+    
+    // 4. 캐시 정리
     clearAllCaches();
     
-    // 4. WebGL 컨텍스트 정리
-    releaseWebGLContexts();
+    // 5. 불필요한 타이머 제거
+    clearTimers();
     
-    // 5. 강제 가비지 컬렉션 요청 (가능한 경우)
-    await forceGarbageCollection();
+    // 6. 이벤트 리스너 정리
+    cleanupEventListeners();
     
-    // 6. 대용량 객체 해제
-    releaseLargeObjectReferences();
+    console.log('긴급 메모리 복구 완료');
     
-    // 복구 후 메모리 정보 가져오기
-    await new Promise(resolve => setTimeout(resolve, 500));
-    const memoryAfter = await getMemoryInfo();
+    return true;
+  } catch (error) {
+    console.error('긴급 메모리 복구 오류:', error);
     
-    if (!memoryAfter) {
-      throw new Error('복구 후 메모리 정보를 가져올 수 없습니다');
+    // 오류 발생 시에도 간단한 복구 작업은 시도
+    try {
+      await requestNativeGarbageCollection();
+      console.log('기본 GC 수행 완료');
+    } catch {
+      // 추가 오류 무시
     }
     
-    // 해제된 메모리 계산
-    const freedMemory = Math.max(0, memoryBefore.heapUsed - memoryAfter.heapUsed);
-    const freedMB = freedMemory / (1024 * 1024);
-    
-    console.log(`긴급 메모리 복구 완료: ${freedMB.toFixed(2)}MB 해제됨`);
-    
-    // 메모리 복구 성공 로그
-    await logMemoryUsage(
-      MemoryEventType.OPTIMIZATION,
-      `긴급 메모리 복구 완료: ${freedMB.toFixed(2)}MB 해제됨`
-    );
-    
-    // 표준화된 결과 반환
-    const normalizedBefore = normalizeMemoryInfo(memoryBefore);
-    const normalizedAfter = normalizeMemoryInfo(memoryAfter);
-    
-    // 최적화 결과 반환 - null 값을 제거하고 undefined로 변경
-    return {
-      success: true,
-      optimization_level: 4, // 최고 수준
-      memory_before: normalizedBefore,
-      memory_after: normalizedAfter,
-      freed_memory: freedMemory,
-      freed_mb: freedMB,
-      duration: 500, // 복구에 약 500ms 소요
-      timestamp: Date.now(),
-      error: undefined // null이 아닌 undefined 사용
-    };
-  } catch (error) {
-    console.error('긴급 메모리 복구 실패:', error);
-    return {
-      success: false,
-      optimization_level: 4,
-      memory_before: undefined, // null이 아닌 undefined 사용
-      memory_after: undefined,  // null이 아닌 undefined 사용
-      freed_memory: 0,
-      freed_mb: 0,
-      duration: 0,
-      timestamp: Date.now(),
-      error: error instanceof Error ? error.message : '알 수 없는 오류'
-    };
+    return false;
   }
 }
 
 /**
- * 모든 타이머 취소
+ * DOM 요소 정리
+ * 
+ * 불필요한 DOM 요소와 참조를 정리합니다.
  */
-function cancelAllTimers(): void {
-  const win = window as WindowWithCache;
+function cleanupDOM(): void {
+  if (typeof window === 'undefined' || !document) return;
   
-  // 애니메이션 프레임 취소
-  if (win.__animationFrameIds && Array.isArray(win.__animationFrameIds)) {
-    win.__animationFrameIds.forEach((id: number) => {
-      cancelAnimationFrame(id);
+  try {
+    // 1. 숨겨진 요소 정리
+    const hiddenElements = document.querySelectorAll('.hidden, [hidden], [style*="display: none"]');
+    hiddenElements.forEach(el => {
+      if (el instanceof HTMLElement) {
+        el.innerHTML = '';
+      }
     });
-    win.__animationFrameIds = [];
-  }
-  
-  // 인터벌 취소
-  if (win.__intervalIds && Array.isArray(win.__intervalIds)) {
-    win.__intervalIds.forEach((id: number) => {
-      clearInterval(id);
+    
+    // 2. 화면 밖의 이미지 src 비우기 (data-src에 원본 저장)
+    const images = document.querySelectorAll('img');
+    images.forEach(img => {
+      const rect = img.getBoundingClientRect();
+      const isInViewport = rect.top < window.innerHeight && rect.bottom > 0;
+      
+      if (!isInViewport && img.src && !img.dataset.keepLoaded) {
+        if (!img.dataset.originalSrc) {
+          img.dataset.originalSrc = img.src;
+        }
+        img.src = '';
+      }
     });
-    win.__intervalIds = [];
-  }
-  
-  // 타임아웃 취소
-  if (win.__timeoutIds && Array.isArray(win.__timeoutIds)) {
-    win.__timeoutIds.forEach((id: number) => {
-      clearTimeout(id);
-    });
-    win.__timeoutIds = [];
+  } catch (e) {
+    console.warn('DOM 정리 중 오류:', e);
   }
 }
 
 /**
  * 모든 캐시 정리
+ * 
+ * 브라우저와 앱의 모든 캐시를 정리합니다.
  */
 function clearAllCaches(): void {
-  const win = window as WindowWithCache;
+  if (typeof window === 'undefined') return;
   
-  // 필요한 경우 캐시 초기화
-  if (win.__cachedData) {
-    win.__cachedData = {};
+  try {
+    // 1. 로컬 스토리지의 임시 항목 정리
+    if (window.localStorage) {
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && (key.startsWith('temp_') || key.startsWith('cache_'))) {
+          localStorage.removeItem(key);
+        }
+      }
+    }
+    
+    // 2. 세션 스토리지 완전 정리
+    if (window.sessionStorage) {
+      sessionStorage.clear();
+    }
+    
+    // 3. 앱 캐시 정리
+    if (window.__memoryCache) {
+      window.__memoryCache.clear();
+    }
+    
+    // 4. 버퍼 캐시 정리
+    if (window.__bufferCache) {
+      window.__bufferCache = {};
+    }
+  } catch (e) {
+    console.warn('캐시 정리 중 오류:', e);
   }
+}
+
+/**
+ * 모든 타이머 정리
+ * 
+ * 불필요한 타이머를 정리하여 메모리와 CPU 사용량을 줄입니다.
+ */
+function clearTimers(): void {
+  if (typeof window === 'undefined') return;
   
-  // 버퍼 캐시 정리
-  if (win.__bufferCache) {
-    win.__bufferCache = {};
+  try {
+    // 1. 추적 중인 타임아웃 정리
+    if (window.__timeoutIds && Array.isArray(window.__timeoutIds)) {
+      window.__timeoutIds.forEach(id => clearTimeout(id));
+      window.__timeoutIds = [];
+    }
+    
+    // 2. 추적 중인 인터벌 정리
+    if (window.__intervalIds && Array.isArray(window.__intervalIds)) {
+      window.__intervalIds.forEach(id => clearInterval(id));
+      window.__intervalIds = [];
+    }
+    
+    // 3. 추적 중인 애니메이션 프레임 정리
+    if (window.__animationFrameIds && Array.isArray(window.__animationFrameIds)) {
+      window.__animationFrameIds.forEach(id => cancelAnimationFrame(id));
+      window.__animationFrameIds = [];
+    }
+  } catch (e) {
+    console.warn('타이머 정리 중 오류:', e);
   }
+}
+
+/**
+ * 이벤트 리스너 정리
+ * 
+ * 불필요한 이벤트 리스너를 제거합니다.
+ */
+function cleanupEventListeners(): void {
+  if (typeof window === 'undefined') return;
   
-  // MemoryCache 정리
-  if (win.__memoryCache instanceof Map) {
-    win.__memoryCache.clear();
-  }
-  
-  // 애플리케이션 캐시 스토리지 정리 (가능한 경우)
-  if ('caches' in window) {
-    try {
-      // Service Worker 캐시 API (비동기 작업이지만 오류 없이 진행)
-      caches.keys().then(cacheNames => {
-        cacheNames.forEach(cacheName => {
-          if (cacheName.includes('temp-cache') || cacheName.includes('non-essential')) {
-            caches.delete(cacheName).catch(() => {});
-          }
+  try {
+    // 추적 중인 이벤트 리스너 정리
+    // 애플리케이션에서 이벤트 리스너 추적 방식에 따라 수정 필요
+    if (window.__eventListeners) {
+      Object.entries(window.__eventListeners || {}).forEach(([selector, events]) => {
+        const elements = document.querySelectorAll(selector);
+        elements.forEach(element => {
+          Object.entries(events).forEach(([eventName, listener]) => {
+            element.removeEventListener(eventName, listener);
+          });
         });
-      }).catch(() => {});
-    } catch (e) {
-      // 무시
-    }
-  }
-}
-
-/**
- * WebGL 컨텍스트 정리
- */
-function releaseWebGLContexts(): void {
-  const win = window as WindowWithCache;
-  
-  // WebGL 컨텍스트 정리
-  try {
-    const canvases = document.querySelectorAll('canvas');
-    canvases.forEach(canvas => {
-      try {
-        const gl = (canvas as HTMLCanvasElement).getContext('webgl') || 
-                 (canvas as HTMLCanvasElement).getContext('webgl2');
-        
-        if (gl) {
-          const ext = (gl as WebGLRenderingContext).getExtension('WEBGL_lose_context');
-          if (ext) {
-            ext.loseContext();
-          }
-        }
-      } catch (e) {
-        // 무시
-      }
-    });
-  } catch (e) {
-    // 무시
-  }
-}
-
-/**
- * 강제 가비지 컬렉션 요청
- */
-async function forceGarbageCollection(): Promise<void> {
-  // 전역 GC 함수가 있는 경우 (Node.js --expose-gc)
-  if (typeof window !== 'undefined' && 'gc' in window && typeof window.gc === 'function') {
-    try {
-      (window as WindowWithCache).gc?.();
-    } catch (e) {
-      // 무시
-    }
-  }
-  
-  // 대용량 배열 생성/해제로 GC 유도
-  try {
-    const largeArray = new Array(1000000).fill(0);
-    for (let i = 0; i < 10; i++) {
-      largeArray.push(new Array(100000).fill(0));
-    }
-    // 참조 삭제
-    // @ts-ignore
-    largeArray = null;
-  } catch (e) {
-    // 무시
-  }
-  
-  // GC 작업 시간 제공
-  await new Promise(resolve => setTimeout(resolve, 100));
-}
-
-/**
- * 대용량 객체 참조 해제
- */
-function releaseLargeObjectReferences(): void {
-  clearDOMReferences();
-  cleanupAudioContexts();
-  releaseOffscreenImages();
-}
-
-/**
- * DOM 참조 정리
- */
-function clearDOMReferences(): void {
-  try {
-    // 비표시 DOM 요소 참조 제거
-    const hiddenElements = document.querySelectorAll('.hidden, [hidden], [style*="display: none"]');
-    
-    hiddenElements.forEach(el => {
-      // 자식 요소 제거
-      while (el.firstChild) {
-        el.removeChild(el.firstChild);
-      }
-      
-      // 속성 정리
-      Array.from(el.attributes).forEach(attr => {
-        if (attr.name.startsWith('data-')) {
-          el.removeAttribute(attr.name);
-        }
       });
-    });
+      
+      window.__eventListeners = {};
+    }
   } catch (e) {
-    // 무시
+    console.warn('이벤트 리스너 정리 중 오류:', e);
   }
 }
 
 /**
- * 오디오 컨텍스트 정리
+ * 메모리 진단 정보 수집
+ * 
+ * 현재 메모리 사용 상태에 대한 진단 정보를 수집합니다.
+ * 
+ * @returns {Object} 진단 정보
  */
-function cleanupAudioContexts(): boolean {
+export function collectMemoryDiagnostics(): any {
+  if (typeof window === 'undefined') return null;
+  
   try {
-    // 오디오 요소 정리
-    const audioElements = document.querySelectorAll('audio');
-    audioElements.forEach(audio => {
-      try {
-        const audioElement = audio as HTMLAudioElement;
-        if (!audioElement.paused) {
-          audioElement.pause();
-        }
-        if (audioElement.src) {
-          audioElement.src = '';
-          audioElement.load();
-        }
-      } catch (e) {
-        console.warn('오디오 요소 정리 실패:', e);
-      }
-    });
+    // 메모리 정보 수집
+    const memoryInfo: any = {};
     
-    return true;
-  } catch (e) {
-    return false;
+    // 브라우저 메모리 API (Chrome 전용)
+    if ((performance as any).memory) {
+      const { totalJSHeapSize, usedJSHeapSize, jsHeapSizeLimit } = (performance as any).memory;
+      memoryInfo.browser = {
+        totalHeap: totalJSHeapSize,
+        usedHeap: usedJSHeapSize,
+        heapLimit: jsHeapSizeLimit,
+        percentUsed: (usedJSHeapSize / totalJSHeapSize) * 100
+      };
+    }
+    
+    // DOM 크기
+    memoryInfo.dom = {
+      elements: document.querySelectorAll('*').length,
+      images: document.querySelectorAll('img').length,
+      scripts: document.querySelectorAll('script').length,
+      styleSheets: document.styleSheets.length
+    };
+    
+    // 스토리지 사용량
+    memoryInfo.storage = {
+      localStorage: localStorage.length,
+      sessionStorage: sessionStorage.length
+    };
+    
+    // 이벤트 리스너 수 (추정)
+    const allElements = document.querySelectorAll('*');
+    let listenerCount = 0;
+    
+    if (window.getEventListeners) {
+      // Chrome 개발자 도구에서만 사용 가능한 API
+      listenerCount = Array.from(allElements).reduce((count, el) => {
+        const listeners = (window as any).getEventListeners(el);
+        return count + Object.values(listeners || {}).reduce((sum: number, arr: any[]) => sum + arr.length, 0);
+      }, 0);
+    }
+    
+    memoryInfo.events = {
+      estimatedListeners: listenerCount || 'Not available'
+    };
+    
+    return memoryInfo;
+  } catch (error) {
+    console.error('메모리 진단 정보 수집 오류:', error);
+    return { error: String(error) };
   }
 }
 
-/**
- * 화면 밖 이미지 리소스 해제
- */
-function releaseOffscreenImages(): boolean {
-  try {
-    const images = document.querySelectorAll('img');
-    let count = 0;
-    
-    images.forEach(img => {
-      const rect = img.getBoundingClientRect();
-      // 뷰포트 밖에 있는 이미지
-      if (
-        rect.bottom < 0 ||
-        rect.top > window.innerHeight ||
-        rect.right < 0 ||
-        rect.left > window.innerWidth
-      ) {
-        const imgElement = img as HTMLImageElement;
-        if (imgElement.src && !imgElement.src.startsWith('data:')) {
-          // 원본 src 저장 후 제거
-          imgElement.setAttribute('data-original-src', imgElement.src);
-          imgElement.src = '';
-          count++;
-        }
-      }
-    });
-    
-    return count > 0;
-  } catch (e) {
-    return false;
+// 애플리케이션 복구 유틸리티를 전역 객체에 노출
+if (typeof window !== 'undefined') {
+  if (!window.__appRecovery) {
+    window.__appRecovery = {};
   }
+  
+  window.__appRecovery.performEmergencyMemoryRecovery = performEmergencyMemoryRecovery;
+  window.__appRecovery.collectMemoryDiagnostics = collectMemoryDiagnostics;
 }
-
-export default emergencyMemoryRecovery;

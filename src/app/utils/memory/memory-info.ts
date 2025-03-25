@@ -1,119 +1,95 @@
 /**
- * 메모리 정보 관련 유틸리티
- * 메모리 사용량 정보를 가져오는 기능 제공
+ * 메모리 정보 유틸리티
+ * 
+ * 브라우저 및 시스템 메모리 정보를 제공합니다.
  */
 import { MemoryInfo } from './types';
 
 /**
- * 사용 가능한 전체 메모리 용량 추정 (Chrome 환경)
- * @returns {number} 메모리 크기 (MB)
+ * 현재 메모리 사용량 가져오기
  */
-export function estimateTotalMemory(): number {
+export async function getMemoryUsage(): Promise<MemoryInfo | null> {
   try {
-    if (window.performance && (window.performance as any).memory) {
-      const memoryInfo = (window.performance as any).memory;
-      return Math.round(memoryInfo.jsHeapSizeLimit / (1024 * 1024));
-    }
-    // 브라우저에서 메모리 정보를 지원하지 않을 경우 기본값
-    return 2048; // 2GB를 기본값으로 가정
-  } catch (error) {
-    console.error('메모리 용량 추정 중 오류:', error);
-    return 1024;
-  }
-}
-
-/**
- * 현재 메모리 사용량 정보 얻기 (Chrome 환경)
- * @returns {MemoryInfo | null} 메모리 사용량 정보
- */
-export function getMemoryInfo(): MemoryInfo | null {
-  try {
-    if (window.performance && (window.performance as any).memory) {
-      const memoryInfo = (window.performance as any).memory;
-      const heapUsed = memoryInfo.usedJSHeapSize;
-      const heapTotal = memoryInfo.totalJSHeapSize;
-      const heapUsedMB = Math.round(heapUsed / (1024 * 1024) * 10) / 10;
-      
-      return {
-        timestamp: Date.now(),
-        heapUsed,
-        heapTotal,
-        heapLimit: memoryInfo.jsHeapSizeLimit,
-        heapUsedMB,
-        percentUsed: Math.round((heapUsed / heapTotal) * 100)
-      };
+    // 브라우저에서 사용 가능한 메모리 API 사용
+    if (typeof window === 'undefined' || !performance || !performance.memory) {
+      return createEstimatedMemoryInfo();
     }
     
-    return null;
-  } catch (error) {
-    console.error('메모리 정보 획득 중 오류:', error);
-    return null;
-  }
-}
-
-/**
- * 현재 메모리 사용량 상태를 백분율로 계산
- * @returns {number} 사용 비율 (0-100%)
- */
-export function getMemoryUsagePercentage(): number {
-  try {
-    const memInfo = getMemoryInfo();
-    if (!memInfo) return 0;
+    const { 
+      usedJSHeapSize, 
+      totalJSHeapSize, 
+      jsHeapSizeLimit 
+    } = performance.memory as any;
     
-    // jsHeapSizeLimit은 항상 사용 가능하지 않을 수 있으므로
-    // totalJSHeapSize을 기준으로 계산
-    return Math.round((memInfo.heapUsed / memInfo.heapTotal) * 100);
-  } catch (error) {
-    console.error('메모리 사용률 계산 중 오류:', error);
-    return 0;
-  }
-}
-
-/**
- * 메모리 사용량 정보를 가져옵니다.
- * @returns Promise<MemoryInfo>
- */
-export async function getMemoryUsage(): Promise<MemoryInfo> {
-  try {
-    // Electron API 사용 가능한 경우
-    if (window.electronAPI && typeof window.electronAPI.getMemoryUsage === 'function') {
-      return await window.electronAPI.getMemoryUsage();
-    }
+    const heap_used = usedJSHeapSize;
+    const heap_total = totalJSHeapSize;
+    const heap_limit = jsHeapSizeLimit;
+    const percent_used = (heap_used / heap_total) * 100;
     
-    // 일반 브라우저 환경에서는 performance API 사용
-    if (window.performance && (window.performance as any).memory) {
-      const memory = (window.performance as any).memory;
-      
-      return {
-        timestamp: Date.now(),
-        heapUsed: memory.usedJSHeapSize,
-        heapTotal: memory.totalJSHeapSize,
-        heapLimit: memory.jsHeapSizeLimit,
-        heapUsedMB: Math.round(memory.usedJSHeapSize / (1024 * 1024) * 10) / 10,
-        percentUsed: Math.round((memory.usedJSHeapSize / memory.totalJSHeapSize) * 100)
-      };
-    }
+    // RSS 추정 (정확한 값을 얻을 수 없으므로 힙 크기의 1.5배로 추정)
+    const rss = Math.round(heap_total * 1.5);
     
-    // 정보를 가져올 수 없는 경우 기본값 반환
     return {
-      timestamp: Date.now(),
-      heapUsed: 0,
-      heapTotal: 0,
-      heapLimit: 0,
-      heapUsedMB: 0,
-      percentUsed: 0,
-      unavailable: true
+      heap_used,
+      heapUsed: heap_used,
+      heap_total,
+      heapTotal: heap_total,
+      heap_used_mb: Math.round(heap_used / (1024 * 1024) * 10) / 10,
+      heapUsedMB: Math.round(heap_used / (1024 * 1024) * 10) / 10,
+      rss,
+      rss_mb: Math.round(rss / (1024 * 1024) * 10) / 10,
+      rssMB: Math.round(rss / (1024 * 1024) * 10) / 10,
+      percent_used: Math.round(percent_used * 10) / 10,
+      percentUsed: Math.round(percent_used * 10) / 10,
+      heap_limit: heap_limit,
+      timestamp: Date.now()
     };
   } catch (error) {
     console.error('메모리 정보 가져오기 오류:', error);
-    return {
-      timestamp: Date.now(),
-      heapUsed: 0,
-      heapTotal: 0,
-      heapLimit: 0,
-      heapUsedMB: 0,
-      percentUsed: 0,
-      error: String(error)
-    };
+    return createEstimatedMemoryInfo();
+  }
+}
+
+/**
+ * 추정 메모리 정보 생성
+ * 브라우저가 메모리 API를 지원하지 않을 때 호출됩니다.
+ */
+function createEstimatedMemoryInfo(): MemoryInfo {
+  // 기본값으로 추정된 값 반환
+  const estimatedHeapTotal = 128 * 1024 * 1024; // 128MB
+  const estimatedHeapUsed = estimatedHeapTotal * 0.6; // 60% 사용
+  
+  return {
+    heap_used: estimatedHeapUsed,
+    heapUsed: estimatedHeapUsed,
+    heap_total: estimatedHeapTotal,
+    heapTotal: estimatedHeapTotal,
+    heap_used_mb: Math.round(estimatedHeapUsed / (1024 * 1024) * 10) / 10,
+    heapUsedMB: Math.round(estimatedHeapUsed / (1024 * 1024) * 10) / 10,
+    rss: estimatedHeapTotal * 1.5,
+    rss_mb: Math.round(estimatedHeapTotal * 1.5 / (1024 * 1024) * 10) / 10,
+    rssMB: Math.round(estimatedHeapTotal * 1.5 / (1024 * 1024) * 10) / 10,
+    percent_used: 60,
+    percentUsed: 60,
+    heap_limit: estimatedHeapTotal * 2,
+    timestamp: Date.now()
+  };
+}
+
+/**
+ * 네이티브 모듈을 통한 메모리 정보 가져오기
+ */
+export async function getNativeMemoryInfo(): Promise<MemoryInfo | null> {
+  try {
+    // 네이티브 모듈 연동 함수 호출
+    if (typeof window !== 'undefined' && window.__memoryOptimizer?.getMemoryInfo) {
+      return await window.__memoryOptimizer.getMemoryInfo();
+    }
+    
+    // 네이티브 모듈 사용 불가능한 경우 브라우저 정보 반환
+    return getMemoryUsage();
+  } catch (error) {
+    console.error('네이티브 메모리 정보 가져오기 오류:', error);
+    return getMemoryUsage();
   }
 }
