@@ -32,6 +32,14 @@ export interface MemoryInfo {
   heap_used_mb: number;
   rss_mb?: number;
   percent_used: number;
+
+  // 선택적 별칭 추가 - 코드 호환성을 위함
+  heapUsed?: number;
+  heapTotal?: number;
+  heapLimit?: number;
+  heapUsedMB?: number;
+  percentUsed?: number;
+  rssMB?: number;
 }
 
 // 최적화 결과 인터페이스
@@ -45,6 +53,10 @@ export interface OptimizationResult {
   duration?: number;
   timestamp: number;
   error?: string;
+
+  // 선택적 별칭 추가 - 코드 호환성을 위함
+  freedMemory?: number;
+  freedMB?: number;
 }
 
 // 가비지 컬렉션 결과 인터페이스

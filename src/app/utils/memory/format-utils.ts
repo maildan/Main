@@ -40,7 +40,7 @@ export function normalizeMemoryInfo(memoryInfo: any): MemoryInfo {
   
   // 일관된 포맷으로 변환
   return {
-    // 네이티브 모듈 및 JS 구현 속성 통합
+    // 네이티브 모듈의 네이밍 규칙 사용 (snake_case)
     heap_used: heap_used || heapUsed || 0,
     heap_total: heap_total || heapTotal || 0,
     heap_limit: heap_limit || heapLimit || 0,
@@ -49,19 +49,8 @@ export function normalizeMemoryInfo(memoryInfo: any): MemoryInfo {
     percent_used: percent_used || percentUsed || 
       (heap_total > 0 ? (heap_used / heap_total) * 100 : 0),
     rss: rss || 0,
-    rss_mb: rss_mb || (rss ? rss / (1024 * 1024) : 0),
-    timestamp: timestamp || Date.now(),
-    
-    // 앱 호환성을 위한 별칭 속성
-    heapUsed: heap_used || heapUsed || 0,
-    heapTotal: heap_total || heapTotal || 0,
-    heapLimit: heap_limit || heapLimit || 0,
-    heapUsedMB: heap_used_mb || heapUsedMB || 
-      (heap_used ? heap_used / (1024 * 1024) : 0),
-    percentUsed: percent_used || percentUsed || 
-      (heap_total > 0 ? (heap_used / heap_total) * 100 : 0),
-    // rssMB 속성 추가 - MemoryInfo 타입에 맞게 추가
-    rssMB: rssMB || rss_mb || (rss ? rss / (1024 * 1024) : 0),
+    rss_mb: rss_mb || rssMB || (rss ? rss / (1024 * 1024) : 0),
+    timestamp: timestamp || Date.now()
   };
 }
 
@@ -84,13 +73,41 @@ export function createDefaultMemoryInfo(): MemoryInfo {
     rss_mb: 0,
     timestamp,
     
-    // 앱 호환성을 위한 별칭 속성
-    heapUsed: 0,
-    heapTotal: 0,
-    heapLimit: 0,
-    heapUsedMB: 0,
-    percentUsed: 0,
-    // rssMB 속성 추가
-    rssMB: 0,
+    // MemoryInfo 타입에 없는 속성은 제거
+  };
+}
+
+/**
+ * 메모리 정보 포맷 함수
+ * 메모리 정보를 문자열로 포맷
+ * 
+ * @param info 메모리 정보 객체
+ * @returns 포맷된 메모리 정보 문자열
+ */
+export function formatMemoryInfo(info: MemoryInfo): string {
+  if (!info) return 'Memory info not available';
+  
+  // 프로퍼티 이름 일치시키기
+  return `Memory usage: ${info.heap_used_mb.toFixed(2)}MB / ${(info.heap_total / (1024 * 1024)).toFixed(2)}MB (${info.percent_used.toFixed(1)}%)`;
+}
+
+/**
+ * 메모리 정보 객체 생성
+ * Partial<MemoryInfo> 타입의 데이터를 MemoryInfo 객체로 변환
+ * 
+ * @param data Partial<MemoryInfo> 타입의 데이터
+ * @returns MemoryInfo 객체
+ */
+export function createMemoryInfoObject(data: Partial<MemoryInfo>): MemoryInfo {
+  // 명시적으로 올바른 프로퍼티 이름 사용
+  return {
+    heap_used: data.heap_used || 0,
+    heap_total: data.heap_total || 0,
+    heap_used_mb: data.heap_used_mb || 0,
+    percent_used: data.percent_used || 0,
+    timestamp: data.timestamp || Date.now(),
+    // 선택적 속성은 존재할 때만 추가
+    ...(data.rss && { rss: data.rss }),
+    ...(data.rss_mb && { rss_mb: data.rss_mb })
   };
 }

@@ -82,7 +82,8 @@
     "glslang",
     "shaderc",
     "chrono",
-    "DXGI"
+    "DXGI",
+    "webgpu"
   ],
   "ignorePaths": [
     "node_modules/**",

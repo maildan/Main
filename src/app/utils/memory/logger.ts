@@ -5,7 +5,7 @@
  * 데이터를 수집하고 저장합니다.
  */
 
-import { getMemoryInfo } from './memory-info';
+import { getMemoryInfo } from '../memory-management';
 import { getPerformanceHistory } from '../performance-metrics';
 import { MemoryInfo } from '@/types';
 import { normalizeMemoryInfo } from './format-utils';

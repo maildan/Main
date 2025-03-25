@@ -295,3 +295,24 @@ declare module '*.module.scss' {
   const classes: { [key: string]: string };
   export default classes;
 }
+
+interface Window {
+  __memoryOptimizer?: {
+    getMemoryInfo: () => Promise<any>;
+    getMemoryUsagePercentage: () => Promise<number>;
+    optimizeMemory: (aggressive: boolean) => Promise<any>;
+    setupPeriodicOptimization: (interval?: number, threshold?: number) => () => void;
+  };
+  
+  // 캐시 관련 전역 객체들
+  __imageResizeCache?: Map<string, HTMLImageElement>;
+  __objectUrls?: Map<string, string>;
+  __memoryCache?: Map<string, any>;
+  __styleCache?: Map<string, any>;
+  __widgetCache?: Map<string, any>;
+  
+  // 기타 전역 객체
+  electronAPI?: any;
+  __appRecovery?: any;
+  __gpuAccelerator?: any;
+}

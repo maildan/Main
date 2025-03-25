@@ -60,7 +60,7 @@ async function withErrorHandling<T>(
  * @returns Promise<OptimizationResult | null>
  */
 export async function requestNativeMemoryOptimization(
-  level: OptimizationLevel | NativeOptimizationLevel,
+  level: OptimizationLevel | number,
   emergency: boolean = false
 ): Promise<OptimizationResult | null> {
   // 올바른 네이티브 레벨로 변환 (타입 안전성 보장)
@@ -70,7 +70,7 @@ export async function requestNativeMemoryOptimization(
   
   return withErrorHandling(
     async () => {
-      const response = await optimizeMemory(nativeLevel, emergency);
+      const response = await optimizeMemory(nativeLevel as number, emergency);
       
       if (response.success && response.result) {
         // 필드 이름 호환성 처리
@@ -160,7 +160,7 @@ export function determineOptimizationLevel(memoryInfo: MemoryInfo): Optimization
   if (percentUsed > 80) return OptimizationLevel.HIGH;
   if (percentUsed > 70) return OptimizationLevel.MEDIUM;
   if (percentUsed > 50) return OptimizationLevel.LOW;
-  return OptimizationLevel.NONE;
+  return OptimizationLevel.NONE as OptimizationLevel;  // 명시적 타입 캐스팅 추가
 }
 
 /**

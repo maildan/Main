@@ -19,22 +19,41 @@ async function setupGpuConfiguration() {
     
     // 하드웨어 가속 설정 적용
     const useHardwareAcceleration = appState.settings?.useHardwareAcceleration || false;
+    const processingMode = appState.settings?.processingMode || 'auto';
+    const highPerformance = processingMode === 'gpu-intensive';
     
-    debugLog(`GPU 가속 설정 상태: ${useHardwareAcceleration ? '활성화됨' : '비활성화됨'}`);
+    debugLog(`GPU 가속 설정 상태: ${useHardwareAcceleration ? '활성화됨' : '비활성화됨'}, 모드: ${processingMode}`);
     
     // Rust 네이티브 모듈 사용 시도
     try {
       const nativeModule = require('../native-modules');
       
-      if (nativeModule && typeof nativeModule.initialize_gpu_module === 'function') {
+      if (nativeModule && typeof nativeModule.initialize_gpu === 'function') {
         // Rust 네이티브 모듈로 GPU 초기화
-        const success = nativeModule.initialize_gpu_module();
+        const success = nativeModule.initialize_gpu();
         debugLog(`Rust 네이티브 GPU 모듈 초기화: ${success ? '성공' : '실패'}`);
         
         // 초기화 성공 여부 저장
         appState.gpuEnabled = success && useHardwareAcceleration;
         
         if (success) {
+          // 가속화 활성화 여부 설정
+          if (useHardwareAcceleration) {
+            const accelerationSuccess = nativeModule.enable_gpu_acceleration();
+            debugLog(`GPU 가속화 활성화: ${accelerationSuccess ? '성공' : '실패'}`);
+          } else {
+            const disableSuccess = nativeModule.disable_gpu_acceleration();
+            debugLog(`GPU 가속화 비활성화: ${disableSuccess ? '성공' : '실패'}`);
+          }
+          
+          // 모드에 따른 Electron GPU 설정 추가
+          const { configureGPU } = require('./electron-config');
+          configureGPU({
+            enableHardwareAcceleration: useHardwareAcceleration,
+            processingMode,
+            highPerformance
+          });
+          
           debugLog('네이티브 GPU 모듈이 설정을 적용함');
           return true;
         }
@@ -44,64 +63,45 @@ async function setupGpuConfiguration() {
     }
     
     // 네이티브 모듈 사용 불가능한 경우 기본 Electron 설정 적용
-    if (!useHardwareAcceleration) {
-      // GPU 가속이 비활성화된 경우
-      app.disableHardwareAcceleration();
-      debugLog('사용자 설정에 따라 하드웨어 가속 비활성화됨');
-      appState.gpuEnabled = false;
-      
-      // 강제로 소프트웨어 렌더링 사용
-      app.commandLine.appendSwitch('disable-gpu');
-      app.commandLine.appendSwitch('disable-gpu-compositing');
-      app.commandLine.appendSwitch('disable-accelerated-2d-canvas');
-      app.commandLine.appendSwitch('disable-accelerated-video-decode');
-      app.commandLine.appendSwitch('disable-accelerated-video-encode');
-      app.commandLine.appendSwitch('disable-gpu-rasterization');
-      app.commandLine.appendSwitch('disable-zero-copy');
-      app.commandLine.appendSwitch('disable-webgl');
-      debugLog('소프트웨어 렌더링 모드 활성화됨 (모든 GPU 기능 비활성화)');
-    } else {
-      // 기본 GPU 가속 활성화
-      debugLog('하드웨어 가속 활성화 시작');
-      appState.gpuEnabled = true;
-      
-      // 기존 플래그 제거 (중복 적용 방지)
-      try {
-        app.commandLine.hasSwitch('ignore-gpu-blocklist') && app.commandLine.removeSwitch('ignore-gpu-blocklist');
-        app.commandLine.hasSwitch('disable-gpu') && app.commandLine.removeSwitch('disable-gpu');
-      } catch (e) {
-        debugLog('기존 GPU 플래그 제거 중 오류 (무시됨):', e);
-      }
-      
-      // 기본 GPU 가속 플래그 추가
-      app.commandLine.appendSwitch('ignore-gpu-blocklist');
-      app.commandLine.appendSwitch('enable-gpu-rasterization');
-      app.commandLine.appendSwitch('enable-zero-copy');
-      app.commandLine.appendSwitch('enable-accelerated-2d-canvas');
-      
-      // 비디오 가속 
-      app.commandLine.appendSwitch('enable-accelerated-video-decode');
-      if (process.platform !== 'darwin') { // macOS에서는 지원 안 됨
-        app.commandLine.appendSwitch('enable-accelerated-video-encode');
-      }
-      
-      // WebGL 가속
-      app.commandLine.appendSwitch('enable-webgl');
-      
-      debugLog('GPU 가속 플래그 설정 완료');
+    const { configureGPU } = require('./electron-config');
+    
+    // GPU 벤더 감지 (가능한 경우)
+    let gpuVendor = 'auto';
+    try {
+      // WebGL을 통한 GPU 벤더 감지 시도 (렌더러 프로세스에서 수행)
+      // 여기서는 기본값 사용
+    } catch (vendorError) {
+      debugLog('GPU 벤더 감지 실패, 자동 설정 사용:', vendorError);
     }
     
-    // 처리 모드 적용
-    const processingMode = appState.settings?.processingMode || 'auto';
-    debugLog(`처리 모드 설정: ${processingMode}`);
+    // Electron GPU 설정 적용
+    const configSuccess = configureGPU({
+      enableHardwareAcceleration: useHardwareAcceleration,
+      processingMode,
+      highPerformance,
+      gpuVendor
+    });
     
-    // 메모리 임계치 설정
-    const maxMemoryThreshold = appState.settings?.maxMemoryThreshold || 100;
-    debugLog(`메모리 임계치 설정: ${maxMemoryThreshold}MB`);
+    appState.gpuEnabled = useHardwareAcceleration && configSuccess;
+    debugLog(`Electron GPU 설정 적용 ${configSuccess ? '성공' : '실패'}`);
     
-    return true;
+    // 메모리 설정도 함께 적용
+    const { configureMemorySettings } = require('./electron-config');
+    configureMemorySettings(highPerformance);
+    
+    return configSuccess;
   } catch (error) {
     console.error('GPU 설정 적용 중 오류:', error);
+    
+    // 오류 발생 시 안전 모드로 설정 (GPU 비활성화)
+    try {
+      app.disableHardwareAcceleration();
+      app.commandLine.appendSwitch('disable-gpu');
+      debugLog('오류로 인해 안전 모드(GPU 비활성화)로 설정됨');
+    } catch (safetyError) {
+      console.error('안전 모드 설정 실패:', safetyError);
+    }
+    
     return false;
   }
 }

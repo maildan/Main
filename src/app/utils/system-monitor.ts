@@ -4,7 +4,8 @@
  * 메모리, CPU, 디스크 등 시스템 자원 사용량을 모니터링하는 함수들을 제공합니다.
  */
 
-import { getMemoryInfo } from './memory/memory-info';
+// Import memory related functions - default 대신 named import 사용
+import { getMemoryUsage } from './memory/memory-info';
 import { requestNativeMemoryOptimization } from './native-memory-bridge';
 import { OptimizationLevel } from '@/types';
 
@@ -57,8 +58,8 @@ const callbacks: Array<(status: SystemStatus) => void> = [];
  */
 export async function getSystemStatus(): Promise<SystemStatus> {
   try {
-    // 메모리 정보 가져오기
-    const memoryInfo = await getMemoryInfo();
+    // 메모리 정보 가져오기 - getMemoryInfo에서 getMemoryUsage로 변경
+    const memoryInfo = await getMemoryUsage();
     
     let memoryStatus: MemoryStatus = {
       heapUsedMB: 0,

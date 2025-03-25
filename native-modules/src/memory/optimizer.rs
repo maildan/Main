@@ -228,7 +228,7 @@ pub fn get_last_optimization_time() -> u64 {
 /// 
 /// 사용자 설정에서 GPU 가속화가 활성화되어 있는지 확인합니다.
 pub fn is_gpu_acceleration_enabled() -> bool {
-    // GPU 가용성 확인 - 임시 구현
+    // GPU 가용성 확인
     context::is_gpu_initialized()
 }
 

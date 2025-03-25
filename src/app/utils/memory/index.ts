@@ -27,16 +27,33 @@ export {
 
 /**
  * 메모리 사용률 퍼센트 가져오기
+ * 비동기 함수에서 동기 함수로 변경 (캐시된 값 반환)
  */
-export async function getMemoryUsagePercentage(): Promise<number> {
-  try {
-    const memoryInfo = await requestNativeMemoryInfo();
-    return memoryInfo ? memoryInfo.percent_used : 0;
-  } catch (error) {
-    console.error('메모리 사용률 가져오기 오류:', error);
-    return 0;
+// 메모리 사용률을 캐싱할 변수
+let cachedMemoryUsage = 0;
+let lastUpdateTime = 0;
+const CACHE_TTL = 5000; // 5초 캐시
+
+export const getMemoryUsagePercentage = (): number => {
+  // 캐시된 값이 유효하면 반환
+  const now = Date.now();
+  if (now - lastUpdateTime < CACHE_TTL) {
+    return cachedMemoryUsage;
   }
-}
+
+  // 캐시 갱신 (비동기로 호출하고 현재 캐시값 반환)
+  requestNativeMemoryInfo().then(info => {
+    if (info) {
+      cachedMemoryUsage = info.percent_used || 0;
+      lastUpdateTime = now;
+    }
+  }).catch(err => {
+    console.error('메모리 정보 가져오기 오류:', err);
+  });
+
+  // 현재 캐시된 값 반환
+  return cachedMemoryUsage;
+};
 
 /**
  * 성능 및 메모리 최적화 세트 적용 (간편 API)
@@ -48,10 +65,7 @@ export async function applyPerformanceOptimizations(
     emergency?: boolean;
   } = {}
 ): Promise<boolean> {
-  const {
-    level = OptimizationLevel.MEDIUM,
-    emergency = false
-  } = options;
+  const { level = OptimizationLevel.MEDIUM, emergency = false } = options;
   
   try {
     // 네이티브 메모리 최적화 수행
@@ -63,26 +77,31 @@ export async function applyPerformanceOptimizations(
   }
 }
 
-// 전역 인터페이스 노출 (이전 코드 호환성 유지)
-if (typeof window !== 'undefined') {
-  window.__memoryOptimizer = {
-    getMemoryInfo: requestNativeMemoryInfo,
-    getMemoryUsagePercentage,
-    optimizeMemory: (aggressive: boolean) => 
-      requestNativeMemoryOptimization(aggressive ? OptimizationLevel.HIGH : OptimizationLevel.MEDIUM, aggressive),
-    setupPeriodicOptimization: setupPeriodicMemoryOptimization,
-  };
-}
+// 메모리 유틸리티 설정
+export const setupMemoryUtils = () => {
+  if (typeof window !== 'undefined') {
+    // 초기 메모리 정보 가져오기
+    requestNativeMemoryInfo().then(info => {
+      if (info) {
+        cachedMemoryUsage = info.percent_used || 0;
+        lastUpdateTime = Date.now();
+      }
+    }).catch(() => {});
 
-// 이전 코드와의 호환성을 위해 필요한 유형 선언
-declare global {
-  interface Window {
-    __memoryOptimizer?: {
-      getMemoryInfo?: () => Promise<MemoryInfo | null>;
-      getMemoryUsagePercentage?: () => Promise<number>;
-      optimizeMemory?: (aggressive: boolean) => Promise<any>;
-      setupPeriodicOptimization?: (interval?: number, threshold?: number) => () => void;
-      [key: string]: any;
+    window.__memoryOptimizer = {
+      // 명시적으로 async/await 사용하여 Promise 반환
+      getMemoryInfo: async () => {
+        return await requestNativeMemoryInfo();
+      },
+      getMemoryUsagePercentage: () => {
+        return getMemoryUsagePercentage();
+      },
+      optimizeMemory: (aggressive: boolean) => 
+        requestNativeMemoryOptimization(
+          aggressive ? OptimizationLevel.HIGH : OptimizationLevel.MEDIUM,
+          aggressive
+        ),
+      setupPeriodicOptimization: setupPeriodicMemoryOptimization
     };
   }
-}
+};

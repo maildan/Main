@@ -121,11 +121,12 @@ export function clearStorageCaches(): boolean {
     
     // 로컬 스토리지는 임시 데이터만 정리
     if (window.localStorage) {
-      const keysToDelete = [];
+      const keysToDelete: string[] = [];
       
       for (let i = 0; i < window.localStorage.length; i++) {
         const key = window.localStorage.key(i);
-        if (key && key.startsWith('temp_') || key.startsWith('cache_')) {
+        // null 체크 추가
+        if (key && (key.startsWith('temp_') || key.startsWith('cache_'))) {
           keysToDelete.push(key);
         }
       }

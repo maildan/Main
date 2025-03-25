@@ -5,7 +5,7 @@
  */
 
 import { cleanupOldElements, trackEventListener } from './dom-cleanup';
-import { EventListenerData, DynamicModule } from '../types;
+import { EventListenerData, DynamicModule } from '../types';
 
 // 요소별 이벤트 리스너 맵
 const elementListeners = new Map<HTMLElement, Map<string, Set<EventListenerData>>>();

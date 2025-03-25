@@ -106,35 +106,52 @@ function clearAppCache(): void {
       if (window.__imageResizeCache instanceof Map) {
         window.__imageResizeCache.clear();
       } else {
-        window.__imageResizeCache = {};
+        // Map이 아닌 경우 빈 객체로 초기화
+        window.__imageResizeCache = new Map<string, HTMLImageElement>();
       }
     }
     
     // 2. 객체 URL 캐시
-    if (window.__objectUrls instanceof Map) {
-      window.__objectUrls.forEach(url => {
-        try {
-          URL.revokeObjectURL(url);
-        } catch (e) {
-          // 무시
-        }
-      });
-      window.__objectUrls.clear();
+    if (window.__objectUrls) {
+      if (window.__objectUrls instanceof Map) {
+        window.__objectUrls.forEach(url => {
+          try {
+            URL.revokeObjectURL(url);
+          } catch (e) {
+            // 무시
+          }
+        });
+        window.__objectUrls.clear();
+      } else {
+        window.__objectUrls = new Map<string, string>();
+      }
     }
     
     // 3. 일반 메모리 캐시
-    if (window.__memoryCache instanceof Map) {
-      window.__memoryCache.clear();
+    if (window.__memoryCache) {
+      if (window.__memoryCache instanceof Map) {
+        window.__memoryCache.clear();
+      } else {
+        window.__memoryCache = new Map<string, any>();
+      }
     }
     
     // 4. 스타일 캐시
     if (window.__styleCache) {
-      window.__styleCache = {};
+      if (window.__styleCache instanceof Map) {
+        window.__styleCache.clear();
+      } else {
+        window.__styleCache = new Map<string, any>();
+      }
     }
     
     // 5. 위젯 캐시
-    if (window.__widgetCache instanceof Map) {
-      window.__widgetCache.clear();
+    if (window.__widgetCache) {
+      if (window.__widgetCache instanceof Map) {
+        window.__widgetCache.clear();
+      } else {
+        window.__widgetCache = new Map<string, any>();
+      }
     }
   } catch (error) {
     console.warn('앱 캐시 정리 중 오류:', error);
@@ -216,14 +233,20 @@ export function clearOldCache(): void {
     const now = Date.now();
     const CACHE_EXPIRY = 24 * 60 * 60 * 1000; // 24시간
     
-    // 메모리 캐시에서 오래된 항목 제거
-    if (window.__memoryCache instanceof Map) {
+    // 메모리 캐시에서 오래된 항목 제거 - WeakMap은 forEach를 지원하지 않음
+    if (window.__memoryCache && window.__memoryCache instanceof Map) {
+      const keysToDelete: any[] = [];
+      
       window.__memoryCache.forEach((value, key) => {
         if (value && typeof value === 'object' && value.timestamp) {
           if (now - value.timestamp > CACHE_EXPIRY) {
-            window.__memoryCache.delete(key);
+            keysToDelete.push(key);
           }
         }
+      });
+      
+      keysToDelete.forEach(key => {
+        window.__memoryCache?.delete(key);
       });
     }
     

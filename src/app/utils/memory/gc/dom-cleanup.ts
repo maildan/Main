@@ -63,17 +63,24 @@ export function cleanupOldElements(olderThan: number = 300000): number {
   const now = Date.now();
   let removed = 0;
   
-  elementCache.forEach((data, element) => {
-    if (!document.contains(element) || (now - data.lastUsed > olderThan)) {
+  // WeakMap은 forEach를 지원하지 않으므로 다른 방식으로 처리
+  // WeakMap에서 키를 순회할 방법이 없기 때문에, 문서 내 모든 요소를 확인
+  const allElements = document.querySelectorAll('*');
+  
+  allElements.forEach((element) => {
+    const htmlElement = element as HTMLElement;
+    const data = elementCache.get(htmlElement);
+    
+    if (data && (!document.contains(htmlElement) || (now - data.lastUsed > olderThan))) {
       // 요소가 문서에서 제거되었거나 오래되었으면 정리
-      data.listeners.forEach((listeners, eventType) => {
-        listeners.forEach(listener => {
-          element.removeEventListener(eventType, listener);
+      data.listeners.forEach((listeners: Set<EventListener>, eventType: string) => {
+        listeners.forEach((listener: EventListener) => {
+          htmlElement.removeEventListener(eventType, listener);
         });
       });
       
-      // WeakMap이므로 항목을 명시적으로 삭제할 필요는 없습니다.
-      // 요소가 GC될 때 자동으로 삭제됩니다.
+      // 명시적으로 WeakMap에서 제거 (GC 힌트)
+      elementCache.delete(htmlElement);
       removed++;
     }
   });

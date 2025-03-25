@@ -16,14 +16,27 @@ import { OptimizationLevel } from '@/types/native-module';
  * 기본 API 요청 옵션
  */
 const DEFAULT_REQUEST_OPTIONS = {
-  retryCount: 2,       // 재시도 횟수
-  retryDelay: 300,     // 재시도 지연 시간 (ms)
-  timeout: 5000        // 타임아웃 (ms)
+  retryCount: 2,  
+  retryDelay: 300,  
+  timeout: 5000
 };
 
 // 메모리 캐시 - 응답을 짧은 시간 동안 캐싱하여 중복 요청 방지
 const responseCache = new Map<string, {data: any, timestamp: number}>();
 const CACHE_TTL = 500; // 캐시 유효시간 (ms)
+
+// RequestInit 확장을 위한 선언 추가
+declare global {
+  interface RequestInit {
+    retryOptions?: {
+      retryCount?: number;
+      retryDelay?: number;
+      timeout?: number;
+      useCache?: boolean;
+    };
+    signal?: AbortSignal | null;  // null 추가하여 DOM 정의와 일치시킴
+  }
+}
 
 /**
  * 향상된 API 요청 함수 - 재시도, 타임아웃, 캐싱 지원
@@ -142,7 +155,7 @@ async function enhancedFetch(
  * @param emergency 긴급 상황 여부
  * @returns Promise<{success: boolean, result: OptimizationResult | null, error?: string}>
  */
-export async function optimizeMemory(level: OptimizationLevel = OptimizationLevel.MEDIUM, emergency: boolean = false) {
+export async function optimizeMemory(level: OptimizationLevel = OptimizationLevel.Medium, emergency: boolean = false) {
   try {
     // 요청 데이터 준비
     const requestBody = JSON.stringify({
@@ -248,7 +261,7 @@ export async function getMemoryInfo() {
  * GPU 정보 가져오기
  * @returns Promise<{success: boolean, available: boolean, gpuInfo: GpuInfo | null, error?: string}>
  */
-export async function getGpuInfo() {
+export const getGpuInfo = async (): Promise<any> => {
   try {
     // 요청 보내기
     const response = await enhancedFetch('/api/native/gpu', {
@@ -272,14 +285,14 @@ export async function getGpuInfo() {
       timestamp: Date.now()
     };
   }
-}
+};
 
 /**
  * GPU 가속 활성화/비활성화
  * @param enable 활성화 여부
  * @returns Promise<{success: boolean, enabled: boolean, result: boolean, error?: string}>
  */
-export async function setGpuAcceleration(enable: boolean) {
+export const setGpuAcceleration = async (enable: boolean): Promise<any> => {
   try {
     // 요청 데이터 준비
     const requestBody = JSON.stringify({
@@ -311,7 +324,7 @@ export async function setGpuAcceleration(enable: boolean) {
       timestamp: Date.now()
     };
   }
-}
+};
 
 /**
  * GPU 계산 수행
@@ -319,7 +332,7 @@ export async function setGpuAcceleration(enable: boolean) {
  * @param computationType 계산 유형
  * @returns Promise<{success: boolean, result: GpuComputationResult | null, error?: string}>
  */
-export async function performGpuComputation<T = any>(data: any, computationType: string) {
+export const performGpuComputation = async <T = any>(data: any, computationType: string): Promise<any> => {
   try {
     const response = await fetch('/api/native/gpu', {
       method: 'POST',
@@ -341,7 +354,7 @@ export async function performGpuComputation<T = any>(data: any, computationType:
       timestamp: Date.now()
     };
   }
-}
+};
 
 /**
  * 네이티브 모듈 상태 확인
@@ -476,3 +489,72 @@ export async function getMemorySettings(): Promise<{success: boolean, settings?:
     };
   }
 }
+
+/**
+ * 메모리 최적화 요청
+ * @param level 최적화 레벨
+ * @param emergency 긴급 여부
+ * @returns Promise<OptimizationResult>
+ */
+export const requestNativeMemoryOptimization = async (level: OptimizationLevel, emergency: boolean): Promise<OptimizationResult> => {
+  try {
+    const response = await fetch('/api/native/memory/optimize', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ level, emergency })
+    });
+    
+    if (!response.ok) {
+      throw new Error(`메모리 최적화 요청 실패: ${response.status}`);
+    }
+    
+    return await response.json() as OptimizationResult;
+  } catch (error) {
+    console.error('메모리 최적화 요청 오류:', error);
+    return { success: false } as OptimizationResult;
+  }
+};
+
+/**
+ * 가비지 컬렉션 요청
+ * @returns Promise<GCResult>
+ */
+export const requestNativeGarbageCollection = async (): Promise<GCResult> => {
+  try {
+    const response = await fetch('/api/native/memory/gc', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    
+    if (!response.ok) {
+      throw new Error(`가비지 컬렉션 요청 실패: ${response.status}`);
+    }
+    
+    return await response.json() as GCResult;
+  } catch (error) {
+    console.error('가비지 컬렉션 요청 오류:', error);
+    return { success: false } as GCResult;
+  }
+};
+
+/**
+ * 메모리 정보 요청
+ * @returns Promise<MemoryInfo>
+ */
+export const requestNativeMemoryInfo = async (): Promise<MemoryInfo> => {
+  try {
+    const response = await fetch('/api/native/memory/info', {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    
+    if (!response.ok) {
+      throw new Error(`메모리 정보 요청 실패: ${response.status}`);
+    }
+    
+    return await response.json() as MemoryInfo;
+  } catch (error) {
+    console.error('메모리 정보 요청 오류:', error);
+    return {} as MemoryInfo;
+  }
+};

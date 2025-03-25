@@ -13,7 +13,7 @@ import { getGpuInfo, setGpuAcceleration } from './nativeModuleClient';
  */
 export async function isGpuAccelerationEnabled(): Promise<boolean> {
   try {
-    const { getGpuInfo } = await import('./nativeModuleClient');
+    // 모듈을 다시 가져오는 대신 이미 import된 함수 사용
     const response = await getGpuInfo();
     
     if (response.success && response.gpuInfo) {

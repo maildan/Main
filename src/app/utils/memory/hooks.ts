@@ -7,7 +7,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useToast } from '../../components/ToastContext';
 import { MemoryOptimizerOptions } from './types';
-import { getMemoryInfo } from './memory-info';
+import { getMemoryInfo } from '../memory-management';
 import { requestGC } from './gc-utils';
 import { requestNativeMemoryOptimization, requestNativeGarbageCollection } from '../native-memory-bridge';
 import { OptimizationLevel as AppOptimizationLevel } from '@/types';
@@ -15,6 +15,7 @@ import { OptimizationLevel as NativeOptimizationLevel } from '@/types/native-mod
 import { toNativeOptimizationLevel } from '../enum-converters';
 import { optimizeMemory, getMemoryInfo as fetchMemoryInfo } from '../memory-optimizer';
 import { OptimizationLevel } from './types';
+import { MemoryInfo } from '@/types';
 
 /**
  * 메모리 최적화 훅 (통합 버전)
@@ -51,12 +52,12 @@ export function useMemoryOptimizer(options: MemoryOptimizerOptions = {}) {
   
   // 메모리 정보 갱신 함수
   const updateMemoryInfo = useCallback(() => {
-    getMemoryInfo().then(info => {
+    getMemoryInfo().then((info: MemoryInfo | null) => {
       if (info) {
         setMemoryInfo(info);
         
         // 임계치 초과 체크 - 필드 이름 호환성 처리
-        const heapUsedMB = info.heap_used_mb || (info.heapUsedMB as number);
+        const heapUsedMB = info.heap_used_mb || 0;
         
         if (showWarnings && heapUsedMB > threshold) {
           if (debug) {
@@ -126,7 +127,7 @@ export function useMemoryOptimizer(options: MemoryOptimizerOptions = {}) {
       setOptimizationStats(prev => ({
         lastRun: Date.now(),
         totalOptimizations: prev.totalOptimizations + 1,
-        freedMemory: prev.freedMemory + (optimizationResult?.freedMB || optimizationResult?.freed_mb || 0)
+        freedMemory: prev.freedMemory + (optimizationResult?.freed_mb || 0)
       }));
       
       // GC 요청이 처리될 시간 제공
@@ -192,7 +193,7 @@ export function useMemoryOptimizer(options: MemoryOptimizerOptions = {}) {
       setOptimizationStats(prev => ({
         lastRun: Date.now(),
         totalOptimizations: prev.totalOptimizations + 1,
-        freedMemory: prev.freedMemory + (optimizationResult?.freedMB || optimizationResult?.freed_mb || 0)
+        freedMemory: prev.freedMemory + (optimizationResult?.freed_mb || 0)
       }));
       
       // GC 요청 후 충분한 처리 시간 제공
@@ -203,7 +204,8 @@ export function useMemoryOptimizer(options: MemoryOptimizerOptions = {}) {
       
       // 최적화 결과 알림
       if (debug && newInfo) {
-        showToast(`메모리 최적화 완료: ${newInfo.heapUsedMB}MB`, 'success');
+        const heapUsedMB = typeof newInfo === 'object' && newInfo ? (newInfo as any).heap_used_mb || 0 : 0;
+        showToast(`메모리 최적화 완료: ${heapUsedMB}MB`, 'success');
       }
     } catch (error) {
       console.error('긴급 메모리 최적화 중 오류:', error);
@@ -287,9 +289,9 @@ export function useMemoryOptimizer(options: MemoryOptimizerOptions = {}) {
  * @returns 메모리 정보, 로딩 상태, 오류
  */
 export function useMemoryInfo(refreshInterval = 5000) {
-  const [memoryInfo, setMemoryInfo] = useState(null);
+  const [memoryInfo, setMemoryInfo] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState<string | null>(null);
   
   const fetchData = useCallback(async () => {
     try {
@@ -335,9 +337,10 @@ export function useMemoryDisplay(refreshInterval = 5000) {
   
   useEffect(() => {
     if (memoryInfo) {
-      // 안전하게 heap_used_mb 속성 사용
-      const heapUsedMB = memoryInfo.heap_used_mb || memoryInfo.heapUsedMB || 0;
-      const percentUsed = memoryInfo.percent_used || memoryInfo.percentUsed || 0;
+      // 타입 안전하게 속성 접근
+      const memInfo = memoryInfo as any;
+      const heapUsedMB = memInfo?.heap_used_mb || memInfo?.heapUsedMB || 0;
+      const percentUsed = memInfo?.percent_used || memInfo?.percentUsed || 0;
       
       let status = 'normal';
       if (percentUsed > 90) status = 'critical';
@@ -366,16 +369,18 @@ export function useMemoryDisplay(refreshInterval = 5000) {
  * @returns 최적화 함수, 결과, 로딩 상태
  */
 export function useMemoryOptimization() {
-  const [optimizationResult, setOptimizationResult] = useState(null);
+  const [optimizationResult, setOptimizationResult] = useState<any>(null);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState<string | null>(null);
   
-  const optimizeWithLevel = useCallback(async (level = OptimizationLevel.MEDIUM) => {
+  const optimizeWithLevel = useCallback(async (level: OptimizationLevel) => {
     try {
       setLoading(true);
       setError(null);
       
-      const result = await optimizeMemory(level);
+      // 타입 변환을 통해 앱 전역 OptimizationLevel로 변환
+      // OptimizationLevel 타입을 any로 먼저 변환하여 타입 호환성 문제 해결
+      const result = await optimizeMemory(level as any);
       setOptimizationResult(result);
       
       return result;
@@ -389,8 +394,9 @@ export function useMemoryOptimization() {
   }, []);
   
   const optimize = useCallback(async (aggressive = false) => {
-    const level = aggressive ? OptimizationLevel.HIGH : OptimizationLevel.MEDIUM;
-    return optimizeWithLevel(level);
+    // 타입 호환성을 위해 숫자형으로 직접 사용
+    const level = aggressive ? 3 /* High */ : 2 /* Medium */;
+    return optimizeWithLevel(level as OptimizationLevel);
   }, [optimizeWithLevel]);
   
   return {
@@ -400,7 +406,7 @@ export function useMemoryOptimization() {
     loading,
     error,
     // 결과 내 속성에 안전하게 접근
-    freedMB: optimizationResult?.freed_mb ?? optimizationResult?.freedMB ?? 0
+    freedMB: optimizationResult?.freed_mb ?? 0
   };
 }
 
@@ -408,7 +414,14 @@ export function useMemoryOptimization() {
  * 자동 메모리 최적화 훅
  * @param options 최적화 옵션
  */
-export function useAutomaticMemoryOptimization(options = {}) {
+export function useAutomaticMemoryOptimization(options: {
+  enabled?: boolean;
+  thresholdMB?: number;
+  thresholdPercent?: number;
+  checkInterval?: number;
+  aggressiveThresholdMB?: number;
+  aggressiveThresholdPercent?: number;
+} = {}) {
   const {
     enabled = true,
     thresholdMB = 100,
@@ -421,7 +434,7 @@ export function useAutomaticMemoryOptimization(options = {}) {
   const [isActive, setIsActive] = useState(enabled);
   const [status, setStatus] = useState('idle');
   const [lastOptimized, setLastOptimized] = useState(0);
-  const [memoryInfo, setMemoryInfo] = useState(null);
+  const [memoryInfo, setMemoryInfo] = useState<any>(null);
   
   const intervalRef = useRef<number | null>(null);
   const { optimize } = useMemoryOptimization();

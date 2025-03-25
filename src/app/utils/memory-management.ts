@@ -62,8 +62,8 @@ export async function optimizeMemory(
     const result = await requestNativeMemoryOptimization(level, emergency);
     
     if (result) {
-      // 최적화 내역 기록 - 필드 이름 호환성 처리
-      const freedMB = result.freedMB || result.freed_mb;
+      // 속성 이름 호환성 처리 - freed_mb 사용 (인터페이스와 일치)
+      const freedMB = result.freed_mb || 0;
       recordOptimization(level, result.success, 'native', freedMB);
     }
     

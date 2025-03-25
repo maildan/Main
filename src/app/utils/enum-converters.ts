@@ -58,14 +58,14 @@ export function toAppOptimizationLevel(level: NativeOptimizationLevel): AppOptim
  */
 export function safeOptimizationLevel(level: number): AppOptimizationLevel {
   switch (level) {
-    case 0: return AppOptimizationLevel.NONE;
-    case 1: return AppOptimizationLevel.LOW;
-    case 2: return AppOptimizationLevel.MEDIUM;
-    case 3: return AppOptimizationLevel.HIGH;
-    case 4: return AppOptimizationLevel.EXTREME;
+    case 0: return AppOptimizationLevel.NONE as AppOptimizationLevel;
+    case 1: return AppOptimizationLevel.LOW as AppOptimizationLevel;
+    case 2: return AppOptimizationLevel.MEDIUM as AppOptimizationLevel;
+    case 3: return AppOptimizationLevel.HIGH as AppOptimizationLevel;
+    case 4: return AppOptimizationLevel.EXTREME as AppOptimizationLevel;
     default:
       console.warn(`유효하지 않은 최적화 레벨 (${level}), 기본값 사용`);
-      return AppOptimizationLevel.MEDIUM;
+      return AppOptimizationLevel.MEDIUM as AppOptimizationLevel;
   }
 }
 
