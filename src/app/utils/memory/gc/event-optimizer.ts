@@ -1,252 +1,193 @@
 /**
- * 이벤트 최적화 유틸리티
- * 
- * 이벤트 리스너 관리 및 최적화 기능을 제공합니다.
+ * 이벤트 관련 메모리 최적화
+ * 과도한 이벤트 리스너와 관련된 메모리 누수 방지
  */
 
-import { cleanupOldElements, trackEventListener } from './dom-cleanup';
-import { EventListenerData, DynamicModule } from '../types';
+import { debounce } from 'lodash';
 
-// 요소별 이벤트 리스너 맵
-const elementListeners = new Map<HTMLElement, Map<string, Set<EventListenerData>>>();
+type EventHandler = () => void;
+type EventCleanupHandler = () => void;
+type EventCleanupRegistry = Map<string, EventCleanupHandler[]>;
 
-// 이벤트 타입별 전역 핸들러 맵
-const globalHandlers = new Map<string, EventListener>();
-
-// 모듈별 이벤트 리스너 맵
-const moduleListeners = new Map<string, Set<{ element: HTMLElement, type: string, listener: EventListener }>>();
-
-// 동적 모듈 캐시
-let dynamicModuleCache: Map<string, DynamicModule> | undefined;
+// 이벤트 핸들러 등록 관리
+const eventCleanupRegistry: EventCleanupRegistry = new Map();
+// 사용되지 않는 변수 제거: const globalHandlers = {};
 
 /**
- * 이벤트 리스너 등록
- * @param element 대상 요소
- * @param eventType 이벤트 유형
- * @param listener 이벤트 리스너
- * @param options 이벤트 옵션
+ * 최적화된 이벤트 리스너 등록
+ * @param element DOM 엘리먼트
+ * @param eventType 이벤트 타입
+ * @param handler 이벤트 핸들러
+ * @param options 이벤트 리스너 옵션
+ * @returns 정리 함수
  */
-export function registerEventListener(
-  element: HTMLElement,
+export function registerOptimizedEventListener(
+  element: HTMLElement | Window | Document,
   eventType: string,
-  listener: EventListener,
-  options?: boolean | AddEventListenerOptions
-): void {
-  if (!element) return;
-  
-  // 요소에 대한 리스너 맵 가져오기 또는 생성
-  if (!elementListeners.has(element)) {
-    elementListeners.set(element, new Map());
+  handler: EventListenerOrEventListenerObject,
+  options?: AddEventListenerOptions | boolean
+): EventCleanupHandler {
+  // 요소와 핸들러가 있는지 확인
+  if (!element || !handler) {
+    console.warn('Invalid element or handler for event registration');
+    return () => {}; // No-op cleanup function
   }
-  
-  const listenerMap = elementListeners.get(element)!;
-  
-  // 이벤트 타입에 대한 리스너 집합 가져오기 또는 생성
-  if (!listenerMap.has(eventType)) {
-    listenerMap.set(eventType, new Set());
-  }
-  
-  const listeners = listenerMap.get(eventType)!;
-  
-  // 리스너 데이터 생성 및 등록
-  const data: EventListenerData = {
-    listener,
-    options,
-    lastUsed: Date.now()
-  };
-  
-  listeners.add(data);
-  
-  // DOM 클린업 유틸리티에도 이벤트 리스너 추적
-  trackEventListener(element, eventType, listener);
-}
 
-/**
- * 모듈과 연결된 이벤트 리스너 등록
- * @param moduleId 모듈 ID
- * @param element 대상 요소
- * @param eventType 이벤트 유형
- * @param listener 이벤트 리스너
- * @param options 이벤트 옵션
- */
-export function registerModuleEventListener(
-  moduleId: string,
-  element: HTMLElement,
-  eventType: string,
-  listener: EventListener,
-  options?: boolean | AddEventListenerOptions
-): void {
-  // 일반 이벤트 리스너 등록
-  registerEventListener(element, eventType, listener, options);
-  
-  // 모듈별 리스너 추적을 위한 등록
-  if (!moduleListeners.has(moduleId)) {
-    moduleListeners.set(moduleId, new Set());
-  }
-  
-  moduleListeners.get(moduleId)!.add({
-    element,
-    type: eventType,
-    listener
-  });
-}
-
-/**
- * 이벤트 리스너 최적화
- * 오래된 리스너를 정리하여 메모리 누수를 방지합니다.
- */
-export function optimizeEventListeners(
-  root: HTMLElement = document.body,
-  olderThan: number = 300000 // 5분
-): number {
-  if (!root) return 0;
-  
-  let removed = 0;
-  const now = Date.now();
-  
-  // 캐시된 이벤트 리스너 검사
-  elementListeners.forEach((listenerMap, element) => {
-    if (!document.contains(element)) {
-      // DOM에서 제거된 요소의 캐시 정리
-      elementListeners.delete(element);
-      removed++;
-      return;
-    }
-    
-    listenerMap.forEach((listeners, eventType) => {
-      const oldListeners = Array.from(listeners).filter(data => 
-        (now - data.lastUsed) > olderThan
-      );
-      
-      oldListeners.forEach(data => {
-        // 오래된 리스너 제거
-        element.removeEventListener(eventType, data.listener, data.options);
-        listeners.delete(data);
-        removed++;
-      });
-    });
-  });
-  
-  return removed;
-}
-
-/**
- * 동적 모듈 정리
- * 사용하지 않는 동적으로 로드된 모듈을 정리합니다.
- */
-export function unloadDynamicModules(): number {
-  try {
-    if (typeof window === 'undefined') {
-      return 0;
-    }
-    
-    // 글로벌 객체에서 동적 모듈 캐시 얻기
-    if (!dynamicModuleCache && window._dynamicModules) {
-      dynamicModuleCache = window._dynamicModules;
-    }
-    
-    if (!dynamicModuleCache) {
-      return 0;
-    }
-    
-    const now = Date.now();
-    let unloadedCount = 0;
-    const modulesToUnload: string[] = [];
-    
-    // 언로드할 모듈 식별
-    dynamicModuleCache.forEach((module, key) => {
-      if (now - module.lastUsed > 600000) { // 10분 이상 사용하지 않은 모듈
-        modulesToUnload.push(key);
-      }
-    });
-    
-    // 식별된 모듈 언로드
-    modulesToUnload.forEach(key => {
-      const module = dynamicModuleCache?.get(key);
-      if (module) {
-        try {
-          if (typeof module.unload === 'function') {
-            module.unload();
-          }
-          
-          // 모듈과 연결된 이벤트 리스너 제거
-          cleanupModuleEventListeners(key);
-          
-          // 모듈 캐시에서 제거
-          dynamicModuleCache?.delete(key);
-          unloadedCount++;
-        } catch (err) {
-          console.error(`모듈 언로드 오류 (${key}):`, err);
-        }
-      }
-    });
-    
-    return unloadedCount;
-  } catch (error) {
-    console.error('동적 모듈 정리 오류:', error);
-    return 0;
-  }
-}
-
-/**
- * 불필요한 이벤트 리스너 정리
- * 페이지 성능을 위해 불필요한 이벤트 리스너를 정리합니다.
- */
-export function cleanupEventListeners(): number {
-  // DOM 클린업 유틸리티 활용
-  return cleanupOldElements();
-}
-
-/**
- * 모듈과 연결된 이벤트 리스너 정리
- * @param moduleId 모듈 ID
- */
-function cleanupModuleEventListeners(moduleId: string): number {
-  if (!moduleListeners.has(moduleId)) {
-    return 0;
-  }
-  
-  const listeners = moduleListeners.get(moduleId)!;
-  let removed = 0;
-  
-  listeners.forEach(({ element, type, listener }) => {
-    try {
-      element.removeEventListener(type, listener);
-      removed++;
-    } catch (err) {
-      // 이미 제거된 요소에 대한 오류 무시
-    }
-  });
-  
-  // 모듈 리스너 맵에서 제거
-  moduleListeners.delete(moduleId);
-  
-  return removed;
-}
-
-/**
- * 이벤트 리스너 안전 추가 함수
- * 이벤트 추적을 위해 리스너를 안전하게 추가합니다.
- */
-export function safeAddEventListener<K extends keyof HTMLElementEventMap>(
-  element: HTMLElement,
-  type: K,
-  listener: (this: HTMLElement, ev: HTMLElementEventMap[K]) => any,
-  options?: boolean | AddEventListenerOptions
-): () => void {
-  if (!element) return () => {};
-  
-  // 모든 이벤트 리스너를 EventListener 형식으로 변환하여 처리
-  const eventListener = listener as unknown as EventListener;
-  
   // 이벤트 리스너 등록
-  element.addEventListener(type, eventListener, options);
+  element.addEventListener(eventType, handler, options);
   
-  // 이벤트 리스너 추적
-  registerEventListener(element, type as string, eventListener, options);
-  
-  // 이벤트 제거 함수 반환
-  return () => {
-    element.removeEventListener(type, eventListener, options);
+  // 정리 함수 생성
+  const cleanup = () => {
+    element.removeEventListener(eventType, handler, options);
   };
+  
+  // 등록된 정리 함수를 등록
+  const key = getElementKey(element);
+  
+  if (!eventCleanupRegistry.has(key)) {
+    eventCleanupRegistry.set(key, []);
+  }
+  
+  const cleanupHandlers = eventCleanupRegistry.get(key)!;
+  cleanupHandlers.push(cleanup);
+  
+  return cleanup;
+}
+
+/**
+ * 디바운스된 이벤트 핸들러 생성
+ * @param handler 원본 핸들러
+ * @param wait 대기 시간
+ * @returns 디바운스된 핸들러
+ */
+export function createDebouncedEventHandler<T extends (...args: any[]) => void>(
+  handler: T,
+  wait: number
+): T {
+  return debounce(handler, wait) as unknown as T;
+}
+
+/**
+ * 특정 요소의 모든 이벤트 리스너 정리
+ * @param element DOM 엘리먼트
+ */
+export function cleanupAllEventListeners(element: HTMLElement | Window | Document): void {
+  const key = getElementKey(element);
+  const cleanupHandlers = eventCleanupRegistry.get(key);
+  
+  if (cleanupHandlers && cleanupHandlers.length > 0) {
+    // 모든 정리 함수 실행
+    cleanupHandlers.forEach(cleanup => cleanup());
+    
+    // 정리 함수 목록 비우기
+    eventCleanupRegistry.set(key, []);
+  }
+}
+
+/**
+ * 요소에 대한 고유 키 생성
+ */
+function getElementKey(element: HTMLElement | Window | Document): string {
+  if (element === window) {
+    return 'window';
+  } else if (element === document) {
+    return 'document';
+  } else if (element instanceof HTMLElement) {
+    // ID가 있으면 사용, 없으면 태그명과 클래스 사용
+    const id = element.id || '';
+    const tagName = element.tagName || '';
+    const classes = element.className || '';
+    
+    return `${tagName}#${id}.${classes}`;
+  } else {
+    return String(Math.random()); // 폴백
+  }
+}
+
+/**
+ * 메모리 누수 방지를 위한 이벤트 최적화
+ */
+export function optimizeEvents(): void {
+  // 현재 등록된 모든 이벤트 정리 핸들러 수 확인
+  let totalHandlers = 0;
+  for (const handlers of eventCleanupRegistry.values()) {
+    totalHandlers += handlers.length;
+  }
+  
+  console.log(`Current event handlers registered: ${totalHandlers}`);
+  
+  // 지나치게 많은 핸들러가 등록되어 있다면 경고
+  if (totalHandlers > 100) {
+    console.warn('High number of event handlers detected. Consider cleaning up unused listeners.');
+  }
+}
+
+/**
+ * 스크롤 이벤트 최적화
+ * @param handler 스크롤 이벤트 핸들러
+ * @param wait 디바운스 대기 시간
+ * @returns 정리 함수
+ */
+export function registerOptimizedScrollListener(
+  handler: (event: Event) => void,
+  wait = 100
+): EventCleanupHandler {
+  // 디바운스된 핸들러 생성
+  const debouncedHandler = createDebouncedEventHandler(handler, wait);
+  
+  // 스크롤 이벤트 리스너 등록 (passive true로 성능 최적화)
+  return registerOptimizedEventListener(
+    window,
+    'scroll',
+    debouncedHandler,
+    { passive: true }
+  );
+}
+
+/**
+ * 리사이즈 이벤트 최적화
+ * @param handler 리사이즈 이벤트 핸들러
+ * @param wait 디바운스 대기 시간
+ * @returns 정리 함수
+ */
+export function registerOptimizedResizeListener(
+  handler: (event: UIEvent) => void,
+  wait = 200
+): EventCleanupHandler {
+  // 디바운스된 핸들러 생성
+  const debouncedHandler = createDebouncedEventHandler(handler, wait);
+  
+  // 리사이즈 이벤트 리스너 등록
+  return registerOptimizedEventListener(window, 'resize', debouncedHandler);
+}
+
+/**
+ * 이벤트 최적화 모듈 - ES 모듈 방식으로 내보내기
+ */
+export default {
+  registerOptimizedEventListener,
+  createDebouncedEventHandler,
+  cleanupAllEventListeners,
+  optimizeEvents,
+  registerOptimizedScrollListener,
+  registerOptimizedResizeListener
+};
+
+/**
+ * 페이지 언로드 시 남아있는 모든 핸들러 정리
+ */
+if (typeof window !== 'undefined') {
+  window.addEventListener('beforeunload', () => {
+    try {
+      // 모든 등록된 정리 함수 실행
+      for (const [_key, handlers] of eventCleanupRegistry.entries()) {
+        handlers.forEach(cleanup => cleanup());
+      }
+      
+      // 등록 정보 초기화
+      eventCleanupRegistry.clear();
+    } catch (_) {
+      // 언로드 중 오류는 무시
+    }
+  });
 }

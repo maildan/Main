@@ -40,7 +40,7 @@ pub enum GPUType {
 pub fn execute_gpu_task(task_type: GpuTaskType, data: String) -> napi::Result<String> {
     debug!("GPU 작업 실행: {:?}", task_type);
     
-    // GPU 기능 확인
+    // GPU 기능 확인 - 에러 처리 추가
     let capabilities = match context::get_capabilities() {
         Ok(caps) => Some(caps),
         Err(e) => {

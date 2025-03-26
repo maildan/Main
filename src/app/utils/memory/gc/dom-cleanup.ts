@@ -1,130 +1,228 @@
 /**
- * DOM 요소 정리 유틸리티
+ * DOM 메모리 정리 유틸리티
+ * 
+ * 메모리 사용량 최적화를 위한 DOM 관련 정리 기능을 제공합니다.
  */
 
-// DOM 요소 캐시
-const elementCache = new WeakMap<HTMLElement, {
-  lastUsed: number;
-  listeners: Map<string, Set<EventListener>>;
-}>();
+// 브라우저 환경인지 확인하는 함수
+const isBrowser = typeof window !== 'undefined';
 
-/**
- * DOM 요소를 캐시에 추가
- */
-export function trackElement(element: HTMLElement): void {
-  if (!elementCache.has(element)) {
-    elementCache.set(element, {
-      lastUsed: Date.now(),
-      listeners: new Map()
-    });
-  }
-}
+// 데이터 속성 접두어
+const DATA_ATTR_PRESERVE = 'data-memory-preserve';
+const DATA_ATTR_CLEANUP = 'data-memory-cleanup';
 
 /**
- * 요소 사용 시간 업데이트
+ * 미사용 이미지 리소스 정리
+ * 화면에 보이지 않는 이미지의 src를 제거하여 메모리 해제
  */
-export function updateElementUsage(element: HTMLElement): void {
-  const data = elementCache.get(element);
-  if (data) {
-    data.lastUsed = Date.now();
-  } else {
-    trackElement(element);
-  }
-}
-
-/**
- * 이벤트 리스너 추적
- */
-export function trackEventListener(
-  element: HTMLElement,
-  eventType: string,
-  listener: EventListener
-): void {
-  let data = elementCache.get(element);
-  if (!data) {
-    data = {
-      lastUsed: Date.now(),
-      listeners: new Map()
-    };
-    elementCache.set(element, data);
-  }
+export function clearUnusedImages(): number {
+  if (!isBrowser) return 0;
   
-  if (!data.listeners.has(eventType)) {
-    data.listeners.set(eventType, new Set());
-  }
-  
-  data.listeners.get(eventType)?.add(listener);
-}
-
-/**
- * 오래된 DOM 요소 정리
- */
-export function cleanupOldElements(olderThan: number = 300000): number {
-  const now = Date.now();
-  let removed = 0;
-  
-  // WeakMap은 forEach를 지원하지 않으므로 다른 방식으로 처리
-  // WeakMap에서 키를 순회할 방법이 없기 때문에, 문서 내 모든 요소를 확인
-  const allElements = document.querySelectorAll('*');
-  
-  allElements.forEach((element) => {
-    const htmlElement = element as HTMLElement;
-    const data = elementCache.get(htmlElement);
+  try {
+    let count = 0;
     
-    if (data && (!document.contains(htmlElement) || (now - data.lastUsed > olderThan))) {
-      // 요소가 문서에서 제거되었거나 오래되었으면 정리
-      data.listeners.forEach((listeners: Set<EventListener>, eventType: string) => {
-        listeners.forEach((listener: EventListener) => {
-          htmlElement.removeEventListener(eventType, listener);
-        });
-      });
+    // 화면에 보이지 않고 보존 표시가 없는 이미지 선택
+    const images = document.querySelectorAll(
+      `img:not([${DATA_ATTR_PRESERVE}]):not([aria-hidden="false"])`
+    );
+    
+    images.forEach(img => {
+      // 브라우저 뷰포트 안에 있는지 확인
+      const rect = img.getBoundingClientRect();
+      const isVisible = (
+        rect.top < window.innerHeight &&
+        rect.bottom > 0 &&
+        rect.left < window.innerWidth &&
+        rect.right > 0
+      );
       
-      // 명시적으로 WeakMap에서 제거 (GC 힌트)
-      elementCache.delete(htmlElement);
-      removed++;
-    }
-  });
-  
-  return removed;
+      // 화면에 보이지 않는 경우 src 제거
+      if (!isVisible && img instanceof HTMLImageElement && img.src) {
+        // data-src에 원본 주소 저장
+        img.setAttribute('data-src', img.src);
+        img.removeAttribute('src');
+        count++;
+      }
+    });
+    
+    return count;
+  } catch (error) {
+    console.error('이미지 정리 중 오류:', error);
+    return 0;
+  }
 }
 
 /**
- * 깊은 DOM 정리
- * 문서 내의 모든 요소에 대해 정리 수행
+ * 숨겨진 DOM 요소 정리
+ * 화면에 보이지 않고 당장 필요하지 않은 DOM 요소를 제거
  */
-export function performDeepDOMCleanup(): number {
-  let removedCount = 0;
+export function cleanupHiddenElements(): number {
+  if (!isBrowser) return 0;
   
-  // 중복 ID 정리
-  const idElements = document.querySelectorAll('[id]');
-  const idMap = new Map<string, HTMLElement>();
+  try {
+    let count = 0;
+    
+    // 정리 대상이 되는 숨겨진 요소 선택
+    const elements = document.querySelectorAll(
+      `[${DATA_ATTR_CLEANUP}], .hidden:not([${DATA_ATTR_PRESERVE}]), [aria-hidden="true"]:not([${DATA_ATTR_PRESERVE}]), [style*="display: none"]:not([${DATA_ATTR_PRESERVE}])`
+    );
+    
+    // 요소 정리 템플릿 생성
+    const placeholder = document.createElement('template');
+    
+    elements.forEach((el) => {
+      if (!el.closest(`[${DATA_ATTR_PRESERVE}]`)) {
+        // 요소 정보 저장
+        placeholder.content.appendChild(el);
+        count++;
+      }
+    });
+    
+    return count;
+  } catch (error) {
+    console.error('DOM 요소 정리 중 오류:', error);
+    return 0;
+  }
+}
+
+/**
+ * 이벤트 리스너 정리
+ * 특정 요소의 이벤트 리스너 오버헤드 감소
+ */
+export function cleanupEventListeners(): number {
+  if (!isBrowser) return 0;
   
-  idElements.forEach(element => {
-    const id = element.id;
-    if (idMap.has(id)) {
-      console.warn(`중복 ID 발견: ${id}`, element);
-      element.removeAttribute('id');
-      removedCount++;
-    } else {
-      idMap.set(id, element as HTMLElement);
-    }
-  });
+  try {
+    let count = 0;
+    
+    // 최적화 대상 이벤트 타입
+    const heavyEventTypes = ['mousemove', 'mouseover', 'mouseout', 'resize', 'scroll'];
+    
+    // 메모리 최적화에 해당하는 이벤트 리스너만 새로 정의하여 제한
+    const origAddEventListener = EventTarget.prototype.addEventListener;
+    
+    // 토큰 기반 이벤트 관리 (임시)
+    const eventEnabled = new Map<string, boolean>();
+    heavyEventTypes.forEach(type => {
+      eventEnabled.set(type, false);
+    });
+    
+    // 이벤트 리스너 재정의
+    EventTarget.prototype.addEventListener = function(
+      type: string,
+      listener: EventListenerOrEventListenerObject,
+      options?: AddEventListenerOptions | boolean
+    ) {
+      // 해당 이벤트가 제한 대상인지 확인
+      if (heavyEventTypes.includes(type) && eventEnabled.get(type) === false) {
+        count++;
+        return;
+      }
+      
+      // 그 외의 경우 정상적으로 이벤트 등록
+      return origAddEventListener.call(this, type, listener, options);
+    };
+    
+    // 원래 함수 복원을 위한 정리 함수 반환
+    setTimeout(() => {
+      EventTarget.prototype.addEventListener = origAddEventListener;
+    }, 0);
+    
+    return count;
+  } catch (error) {
+    console.error('이벤트 리스너 정리 중 오류:', error);
+    return 0;
+  }
+}
+
+/**
+ * DOM 트리 최적화
+ * 불필요한 속성 및 스타일 정리
+ */
+export function optimizeDomTree(): number {
+  if (!isBrowser) return 0;
   
-  // 사용하지 않는 스타일 시트 정리
-  const styleSheets = document.styleSheets;
-  for (let i = 0; i < styleSheets.length; i++) {
-    try {
-      const sheet = styleSheets[i];
-      if (sheet.disabled || !sheet.cssRules || sheet.cssRules.length === 0) {
-        if (sheet.ownerNode) {
-          sheet.ownerNode.parentNode?.removeChild(sheet.ownerNode);
-          removedCount++;
+  try {
+    let count = 0;
+    
+    // 불필요한 스타일 속성 제거
+    const styledElements = document.querySelectorAll('[style]');
+    styledElements.forEach(el => {
+      if (el.getAttribute('style')?.includes('transition') || 
+          el.getAttribute('style')?.includes('animation')) {
+        el.removeAttribute('style');
+        count++;
+      }
+    });
+    
+    // 불필요한 데이터 속성 정리
+    const dataElements = document.querySelectorAll('[data-*]');
+    dataElements.forEach(el => {
+      for (const attr of Array.from(el.attributes)) {
+        if (attr.name.startsWith('data-') && !attr.name.startsWith('data-memory') && !attr.name.startsWith('data-app') && !attr.name.startsWith('data-test')) {
+          el.removeAttribute(attr.name);
+          count++;
         }
       }
-    } catch (e) {
-      // CORS 제한으로 인해 일부 스타일 시트는 접근할 수 없을 수 있음
-    }
+    });
+    
+    return count;
+  } catch (error) {
+    console.error('DOM 트리 최적화 중 오류:', error);
+    return 0;
   }
+}
+
+/**
+ * 모든 DOM 최적화 기능 실행
+ */
+export function performFullDomCleanup(): Record<string, number> {
+  return {
+    images: clearUnusedImages(),
+    hiddenElements: cleanupHiddenElements(),
+    eventListeners: cleanupEventListeners(),
+    domOptimizations: optimizeDomTree()
+  };
+}
+
+/**
+ * 이미지 복구
+ * clearUnusedImages로 제거된 이미지 복구
+ */
+export function restoreImages(): number {
+  if (!isBrowser) return 0;
   
-  return removedCount;
+  try {
+    let count = 0;
+    
+    // data-src 속성이 있는 이미지 선택
+    const images = document.querySelectorAll('img[data-src]:not([src])');
+    
+    images.forEach(img => {
+      if (img instanceof HTMLImageElement) {
+        const src = img.getAttribute('data-src');
+        if (src) {
+          img.src = src;
+          count++;
+        }
+      }
+    });
+    
+    return count;
+  } catch (error) {
+    console.error('이미지 복구 중 오류:', error);
+    return 0;
+  }
+}
+
+// 브라우저 환경일 때만 글로벌 API 노출
+if (isBrowser && typeof window.__memoryOptimizer === 'undefined') {
+  window.__memoryOptimizer = {};
+}
+
+if (isBrowser && window.__memoryOptimizer) {
+  window.__memoryOptimizer.clearUnusedImages = clearUnusedImages;
+  window.__memoryOptimizer.cleanupHiddenElements = cleanupHiddenElements;
+  window.__memoryOptimizer.performFullDomCleanup = performFullDomCleanup;
+  window.__memoryOptimizer.restoreImages = restoreImages;
 }

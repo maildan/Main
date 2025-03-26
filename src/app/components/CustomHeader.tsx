@@ -148,7 +148,7 @@ export const CustomHeader = memo(function CustomHeader({
         </div>
         
         <div className={styles.rightSection}>
-          <WindowControls />
+          <WindowControls api={window.electronAPI} />
         </div>
       </header>
     </>

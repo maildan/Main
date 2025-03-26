@@ -30,9 +30,9 @@ export interface ExtendedGCResult extends GCResult {
 export type WindowCacheObjects = {
   __imageResizeCache?: Map<string, HTMLImageElement>;
   __objectUrls?: Map<string, string>;
-  __memoryCache?: Map<string, any>;
-  __styleCache?: Map<string, any>;
-  __widgetCache?: Map<string, any>;
+  __memoryCache?: Map<string, unknown>;
+  __styleCache?: Map<string, unknown>;
+  __widgetCache?: Map<string, unknown>;
 };
 
 // 메모리 최적화 상태 인터페이스
@@ -70,4 +70,42 @@ export interface MemoryOptimizerUtility {
   clearAllCaches: () => void;
   setupPeriodicOptimization: (interval?: number, threshold?: number) => () => void;
   cleanupPeriodicOptimization: () => void;
+}
+
+/**
+ * 확장된 윈도우 인터페이스 정의
+ * 메모리 관리 및 캐시 관련 속성 추가
+ */
+
+// 전역 윈도우 객체에 캐시 관련 속성 추가
+export interface WindowWithCache extends Window {
+  // Object URL 관련
+  __objectUrls?: Map<string, string>;
+  
+  // 위젯 캐시 관련
+  __widgetCache?: Map<string, unknown>;
+  
+  // 스타일 캐시 관련
+  __styleCache?: Record<string, unknown>;
+  
+  // 이미지 리사이즈 캐시 관련
+  __imageResizeCache?: Record<string, unknown>;
+  
+  // 메모리 캐시 관련
+  __memoryCache?: Map<string, unknown>;
+  
+  // 버퍼 캐시 관련
+  __bufferCache?: Record<string, unknown>;
+  
+  // 텍스처 캐시 관련
+  __textureCache?: Map<string, string>;
+  
+  // 객체 캐시 관련
+  __objectCache?: Map<string, unknown>;
+  
+  // 동적 모듈 관리
+  _dynamicModules?: Map<string, unknown>;
+  
+  // 가비지 콜렉션
+  gc?: () => void;
 }

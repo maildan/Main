@@ -61,7 +61,7 @@ function processTaskSync(taskType, data) {
       case 'optimize_memory':
         result = {
           success: true,
-          message: "메모리 최적화 완료 (JS 폴백)",
+          message: '메모리 최적화 완료 (JS 폴백)',
           optimization_level: 2,
           freed_mb: 0
         };
@@ -77,7 +77,7 @@ function processTaskSync(taskType, data) {
       case 'compute':
         result = {
           success: true,
-          message: "계산 완료 (JS 폴백)",
+          message: '계산 완료 (JS 폴백)',
           value: Math.random() * 100
         };
         break;
@@ -253,7 +253,7 @@ function force_garbage_collection() {
     freed_memory: 0,
     freed_mb: 0,
     duration: performance.now() - startTime,
-    error: "가비지 컬렉션을 직접 호출할 수 없습니다. Node.js 실행 시 --expose-gc 플래그를 사용하세요."
+    error: '가비지 컬렉션을 직접 호출할 수 없습니다. Node.js 실행 시 --expose-gc 플래그를 사용하세요.'
   };
   
   return JSON.stringify(result);
@@ -293,15 +293,15 @@ function get_gpu_info() {
   const result = {
     success: true,
     timestamp: getCurrentTimestamp(),
-    name: "Software Renderer",
-    vendor: "JavaScript Fallback",
-    driver_info: "Pure JavaScript implementation",
-    device_type: "CPU",
-    backend: "JavaScript",
+    name: 'Software Renderer',
+    vendor: 'JavaScript Fallback',
+    driver_info: 'Pure JavaScript implementation',
+    device_type: 'CPU',
+    backend: 'JavaScript',
     available: true,
     acceleration_enabled: false,
     settings_enabled: false,
-    processing_mode: "normal"
+    processing_mode: 'normal'
   };
   
   return JSON.stringify(result);
@@ -327,7 +327,7 @@ function perform_gpu_computation_sync(data, computationType) {
           task_type: 'matrix',
           result: JSON.stringify({
             dimensions: [10, 10],
-            sample: "행렬 계산 결과 (JS 폴백)"
+            sample: '행렬 계산 결과 (JS 폴백)'
           }),
           error: null
         };
@@ -339,7 +339,7 @@ function perform_gpu_computation_sync(data, computationType) {
           task_type: 'text',
           result: JSON.stringify({
             word_count: data.split(' ').length,
-            sample: "텍스트 분석 결과 (JS 폴백)"
+            sample: '텍스트 분석 결과 (JS 폴백)'
           }),
           error: null
         };
@@ -351,7 +351,7 @@ function perform_gpu_computation_sync(data, computationType) {
           task_type: 'image',
           result: JSON.stringify({
             dimensions: [800, 600],
-            sample: "이미지 처리 결과 (JS 폴백)"
+            sample: '이미지 처리 결과 (JS 폴백)'
           }),
           error: null
         };
@@ -465,7 +465,7 @@ async function submit_task(taskType, data) {
       task_type: taskType,
       duration_ms: 0,
       result: null,
-      error: "워커 풀이 초기화되지 않았습니다",
+      error: '워커 풀이 초기화되지 않았습니다',
       timestamp: getCurrentTimestamp()
     });
   }

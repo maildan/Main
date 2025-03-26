@@ -6,7 +6,7 @@
  */
 
 import { updateNativeMemorySettings, getNativeMemorySettings } from './native-memory-bridge';
-import { getLocalStorage, setLocalStorage } from './storage-utils';
+import { getLocalStorage as getStorageItem, setLocalStorage as setStorageItem } from './storage-utils';
 
 // 메모리 설정 인터페이스
 export interface MemorySettings {
@@ -56,7 +56,7 @@ const MEMORY_SETTINGS_KEY = 'typing-stats-memory-settings';
 export async function getMemorySettings(): Promise<MemorySettings> {
   try {
     // 로컬 스토리지에서 설정 가져오기
-    const storedSettings = await getLocalStorage<Partial<MemorySettings>>(MEMORY_SETTINGS_KEY) || {};
+    const storedSettings = await getStorageItem<Partial<MemorySettings>>(MEMORY_SETTINGS_KEY) || {};
     
     // 네이티브 모듈에서 설정 가져오기 시도
     let nativeSettings: Partial<MemorySettings> = {};
@@ -110,7 +110,7 @@ export async function saveMemorySettings(settings: Partial<MemorySettings>): Pro
     };
     
     // 로컬 스토리지에 저장
-    await setLocalStorage(MEMORY_SETTINGS_KEY, updatedSettings);
+    await setStorageItem(MEMORY_SETTINGS_KEY, updatedSettings);
     
     // 네이티브 모듈에 설정 적용 시도
     try {
@@ -253,40 +253,9 @@ export async function resetMemorySettings(): Promise<boolean> {
   }
 }
 
-// 스토리지 유틸리티 함수 (별도 파일로 분리 가능)
-async function getLocalStorage<T>(key: string): Promise<T | null> {
-  if (typeof window === 'undefined' || !window.localStorage) return null;
-  
-  try {
-    const item = localStorage.getItem(key);
-    if (!item) return null;
-    return JSON.parse(item) as T;
-  } catch (error) {
-    console.error(`로컬 스토리지에서 ${key} 가져오기 오류:`, error);
-    return null;
-  }
-}
-
-async function setLocalStorage(key: string, value: any): Promise<boolean> {
-  if (typeof window === 'undefined' || !window.localStorage) return false;
-  
-  try {
-    localStorage.setItem(key, JSON.stringify(value));
-    return true;
-  } catch (error) {
-    console.error(`로컬 스토리지에 ${key} 저장 오류:`, error);
-    return false;
-  }
-}
-
 // 윈도우 타입 선언 확장
 declare global {
   interface Window {
-    __memoryOptimizer?: {
-      settings?: MemorySettings;
-      cleanupPeriodicOptimization?: () => void;
-      setupPeriodicOptimization?: () => void;
-      [key: string]: any;
-    };
+    __memoryOptimizer?: any;
   }
 }

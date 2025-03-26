@@ -37,7 +37,7 @@ export default function MiniView() {
     let unsubscribe: (() => void) | null = null;
     
     if (typeof window !== 'undefined' && window.electronAPI) {
-      unsubscribe = window.electronAPI.onMiniViewStatsUpdate((data) => {
+      unsubscribe = window.electronAPI.onMiniViewStatsUpdate((data: MiniViewStats) => {
         setStats(data);
       });
     }

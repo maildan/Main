@@ -2,7 +2,8 @@
  * 가비지 컬렉션 관련 타입 정의
  * 메모리 최적화 모듈에서 사용되는 공통 타입
  */
-import { MemoryInfo, GCResult } from './types';
+import { GCResult } from './types';
+import { MemoryInfo } from '@/types';
 
 /**
  * 최적화 레벨 타입

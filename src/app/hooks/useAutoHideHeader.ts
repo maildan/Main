@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { ElectronAPI } from '../types/electron';
 
 export interface AutoHideHeaderOptions {
   windowMode: string; 
@@ -15,9 +16,8 @@ export function useAutoHideHeader({ windowMode, electronAPI }: AutoHideHeaderOpt
     
     if (!isAutoHideMode) {
       // 자동 숨김이 아닌 경우 항상 표시
-      if (electronAPI && typeof electronAPI.windowControl === 'function') {
-        // TypeScript 오류 해결 - 타입 단언 사용
-        (electronAPI.windowControl as Function)('showHeader');
+      if (electronAPI?.windowControl) {
+        electronAPI.windowControl('showHeader');
       }
       return;
     }
@@ -28,8 +28,8 @@ export function useAutoHideHeader({ windowMode, electronAPI }: AutoHideHeaderOpt
       // 마우스가 화면 상단 100px 이내에 있을 때 헤더 표시
       if (clientY < 100) {
         setIsHeaderVisible(true);
-        if (electronAPI && typeof electronAPI.windowControl === 'function') {
-          (electronAPI.windowControl as Function)('showHeader');
+        if (electronAPI?.windowControl) {
+          electronAPI.windowControl('showHeader');
         }
         
         if (autoHideTimeoutRef.current) {
@@ -41,8 +41,8 @@ export function useAutoHideHeader({ windowMode, electronAPI }: AutoHideHeaderOpt
         if (!autoHideTimeoutRef.current) {
           autoHideTimeoutRef.current = setTimeout(() => {
             setIsHeaderVisible(false);
-            if (electronAPI && typeof electronAPI.windowControl === 'function') {
-              (electronAPI.windowControl as Function)('hideHeader');
+            if (electronAPI?.windowControl) {
+              electronAPI.windowControl('hideHeader');
             }
             autoHideTimeoutRef.current = null;
           }, 1500);
@@ -67,8 +67,8 @@ export function useAutoHideHeader({ windowMode, electronAPI }: AutoHideHeaderOpt
   // 헤더 표시/숨김 설정을 위한 함수
   const setHeaderVisibility = useCallback((isVisible: boolean) => {
     setIsHeaderVisible(isVisible);
-    if (electronAPI && typeof electronAPI.windowControl === 'function') {
-      (electronAPI.windowControl as Function)(isVisible ? 'showHeader' : 'hideHeader');
+    if (electronAPI?.windowControl) {
+      electronAPI.windowControl(isVisible ? 'showHeader' : 'hideHeader');
     }
   }, [electronAPI]);
 

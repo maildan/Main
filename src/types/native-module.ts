@@ -41,10 +41,6 @@ export interface GpuTaskResult {
   timestamp: number;
 }
 
-// 메모리 정보 인터페이스 - 중복 선언 해결
-import { MemoryInfo, OptimizationResult, GCResult } from '../app/utils/memory/types';
-export { MemoryInfo, OptimizationResult, GCResult };
-
 // 작업 결과 인터페이스
 export interface TaskResult {
   task_id: string;
@@ -133,4 +129,39 @@ export interface GpuAccelerationStatus {
   available: boolean;
   enabled: boolean;
   info?: GpuInfo;
+}
+
+// 메모리 정보 인터페이스
+export interface MemoryInfo {
+  heap_used: number;
+  heap_total: number;
+  heap_limit: number;
+  heap_used_mb: number;
+  rss: number;
+  rss_mb: number;
+  percent_used: number;
+  external: number;
+  timestamp: number;
+}
+
+// 최적화 결과 인터페이스
+export interface OptimizationResult {
+  success: boolean;
+  optimization_level: number;
+  freed_memory?: number;
+  freed_mb?: number;
+  memory_before?: MemoryInfo;
+  memory_after?: MemoryInfo;
+  duration?: number;
+  timestamp: number;
+  error?: string;
+}
+
+// 가비지 컬렉션 결과 인터페이스
+export interface GCResult {
+  success: boolean;
+  freed_memory: number;
+  freed_mb?: number;
+  timestamp: number;
+  error?: string;
 }

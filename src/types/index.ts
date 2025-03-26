@@ -1,24 +1,171 @@
-// 중앙 타입 익스포트 파일 추가
+/**
+ * 애플리케이션 타입 정의 통합 모듈
+ * 
+ * 이 파일은 타입 선언을 중앙 집중화하여 다른 모듈에서 가져다 쓸 수 있게 합니다.
+ */
 
 // 네이티브 모듈 타입 재내보내기
 export * from './native-module';
 
-/**
- * 전역 타입 정의
- */
+// 사용자 설정 관련 타입 정의
+export interface UserSettings {
+  theme: 'light' | 'dark' | 'system';
+  memoryOptimization: {
+    autoOptimize: boolean;
+    threshold: number;
+    interval: number;
+  };
+  performance: {
+    usePrefetch: boolean;
+    usePreload: boolean;
+    useGpuAcceleration: boolean;
+    processingMode: 'auto' | 'cpu' | 'gpu' | 'balanced';
+  };
+  notifications: {
+    enabled: boolean;
+    showMemoryWarnings: boolean;
+    showOptimizationResults: boolean;
+  };
+}
+
+// 앱 상태 관련 타입 정의
+export interface AppState {
+  isInitialized: boolean;
+  lastMemoryCheck: number | null;
+  memoryUsage: {
+    current: number;
+    threshold: number;
+  };
+  nativeSupport: {
+    available: boolean;
+    fallbackMode: boolean;
+  };
+  gpuAcceleration: {
+    enabled: boolean;
+    available: boolean;
+  };
+}
+
+// 로그 항목 타입 정의
+export interface LogEntry {
+  timestamp: number;
+  level: 'debug' | 'info' | 'warn' | 'error';
+  message: string;
+  data?: Record<string, unknown>;
+}
+
+// 시스템 정보 타입 정의
+export interface SystemInfo {
+  os: string;
+  arch: string;
+  cpus: number;
+  totalMemory: number;
+  freeMemory: number;
+  nodeVersion: string;
+}
+
+// 성능 지표 타입 정의
+export interface PerformanceMetrics {
+  fps: number;
+  memory: {
+    jsHeapSizeLimit: number;
+    totalJSHeapSize: number;
+    usedJSHeapSize: number;
+  };
+  cpu: {
+    usage: number;
+    processes: number;
+  };
+  timestamp: number;
+}
+
+// 통계 데이터 타입 정의
+export interface StatsData {
+  id?: number;
+  timestamp: number;
+  keyCount: number;
+  typingTime: number;
+  windowTitle?: string;
+  application?: string;
+  browser?: string;
+  appCategory?: string;
+}
+
+// 메모리 이벤트 타입
+export enum MemoryEventType {
+  PERIODIC_CHECK = 'periodic_check',
+  PAGE_NAVIGATION = 'page_navigation',
+  OPTIMIZATION = 'optimization',
+  COMPONENT_MOUNT = 'component_mount',
+  COMPONENT_UNMOUNT = 'component_unmount',
+  USER_ACTION = 'user_action',
+  GARBAGE_COLLECTION = 'garbage_collection',
+  RESOURCE_LOADING = 'resource_loading',
+  ERROR = 'error',
+  WARNING = 'warning',
+  CUSTOM = 'custom',
+  INFO = 'info',
+  GC = 'gc'
+}
+
+// 메모리 최적화 수준 열거형
+export enum OptimizationLevel {
+  NORMAL = 0,
+  LOW = 1,
+  MEDIUM = 2,
+  HIGH = 3,
+  CRITICAL = 4,
+  EXTREME = 4 // CRITICAL과 같은 값으로 설정하여 호환성 유지
+}
+
+// 최적화 프로필 타입
+export type OptimizationProfile = 'performance' | 'balanced' | 'memory-saving' | 'custom';
+
+// 메모리 사용량 레벨 열거형
+export enum MemoryUsageLevel {
+  LOW = 'low',
+  MEDIUM = 'medium',
+  HIGH = 'high',
+  CRITICAL = 'critical'
+}
+
+// 처리 모드 타입
+export type ProcessingMode = 'normal' | 'cpu-intensive' | 'gpu-intensive' | 'memory-saving' | 'auto';
+
+// GPU 작업 타입 열거형
+export enum GpuTaskType {
+  MATRIX_MULTIPLICATION = 'matrix',
+  TEXT_ANALYSIS = 'text',
+  PATTERN_DETECTION = 'pattern',
+  IMAGE_PROCESSING = 'image',
+  DATA_AGGREGATION = 'data',
+  TYPING_STATISTICS = 'typing',
+  CUSTOM = 'custom'
+}
+
+// 시스템 상태 인터페이스
+export interface SystemStatus {
+  memory: {
+    percentUsed: number;
+    level: MemoryUsageLevel;
+    heapUsedMB: number;
+    rssMB: number;
+  };
+  processing: {
+    mode: ProcessingMode;
+    gpuEnabled: boolean;
+  };
+  optimizations: {
+    count: number;
+    lastTimestamp: number;
+    freedMemoryMB: number;
+  };
+  timestamp: number;
+}
 
 /**
  * 공통 타입 정의
  */
-
-// 메모리 최적화 레벨 정의
-export enum OptimizationLevel {
-  NONE = 0,
-  LOW = 1,
-  MEDIUM = 2,
-  HIGH = 3,
-  EXTREME = 4
-}
 
 // 메모리 정보 인터페이스
 export interface MemoryInfo {
@@ -102,8 +249,6 @@ export interface TaskResult {
   timestamp: number;
 }
 
-// 추가 타입들이 있다면 여기에 정의
-
 /**
  * 머신 정보 인터페이스
  */
@@ -165,20 +310,6 @@ export interface PerformanceInfo {
  */
 export type WindowMode = 'windowed' | 'fullscreen' | 'fullscreen-auto-hide';
 
-/**
- * 처리 모드 타입
- */
-export type ProcessingMode = 'auto' | 'normal' | 'cpu-intensive' | 'gpu-intensive';
-
-// 메모리 이벤트 타입 열거형
-export enum MemoryEventType {
-  INFO = 'info',
-  WARNING = 'warning',
-  ERROR = 'error',
-  GC = 'gc',
-  OPTIMIZATION = 'optimization'
-}
-
 // 메모리 이벤트 인터페이스
 export interface MemoryEvent {
   type: MemoryEventType;
@@ -202,7 +333,3 @@ export interface MemoryOptimizerUtility {
   getMemoryInfo: () => MemoryInfo | null;
   optimizeMemory: (emergency?: boolean) => Promise<GCResult>;
 }
-
-// 다른 타입 정의들도 필요한 경우 여기서 재내보내기
-// export * from './app-types';
-// export * from './electron-types';

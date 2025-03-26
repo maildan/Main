@@ -3,28 +3,197 @@
  */
 import { OptimizationLevel as AppOptimizationLevel } from '@/types';
 import { OptimizationLevel as NativeOptimizationLevel } from '@/types/native-module';
+import { 
+  OptimizationLevel, 
+  MemoryEventType, 
+  MemoryUsageLevel,
+  GpuTaskType
+} from '@/types';
+
+/**
+ * 최적화 레벨 문자열을 열거형으로 변환
+ * @param level 레벨 문자열 또는 숫자
+ */
+export function parseOptimizationLevel(level: string | number): OptimizationLevel {
+  if (typeof level === 'number') {
+    if (level >= 0 && level <= 4) {
+      return level as OptimizationLevel;
+    }
+    return OptimizationLevel.NORMAL;
+  }
+  
+  switch (level.toLowerCase()) {
+    case 'normal':
+      return OptimizationLevel.NORMAL;
+    case 'low':
+      return OptimizationLevel.LOW;
+    case 'medium':
+      return OptimizationLevel.MEDIUM;
+    case 'high':
+      return OptimizationLevel.HIGH;
+    case 'critical':
+      return OptimizationLevel.CRITICAL;
+    default:
+      // 숫자 문자열인 경우 변환 시도
+      const num = parseInt(level, 10);
+      if (!isNaN(num) && num >= 0 && num <= 4) {
+        return num as OptimizationLevel;
+      }
+      return OptimizationLevel.NORMAL;
+  }
+}
+
+/**
+ * 최적화 레벨을 사람이 읽기 쉬운 문자열로 변환
+ * @param level 최적화 레벨
+ */
+export function formatOptimizationLevel(level: OptimizationLevel): string {
+  switch (level) {
+    case OptimizationLevel.NORMAL:
+      return '일반';
+    case OptimizationLevel.LOW:
+      return '낮음';
+    case OptimizationLevel.MEDIUM:
+      return '중간';
+    case OptimizationLevel.HIGH:
+      return '높음';
+    case OptimizationLevel.CRITICAL:
+      return '위험';
+    default:
+      return '알 수 없음';
+  }
+}
+
+/**
+ * 메모리 이벤트 타입을 사람이 읽기 쉬운 문자열로 변환
+ * @param eventType 메모리 이벤트 타입
+ */
+export function formatMemoryEventType(eventType: MemoryEventType): string {
+  switch (eventType) {
+    case MemoryEventType.PERIODIC_CHECK:
+      return '주기적 확인';
+    case MemoryEventType.PAGE_NAVIGATION:
+      return '페이지 탐색';
+    case MemoryEventType.OPTIMIZATION:
+      return '최적화';
+    case MemoryEventType.COMPONENT_MOUNT:
+      return '컴포넌트 마운트';
+    case MemoryEventType.COMPONENT_UNMOUNT:
+      return '컴포넌트 언마운트';
+    case MemoryEventType.USER_ACTION:
+      return '사용자 액션';
+    case MemoryEventType.GARBAGE_COLLECTION:
+      return '가비지 컬렉션';
+    case MemoryEventType.RESOURCE_LOADING:
+      return '리소스 로딩';
+    case MemoryEventType.ERROR:
+      return '오류';
+    case MemoryEventType.WARNING:
+      return '경고';
+    case MemoryEventType.CUSTOM:
+      return '사용자 정의';
+    default:
+      return '알 수 없음';
+  }
+}
+
+/**
+ * GPU 작업 타입을 확인하고 표준화
+ * @param taskType 작업 타입 문자열 또는 열거형
+ */
+export function normalizeGpuTaskType(taskType: string | GpuTaskType): string {
+  if (typeof taskType === 'number') {
+    // 열거형에서 문자열로 변환
+    switch (taskType) {
+      case GpuTaskType.MATRIX_MULTIPLICATION:
+        return 'matrix';
+      case GpuTaskType.TEXT_ANALYSIS:
+        return 'text';
+      case GpuTaskType.PATTERN_DETECTION:
+        return 'pattern';
+      case GpuTaskType.IMAGE_PROCESSING:
+        return 'image';
+      case GpuTaskType.DATA_AGGREGATION:
+        return 'data';
+      case GpuTaskType.TYPING_STATISTICS:
+        return 'typing';
+      case GpuTaskType.CUSTOM:
+        return 'custom';
+      default:
+        return 'matrix'; // 기본값
+    }
+  }
+  
+  // 이미 문자열인 경우 표준화
+  switch (taskType.toLowerCase()) {
+    case 'matrix':
+    case 'matrixmultiplication':
+    case 'matrix-multiplication':
+      return 'matrix';
+    case 'text':
+    case 'textanalysis':
+    case 'text-analysis':
+      return 'text';
+    case 'pattern':
+    case 'patterndetection':
+    case 'pattern-detection':
+      return 'pattern';
+    case 'image':
+    case 'imageprocessing':
+    case 'image-processing':
+      return 'image';
+    case 'data':
+    case 'dataaggregation':
+    case 'data-aggregation':
+      return 'data';
+    case 'typing':
+    case 'typingstatistics':
+    case 'typing-statistics':
+      return 'typing';
+    case 'custom':
+      return 'custom';
+    default:
+      return 'matrix'; // 기본값
+  }
+}
+
+/**
+ * 메모리 사용량 백분율을 메모리 레벨로 변환
+ * @param percentUsed 메모리 사용량 백분율 (0-100)
+ */
+export function getMemoryUsageLevel(percentUsed: number): MemoryUsageLevel {
+  if (percentUsed >= 90) {
+    return MemoryUsageLevel.CRITICAL;
+  } else if (percentUsed >= 70) {
+    return MemoryUsageLevel.HIGH;
+  } else if (percentUsed >= 50) {
+    return MemoryUsageLevel.MEDIUM;
+  } else {
+    return MemoryUsageLevel.LOW;
+  }
+}
 
 // 열거형 값 매핑 테이블 (더 안전한 방식)
-const APP_TO_NATIVE_LEVEL_MAP: Record<AppOptimizationLevel, NativeOptimizationLevel> = {
-  [AppOptimizationLevel.NONE]: NativeOptimizationLevel.Normal,
-  [AppOptimizationLevel.LOW]: NativeOptimizationLevel.Low,
-  [AppOptimizationLevel.MEDIUM]: NativeOptimizationLevel.Medium,
-  [AppOptimizationLevel.HIGH]: NativeOptimizationLevel.High,
-  [AppOptimizationLevel.EXTREME]: NativeOptimizationLevel.Critical
+const APP_TO_NATIVE_LEVEL_MAP: Record<number, NativeOptimizationLevel> = {
+  [OptimizationLevel.NORMAL]: NativeOptimizationLevel.Normal,
+  [OptimizationLevel.LOW]: NativeOptimizationLevel.Low,
+  [OptimizationLevel.MEDIUM]: NativeOptimizationLevel.Medium,
+  [OptimizationLevel.HIGH]: NativeOptimizationLevel.High,
+  [OptimizationLevel.CRITICAL]: NativeOptimizationLevel.Critical
 };
 
-const NATIVE_TO_APP_LEVEL_MAP: Record<NativeOptimizationLevel, AppOptimizationLevel> = {
-  [NativeOptimizationLevel.Normal]: AppOptimizationLevel.NONE,
-  [NativeOptimizationLevel.Low]: AppOptimizationLevel.LOW,
-  [NativeOptimizationLevel.Medium]: AppOptimizationLevel.MEDIUM,
-  [NativeOptimizationLevel.High]: AppOptimizationLevel.HIGH,
-  [NativeOptimizationLevel.Critical]: AppOptimizationLevel.EXTREME
+const NATIVE_TO_APP_LEVEL_MAP: Record<NativeOptimizationLevel, OptimizationLevel> = {
+  [NativeOptimizationLevel.Normal]: OptimizationLevel.NORMAL,
+  [NativeOptimizationLevel.Low]: OptimizationLevel.LOW,
+  [NativeOptimizationLevel.Medium]: OptimizationLevel.MEDIUM,
+  [NativeOptimizationLevel.High]: OptimizationLevel.HIGH,
+  [NativeOptimizationLevel.Critical]: OptimizationLevel.CRITICAL
 };
 
 /**
  * 애플리케이션 OptimizationLevel을 네이티브 OptimizationLevel로 변환
  */
-export function toNativeOptimizationLevel(level: AppOptimizationLevel): NativeOptimizationLevel {
+export function toNativeOptimizationLevel(level: OptimizationLevel): NativeOptimizationLevel {
   // 매핑 테이블에서 바로 조회 (더 안전하고 직관적임)
   const nativeLevel = APP_TO_NATIVE_LEVEL_MAP[level];
   
@@ -40,14 +209,14 @@ export function toNativeOptimizationLevel(level: AppOptimizationLevel): NativeOp
 /**
  * 네이티브 OptimizationLevel을 애플리케이션 OptimizationLevel로 변환
  */
-export function toAppOptimizationLevel(level: NativeOptimizationLevel): AppOptimizationLevel {
+export function toAppOptimizationLevel(level: NativeOptimizationLevel): OptimizationLevel {
   // 매핑 테이블에서 바로 조회 (더 안전하고 직관적임)
   const appLevel = NATIVE_TO_APP_LEVEL_MAP[level];
   
   // 매핑 테이블에 없는 경우 기본값 반환
   if (appLevel === undefined) {
     console.warn(`알 수 없는 네이티브 최적화 레벨 (${level}), 기본값 사용`);
-    return AppOptimizationLevel.MEDIUM;
+    return OptimizationLevel.MEDIUM;
   }
   
   return appLevel;
@@ -56,16 +225,16 @@ export function toAppOptimizationLevel(level: NativeOptimizationLevel): AppOptim
 /**
  * 숫자를 적절한 최적화 레벨로 안전하게 변환
  */
-export function safeOptimizationLevel(level: number): AppOptimizationLevel {
+export function safeOptimizationLevel(level: number): OptimizationLevel {
   switch (level) {
-    case 0: return AppOptimizationLevel.NONE as AppOptimizationLevel;
-    case 1: return AppOptimizationLevel.LOW as AppOptimizationLevel;
-    case 2: return AppOptimizationLevel.MEDIUM as AppOptimizationLevel;
-    case 3: return AppOptimizationLevel.HIGH as AppOptimizationLevel;
-    case 4: return AppOptimizationLevel.EXTREME as AppOptimizationLevel;
+    case 0: return OptimizationLevel.NORMAL;
+    case 1: return OptimizationLevel.LOW;
+    case 2: return OptimizationLevel.MEDIUM;
+    case 3: return OptimizationLevel.HIGH;
+    case 4: return OptimizationLevel.CRITICAL;
     default:
       console.warn(`유효하지 않은 최적화 레벨 (${level}), 기본값 사용`);
-      return AppOptimizationLevel.MEDIUM as AppOptimizationLevel;
+      return OptimizationLevel.MEDIUM;
   }
 }
 

@@ -204,7 +204,7 @@ export default function MemoryMonitor({
       const result = await requestGC();
       
       if (result && result.success) {
-        const freedMB = result.freedMB || result.freed_mb || 0;
+        const freedMB = result.freedMB || 0;
         console.log(`가비지 컬렉션 완료: ${freedMB.toFixed(2)}MB 해제됨`);
       }
       

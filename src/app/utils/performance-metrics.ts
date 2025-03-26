@@ -47,7 +47,7 @@ export async function benchmarkMemoryOptimization(
   emergency: boolean = false
 ): Promise<PerformanceResult> {
   // 초기 메모리 상태 기록
-  const memoryBefore = getMemoryInfo() || { heapUsedMB: 0 };
+  const memoryBefore = await getMemoryInfo() || { heapUsedMB: 0 };
   
   // 네이티브 구현 테스트
   let nativeResult = {
@@ -80,7 +80,7 @@ export async function benchmarkMemoryOptimization(
   }
   
   // 자바스크립트 구현 테스트 전 중간 메모리 상태
-  const memoryMiddle = getMemoryInfo();
+  const memoryMiddle = await getMemoryInfo();
   
   // 자바스크립트 구현 테스트
   let jsResult = {
@@ -104,7 +104,7 @@ export async function benchmarkMemoryOptimization(
   }
   
   // 최종 메모리 상태 기록
-  const memoryAfter = getMemoryInfo() || { heapUsedMB: 0 };
+  const memoryAfter = await getMemoryInfo() || { heapUsedMB: 0 };
   
   // 성능 비교 결과 계산
   const speedupFactor = jsResult.success && nativeResult.success && nativeResult.executionTime > 0

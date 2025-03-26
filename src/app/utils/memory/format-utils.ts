@@ -13,7 +13,7 @@ import { MemoryInfo } from '@/types';
  * @param memoryInfo 메모리 정보 객체
  * @returns 표준화된 메모리 정보
  */
-export function normalizeMemoryInfo(memoryInfo: any): MemoryInfo {
+export function normalizeMemoryInfo(memoryInfo: Record<string, unknown>): MemoryInfo {
   // 기본값 설정
   const defaultMemoryInfo = createDefaultMemoryInfo();
   
@@ -110,4 +110,22 @@ export function createMemoryInfoObject(data: Partial<MemoryInfo>): MemoryInfo {
     ...(data.rss && { rss: data.rss }),
     ...(data.rss_mb && { rss_mb: data.rss_mb })
   };
+}
+
+/**
+ * 바이트 단위를 읽기 쉬운 형식으로 변환
+ * @param bytes 바이트 수
+ * @param decimals 소수점 이하 자릿수
+ * @returns 포맷된 문자열
+ */
+export function formatBytes(bytes: number, decimals: number = 2): string {
+  if (bytes === 0) return '0 Bytes';
+  
+  const k = 1024;
+  const dm = decimals < 0 ? 0 : decimals;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
+  
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
 }

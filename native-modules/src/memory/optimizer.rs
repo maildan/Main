@@ -229,14 +229,21 @@ pub fn get_last_optimization_time() -> u64 {
 /// 사용자 설정에서 GPU 가속화가 활성화되어 있는지 확인합니다.
 pub fn is_gpu_acceleration_enabled() -> bool {
     // GPU 가용성 확인
-    context::is_gpu_initialized()
+    context::is_gpu_initialized() && context::check_gpu_availability()
 }
 
 /// GPU 가속화 활성화
 pub fn enable_gpu_acceleration() -> Result<bool, Error> {
     if context::check_gpu_availability() {
-        // GPU 가속화 활성화 시도
-        return Ok(true); // 임시 구현
+        // GPU 가속화가 이미 활성화되어 있는지 확인
+        if !context::is_gpu_initialized() {
+            // 초기화되지 않았으면 초기화 시도
+            match context::initialize_gpu_context() {
+                Ok(_) => return Ok(true),
+                Err(e) => return Err(e)
+            }
+        }
+        return Ok(true); // 이미 초기화됨
     }
     
     // GPU를 사용할 수 없는 경우

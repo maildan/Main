@@ -28,34 +28,71 @@ async function setupGpuConfiguration() {
     try {
       const nativeModule = require('../native-modules');
       
-      if (nativeModule && typeof nativeModule.initialize_gpu === 'function') {
-        // Rust 네이티브 모듈로 GPU 초기화
-        const success = nativeModule.initialize_gpu();
-        debugLog(`Rust 네이티브 GPU 모듈 초기화: ${success ? '성공' : '실패'}`);
+      if (nativeModule) {
+        // 초기화 함수 확인 - 여러 가능한 함수명 시도
+        const initFuncNames = [
+          'initialize_gpu',
+          'initialize_gpu_module',
+          'init_gpu'
+        ];
+        
+        let initialized = false;
+        for (const funcName of initFuncNames) {
+          if (typeof nativeModule[funcName] === 'function') {
+            initialized = nativeModule[funcName]();
+            if (initialized) {
+              debugLog(`Rust 네이티브 GPU 모듈 초기화 성공: ${funcName}`);
+              break;
+            }
+          }
+        }
         
         // 초기화 성공 여부 저장
-        appState.gpuEnabled = success && useHardwareAcceleration;
+        appState.gpuEnabled = initialized && useHardwareAcceleration;
         
-        if (success) {
-          // 가속화 활성화 여부 설정
+        if (initialized) {
+          // 가속화 활성화 여부 설정 - 여러 가능한 함수명 시도
           if (useHardwareAcceleration) {
-            const accelerationSuccess = nativeModule.enable_gpu_acceleration();
-            debugLog(`GPU 가속화 활성화: ${accelerationSuccess ? '성공' : '실패'}`);
+            const enableFuncNames = [
+              'enable_gpu_acceleration',
+              'enable_acceleration',
+              'set_gpu_acceleration'
+            ];
+            
+            let accelerationSuccess = false;
+            for (const funcName of enableFuncNames) {
+              if (typeof nativeModule[funcName] === 'function') {
+                accelerationSuccess = nativeModule[funcName]();
+                if (accelerationSuccess) {
+                  debugLog(`GPU 가속화 활성화 성공: ${funcName}`);
+                  break;
+                }
+              }
+            }
           } else {
-            const disableSuccess = nativeModule.disable_gpu_acceleration();
-            debugLog(`GPU 가속화 비활성화: ${disableSuccess ? '성공' : '실패'}`);
+            const disableFuncNames = [
+              'disable_gpu_acceleration',
+              'disable_acceleration',
+              'set_gpu_acceleration'
+            ];
+            
+            let disableSuccess = false;
+            for (const funcName of disableFuncNames) {
+              if (typeof nativeModule[funcName] === 'function') {
+                // set_gpu_acceleration 함수는 boolean 인자를 받음
+                if (funcName === 'set_gpu_acceleration') {
+                  disableSuccess = nativeModule[funcName](false);
+                } else {
+                  disableSuccess = nativeModule[funcName]();
+                }
+                
+                if (disableSuccess) {
+                  debugLog(`GPU 가속화 비활성화 성공: ${funcName}`);
+                  break;
+                }
+              }
+            }
           }
-          
-          // 모드에 따른 Electron GPU 설정 추가
-          const { configureGPU } = require('./electron-config');
-          configureGPU({
-            enableHardwareAcceleration: useHardwareAcceleration,
-            processingMode,
-            highPerformance
-          });
-          
-          debugLog('네이티브 GPU 모듈이 설정을 적용함');
-          return true;
         }
       }
     } catch (nativeError) {
@@ -131,59 +168,82 @@ try {
  * 앱 초기화 함수
  */
 async function initializeApp() {
-  debugLog('앱 초기화 시작');
-  
   try {
-    // GPU 설정 초기화
-    await setupGpuConfiguration();
-    debugLog('GPU 설정 초기화 완료');
+    debugLog('앱 초기화 시작');
     
-    // 설정 확인
-    debugLog(`GPU 가속 상태: ${appState.gpuEnabled ? '활성화됨' : '비활성화됨'}`);
+    // 메모리 최적화를 위한 주기적 GC
+    setInterval(() => {
+      try {
+        // performGC 함수 오류 수정
+        if (global.gc) {
+          debugLog('주기적인 GC 수행');
+          global.gc();
+        } else if (appState.gcEnabled) {
+          debugLog('gc 함수가 설정되어 있으나 global.gc가 없음');
+        } else {
+          debugLog('gc 함수 사용 불가');
+        }
+      } catch (error) {
+        debugLog('주기적 GC 수행 중 오류:', error);
+      }
+    }, 120000); // 2분마다
     
-    // 메모리 사용량 모니터링 시작
-    setupMemoryMonitoring();
+    debugLog('앱 초기화 시작');
     
-    // 설정 로드 (이미 GPU 설정에서 로드했으므로 중복되지 않게 수정)
-    if (!appState.settings) {
-      await loadSettings();
-    }
-    
-    // 메인 윈도우 생성
-    createWindow();
-    
-    // 키보드 리스너 설정
-    setupKeyboardListener();
-    
-    // IPC 핸들러 설정
-    setupIpcHandlers();
-    
-    // 트레이 설정 추가
-    if (appState.settings.minimizeToTray) {
-      setupTray();
-    }
-    
-    // GC가 사용 가능한지 확인
-    if (typeof global.gc === 'function') {
-      debugLog('GC 사용 가능 - 초기화 후 메모리 정리 실행');
+    try {
+      // GPU 설정 초기화
+      await setupGpuConfiguration();
+      debugLog('GPU 설정 초기화 완료');
       
-      // 초기 GC 실행으로 시작 시 사용된 메모리 정리
-      setTimeout(() => {
-        performGC();
-        debugLog('초기 메모리 정리 완료');
-      }, 3000); // 앱 시작 3초 후 GC 실행
-    } else {
-      debugLog('경고: GC를 사용할 수 없습니다. 메모리 관리가 제한됩니다.');
-      debugLog('GC 활성화를 위해 --expose-gc 플래그로 앱을 다시 시작하세요.');
+      // 설정 확인
+      debugLog(`GPU 가속 상태: ${appState.gpuEnabled ? '활성화됨' : '비활성화됨'}`);
+      
+      // 메모리 사용량 모니터링 시작
+      setupMemoryMonitoring();
+      
+      // 설정 로드 (이미 GPU 설정에서 로드했으므로 중복되지 않게 수정)
+      if (!appState.settings) {
+        await loadSettings();
+      }
+      
+      // 메인 윈도우 생성
+      createWindow();
+      
+      // 키보드 리스너 설정
+      setupKeyboardListener();
+      
+      // IPC 핸들러 설정
+      setupIpcHandlers();
+      
+      // 트레이 설정 추가
+      if (appState.settings.minimizeToTray) {
+        setupTray();
+      }
+      
+      // GC가 사용 가능한지 확인
+      if (typeof global.gc === 'function') {
+        debugLog('GC 사용 가능 - 초기화 후 메모리 정리 실행');
+        
+        // 초기 GC 실행으로 시작 시 사용된 메모리 정리
+        setTimeout(() => {
+          performGC();
+          debugLog('초기 메모리 정리 완료');
+        }, 3000); // 앱 시작 3초 후 GC 실행
+      } else {
+        debugLog('경고: GC를 사용할 수 없습니다. 메모리 관리가 제한됩니다.');
+        debugLog('GC 활성화를 위해 --expose-gc 플래그로 앱을 다시 시작하세요.');
+      }
+      
+      debugLog('앱 초기화 완료');
+    } catch (error) {
+      console.error('앱 초기화 중 오류:', error);
+      // 오류 발생 시 기본 설정으로 계속 시도
+      createWindow();
+      setupKeyboardListener();
+      setupIpcHandlers();
     }
-    
-    debugLog('앱 초기화 완료');
   } catch (error) {
     console.error('앱 초기화 중 오류:', error);
-    // 오류 발생 시 기본 설정으로 계속 시도
-    createWindow();
-    setupKeyboardListener();
-    setupIpcHandlers();
   }
 }
 

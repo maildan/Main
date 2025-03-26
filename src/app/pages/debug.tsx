@@ -40,12 +40,12 @@ export default function DebugPage() {
         
         // 디버그 정보 로드
         window.electronAPI.getDebugInfo()
-          .then((info) => setDebugInfo(info))
+          .then((info: DebugInfo) => setDebugInfo(info))
           .catch(console.error);
           
         // 브라우저 정보 로드
         window.electronAPI.getCurrentBrowserInfo()
-          .then((info) => setBrowserInfo(info))
+          .then((info: BrowserInfo) => setBrowserInfo(info))
           .catch(console.error);
       }
     };

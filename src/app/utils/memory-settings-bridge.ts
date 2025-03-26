@@ -1,7 +1,8 @@
 /**
  * 메모리 설정 브릿지
+ * 
+ * 네이티브 모듈과 메모리 설정 관련 통신을 담당합니다.
  */
-import { initializeMemorySettings, updateMemorySettings, getMemorySettings } from './nativeModuleClient';
 
 // 요청 상태 추적 및 중복 요청 방지
 const requestStatus = {
@@ -48,7 +49,7 @@ async function debouncedRequest<T>(
 /**
  * 네이티브 메모리 설정 초기화
  */
-export async function initializeNativeMemorySettings(settings: any): Promise<boolean> {
+export async function initializeNativeMemorySettings(settings: any): Promise<any> {
   return debouncedRequest('initSettings', async () => {
     try {
       // 유효성 검사
@@ -66,15 +67,30 @@ export async function initializeNativeMemorySettings(settings: any): Promise<boo
       
       // 형식 변환
       const settingsForNative = convertToNativeSettings(settings);
-      const settingsJson = JSON.stringify(settingsForNative);
       
-      // 네이티브 모듈에 전달
-      const response = await initializeMemorySettings(settingsJson);
+      // API 요청
+      const response = await fetch('/api/native/memory/settings', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ 
+          action: 'initialize',
+          settings: settingsForNative 
+        })
+      });
       
-      return response.success;
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      return await response.json();
     } catch (error) {
       console.error('네이티브 메모리 설정 초기화 오류:', error);
-      return false;
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : '알 수 없는 오류'
+      };
     }
   });
 }
@@ -82,7 +98,7 @@ export async function initializeNativeMemorySettings(settings: any): Promise<boo
 /**
  * 네이티브 메모리 설정 업데이트
  */
-export async function updateNativeMemorySettings(settings: any): Promise<boolean> {
+export async function updateNativeMemorySettings(settings: any): Promise<any> {
   return debouncedRequest('updateSettings', async () => {
     try {
       // 유효성 검사
@@ -92,15 +108,27 @@ export async function updateNativeMemorySettings(settings: any): Promise<boolean
       
       // 형식 변환
       const settingsForNative = convertToNativeSettings(settings);
-      const settingsJson = JSON.stringify(settingsForNative);
       
-      // 네이티브 모듈에 전달
-      const response = await updateMemorySettings(settingsJson);
+      // API 요청
+      const response = await fetch('/api/native/memory/settings', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(settingsForNative)
+      });
       
-      return response.success;
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      return await response.json();
     } catch (error) {
       console.error('네이티브 메모리 설정 업데이트 오류:', error);
-      return false;
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : '알 수 없는 오류'
+      };
     }
   });
 }
@@ -111,10 +139,16 @@ export async function updateNativeMemorySettings(settings: any): Promise<boolean
  */
 export async function getNativeMemorySettings(): Promise<any> {
   try {
-    const response = await getMemorySettings();
+    const response = await fetch('/api/native/memory/settings');
     
-    if (response.success && response.settings) {
-      return response.settings;
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    const result = await response.json();
+    
+    if (result.success && result.settings) {
+      return convertFromNativeSettings(result.settings);
     }
     
     return null;

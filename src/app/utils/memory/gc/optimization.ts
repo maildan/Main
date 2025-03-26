@@ -11,12 +11,7 @@ export {
   clearImageCaches,
   cleanupDOMReferences,
   clearStorageCaches,
-  clearAllCache,
-  releaseAllCaches,
   unloadNonVisibleResources,
-  releaseUnusedResources,
-  freeUnusedMemory,
-  optimizeDOM,
   optimizeEventListeners,
   unloadDynamicModules,
   emergencyMemoryRecovery

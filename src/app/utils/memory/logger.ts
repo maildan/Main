@@ -10,6 +10,188 @@ import { getPerformanceHistory } from '../performance-metrics';
 import { MemoryInfo } from '@/types';
 import { normalizeMemoryInfo } from './format-utils';
 
+/**
+ * 메모리 관련 로깅 유틸리티
+ * 
+ * 메모리 관리 관련 로그를 효율적으로 기록하기 위한 로거를 제공합니다.
+ */
+
+// 로그 레벨 정의
+export enum LogLevel {
+  DEBUG = 0,
+  INFO = 1,
+  WARN = 2,
+  ERROR = 3
+}
+
+// 로그 항목 인터페이스
+export interface LogEntry {
+  timestamp: number;
+  level: LogLevel;
+  message: string;
+  data?: Record<string, unknown>;
+}
+
+// 로그 설정 인터페이스
+export interface LoggerOptions {
+  minLevel?: LogLevel;
+  maxLogs?: number;
+  printToConsole?: boolean;
+  moduleName?: string;
+}
+
+// 기본 로거 옵션
+const DEFAULT_OPTIONS: LoggerOptions = {
+  minLevel: LogLevel.INFO,
+  maxLogs: 100,
+  printToConsole: true,
+  moduleName: 'memory'
+};
+
+/**
+ * 메모리 로거 클래스
+ */
+export class MemoryLogger {
+  private logs: LogEntry[] = [];
+  private options: LoggerOptions;
+
+  constructor(options: LoggerOptions = {}) {
+    this.options = { ...DEFAULT_OPTIONS, ...options };
+  }
+
+  /**
+   * 로그 기록
+   * @param level 로그 레벨
+   * @param message 메시지
+   * @param data 추가 데이터
+   */
+  private log(level: LogLevel, message: string, data?: Record<string, unknown>): void {
+    // 설정된 최소 레벨보다 낮은 로그는 무시
+    if (level < this.options.minLevel!) {
+      return;
+    }
+
+    // 로그 항목 생성
+    const entry: LogEntry = {
+      timestamp: Date.now(),
+      level,
+      message,
+      data
+    };
+
+    // 로그 배열에 추가
+    this.logs.push(entry);
+
+    // 로그 개수 제한
+    if (this.logs.length > this.options.maxLogs!) {
+      this.logs.shift();
+    }
+
+    // 콘솔 출력 (설정된 경우)
+    if (this.options.printToConsole) {
+      this.printToConsole(entry);
+    }
+  }
+
+  /**
+   * 콘솔에 로그 출력
+   * @param entry 로그 항목
+   */
+  private printToConsole(entry: LogEntry): void {
+    const timestamp = new Date(entry.timestamp).toISOString();
+    const prefix = this.options.moduleName ? `[${this.options.moduleName}]` : '';
+
+    switch (entry.level) {
+      case LogLevel.DEBUG:
+        console.debug(`${timestamp} ${prefix} ${entry.message}`, entry.data);
+        break;
+      case LogLevel.INFO:
+        console.info(`${timestamp} ${prefix} ${entry.message}`, entry.data);
+        break;
+      case LogLevel.WARN:
+        console.warn(`${timestamp} ${prefix} ${entry.message}`, entry.data);
+        break;
+      case LogLevel.ERROR:
+        console.error(`${timestamp} ${prefix} ${entry.message}`, entry.data);
+        break;
+    }
+  }
+
+  /**
+   * 디버그 로그 기록
+   * @param message 메시지
+   * @param data 추가 데이터
+   */
+  debug(message: string, data?: Record<string, unknown>): void {
+    this.log(LogLevel.DEBUG, message, data);
+  }
+
+  /**
+   * 정보 로그 기록
+   * @param message 메시지
+   * @param data 추가 데이터
+   */
+  info(message: string, data?: Record<string, unknown>): void {
+    this.log(LogLevel.INFO, message, data);
+  }
+
+  /**
+   * 경고 로그 기록
+   * @param message 메시지
+   * @param data 추가 데이터
+   */
+  warn(message: string, data?: Record<string, unknown>): void {
+    this.log(LogLevel.WARN, message, data);
+  }
+
+  /**
+   * 오류 로그 기록
+   * @param message 메시지
+   * @param data 추가 데이터
+   */
+  error(message: string, data?: Record<string, unknown>): void {
+    this.log(LogLevel.ERROR, message, data);
+  }
+
+  /**
+   * 모든 로그 가져오기
+   */
+  getLogs(): LogEntry[] {
+    return [...this.logs];
+  }
+
+  /**
+   * 특정 레벨 이상의 로그만 가져오기
+   * @param level 최소 로그 레벨
+   */
+  getLogsByLevel(level: LogLevel): LogEntry[] {
+    return this.logs.filter(entry => entry.level >= level);
+  }
+
+  /**
+   * 오류 로그만 가져오기
+   */
+  getErrorLogs(): LogEntry[] {
+    return this.logs.filter(entry => entry.level === LogLevel.ERROR);
+  }
+
+  /**
+   * 로그 지우기
+   */
+  clearLogs(): void {
+    this.logs = [];
+  }
+}
+
+// 기본 로거 인스턴스
+export const memoryLogger = new MemoryLogger();
+
+// 편의성을 위한 기본 함수 내보내기
+export const debug = memoryLogger.debug.bind(memoryLogger);
+export const info = memoryLogger.info.bind(memoryLogger);
+export const warn = memoryLogger.warn.bind(memoryLogger);
+export const error = memoryLogger.error.bind(memoryLogger);
+
 // 메모리 로그 엔트리 인터페이스
 export interface MemoryLogEntry {
   timestamp: number;

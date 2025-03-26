@@ -1,30 +1,45 @@
-import { NextRequest } from 'next/server';
-import { getNativeModuleInfo, isNativeModuleAvailable, isFallbackModuleAvailable } from '@/server/native';
+import { NextResponse } from 'next/server';
 
-/**
- * 네이티브 모듈 상태 확인 API
- */
-export async function GET(request: NextRequest) {
+// 네이티브 모듈 상태 조회
+export async function GET() {
   try {
-    const available = isNativeModuleAvailable();
-    const fallbackMode = !available && isFallbackModuleAvailable();
-    const info = await getNativeModuleInfo();
+    // 서버 측 네이티브 모듈 가져오기
+    const nativeModule = await import('../../../../server/native');
     
-    return Response.json({
-      available,
-      fallbackMode,
-      version: process.env.APP_VERSION || '0.1.0',
+    // 네이티브 모듈 가용성 확인
+    const isAvailable = nativeModule.default.isNativeModuleAvailable();
+    const isFallback = nativeModule.default.isFallbackMode();
+    
+    // 네이티브 모듈 버전 및 정보 가져오기
+    let version = null;
+    let info = null;
+    
+    if (isAvailable) {
+      version = nativeModule.default.getNativeModuleVersion();
+      info = nativeModule.default.getNativeModuleInfo();
+    }
+    
+    // GPU 가용성 확인
+    const gpuAvailable = nativeModule.default.isGpuAccelerationAvailable?.() || false;
+    
+    return NextResponse.json({
+      success: true,
+      available: isAvailable,
+      fallbackMode: isFallback,
+      version,
       info,
+      features: {
+        memory: isAvailable,
+        gpu: gpuAvailable,
+        worker: isAvailable && !isFallback
+      },
       timestamp: Date.now()
     });
   } catch (error) {
-    console.error('네이티브 모듈 상태 확인 중 오류:', error);
-    
-    return Response.json({
-      available: false,
-      fallbackMode: false,
-      version: process.env.APP_VERSION || '0.1.0',
-      error: error instanceof Error ? error.message : '알 수 없는 오류',
+    console.error('네이티브 모듈 상태 조회 오류:', error);
+    return NextResponse.json({
+      success: false,
+      error: error instanceof Error ? error.message : '네이티브 모듈 상태를 조회하는 중 오류가 발생했습니다',
       timestamp: Date.now()
     }, { status: 500 });
   }

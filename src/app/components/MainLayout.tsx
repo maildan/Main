@@ -1,21 +1,29 @@
+"use client";
+
 import React, { memo, useRef, ReactNode } from 'react';
 import { AppHeader } from './AppHeader';
 import { AppFooter } from './AppFooter';
 import styles from '../page.module.css';
 
+// Define the ElectronAPI interface
+interface ElectronAPI {
+  // Add properties that your electron API needs
+  // For example: minimize: () => void;
+}
+
 interface MainLayoutProps {
   children: ReactNode;
-  darkMode: boolean;
-  windowMode: string;
-  electronAPI: ElectronAPI | null;
+  darkMode?: boolean;
+  windowMode?: string;
+  electronAPI?: ElectronAPI | null;
   isHeaderVisible?: boolean;
 }
 
 export const MainLayout = memo(function MainLayout({ 
   children,
-  darkMode,
-  windowMode,
-  electronAPI,
+  darkMode = false,
+  windowMode = 'normal',
+  electronAPI = null,
   isHeaderVisible = true
 }: MainLayoutProps) {
   const headerDetectionRef = useRef<HTMLDivElement>(null);
@@ -26,7 +34,7 @@ export const MainLayout = memo(function MainLayout({
       style={{ position: 'relative', zIndex: 1 }}
     >
       {/* AppHeader 컴포넌트 추가 */}
-      <AppHeader api={electronAPI} />
+      {isHeaderVisible && <AppHeader api={electronAPI} />}
       
       {/* 자동 숨김 모드일 때 감지 영역 추가 */}
       {windowMode === 'fullscreen-auto-hide' && (

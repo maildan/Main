@@ -3,7 +3,8 @@
  * 
  * 브라우저 및 시스템 메모리 정보를 제공합니다.
  */
-import { MemoryInfo } from './types';
+import { MemoryInfo } from '@/types';
+import { requestNativeMemoryInfo } from '../native-memory-bridge';
 
 /**
  * 현재 메모리 사용량 가져오기
@@ -19,7 +20,7 @@ export async function getMemoryUsage(): Promise<MemoryInfo | null> {
       usedJSHeapSize, 
       totalJSHeapSize, 
       jsHeapSizeLimit 
-    } = performance.memory as any;
+    } = performance.memory as MemoryInfo;
     
     const heap_used = usedJSHeapSize;
     const heap_total = totalJSHeapSize;
@@ -91,5 +92,24 @@ export async function getNativeMemoryInfo(): Promise<MemoryInfo | null> {
   } catch (error) {
     console.error('네이티브 메모리 정보 가져오기 오류:', error);
     return getMemoryUsage();
+  }
+}
+
+/**
+ * 메모리 정보 가져오기 (MemoryMonitor 컴포넌트와의 호환성을 위한 함수)
+ * 내부적으로 getMemoryUsage를 사용합니다.
+ */
+export async function getMemoryInfo(): Promise<MemoryInfo | null> {
+  try {
+    // 브라우저 환경에서는 getMemoryUsage 사용
+    if (typeof window !== 'undefined') {
+      return await getMemoryUsage();
+    }
+    
+    // 서버 환경에서는 네이티브 모듈에서 직접 요청
+    return await requestNativeMemoryInfo();
+  } catch (error) {
+    console.error('메모리 정보 가져오기 오류:', error);
+    return null;
   }
 }

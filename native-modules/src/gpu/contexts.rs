@@ -1,6 +1,9 @@
 use crate::error::{Error, Result};
 use serde::{Serialize, Deserialize};
 
+// 다른 모듈의 함수 사용
+use crate::gpu::context;
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct GpuCapabilities {
     pub compute_supported: bool,
@@ -26,32 +29,50 @@ impl Default for GpuCapabilities {
     }
 }
 
-// Function to get GPU capabilities
+// GPU 기능을 context 모듈을 통해 가져오는 래퍼 함수
 pub fn get_gpu_capabilities() -> Result<GpuCapabilities> {
-    // In a real implementation, this would detect actual GPU hardware
-    // For now, return a simulated result
-    
-    #[cfg(target_os = "windows")]
-    {
-        // On Windows, try to detect if we have a discrete GPU
-        if let Ok(gpu_info) = detect_windows_gpu() {
-            return Ok(gpu_info);
+    // context 모듈의 기능을 사용하여 GPU 기능 정보 생성
+    match context::get_gpu_info() {
+        Ok(info_json) => {
+            // 기본 기능 구성
+            let mut caps = GpuCapabilities::default();
+            
+            // JSON 파싱 시도
+            if let Ok(json_value) = serde_json::from_str::<serde_json::Value>(&info_json) {
+                // JSON에서 필요한 정보 추출
+                if let Some(compute) = json_value.get("compute_supported").and_then(|v| v.as_bool()) {
+                    caps.compute_supported = compute;
+                }
+                
+                if let Some(device) = json_value.get("device").and_then(|v| v.as_str()) {
+                    caps.device_name = device.to_string();
+                }
+                
+                if let Some(backend) = json_value.get("backend").and_then(|v| v.as_str()) {
+                    caps.backend_type = backend.to_string();
+                }
+                
+                // 기본값 설정
+                caps.shading_supported = true;
+                caps.max_compute_size = 64 * 1024 * 1024; // 64MB
+                caps.max_memory_size = 1024 * 1024 * 1024; // 1GB
+            }
+            
+            Ok(caps)
+        },
+        Err(e) => {
+            // 오류 시 기본 기능 반환
+            Ok(detect_basic_gpu_capabilities()?)
         }
     }
-    
-    // Fallback to basic detection
-    detect_basic_gpu_capabilities()
 }
 
-// Basic GPU capability detection that should work cross-platform
+// 기본 GPU 기능 감지 함수
 fn detect_basic_gpu_capabilities() -> Result<GpuCapabilities> {
-    // This is a simplified implementation
-    // In a real app, you'd use platform-specific APIs or libraries
-    
-    // Default to basic capabilities
+    // 기본 기능 구성
     let mut capabilities = GpuCapabilities::default();
     
-    // Assume basic compute capability is available
+    // 기본값 설정
     capabilities.compute_supported = true;
     capabilities.shading_supported = true;
     capabilities.max_compute_size = 1024 * 1024; // 1MB
@@ -65,9 +86,7 @@ fn detect_basic_gpu_capabilities() -> Result<GpuCapabilities> {
 
 #[cfg(target_os = "windows")]
 fn detect_windows_gpu() -> Result<GpuCapabilities> {
-    // On Windows, we could use DXGI or WMI to query GPU info
-    // This is a simplified placeholder
-    
+    // Windows 환경에서의 GPU 감지 (간단한 구현)
     let mut capabilities = GpuCapabilities::default();
     capabilities.compute_supported = true;
     capabilities.shading_supported = true;
@@ -80,23 +99,36 @@ fn detect_windows_gpu() -> Result<GpuCapabilities> {
     Ok(capabilities)
 }
 
-// Create compute context
+// 컨텍스트 생성/관리 래퍼 함수들 - context 모듈 사용
+
+// 컴퓨팅 컨텍스트 생성
 pub fn create_compute_context() -> Result<()> {
-    // Initialize compute context based on detected capabilities
-    log::info!("Creating GPU compute context");
-    Ok(())
+    // context 모듈의 초기화 함수 사용
+    match context::initialize_gpu_context() {
+        Ok(_) => Ok(()),
+        Err(e) => Err(Error::from_reason(format!("컴퓨팅 컨텍스트 생성 실패: {}", e)))
+    }
 }
 
-// Create rendering context
+// 렌더링 컨텍스트 생성
 pub fn create_rendering_context() -> Result<()> {
-    // Initialize rendering context
-    log::info!("Creating GPU rendering context");
-    Ok(())
+    // 이미 초기화되었는지 확인
+    if context::is_gpu_initialized() {
+        return Ok(());
+    }
+    
+    // 초기화 시도
+    match context::initialize_gpu_context() {
+        Ok(_) => Ok(()),
+        Err(e) => Err(Error::from_reason(format!("렌더링 컨텍스트 생성 실패: {}", e)))
+    }
 }
 
-// Destroy contexts
+// 컨텍스트 정리
 pub fn destroy_contexts() -> Result<()> {
-    // Clean up contexts
-    log::info!("Destroying GPU contexts");
-    Ok(())
+    // context 모듈의 정리 함수 사용
+    match context::cleanup_gpu_context() {
+        Ok(_) => Ok(()),
+        Err(e) => Err(Error::from_reason(format!("컨텍스트 정리 실패: {}", e)))
+    }
 }

@@ -172,7 +172,7 @@ function setupMemoryManagement() {
         enable_logging: true,
         enable_performance_metrics: true,
         use_hardware_acceleration: settings?.useHardwareAcceleration || false,
-        processing_mode: settings?.processingMode || "auto",
+        processing_mode: settings?.processingMode || 'auto',
         use_memory_pool: true,
         pool_cleanup_interval: 300000 // 5분
       };

@@ -1,6 +1,29 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useToast } from '../components/ToastContext';
 import { applyDarkModeToAllElements } from '../utils/darkModeUtils';
+import type { ElectronAPI } from '../types/electron';
+import type { WindowModeType } from '../global';
+
+// SettingsState 타입 인터페이스를 export하여 다른 파일에서 import할 수 있게 함
+export interface SettingsState {
+  enabledCategories: {
+    docs: boolean;
+    office: boolean;
+    coding: boolean;
+    sns: boolean;
+  };
+  autoStartMonitoring: boolean;
+  resumeAfterIdle: boolean;
+  darkMode: boolean;
+  windowMode: WindowModeType;
+  minimizeToTray: boolean;
+  showTrayNotifications: boolean;
+  reduceMemoryInBackground: boolean;
+  enableMiniView: boolean;
+  useHardwareAcceleration: boolean;
+  processingMode: 'auto' | 'normal' | 'cpu-intensive' | 'gpu-intensive';
+  maxMemoryThreshold: number;
+}
 
 // 기본 설정 값 - GPU 및 처리 모드 추가
 const defaultSettings: SettingsState = {
@@ -86,23 +109,37 @@ export function useSettings(electronAPI: ElectronAPI | null) {
     try {
       if (!electronAPI) return;
       
-      const savePromise = electronAPI.saveSettings(newSettings);
+      // 옵셔널 체이닝 사용하여 saveSettings 메서드 존재 여부 확인
+      const savePromise = electronAPI?.saveSettings?.(newSettings);
       if (savePromise instanceof Promise) {
         const result = await savePromise;
-        if (result.success) {
-          showToast('설정이 저장되었습니다.', 'success');
+        
+        // result가 객체인 경우와 boolean인 경우 모두 처리
+        if (typeof result === 'object' && result !== null && 'success' in result) {
+          // 객체이고 success 속성이 있는 경우
+          const resultWithSuccess = result as { success: boolean };
+          if (resultWithSuccess.success) {
+            showToast('설정이 저장되었습니다.', 'success');
+          } else {
+            showToast('설정 저장에 실패했습니다.', 'error');
+          }
         } else {
-          showToast('설정 저장에 실패했습니다.', 'error');
+          // 단순 boolean인 경우 (또는 다른 타입)
+          if (result === true || (typeof result === 'boolean' && result)) {
+            showToast('설정이 저장되었습니다.', 'success');
+          } else {
+            showToast('설정 저장에 실패했습니다.', 'error');
+          }
         }
       }
       
       // 다크 모드 적용
-      if (electronAPI.setDarkMode) {
+      if (electronAPI?.setDarkMode) {
         await electronAPI.setDarkMode(newSettings.darkMode);
       }
       
       // 창 모드 적용
-      if (electronAPI.setWindowMode) {
+      if (electronAPI?.setWindowMode) {
         await electronAPI.setWindowMode(newSettings.windowMode);
       }
     } catch (error) {

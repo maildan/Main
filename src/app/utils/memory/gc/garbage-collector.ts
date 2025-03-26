@@ -4,7 +4,8 @@
  * 메모리 GC 및 최적화 기능을 제공합니다.
  */
 
-import { MemoryInfo, OptimizationLevel, GCResult } from '../types';
+import { OptimizationLevel, GCResult } from '../types';
+import { MemoryInfo } from '@/types';
 import { MEMORY_THRESHOLDS } from '../constants/memory-thresholds';
 import { getMemoryUsage } from '../memory-info';
 
@@ -50,15 +51,15 @@ export function determineOptimizationLevel(info: MemoryInfo): OptimizationLevel 
   const usedMB = info.heap_used_mb;
   
   if (usedMB < MEMORY_THRESHOLDS.LOW) {
-    return OptimizationLevel.NONE;
+    return OptimizationLevel.None;
   } else if (usedMB < MEMORY_THRESHOLDS.MEDIUM) {
-    return OptimizationLevel.LOW;
+    return OptimizationLevel.Low;
   } else if (usedMB < MEMORY_THRESHOLDS.HIGH) {
-    return OptimizationLevel.MEDIUM;
+    return OptimizationLevel.Medium;
   } else if (usedMB < MEMORY_THRESHOLDS.CRITICAL) {
-    return OptimizationLevel.HIGH;
+    return OptimizationLevel.High;
   } else {
-    return OptimizationLevel.EXTREME;
+    return OptimizationLevel.Extreme;
   }
 }
 
@@ -77,9 +78,7 @@ export async function performGC(emergency: boolean = false): Promise<GCResult> {
       
       return {
         success: true,
-        freed_memory: 0, // 실제 해제된 메모리는 알 수 없음
-        freedMemory: 0,
-        freed_mb: 0,
+        freedMemory: 0, // 실제 해제된 메모리는 알 수 없음
         freedMB: 0,
         duration: 0,
         timestamp: Date.now()
@@ -99,9 +98,7 @@ export async function performGC(emergency: boolean = false): Promise<GCResult> {
       console.warn(`[GC] 최소 간격(${MIN_GC_INTERVAL}ms) 내에 GC 요청, 생략됨`);
       return {
         success: false,
-        freed_memory: 0,
         freedMemory: 0,
-        freed_mb: 0,
         freedMB: 0,
         duration: 0,
         timestamp: now,
@@ -153,9 +150,7 @@ export async function performGC(emergency: boolean = false): Promise<GCResult> {
     
     return {
       success: true,
-      freed_memory: freedMemory,
       freedMemory: freedMemory,
-      freed_mb: freedMB,
       freedMB: freedMB,
       duration,
       timestamp: now
@@ -164,9 +159,7 @@ export async function performGC(emergency: boolean = false): Promise<GCResult> {
     console.error('[GC] 대체 GC 전략 실패:', error);
     return {
       success: false,
-      freed_memory: 0,
       freedMemory: 0,
-      freed_mb: 0,
       freedMB: 0,
       duration: 0,
       timestamp: Date.now(),

@@ -173,16 +173,16 @@ function getStatsSummaryByPeriod(period = 'day', limit = 7) {
     // SQLite의 날짜 함수를 사용하여 기간별 그룹화
     switch(period) {
       case 'day':
-        timeFormat = "%Y-%m-%d";
+        timeFormat = '%Y-%m-%d';
         break;
       case 'week':
-        timeFormat = "%Y-%W";
+        timeFormat = '%Y-%W';
         break;
       case 'month':
-        timeFormat = "%Y-%m";
+        timeFormat = '%Y-%m';
         break;
       default:
-        timeFormat = "%Y-%m-%d";
+        timeFormat = '%Y-%m-%d';
     }
     
     const stmt = db.prepare(`

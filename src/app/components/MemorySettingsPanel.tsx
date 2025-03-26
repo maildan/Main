@@ -8,13 +8,34 @@ import {
   MemorySettings 
 } from '../settings/memory-settings';
 import { runComprehensiveBenchmark } from '../utils/performance-metrics';
-import { initializeMemoryManager, getMemoryManagerState } from '../utils/memory-management';
+// 메모리 유틸리티 가져오기
+import { setupMemoryUtils, getMemoryUsagePercentage } from '../utils/memory';
 import { getNativeModuleStatus } from '../utils/nativeModuleClient';
 import styles from './MemorySettingsPanel.module.css';
 
 interface MemorySettingsPanelProps {
   showPerformanceData?: boolean;
   onSettingsChange?: (settings: MemorySettings) => void;
+}
+
+// 메모리 매니저 상태 인터페이스 정의
+interface MemoryManagerState {
+  nativeAvailable: boolean;
+  inFallbackMode: boolean;
+  monitoringActive: boolean;
+  lastNativeCheck: number | null;
+  recentFailures: Array<{
+    timestamp: number;
+    operation: string;
+    error: string;
+  }>;
+  optimizationHistory: Array<{
+    timestamp: number;
+    level: string;
+    implementation: 'native' | 'js';
+    success: boolean;
+    freedMemory?: number;
+  }>;
 }
 
 const MemorySettingsPanel: React.FC<MemorySettingsPanelProps> = ({
@@ -27,14 +48,14 @@ const MemorySettingsPanel: React.FC<MemorySettingsPanelProps> = ({
   const [isNativeAvailable, setIsNativeAvailable] = useState(false);
   const [isBenchmarking, setIsBenchmarking] = useState(false);
   const [activeTab, setActiveTab] = useState('general');
-  const [managerState, setManagerState] = useState<any>(null);
+  const [managerState, setManagerState] = useState<MemoryManagerState | null>(null);
   
   // 설정 초기 로딩
   useEffect(() => {
     const initializeSettings = async () => {
       try {
-        // 메모리 매니저 초기화
-        await initializeMemoryManager();
+        // 메모리 유틸리티 초기화
+        setupMemoryUtils();
         
         // 네이티브 모듈 상태 확인
         const { available } = await getNativeModuleStatus();
@@ -44,8 +65,15 @@ const MemorySettingsPanel: React.FC<MemorySettingsPanelProps> = ({
         const loadedSettings = loadMemorySettings();
         setSettings(loadedSettings);
         
-        // 메모리 매니저 상태 가져오기
-        setManagerState(getMemoryManagerState());
+        // 메모리 매니저 상태 직접 설정 (함수를 직접 호출하는 대신)
+        setManagerState({
+          nativeAvailable: available,
+          inFallbackMode: !available,
+          monitoringActive: true,
+          lastNativeCheck: Date.now(),
+          recentFailures: [],
+          optimizationHistory: []
+        });
       } catch (error) {
         console.error('설정 초기화 오류:', error);
       } finally {

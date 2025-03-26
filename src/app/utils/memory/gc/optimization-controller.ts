@@ -11,7 +11,7 @@ import { requestNativeMemoryOptimization, requestNativeGarbageCollection } from 
 
 // 네이티브 모듈을 사용하여 기본 최적화 수행
 export async function performBasicOptimization(): Promise<OptimizationResult> {
-  return requestNativeMemoryOptimization(OptimizationLevel.NONE, false) as Promise<OptimizationResult>;
+  return requestNativeMemoryOptimization(0, false) as Promise<OptimizationResult>;
 }
 
 // 네이티브 모듈을 사용하여 중간 수준 최적화 수행

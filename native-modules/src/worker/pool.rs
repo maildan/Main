@@ -300,8 +300,8 @@ fn register_default_task_handlers() {
             .and_then(|v| v.as_bool())
             .unwrap_or(false);
         
-        // u8에서 u32로 변환
-        let result = crate::memory::optimize_memory(level.into(), emergency)?;
+        // u8을 String으로 변환하여 전달
+        let result = crate::memory::optimize_memory(level.to_string(), emergency)?;
         Ok(result)
     });
     

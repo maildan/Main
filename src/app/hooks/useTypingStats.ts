@@ -1,7 +1,53 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { useToast } from '../components/ToastContext';
+import { ElectronAPI } from '../types/electron';
 
 const MAX_LOGS_TO_LOAD = 100; // 최대 로그 수 제한
+
+// 타입 정의 추가
+interface LogEntry {
+  id: number;
+  content: string;
+  key_count: number;
+  typing_time: number;
+  timestamp: string;
+  created_at: string;
+  is_saved?: boolean;
+  window_title?: string;
+  browser_name?: string;
+  total_chars?: number;
+  total_chars_no_space?: number;
+  total_words?: number;
+  pages?: number;
+  accuracy?: number;
+}
+
+// 통계 업데이트 인터페이스 정의 추가
+interface TypingStatsUpdate {
+  keyCount: number;
+  typingTime: number;
+  windowTitle?: string;
+  browserName?: string;
+  totalChars?: number;
+  totalCharsNoSpace?: number;
+  totalWords?: number;
+  pages?: number;
+  accuracy?: number;
+}
+
+// 저장 데이터 인터페이스 정의 추가
+interface RecordData {
+  content: string;
+  keyCount: number;
+  typingTime: string;
+  timestamp: string;
+  windowTitle?: string;
+  browserName?: string;
+  totalChars?: number;
+  totalWords?: number;
+  pages?: number;
+  accuracy?: number;
+}
 
 export interface TypingStatsState {
   keyCount: number;
@@ -60,7 +106,7 @@ export function useTypingStats(electronAPI: ElectronAPI | null) {
   const handleStartTracking = useCallback(() => {
     try {
       if (electronAPI) {
-        electronAPI.startTracking();
+        electronAPI.startTracking?.();
         setIsTracking(true);
       } else {
         console.warn('electronAPI가 없습니다.');
@@ -76,7 +122,7 @@ export function useTypingStats(electronAPI: ElectronAPI | null) {
   const handleStopTracking = useCallback(() => {
     try {
       if (electronAPI) {
-        electronAPI.stopTracking();
+        electronAPI.stopTracking?.();
         setIsTracking(false);
       } else {
         console.warn('electronAPI가 없습니다.');
@@ -162,14 +208,14 @@ export function useTypingStats(electronAPI: ElectronAPI | null) {
   const handleSaveStats = useCallback((content: string) => {
     try {
       if (electronAPI) {
-        electronAPI.saveStats(content);
+        electronAPI.saveStats?.(content);
       }
       
       // DB에도 저장
       const recordData: RecordData = {
         content,
         keyCount: currentStatsRef.current.keyCount,
-        typingTime: currentStatsRef.current.typingTime,
+        typingTime: currentStatsRef.current.typingTime.toString(), // number를 string으로 변환
         timestamp: new Date().toISOString(),
         windowTitle: currentStatsRef.current.windowTitle,
         browserName: currentStatsRef.current.browserName,
@@ -186,65 +232,57 @@ export function useTypingStats(electronAPI: ElectronAPI | null) {
       const recordData: RecordData = {
         content,
         keyCount: currentStatsRef.current.keyCount,
-        typingTime: currentStatsRef.current.typingTime,
+        typingTime: currentStatsRef.current.typingTime.toString(), // number를 string으로 변환
         timestamp: new Date().toISOString(),
         windowTitle: currentStatsRef.current.windowTitle,
-        browserName: currentStatsRef.current.browserName || 'Unknown',
-        totalChars: currentStatsRef.current.totalChars,
-        totalWords: currentStatsRef.current.totalWords,
-        pages: currentStatsRef.current.pages,
-        accuracy: currentStatsRef.current.accuracy
+        browserName: currentStatsRef.current.browserName || 'Unknown'
       };
+      
       saveToDatabase(recordData);
     }
   }, [electronAPI, saveToDatabase]);
 
-  // 모니터링 이벤트 처리
-  useEffect(() => {
+  // 초기화 함수
+  const initializeEventListeners = useCallback(() => {
     if (!electronAPI) return;
     
+    // 이벤트 리스너 설정 및 정리 함수 모음
     const cleanupFunctions: (() => void)[] = [];
     
-    try {
-      // 실시간 타이핑 통계 업데이트 이벤트
-      const unsubscribeStats = electronAPI.onTypingStatsUpdate((data: TypingStatsUpdate) => {
-        // ref로 상태 관리하여 불필요한 렌더링 방지
+    // 타이핑 통계 업데이트 이벤트 리스너
+    if (electronAPI.onTypingStatsUpdate) {
+      const cleanup = electronAPI.onTypingStatsUpdate((data: TypingStatsUpdate) => {
+        // 통계 상태 업데이트 로직
         currentStatsRef.current = {
           ...currentStatsRef.current,
-          keyCount: data.keyCount,
-          typingTime: data.typingTime,
-          windowTitle: data.windowTitle || currentStatsRef.current.windowTitle,
-          browserName: data.browserName || currentStatsRef.current.browserName,
-          totalChars: data.totalChars || 0,
-          totalCharsNoSpace: data.totalCharsNoSpace || 0,
-          totalWords: data.totalWords || 0,
-          pages: data.pages || 0,
-          accuracy: data.accuracy || 100
+          ...data
         };
-        
-        if (!isTracking) {
-          setIsTracking(true);
-        }
       });
       
-      cleanupFunctions.push(unsubscribeStats);
-      
-      // 통계 저장 완료 이벤트
-      const unsubscribeSaved = electronAPI.onStatsSaved(() => {
-        // 저장 완료 시 로그 업데이트
+      cleanupFunctions.push(cleanup);
+    }
+    
+    // 저장된 통계 이벤트 리스너
+    if (electronAPI.onStatsSaved) {
+      const cleanup = electronAPI.onStatsSaved(() => {
+        // 저장 완료 후 로직
         fetchLogs();
       });
       
-      cleanupFunctions.push(unsubscribeSaved);
-      
-      eventsCleanupRef.current = cleanupFunctions;
-    } catch (error) {
-      console.error('Electron API 이벤트 구독 오류:', error);
+      cleanupFunctions.push(cleanup);
     }
+    
+    // 정리 함수를 ref에 저장
+    eventsCleanupRef.current = cleanupFunctions;
+  }, [electronAPI, fetchLogs]);
+
+  // 컴포넌트 마운트 시 이벤트 리스너 설정
+  useEffect(() => {
+    initializeEventListeners();
     
     // 컴포넌트 언마운트 시 이벤트 리스너 정리
     return () => {
-      cleanupFunctions.forEach(cleanup => {
+      eventsCleanupRef.current.forEach(cleanup => {
         try {
           cleanup();
         } catch (error) {
@@ -252,7 +290,7 @@ export function useTypingStats(electronAPI: ElectronAPI | null) {
         }
       });
     };
-  }, [electronAPI, isTracking, fetchLogs]);
+  }, [initializeEventListeners]);
 
   // 메모리 관리를 위한 정리 함수
   useEffect(() => {

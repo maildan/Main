@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useMemo, useState, useCallback, useEffect } from 'react';
-import { TypingStats } from './TypingStats';
+import TypingStats from './TypingStats'; // default import로 변경
 import { TypingMonitor } from './TypingMonitor';
 import { TypingHistory } from './TypingHistory';
 import { TypingChart } from './TypingChart';
@@ -37,6 +37,12 @@ interface LogEntry {
   accuracy?: number;
 }
 
+// RestartLoadingData 인터페이스 추가
+interface RestartLoadingData {
+  message?: string;
+  timeout?: number;
+}
+
 export const HomeContent = React.memo(function HomeContent() {
   // Electron API 초기화
   const { electronAPI, api } = useElectronApi();
@@ -54,13 +60,26 @@ export const HomeContent = React.memo(function HomeContent() {
   // 설정 로드 함수 내에서 기본값 설정
   const loadSettings = async () => {
     try {
-      if (electronAPI) {
+      if (electronAPI && electronAPI.loadSettings) {
         const settings = await electronAPI.loadSettings();
         
         // GPU 가속 관련 속성이 없는 경우 기본값 설정
-        const completeSettings: SettingsState = {
-          ...settings,
-          // 필수 속성이지만 값이 undefined인 경우를 방지하기 위한 기본값 설정
+        const completeSettings = {
+          enabledCategories: settings.enabledCategories || {
+            docs: true,
+            office: true,
+            coding: true,
+            sns: true
+          },
+          autoStartMonitoring: settings.autoStartMonitoring ?? true,
+          resumeAfterIdle: settings.resumeAfterIdle ?? true,
+          darkMode: settings.darkMode ?? false,
+          windowMode: settings.windowMode ?? 'windowed',
+          minimizeToTray: settings.minimizeToTray ?? true,
+          showTrayNotifications: settings.showTrayNotifications ?? true,
+          reduceMemoryInBackground: settings.reduceMemoryInBackground ?? true,
+          enableMiniView: settings.enableMiniView ?? true,
+          // 기존 값 유지
           useHardwareAcceleration: settings.useHardwareAcceleration ?? false,
           processingMode: settings.processingMode ?? 'auto',
           maxMemoryThreshold: settings.maxMemoryThreshold ?? 100
@@ -84,7 +103,7 @@ export const HomeContent = React.memo(function HomeContent() {
     toggleDebugMode 
   } = useTabNavigation({ 
     initialTab: 'monitor',
-    electronAPI: api 
+    electronAPI: api // api는 이제 TabNavigationAPI와 호환됩니다
   });
   
   // 자동 숨김 헤더 관리
@@ -122,7 +141,7 @@ export const HomeContent = React.memo(function HomeContent() {
         
         // 대용량 데이터 참조 해제를 통한 추가 최적화
         if (window.__memoryOptimizer?.optimizeImageResources) {
-          window.__memoryOptimizer.optimizeImageResources().catch(err => {
+          window.__memoryOptimizer.optimizeImageResources().catch((err: Error) => {
             console.error('이미지 리소스 최적화 중 오류:', err);
           });
         }
@@ -140,7 +159,7 @@ export const HomeContent = React.memo(function HomeContent() {
     // 주기적으로 이미지 리소스 최적화 (페이지가 오래 열려있을 때)
     const imageOptimizationInterval = setInterval(() => {
       if (window.__memoryOptimizer?.optimizeImageResources) {
-        window.__memoryOptimizer.optimizeImageResources().catch(err => {
+        window.__memoryOptimizer.optimizeImageResources().catch((err: Error) => {
           console.error('이미지 리소스 최적화 주기 작업 중 오류:', err);
         });
       }
@@ -274,5 +293,8 @@ export const HomeContent = React.memo(function HomeContent() {
     </MainLayout>
   );
 });
+
+// 전역 window 타입 확장 - 참고용 주석으로 남겨둠
+// Window.__memoryOptimizer는 이미 다른 파일(types-declarations.d.ts)에 정의되어 있음
 
 export default HomeContent;

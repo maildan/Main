@@ -299,7 +299,6 @@ module.exports = {
  */
 
 const path = require('path');
-const { isNativeModuleAvailable, optimizeMemory, getMemoryInfo, forceGarbageCollection } = require('../server/native');
 
 // 네이티브 모듈 관련 상태
 const nativeModuleState = {

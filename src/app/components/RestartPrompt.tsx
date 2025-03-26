@@ -1,10 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import styles from './RestartPrompt.module.css';
-
-// 수정: 타입 정의 가져오는 위치 변경
-import type { RestartAPI } from '../types/electron';
 
 /**
  * 앱 재시작 안내 컴포넌트

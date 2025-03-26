@@ -1,12 +1,31 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
+import { ElectronAPI } from '../types/electron';
 
 // 더미 일렉트론 API 생성 함수
 const createDummyElectronAPI = (): ElectronAPI => ({
-  onTypingStatsUpdate: () => () => {},
-  onStatsSaved: () => () => {},
+  windowControl: (action) => console.log(`개발용 windowControl 호출: ${action}`),
+  onTypingStatsUpdate: (_callback) => {
+    console.log('개발용 onTypingStatsUpdate 리스너 등록');
+    return () => console.log('개발용 onTypingStatsUpdate 리스너 제거');
+  },
+  onStatsSaved: (_callback) => {
+    console.log('개발용 onStatsSaved 리스너 등록');
+    return () => console.log('개발용 onStatsSaved 리스너 제거');
+  },
   startTracking: () => console.log('개발용 startTracking 호출'),
   stopTracking: () => console.log('개발용 stopTracking 호출'),
-  saveStats: () => console.log('개발용 saveStats 호출'),
+  saveStats: (data?) => {
+    console.log('개발용 saveStats 호출:', data);
+    return Promise.resolve(true);
+  },
+  loadSettings: () => {
+    console.log('개발용 loadSettings 호출');
+    return { darkMode: false, windowMode: 'normal' };
+  },
+  saveSettings: (settings) => {
+    console.log('개발용 saveSettings 호출:', settings);
+    return true;
+  },
   getCurrentBrowserInfo: () => Promise.resolve({ name: null, isGoogleDocs: false, title: null }),
   getDebugInfo: () => Promise.resolve({
     isTracking: false,
@@ -27,27 +46,9 @@ const createDummyElectronAPI = (): ElectronAPI => ({
     electronVersion: 'N/A',
     nodeVersion: 'N/A'
   }),
-  saveSettings: (settings: SettingsState) => Promise.resolve({ success: true, settings }),
-  loadSettings: () => Promise.resolve({
-    enabledCategories: { docs: true, office: true, coding: true, sns: true },
-    autoStartMonitoring: true,
-    darkMode: false,
-    windowMode: 'windowed',
-    minimizeToTray: true,
-    showTrayNotifications: true,
-    reduceMemoryInBackground: true,
-    enableMiniView: true,
-    // 누락된 필수 속성 추가
-    useHardwareAcceleration: false,
-    processingMode: 'auto',
-    maxMemoryThreshold: 100,
-    // resumeAfterIdle 속성 추가
-    resumeAfterIdle: true
-  }),
   setDarkMode: () => Promise.resolve({ success: true }),
   setWindowMode: () => Promise.resolve({ success: true }),
   getWindowMode: () => Promise.resolve('windowed' as WindowModeType),
-  windowControl: () => {},
   checkAutoStart: () => {},
   onAutoTrackingStarted: () => () => {},
   onSwitchTab: () => () => {},
@@ -61,31 +62,33 @@ const createDummyElectronAPI = (): ElectronAPI => ({
   onBackgroundModeChange: () => () => {},
   onTrayCommand: () => () => {},
   restartApp: () => console.log('개발용 restartApp 호출'),
-  // showRestartPrompt 메서드 추가
   showRestartPrompt: () => console.log('개발용 showRestartPrompt 호출'),
-  // closeWindow 메서드 추가
   closeWindow: () => console.log('개발용 closeWindow 호출'),
-  // getDarkMode 메서드 추가
   getDarkMode: () => Promise.resolve(false)
 });
 
 export function useElectronApi() {
-  const [electronAPI, setElectronAPI] = useState<ElectronAPI | null>(null);
+  const [api, setApi] = useState<ElectronAPI | null>(null);
 
-  // 더미 API - 개발 환경이나 일렉트론 API가 없을 때 사용
-  const dummyApi = useMemo(() => createDummyElectronAPI(), []);
-
-  // 실제 또는 더미 API - 항상 사용 가능한 API 제공
-  const api = useMemo(() => electronAPI || dummyApi, [electronAPI, dummyApi]);
-
-  // window 객체에서 electronAPI 가져오기 (클라이언트 사이드에서만 실행)
   useEffect(() => {
+    // 브라우저 환경 확인
     if (typeof window !== 'undefined') {
-      if (window.electronAPI) {
-        setElectronAPI(window.electronAPI);
+      // window 객체에 electronAPI가 있는지 확인
+      const electronAPI = (window as any).electronAPI as ElectronAPI | undefined;
+      
+      if (electronAPI) {
+        // Electron 환경에서 실행 중
+        setApi(electronAPI);
+      } else {
+        // 브라우저 환경에서 실행 중이므로 더미 API 생성
+        setApi(createDummyElectronAPI());
       }
     }
   }, []);
 
-  return { electronAPI, api };
+  return { 
+    electronAPI: api,
+    api, // 호환성을 위해 alias로도 제공
+    isElectron: typeof (window as any).electronAPI !== 'undefined'
+  };
 }

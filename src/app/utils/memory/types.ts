@@ -13,14 +13,7 @@ export interface MemoryUsageInfo {
   timestamp: number;      // 타임스탬프
 }
 
-// 메모리 최적화 유틸리티 인터페이스 정의 - 기존 정의와 별도
-export interface MemoryOptimizer {
-  optimize(): Promise<boolean>;
-  getMemoryInfo(): any;
-  cleanup(): void;
-}
-
-// GC 결과 인터페이스
+// GC 결과 인터페이스 추가
 export interface GCResult {
   success: boolean;       // 성공 여부
   timestamp: number;      // 실행 시간
@@ -28,6 +21,13 @@ export interface GCResult {
   freedMB?: number;       // 해제된 메모리 (MB)
   duration?: number;      // 실행 시간 (ms)
   error?: string;         // 오류 메시지
+}
+
+// 메모리 최적화 유틸리티 인터페이스 정의 - 기존 정의와 별도
+export interface MemoryOptimizer {
+  optimize(): Promise<boolean>;
+  getMemoryInfo(): any;
+  cleanup(): void;
 }
 
 // 확장 GC 결과 인터페이스
@@ -89,12 +89,12 @@ export interface DynamicModule {
  * 메모리 최적화 옵션 인터페이스
  */
 export interface MemoryOptimizerOptions {
-  threshold?: number;       // 최적화 트리거 임계값 (MB)
-  checkInterval?: number;   // 체크 간격 (ms)
-  showWarnings?: boolean;   // 경고 표시 여부
-  autoOptimize?: boolean;   // 자동 최적화 여부
-  debug?: boolean;          // 디버그 모드
-  preferNative?: boolean;   // 네이티브 모듈 우선 사용 여부
+  threshold?: number;
+  checkInterval?: number;
+  showWarnings?: boolean;
+  autoOptimize?: boolean;
+  debug?: boolean;
+  preferNative?: boolean;
 }
 
 /**
@@ -102,7 +102,7 @@ export interface MemoryOptimizerOptions {
  */
 export interface OperationResult<T = any> {
   success: boolean;
-  data?: T;
+  result?: T;
   error?: string;
   timestamp: number;
 }

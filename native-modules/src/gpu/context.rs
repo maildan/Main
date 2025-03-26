@@ -9,12 +9,13 @@ use once_cell::sync::Lazy;
 use std::time::{SystemTime, UNIX_EPOCH};
 use crate::gpu::types::{GpuDeviceInfo, GpuCapabilities as TypesGpuCapabilities};
 use crate::gpu::Result;
-use serde::{Serialize, Deserialize};
+use wgpu;
 
 // GPU 초기화 상태 추적
 static GPU_INITIALIZED: AtomicBool = AtomicBool::new(false);
 static INITIALIZATION_COMPLETE: Once = Once::new();
 static GPU_AVAILABLE: AtomicBool = AtomicBool::new(false);
+static GPU_ACCELERATION_ENABLED: AtomicBool = AtomicBool::new(false);
 
 // GPU 백엔드 타입 (벤더 및 기능에 따라 나뉨)
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -380,6 +381,33 @@ pub fn is_gpu_initialized() -> bool {
     GPU_INITIALIZED.load(Ordering::SeqCst)
 }
 
+/// GPU 가속화 활성화 여부 확인
+pub fn is_acceleration_enabled() -> bool {
+    GPU_ACCELERATION_ENABLED.load(Ordering::SeqCst)
+}
+
+/// GPU 가속화 활성화
+pub fn enable_gpu_acceleration() -> Result<bool> {
+    if !is_gpu_initialized() {
+        // 초기화되지 않은 경우 먼저 초기화
+        initialize_gpu_context()?;
+    }
+    
+    // 가속화 활성화
+    GPU_ACCELERATION_ENABLED.store(true, Ordering::SeqCst);
+    info!("GPU 가속화 활성화됨");
+    
+    Ok(true)
+}
+
+/// GPU 가속화 비활성화
+pub fn disable_gpu_acceleration() -> Result<bool> {
+    GPU_ACCELERATION_ENABLED.store(false, Ordering::SeqCst);
+    info!("GPU 가속화 비활성화됨");
+    
+    Ok(true)
+}
+
 /// GPU 정보 가져오기
 pub fn get_gpu_info() -> Result<String> {
     // 초기화 확인
@@ -397,6 +425,29 @@ pub fn get_gpu_info() -> Result<String> {
     } else {
         Err(Error::from_reason("GPU 컨텍스트를 읽을 수 없음"))
     }
+}
+
+// DeviceType 및 Backend 열거형 정의 - wgpu와 호환됨
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum DeviceType {
+    IntegratedGpu,
+    DiscreteGpu,
+    SoftwareRendering,
+    Cpu,
+    Other,
+    Unknown,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Backend {
+    Empty,
+    Vulkan,
+    Metal,
+    Dx12,
+    Dx11,
+    Gl,
+    BrowserWebGpu,
+    Software,
 }
 
 /// GPU 장치 정보 가져오기
@@ -420,13 +471,13 @@ pub fn get_device_info() -> Result<GpuDeviceInfo> {
             let backend = match ctx.backend_type {
                 GpuBackendType::Vulkan => Backend::Vulkan,
                 GpuBackendType::Metal => Backend::Metal, 
-                GpuBackendType::DirectX => Backend::Dx12,  // 오타 수정됨
+                GpuBackendType::DirectX => Backend::Dx12,
                 GpuBackendType::OpenGL => Backend::Gl,
                 GpuBackendType::WebGPU => Backend::BrowserWebGpu,
                 _ => Backend::Empty,
             };
             
-            // Convert local types to wgpu types
+            // wgpu 타입으로 변환
             let wgpu_device_type = match device_type {
                 DeviceType::IntegratedGpu => wgpu::DeviceType::IntegratedGpu,
                 DeviceType::DiscreteGpu => wgpu::DeviceType::DiscreteGpu,
@@ -461,29 +512,6 @@ pub fn get_device_info() -> Result<GpuDeviceInfo> {
     } else {
         Err(Error::from_reason("GPU 컨텍스트를 읽을 수 없음"))
     }
-}
-
-// 임시 DeviceType 및 Backend 열거형 정의 (wgpu 의존성 제거)
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum DeviceType {
-    IntegratedGpu,
-    DiscreteGpu,
-    SoftwareRendering,
-    Cpu,
-    Other,
-    Unknown,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum Backend {
-    Empty,
-    Vulkan,
-    Metal,
-    Dx12,
-    Dx11,
-    Gl,
-    BrowserWebGpu,
-    Software,
 }
 
 impl From<wgpu::DeviceType> for DeviceType {
@@ -569,6 +597,7 @@ pub fn cleanup_gpu_context() -> Result<()> {
             *ctx_guard = None;
             GPU_INITIALIZED.store(false, Ordering::SeqCst);
             GPU_AVAILABLE.store(false, Ordering::SeqCst);
+            GPU_ACCELERATION_ENABLED.store(false, Ordering::SeqCst);
             
             debug!("GPU 컨텍스트 정리 완료");
         }
@@ -577,48 +606,11 @@ pub fn cleanup_gpu_context() -> Result<()> {
     Ok(())
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct GpuCapabilities {
-    pub compute_supported: bool,
-    pub shading_supported: bool,
-    pub max_compute_size: usize,
-    pub max_memory_size: usize,
-    pub device_name: String,
-    pub device_type: String,
-    pub backend_type: String,
-}
-
-impl Default for GpuCapabilities {
-    fn default() -> Self {
-        Self {
-            compute_supported: false,
-            shading_supported: false,
-            max_compute_size: 0,
-            max_memory_size: 0,
-            device_name: String::from("Unknown"),
-            device_type: String::from("Unknown"),
-            backend_type: String::from("None"),
-        }
-    }
-}
-
-// Create compute context
-pub fn create_compute_context() -> Result<()> {
-    // Initialize compute context based on detected capabilities
-    log::info!("Creating GPU compute context");
-    Ok(())
-}
-
-// Create rendering context
-pub fn create_rendering_context() -> Result<()> {
-    // Initialize rendering context
-    log::info!("Creating GPU rendering context");
-    Ok(())
-}
-
-// Destroy contexts
-pub fn destroy_contexts() -> Result<()> {
-    // Clean up contexts
-    log::info!("Destroying GPU contexts");
-    Ok(())
+// 타임스탬프 가져오기 유틸리티 함수
+#[allow(dead_code)]
+fn get_timestamp() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as u64
 }

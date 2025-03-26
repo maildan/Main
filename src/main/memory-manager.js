@@ -1,8 +1,8 @@
-const { app } = require('electron');
-const { appState, MEMORY_CHECK_INTERVAL, HIGH_MEMORY_THRESHOLD } = require('./constants');
-const { debugLog } = require('./utils');
-const path = require('path');
-const fs = require('fs');
+import { app } from 'electron';
+import { appState, MEMORY_CHECK_INTERVAL, HIGH_MEMORY_THRESHOLD } from './constants.js';
+import { debugLog } from './utils.js';
+import path from 'path';
+import fs from 'fs';
 
 // 메모리 관리 상태
 let lastMemoryCheck = 0;
@@ -10,61 +10,82 @@ let memoryCheckInterval = null;
 let optimizeOnIdle = true;
 let lastOptimizationTime = 0;
 
-// 네이티브 모듈 로딩 - 에러 처리 개선
+// 네이티브 모듈 로딩 상태
+let nativeModulePromise = null;
 let nativeModule = null;
-try {
-  // 다양한 경로 시도
-  const possiblePaths = [
-    path.join(app.getAppPath(), 'native-modules', 'target', 'release', 'typing_stats_native.node'),
-    path.join(app.getAppPath(), 'native-modules', 'target', 'debug', 'typing_stats_native.node'),
-    path.join(app.getAppPath(), '..', 'native-modules', 'target', 'release', 'typing_stats_native.node'),
-    path.join(app.getAppPath(), '..', 'native-modules', 'target', 'debug', 'typing_stats_native.node'),
-    // __dirname으로부터의 상대 경로
-    path.join(__dirname, '..', '..', 'native-modules', 'target', 'release', 'typing_stats_native.node'),
-    path.join(__dirname, '..', '..', 'native-modules', 'target', 'debug', 'typing_stats_native.node')
-  ];
-  
-  // 존재하는 모듈 파일 찾기
-  let foundModule = false;
-  for (const modulePath of possiblePaths) {
-    if (fs.existsSync(modulePath)) {
-      debugLog(`네이티브 모듈 발견: ${modulePath}`);
-      try {
-        nativeModule = require(modulePath);
-        foundModule = true;
-        debugLog('네이티브 모듈 로드 성공');
-        break;
-      } catch (moduleLoadError) {
-        debugLog(`발견된 모듈 로드 실패: ${moduleLoadError.message}`);
+
+// 네이티브 모듈 로드 함수
+async function loadNativeModule() {
+  if (nativeModulePromise) return nativeModulePromise;
+
+  nativeModulePromise = (async () => {
+    // 다양한 경로 시도
+    const possiblePaths = [
+      path.join(app.getAppPath(), 'native-modules', 'target', 'release', 'typing_stats_native.node'),
+      path.join(app.getAppPath(), 'native-modules', 'target', 'debug', 'typing_stats_native.node'),
+      path.join(app.getAppPath(), '..', 'native-modules', 'target', 'release', 'typing_stats_native.node'),
+      path.join(app.getAppPath(), '..', 'native-modules', 'target', 'debug', 'typing_stats_native.node'),
+      // __dirname으로부터의 상대 경로
+      path.join(__dirname, '..', '..', 'native-modules', 'target', 'release', 'typing_stats_native.node'),
+      path.join(__dirname, '..', '..', 'native-modules', 'target', 'debug', 'typing_stats_native.node'),
+      // 추가 경로
+      path.join(process.cwd(), 'native-modules', 'target', 'release', 'typing_stats_native.node'),
+      path.join(process.cwd(), 'native-modules', 'target', 'debug', 'typing_stats_native.node')
+    ];
+    
+    // 존재하는 모듈 파일 찾기
+    for (const modulePath of possiblePaths) {
+      if (fs.existsSync(modulePath)) {
+        debugLog(`네이티브 모듈 발견: ${modulePath}`);
+        try {
+          // ESM에서는 .node 파일을 직접 import할 수 없음
+          // Electron/Node.js 환경에서는 createRequire를 사용하여 CommonJS 모듈 로드
+          const { createRequire } = await import('module');
+          const require = createRequire(import.meta.url);
+          nativeModule = require(modulePath);
+          debugLog('네이티브 모듈 로드 성공');
+          return nativeModule;
+        } catch (moduleLoadError) {
+          debugLog(`발견된 모듈 로드 실패: ${moduleLoadError.message}`);
+        }
       }
     }
-  }
-  
-  if (!foundModule) {
-    debugLog('네이티브 모듈을 찾을 수 없음, 폴백 모듈 사용');
+    
     // 폴백 모듈 로드 시도
-    try {
-      const fallbackPath = path.join(__dirname, '..', 'server', 'native', 'fallback', 'index.js');
+    const possibleFallbackPaths = [
+      path.join(app.getAppPath(), 'src', 'server', 'native', 'fallback', 'index.js'),
+      path.join(__dirname, '..', 'server', 'native', 'fallback', 'index.js'),
+      path.join(__dirname, '..', 'server', 'native', 'fallback.js'),
+      path.join(process.cwd(), 'src', 'server', 'native', 'fallback', 'index.js'),
+      path.join(process.cwd(), 'src', 'server', 'native', 'fallback.js')
+    ];
+    
+    for (const fallbackPath of possibleFallbackPaths) {
       if (fs.existsSync(fallbackPath)) {
-        nativeModule = require(fallbackPath);
-        debugLog('폴백 모듈 로드 성공');
-      } else {
-        debugLog(`폴백 모듈을 찾을 수 없음: ${fallbackPath}`);
+        try {
+          const fallbackModule = await import(fallbackPath);
+          nativeModule = fallbackModule.default || fallbackModule;
+          debugLog(`폴백 모듈 로드 성공: ${fallbackPath}`);
+          return nativeModule;
+        } catch (fallbackError) {
+          debugLog(`폴백 모듈 로드 실패: ${fallbackError.message}`);
+        }
       }
-    } catch (fallbackError) {
-      debugLog(`폴백 모듈 로드 실패: ${fallbackError.message}`);
     }
-  }
-} catch (error) {
-  debugLog(`네이티브 모듈 로드 중 오류: ${error.message}`);
-  nativeModule = null;
+    
+    debugLog('네이티브 또는 폴백 모듈을 찾을 수 없음');
+    return null;
+  })();
+
+  return nativeModulePromise;
 }
 
 /**
  * 네이티브 모듈 사용 가능 여부 확인
- * @returns {boolean} 네이티브 모듈 사용 가능 여부
+ * @returns {Promise<boolean>} 네이티브 모듈 사용 가능 여부
  */
-function isNativeModuleAvailable() {
+async function isNativeModuleAvailable() {
+  await loadNativeModule();
   return nativeModule !== null;
 }
 
@@ -263,14 +284,33 @@ async function forceMemoryOptimization(level = 2, emergency = false) {
     let result;
     
     // 네이티브 모듈 사용 가능한 경우
-    if (isNativeModuleAvailable() && typeof nativeModule.optimize_memory === 'function') {
+    if (await isNativeModuleAvailable() && nativeModule) {
       // 네이티브 최적화 수준 매핑
       const nativeLevel = ['normal', 'low', 'medium', 'high', 'critical'][level] || 'medium';
       
       try {
-        const jsonResult = nativeModule.optimize_memory(nativeLevel, emergency);
-        result = typeof jsonResult === 'string' ? JSON.parse(jsonResult) : jsonResult;
-        debugLog(`네이티브 메모리 최적화 완료: ${result.freed_mb || 0}MB 정리됨`);
+        // 함수 이름 확인 (다양한 가능성 대비)
+        const optimizeFuncNames = [
+          'optimize_memory',
+          'optimize_memory_async',
+          'performMemoryOptimization'
+        ];
+        
+        let optimizeFunc = null;
+        for (const funcName of optimizeFuncNames) {
+          if (typeof nativeModule[funcName] === 'function') {
+            optimizeFunc = nativeModule[funcName];
+            break;
+          }
+        }
+        
+        if (optimizeFunc) {
+          const jsonResult = optimizeFunc(nativeLevel, emergency);
+          result = typeof jsonResult === 'string' ? JSON.parse(jsonResult) : jsonResult;
+          debugLog(`네이티브 메모리 최적화 완료: ${result.freed_mb || 0}MB 정리됨`);
+        } else {
+          throw new Error('메모리 최적화 함수를 찾을 수 없음');
+        }
       } catch (nativeError) {
         debugLog(`네이티브 메모리 최적화 실패, JS 구현으로 폴백: ${nativeError.message}`);
         result = await optimizeMemoryWithJS(level, emergency);
@@ -352,7 +392,7 @@ async function performGarbageCollection(emergency = false) {
     
     let result;
     
-    if (isNativeModuleAvailable()) {
+    if (await isNativeModuleAvailable()) {
       // 네이티브 GC 수행
       try {
         const jsonResult = nativeModule.force_garbage_collection();
@@ -393,8 +433,13 @@ function performJsGarbageCollection(emergency) {
     debugLog('JavaScript GC 강제 수행 완료');
   } else {
     // GC 유도를 위한 대용량 객체 생성 및 해제
-    let arr = new Array(1000000).fill(0);
-    arr = null;
+    // 사용되지 않는 변수는 선언 자체 제외
+    const tmpArrays = [];
+    for (let i = 0; i < 10; i++) {
+      tmpArrays.push(new Array(100000).fill(0));
+    }
+    // 배열 비우기
+    tmpArrays.length = 0;
     debugLog('JavaScript GC 유도 완료');
   }
   
@@ -428,7 +473,7 @@ async function getCurrentMemoryUsage() {
     
     // 네이티브 모듈에서 추가 정보 가져오기
     let additionalInfo = {};
-    if (isNativeModuleAvailable() && typeof nativeModule.get_memory_info === 'function') {
+    if (await isNativeModuleAvailable() && typeof nativeModule.get_memory_info === 'function') {
       try {
         const jsonResult = nativeModule.get_memory_info();
         const nativeInfo = typeof jsonResult === 'string' ? JSON.parse(jsonResult) : jsonResult;
@@ -473,8 +518,8 @@ function getMemoryManagerStats() {
   };
 }
 
-// 모듈 내보내기
-module.exports = {
+// 모듈 내보내기 - ESM 스타일
+export {
   initializeMemoryManager,
   startMemoryMonitoring,
   stopMemoryMonitoring,

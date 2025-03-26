@@ -1,5 +1,11 @@
 import { useEffect, useRef, useCallback } from 'react';
-import { MemoryInfo } from '../utils/memory/types';
+
+// Define MemoryInfo interface locally
+interface MemoryInfo {
+  usedJSHeapSize: number;
+  totalJSHeapSize: number;
+  jsHeapSizeLimit: number;
+}
 
 export interface MemoryManagementOptions {
   debugMode?: boolean;

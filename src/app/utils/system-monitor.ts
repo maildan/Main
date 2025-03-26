@@ -1,256 +1,250 @@
 /**
- * 시스템 자원 모니터링 유틸리티
+ * 시스템 모니터링 유틸리티
  * 
- * 메모리, CPU, 디스크 등 시스템 자원 사용량을 모니터링하는 함수들을 제공합니다.
+ * 메모리, CPU, GPU 등 시스템 리소스 상태를 모니터링합니다.
  */
 
-// Import memory related functions - default 대신 named import 사용
-import { getMemoryUsage } from './memory/memory-info';
-import { requestNativeMemoryOptimization } from './native-memory-bridge';
-import { OptimizationLevel } from '@/types';
+import { getMemoryInfo } from './nativeModuleClient';
+import { getGpuInformation } from './gpu-acceleration';
+import { SystemStatus, MemoryUsageLevel, ProcessingMode } from '@/types';
+import { getMemoryUsageLevel } from './enum-converters';
 
-// 모니터링 상태 인터페이스
-export interface SystemStatus {
-  memory: MemoryStatus;
-  cpu?: CPUStatus;
-  timestamp: number;
-}
+// 모니터링 상태
+let isMonitoring = false;
+let monitorInterval: NodeJS.Timeout | null = null;
+const CHECK_INTERVAL = 5000; // 5초
 
-// 메모리 상태 인터페이스
-export interface MemoryStatus {
-  heapUsedMB: number;
-  heapTotalMB: number;
-  rssMB?: number;
-  percentUsed: number;
-  status: 'normal' | 'warning' | 'critical';
-}
+// 시스템 상태 캐시
+let cachedStatus: SystemStatus | null = null;
+let statusUpdateTime = 0;
+const STATUS_TTL = 3000; // 3초
 
-// CPU 상태 인터페이스
-export interface CPUStatus {
-  usage: number;
-  cores?: number;
-  status: 'normal' | 'warning' | 'critical';
-}
-
-// 임계값 설정
-const THRESHOLDS = {
-  MEMORY: {
-    WARNING: 70, // 70% 이상일 때 경고
-    CRITICAL: 85 // 85% 이상일 때 위험
-  },
-  CPU: {
-    WARNING: 80, // 80% 이상일 때 경고
-    CRITICAL: 95 // 95% 이상일 때 위험
-  }
-};
-
-// 모니터링 스케줄 관리
-let monitoringInterval: NodeJS.Timeout | null = null;
-
-// 자동 최적화 스케줄 관리
-let autoOptimizeInterval: NodeJS.Timeout | null = null;
-
-// 콜백 저장소
-const callbacks: Array<(status: SystemStatus) => void> = [];
-
-/**
- * 현재 시스템 상태 가져오기
- */
-export async function getSystemStatus(): Promise<SystemStatus> {
-  try {
-    // 메모리 정보 가져오기 - getMemoryInfo에서 getMemoryUsage로 변경
-    const memoryInfo = await getMemoryUsage();
-    
-    let memoryStatus: MemoryStatus = {
-      heapUsedMB: 0,
-      heapTotalMB: 0,
-      percentUsed: 0,
-      status: 'normal'
-    };
-    
-    if (memoryInfo) {
-      // 필드 이름 호환성 처리
-      const heapUsedMB = memoryInfo.heap_used_mb || memoryInfo.heapUsedMB || 0;
-      const heapTotalMB = (memoryInfo.heap_total || 0) / (1024 * 1024);
-      const percentUsed = memoryInfo.percent_used || memoryInfo.percentUsed || 0;
-      const rssMB = memoryInfo.rss_mb || memoryInfo.rssMB;
-      
-      // 메모리 상태 평가
-      let status: 'normal' | 'warning' | 'critical' = 'normal';
-      if (percentUsed >= THRESHOLDS.MEMORY.CRITICAL) {
-        status = 'critical';
-      } else if (percentUsed >= THRESHOLDS.MEMORY.WARNING) {
-        status = 'warning';
-      }
-      
-      memoryStatus = {
-        heapUsedMB,
-        heapTotalMB,
-        percentUsed,
-        rssMB,
-        status
-      };
-    }
-    
-    // CPU 정보는 브라우저에서 직접 가져올 수 없음
-    // 실제로는 Electron 앱이나 서버에서만 가능
-    
-    return {
-      memory: memoryStatus,
-      timestamp: Date.now()
-    };
-  } catch (error) {
-    console.error('시스템 상태 확인 중 오류:', error);
-    
-    // 오류 발생 시 기본값 반환
-    return {
-      memory: {
-        heapUsedMB: 0,
-        heapTotalMB: 0,
-        percentUsed: 0,
-        status: 'normal'
-      },
-      timestamp: Date.now()
-    };
-  }
-}
-
-/**
- * 자동 최적화 시작
- * @param interval 체크 간격 (밀리초)
- */
-export function startAutoOptimization(interval: number = 60000): void {
-  stopAutoOptimization(); // 기존 인터벌 중지
-  
-  // 자동 최적화 인터벌 시작
-  autoOptimizeInterval = setInterval(async () => {
-    try {
-      const status = await getSystemStatus();
-      
-      // 메모리 상태에 따라 최적화 레벨 결정
-      let optimizationLevel: OptimizationLevel;
-      let shouldOptimize = false;
-      
-      switch (status.memory.status) {
-        case 'critical':
-          optimizationLevel = OptimizationLevel.HIGH;
-          shouldOptimize = true;
-          break;
-        case 'warning':
-          optimizationLevel = OptimizationLevel.MEDIUM;
-          shouldOptimize = true;
-          break;
-        default:
-          // 정상 상태에서는 최적화 수행하지 않음
-          optimizationLevel = OptimizationLevel.NONE;
-          shouldOptimize = false;
-      }
-      
-      // 필요한 경우 최적화 수행
-      if (shouldOptimize) {
-        console.log(`자동 메모리 최적화 시작 (레벨: ${optimizationLevel})`);
-        
-        // 위험 상태인 경우 긴급 모드로 최적화
-        const emergency = status.memory.status === 'critical';
-        
-        // 네이티브 모듈을 통한 최적화 수행
-        await requestNativeMemoryOptimization(optimizationLevel, emergency);
-        
-        console.log('자동 메모리 최적화 완료');
-      }
-    } catch (error) {
-      console.error('자동 최적화 중 오류:', error);
-    }
-  }, interval);
-  
-  console.log(`자동 최적화가 ${interval / 1000}초 간격으로 시작되었습니다`);
-}
-
-/**
- * 자동 최적화 중지
- */
-export function stopAutoOptimization(): void {
-  if (autoOptimizeInterval) {
-    clearInterval(autoOptimizeInterval);
-    autoOptimizeInterval = null;
-    console.log('자동 최적화가 중지되었습니다');
-  }
-}
+// 모니터링 이벤트 리스너
+const listeners: Array<(status: SystemStatus) => void> = [];
 
 /**
  * 시스템 모니터링 시작
- * @param interval 체크 간격 (밀리초)
+ * @param interval 체크 간격 (ms)
  */
-export function startMonitoring(interval: number = 5000): void {
-  stopMonitoring(); // 기존 인터벌 중지
+export function startSystemMonitoring(interval: number = CHECK_INTERVAL) {
+  if (isMonitoring) return;
   
-  // 모니터링 인터벌 시작
-  monitoringInterval = setInterval(async () => {
-    try {
-      const status = await getSystemStatus();
-      
-      // 모든 콜백 호출
-      callbacks.forEach(callback => callback(status));
-      
-      // 위험 상태 로깅
-      if (status.memory.status === 'critical') {
-        console.warn('메모리 사용량이 위험 수준에 도달했습니다:', status.memory.percentUsed.toFixed(1) + '%');
-      }
-    } catch (error) {
-      console.error('모니터링 중 오류:', error);
-    }
-  }, interval);
+  isMonitoring = true;
   
-  console.log(`시스템 모니터링이 ${interval / 1000}초 간격으로 시작되었습니다`);
+  // 즉시 첫 번째 체크 수행
+  checkSystemStatus();
+  
+  // 주기적 체크 설정
+  monitorInterval = setInterval(checkSystemStatus, interval);
+  
+  console.log(`시스템 모니터링 시작 (간격: ${interval}ms)`);
 }
 
 /**
  * 시스템 모니터링 중지
  */
-export function stopMonitoring(): void {
-  if (monitoringInterval) {
-    clearInterval(monitoringInterval);
-    monitoringInterval = null;
-    console.log('시스템 모니터링이 중지되었습니다');
+export function stopSystemMonitoring() {
+  if (!isMonitoring) return;
+  
+  isMonitoring = false;
+  
+  if (monitorInterval) {
+    clearInterval(monitorInterval);
+    monitorInterval = null;
+  }
+  
+  console.log('시스템 모니터링 중지');
+}
+
+/**
+ * 시스템 상태 확인 및 업데이트
+ */
+async function checkSystemStatus() {
+  try {
+    const memoryResponse = await getMemoryInfo();
+    const gpuInfo = await getGpuInformation();
+    
+    if (!memoryResponse.success) {
+      console.error('메모리 정보를 가져오는 데 실패했습니다:', memoryResponse.error);
+      return;
+    }
+    
+    const memoryInfo = memoryResponse.memoryInfo;
+    const percentUsed = memoryInfo.percentUsed;
+    const memoryLevel = getMemoryUsageLevel(percentUsed);
+    
+    // 처리 모드 결정
+    let processingMode: ProcessingMode = 'normal';
+    
+    if (memoryLevel === MemoryUsageLevel.CRITICAL) {
+      processingMode = 'memory-saving';
+    } else if (memoryLevel === MemoryUsageLevel.HIGH) {
+      processingMode = 'cpu-intensive';
+    } else if (gpuInfo?.available && gpuInfo?.accelerationEnabled) {
+      processingMode = 'gpu-intensive';
+    }
+    
+    // 시스템 상태 업데이트
+    const status: SystemStatus = {
+      memory: {
+        percentUsed,
+        level: memoryLevel,
+        heapUsedMB: memoryInfo.heapUsedMB,
+        rssMB: memoryInfo.rssMB
+      },
+      processing: {
+        mode: processingMode,
+        gpuEnabled: Boolean(gpuInfo?.accelerationEnabled)
+      },
+      optimizations: {
+        count: 0, // 이 정보는 현재 API에서 제공하지 않음
+        lastTimestamp: 0,
+        freedMemoryMB: 0
+      },
+      timestamp: Date.now()
+    };
+    
+    // 캐시 업데이트
+    cachedStatus = status;
+    statusUpdateTime = Date.now();
+    
+    // 리스너에게 알림
+    notifyListeners(status);
+    
+    // 전역 객체에 상태 저장 (브라우저 환경인 경우)
+    if (typeof window !== 'undefined') {
+      // 타입 안전하게 접근
+      if (!window.__memoryManager) {
+        window.__memoryManager = { settings: {} };
+      }
+      if (window.__memoryManager) {
+        window.__memoryManager.memoryInfo = memoryInfo;
+      }
+    }
+  } catch (error) {
+    console.error('시스템 상태 확인 오류:', error);
   }
 }
 
 /**
- * 모니터링 이벤트 구독
- * @param callback 이벤트 핸들러 함수
+ * 모든 리스너에게 상태 업데이트 알림
+ */
+function notifyListeners(status: SystemStatus) {
+  listeners.forEach(listener => {
+    try {
+      listener(status);
+    } catch (error) {
+      console.error('시스템 상태 리스너 오류:', error);
+    }
+  });
+}
+
+/**
+ * 시스템 상태 업데이트 리스너 등록
+ * @param listener 상태 업데이트 리스너 함수
  * @returns 구독 해제 함수
  */
-export function subscribeToMonitoring(callback: (status: SystemStatus) => void): () => void {
-  callbacks.push(callback);
+export function subscribeToSystemStatus(listener: (status: SystemStatus) => void): () => void {
+  listeners.push(listener);
   
-  // 현재 상태 즉시 전달
-  getSystemStatus().then(status => callback(status));
+  // 이미 캐시된 상태가 있다면 즉시 전달
+  if (cachedStatus) {
+    listener(cachedStatus);
+  }
   
-  // 구독 해제 함수 반환
+  // 리스너 제거 함수 반환
   return () => {
-    const index = callbacks.indexOf(callback);
+    const index = listeners.indexOf(listener);
     if (index !== -1) {
-      callbacks.splice(index, 1);
+      listeners.splice(index, 1);
     }
   };
 }
 
-// 자동으로 모니터링과 최적화 시작 (브라우저 환경에서만)
-if (typeof window !== 'undefined') {
-  // 페이지 로딩이 완료된 후 시작
-  if (document.readyState === 'complete') {
-    startMonitoring();
-    startAutoOptimization();
-  } else {
-    window.addEventListener('load', () => {
-      startMonitoring();
-      startAutoOptimization();
-    });
+/**
+ * 현재 시스템 상태 가져오기
+ * @param forceRefresh 강제 갱신 여부
+ */
+export async function getSystemStatus(forceRefresh = false): Promise<SystemStatus> {
+  const now = Date.now();
+  
+  // 캐시가 유효하고 강제 갱신이 아닌 경우 캐시된 상태 반환
+  if (cachedStatus && now - statusUpdateTime < STATUS_TTL && !forceRefresh) {
+    return cachedStatus;
   }
   
-  // 페이지 언로드 시 모니터링 중지
-  window.addEventListener('beforeunload', () => {
-    stopMonitoring();
-    stopAutoOptimization();
-  });
+  // 새로운 상태 확인
+  await checkSystemStatus();
+  
+  // 캐시된 상태가 있으면 반환, 없으면 기본값 반환
+  return cachedStatus || {
+    memory: {
+      percentUsed: 0,
+      level: MemoryUsageLevel.LOW,
+      heapUsedMB: 0,
+      rssMB: 0
+    },
+    processing: {
+      mode: 'normal',
+      gpuEnabled: false
+    },
+    optimizations: {
+      count: 0,
+      lastTimestamp: 0,
+      freedMemoryMB: 0
+    },
+    timestamp: now
+  };
+}
+
+/**
+ * 배터리 상태 확인 (브라우저 환경에서만 작동)
+ * @returns 배터리 정보 또는 null
+ */
+export async function getBatteryStatus(): Promise<any> {
+  if (typeof navigator === 'undefined' || !navigator.getBattery) {
+    return null;
+  }
+  
+  try {
+    // 타입 안전하게 접근
+    const getBattery = navigator.getBattery;
+    if (getBattery) {
+      const battery = await getBattery();
+      
+      return {
+        charging: battery.charging,
+        level: battery.level,
+        chargingTime: battery.chargingTime,
+        dischargingTime: battery.dischargingTime
+      };
+    }
+    return null;
+  } catch (error) {
+    console.error('배터리 상태 확인 오류:', error);
+    return null;
+  }
+}
+
+/**
+ * 네트워크 상태 확인 (브라우저 환경에서만 작동)
+ */
+export function getNetworkStatus(): any {
+  if (typeof navigator === 'undefined') {
+    return null;
+  }
+  
+  // 타입 안전하게 접근
+  const connection = (navigator as any).connection;
+  if (!connection) {
+    return { online: navigator.onLine };
+  }
+  
+  return {
+    online: navigator.onLine,
+    effectiveType: connection.effectiveType,
+    downlink: connection.downlink,
+    rtt: connection.rtt,
+    saveData: connection.saveData
+  };
 }

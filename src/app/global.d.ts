@@ -68,7 +68,6 @@ interface SettingsState {
   };
   autoStartMonitoring: boolean;
   resumeAfterIdle: boolean; // 옵셔널 제거, 필수 속성으로 변경
-  idleTimeout?: number; // 유휴 상태 판단 시간 (초) (옵셔널)
   darkMode: boolean;
   windowMode: WindowModeType;
   // 트레이 관련 설정
@@ -315,4 +314,55 @@ interface Window {
   electronAPI?: any;
   __appRecovery?: any;
   __gpuAccelerator?: any;
+}
+
+/**
+ * 전역 타입 정의
+ */
+
+// window 객체 확장
+interface Window {
+  // Electron IPC 통신
+  electronAPI?: {
+    // 메모리 최적화
+    optimizeMemory: (level: number, emergency: boolean) => Promise<any>;
+    // 설정 저장
+    saveSettings: (settings: any) => Promise<boolean>;
+    // 네이티브 기능 호출
+    callNative: (functionName: string, ...args: any[]) => Promise<any>;
+    // 로그 전송
+    log: (level: string, message: string, data?: any) => void;
+    // 알림
+    notify: (title: string, body: string, type?: string) => void;
+  };
+
+  // GPU 가속기 설정
+  __gpuAccelerator?: {
+    settings: {
+      useHardwareAcceleration: boolean;
+      processingMode: string;
+      optimizeForBattery: boolean;
+      memoryOptimization: string;
+      threadCount: number;
+    };
+  };
+
+  // 메모리 모니터링/최적화 설정
+  __memoryManager?: {
+    settings: {
+      autoOptimize: boolean;
+      autoOptimizeThreshold: number;
+      aggressiveGC: boolean;
+      optimizeOnIdle: boolean;
+      memoryLimit: number;
+    };
+    memoryInfo?: any;
+    lastOptimization?: number;
+  };
+
+  // 성능 지표
+  __performance?: {
+    metrics: Record<string, any>;
+    startTime: number;
+  };
 }

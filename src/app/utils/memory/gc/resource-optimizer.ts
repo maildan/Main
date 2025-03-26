@@ -115,11 +115,12 @@ export function releaseUnusedResources(): boolean {
     
     // 객체 URL 정리
     if (window.URL && typeof URL.revokeObjectURL === 'function') {
-      // revokeObjectURL을 호출하여 URL.createObjectURL로 생성된 객체 URL 정리
-      // 여기서는 추적된 객체 URL이 있다고 가정
-      const objectUrls = window.__objectUrls || [];
-      if (Array.isArray(objectUrls)) {
-        objectUrls.forEach(url => {
+      // 객체 URL 맵 처리
+      const win = window as Window;
+      const objectUrls = win.__objectUrls;
+      
+      if (objectUrls instanceof Map) {
+        objectUrls.forEach((_, url) => {
           try {
             URL.revokeObjectURL(url);
             count++;
@@ -127,7 +128,7 @@ export function releaseUnusedResources(): boolean {
             // 무시
           }
         });
-        window.__objectUrls = [];
+        objectUrls.clear();
       }
     }
     
@@ -253,7 +254,7 @@ export function optimizeDOM(): boolean {
  */
 export function revokeUnusedObjectURLs(): void {
   try {
-    const win = window as WindowWithCache;
+    const win = window as Window;
     
     // 객체 URL 맵이 없으면 생성
     if (!win.__objectUrls) {
@@ -266,7 +267,7 @@ export function revokeUnusedObjectURLs(): void {
     const expiryTime = 30000; // 30초
     let revokedCount = 0;
     
-    win.__objectUrls.forEach((creationTime, url) => {
+    win.__objectUrls.forEach((creationTime: string, url: string) => {
       if (now - parseInt(creationTime) > expiryTime) {
         URL.revokeObjectURL(url);
         win.__objectUrls?.delete(url);
@@ -621,23 +622,24 @@ export function cleanupResources(): boolean {
 function clearUnusedCaches(): void {
   try {
     // 애플리케이션 전용 캐시 정리
-    if (window.__memoryCache instanceof Map) {
+    const win = window as WindowWithCache;
+    if (win.__memoryCache instanceof Map) {
       // 일정 시간 이상 사용하지 않은 캐시 항목 제거
       const now = Date.now();
       const CACHE_TTL = 30 * 60 * 1000; // 30분
       
-      window.__memoryCache.forEach((value, key) => {
-        if (value && typeof value === 'object' && value.lastAccess) {
-          if (now - value.lastAccess > CACHE_TTL) {
-            window.__memoryCache.delete(key);
+      win.__memoryCache.forEach((value, key) => {
+        if (value && typeof value === 'object' && 'lastAccess' in value) {
+          if (now - (value.lastAccess as number) > CACHE_TTL) {
+            win.__memoryCache?.delete(key);
           }
         }
       });
     }
     
     // 스타일 캐시 정리
-    if (window.__styleCache) {
-      window.__styleCache = {};
+    if (win.__styleCache) {
+      win.__styleCache = {};
     }
   } catch (error) {
     console.warn('캐시 정리 중 오류:', error);
@@ -650,15 +652,16 @@ function clearUnusedCaches(): void {
 function removeUnusedObjectReferences(): void {
   try {
     // 동적 모듈 관리자를 통한 참조 정리 (있는 경우)
-    if (window._dynamicModules instanceof Map) {
-      const modules = window._dynamicModules;
+    const win = window as WindowWithCache;
+    if (win._dynamicModules instanceof Map) {
+      const modules = win._dynamicModules;
       const now = Date.now();
       const MODULE_UNUSED_THRESHOLD = 60 * 60 * 1000; // 1시간
       
       modules.forEach((module, name) => {
-        if (module && typeof module === 'object' && module.lastUsed) {
+        if (module && typeof module === 'object' && 'lastUsed' in module) {
           // 오랫동안 사용하지 않은 모듈은 언로드
-          if (now - module.lastUsed > MODULE_UNUSED_THRESHOLD) {
+          if (now - (module.lastUsed as number) > MODULE_UNUSED_THRESHOLD) {
             if (typeof module.unload === 'function') {
               try {
                 module.unload();
@@ -682,13 +685,14 @@ function removeUnusedObjectReferences(): void {
 function cleanupLargeArrays(): void {
   try {
     // 버퍼 캐시 정리
-    if (window.__bufferCache) {
+    const win = window as WindowWithCache;
+    if (win.__bufferCache) {
       // 각 버퍼에 대해 참조 제거 여부 결정
-      Object.keys(window.__bufferCache).forEach(key => {
-        if (window.__bufferCache[key]) {
+      Object.keys(win.__bufferCache).forEach(key => {
+        if (win.__bufferCache && key in win.__bufferCache) {
           // 참조만 제거 (GC가 처리하도록)
-          window.__bufferCache[key] = null;
-          delete window.__bufferCache[key];
+          win.__bufferCache[key] = null;
+          delete win.__bufferCache[key];
         }
       });
     }
@@ -699,9 +703,14 @@ function cleanupLargeArrays(): void {
 
 // 윈도우 타입 확장
 interface Window {
-  __objectUrls?: string[];
-  __widgetCache?: Record<string, any>;
+  __objectUrls?: Map<string, string>; // Map으로 변경
+  __widgetCache?: Record<string, any> | Map<string, any>;
   __styleCache?: Record<string, any>;
   __imageResizeCache?: Record<string, any>;
+  __textureCache?: Map<string, string>;
+  __objectCache?: Map<string, any>;
+  __memoryCache?: Map<string, any>;
+  __bufferCache?: Record<string, any>;
+  _dynamicModules?: Map<string, any>;
   gc?: () => void;
 }

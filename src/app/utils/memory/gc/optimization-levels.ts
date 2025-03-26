@@ -121,7 +121,10 @@ export async function reportMemoryUsage(level: number): Promise<void> {
       return;
     }
     
-    const message = `메모리 최적화 (레벨 ${level}) 완료: ${memoryInfo.heapUsedMB.toFixed(2)}MB (${memoryInfo.percentUsed.toFixed(1)}%)`;
+    const heapUsedMB = memoryInfo.heapUsedMB || 0;
+    const percentUsed = memoryInfo.percentUsed || 0;
+    
+    const message = `메모리 최적화 (레벨 ${level}) 완료: ${heapUsedMB.toFixed(2)}MB (${percentUsed.toFixed(1)}%)`;
     
     // 로그 기록
     await logMemoryUsage(
@@ -133,7 +136,7 @@ export async function reportMemoryUsage(level: number): Promise<void> {
     console.log(message);
     
     // 내역 저장
-    recordOptimization(level, memoryInfo.heapUsedMB);
+    recordOptimization(level, heapUsedMB);
   } catch (error) {
     console.error('메모리 사용량 보고 오류:', error);
   }
