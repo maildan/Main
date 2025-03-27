@@ -1,0 +1,46 @@
+# 빌드 출력
+.next/
+out/
+dist/
+build/
+
+# 의존성
+node_modules/
+*.d.ts
+
+# Rust/Native 모듈 관련 파일
+native-modules/
+*.rs
+
+# 구성 파일
+next.config.js
+postcss.config.js
+tailwind.config.js
+*.config.js
+*.config.mjs
+*.json
+*.lock
+
+# 기타
+.github/
+.vscode/
+public/
+
+# 이 파일은 ESLint 9+ 버전에서 더 이상 사용되지 않습니다.
+# 대신 eslint.config.js 파일의 ignores 속성을 사용하세요.
+# 아래 항목들은 참고용으로만 유지됩니다.
+
+node_modules/
+.next/
+out/
+dist/
+build/
+native-modules/
+*.config.js
+*.config.mjs
+*.json
+*.lock
+.github/
+.vscode/
+public/
+coverage/

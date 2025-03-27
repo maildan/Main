@@ -1,0 +1,10 @@
+# Google Drive 동기화 제외 설정
+node_modules/
+native-modules/target/
+.next/
+out/
+dist/
+.git/
+.npm/
+.cache/
+tmp/

@@ -1,8 +1,49 @@
 # ESLint 가이드
 
-## 시작하기
+## ESLint 9.x 사용하기
 
-이 프로젝트는 코드 품질 유지를 위해 ESLint를 사용합니다. ESLint는 코드 스타일과 잠재적인 문제를 자동으로 검사하고 수정해 줍니다.
+이 프로젝트는 ESLint 9.x를 사용하여 코드 품질을 유지합니다. ESLint 9.x에서는 기존 설정 방식이 크게 변경되었습니다.
+
+## 설정 파일
+
+ESLint 9.x에서는 `.eslintrc.js` 대신 `eslint.config.mjs` 파일을 사용합니다:
+
+```javascript
+// eslint.config.mjs
+export default [
+  // 설정 객체들의 배열
+  {
+    // 기본 설정
+  },
+  {
+    // 특정 파일에만 적용되는 설정
+    files: ["src/**/*.ts"],
+    // 규칙
+    rules: {
+      // ...
+    }
+  }
+];
+```
+
+## 파일 제외 설정
+
+`.eslintignore` 파일은 더 이상 지원되지 않습니다. 대신 `eslint.config.mjs`의 `ignores` 속성을 사용합니다:
+
+```javascript
+export default [
+  {
+    ignores: [
+      "node_modules/**",
+      ".next/**",
+      "out/**",
+      "dist/**",
+      // 기타 제외할 패턴
+    ]
+  },
+  // 나머지 설정
+];
+```
 
 ## 기본 명령어
 
@@ -13,11 +54,14 @@ npm run lint
 # 자동 수정 가능한 문제 수정
 npm run lint:fix
 
-# 경고 없이 모든 타입스크립트 파일 검사
+# 경고 없이 모든 파일 검사
 npm run lint:strict
 
 # 모든 파일의 오류를 자동으로 수정
 npm run lint:fix-all
+
+# ESLint 설정 자체에 문제가 있는 경우 해결
+npm run fix:eslint-config
 ```
 
 ## 자주 발생하는 ESLint 오류와 해결 방법
@@ -39,16 +83,6 @@ interface DataType {
 
 function processData(data: DataType) {
   return data.value;
-}
-```
-
-또는 unknown 타입 사용:
-```typescript
-function processData(data: unknown) {
-  if (typeof data === 'object' && data && 'value' in data) {
-    return (data as { value: string }).value;
-  }
-  return undefined;
 }
 ```
 
@@ -89,17 +123,24 @@ useEffect(() => {
 VS Code에서 ESLint를 활용하는 최적의 방법:
 
 1. VS Code ESLint 확장 프로그램 설치
-2. 저장 시 자동 수정을 활성화하려면:
-   - `Ctrl + ,` 또는 `Cmd + ,`로 설정 열기
-   - "editor.codeActionsOnSave"를 검색하고 다음과 같이 설정:
+2. 설정에 다음을 추가:
    ```json
    "editor.codeActionsOnSave": {
-     "source.fixAll.eslint": true
+     "source.fixAll.eslint": "explicit"
    }
    ```
 
-## 팀 내 ESLint 적용 가이드
+## 문제 해결
 
-1. PR을 생성하기 전에 항상 `npm run lint` 실행
-2. 자동 수정이 불가능한 오류는 수동으로 해결
-3. 특별한 경우에만 규칙을 비활성화하고, 그 이유를 주석으로 설명
+ESLint 설정에 문제가 발생하면:
+
+```bash
+# ESLint 설정 자동 수정
+npm run fix:eslint-config
+
+# ESLint 캐시 삭제 후 실행
+npm run lint -- --no-cache
+
+# 의존성 재설치
+npm ci --legacy-peer-deps
+```

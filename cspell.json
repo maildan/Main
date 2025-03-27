@@ -117,7 +117,17 @@
     "presentationml",
     "conv",
     "ondischargingtimechange",
-    "RUSTFLAGS"
+    "RUSTFLAGS",
+    "gdignore",
+    "vercel",
+    "eslintcache",
+    "EBADF",
+    "errno",
+    "syscall",
+    "_cacache",
+    "pacakge",
+    "maxage",
+    "noreferrer",
   ],
   "ignorePaths": [
     "node_modules/**",

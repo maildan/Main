@@ -1,0 +1,37 @@
+{
+  "version": 2,
+  "framework": "nextjs",
+  "routes": [
+    {
+      "src": "/(.*)",
+      "headers": { "cache-control": "s-maxage=1, stale-while-revalidate" },
+      "continue": true
+    },
+    {
+      "src": "/api/(.*)",
+      "dest": "/api/$1"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/$1"
+    },
+    {
+      "handle": "filesystem"
+    }
+  ],
+  "cleanUrls": true,
+  "trailingSlash": false,
+  "github": {
+    "silent": true,
+    "enabled": true,
+    "autoAlias": true
+  },
+  "git": {
+    "deploymentEnabled": {
+      "rust": true,
+      "main": false,
+      "master": false
+    }
+  },
+  "domains": ["eloop.kro.kr", "staging.eloop.kro.kr"]
+}

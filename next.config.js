@@ -15,6 +15,29 @@ const nextConfig = {
     
     return config;
   },
+  // 새로고침 404 오류 해결을 위한 rewrites 설정 수정
+  async rewrites() {
+    return [
+      {
+        // 모든 경로에 대한 rewrites 처리
+        source: '/:path*',
+        destination: '/:path*',
+      },
+      {
+        // 루트 경로 처리
+        source: '/',
+        destination: '/index',
+      }
+    ];
+  },
+  // 커스텀 도메인 허용 설정
+  images: {
+    domains: ['eloop.kro.kr', 'staging.eloop.kro.kr']
+  },
+  // 출력 내보내기 옵션 추가
+  output: 'standalone',
+  // 트레일링 슬래시 비활성화
+  trailingSlash: false,
 }
 
 module.exports = nextConfig
