@@ -1,3 +1,8 @@
+/**
+ * @deprecated ESLint 9+ 버전에서는 더 이상 이 파일을 사용하지 않습니다.
+ * 대신 프로젝트 루트의 eslint.config.js 파일을 사용합니다.
+ * 이 파일은 이전 버전과의 호환성을 위해 유지됩니다.
+ */
 module.exports = {
   root: true,
   extends: [

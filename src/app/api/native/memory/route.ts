@@ -1,77 +1,77 @@
-import { NextResponse } from 'next/server';
+/**
+ * 메모리 정보를 제공하는 API 라우트
+ */
 
-// 메모리 정보 조회
+import { NextResponse } from 'next/server';
+import { optimizeMemory } from '../../../utils/memory-optimizer';
+import { getMemoryUsage } from '../../../utils/memory/memory-info';
+import { formatBytes } from '../../../utils/common-utils';
+import { OptimizationLevel } from '../../../../types';
+
+/**
+ * GET 핸들러 - 메모리 사용량 정보 조회
+ */
 export async function GET() {
   try {
-    // 서버 측 네이티브 모듈 가져오기
-    const nativeModule = await import('../../../../server/native');
-    
-    // 메모리 정보 가져오기
-    const memoryInfo = nativeModule.default.getMemoryInfo();
-    
-    // 최적화 레벨 결정
-    const optimizationLevel = nativeModule.default.determineOptimizationLevel();
+    const memoryInfo = await getMemoryUsage();
     
     return NextResponse.json({
       success: true,
-      memoryInfo,
-      optimizationLevel,
-      timestamp: Date.now()
+      data: {
+        ...memoryInfo,
+        heapUsedFormatted: formatBytes(memoryInfo.heapUsed),
+        heapTotalFormatted: formatBytes(memoryInfo.heapTotal),
+        rssFormatted: formatBytes(memoryInfo.rss)
+      }
     });
   } catch (error) {
-    console.error('메모리 정보 가져오기 오류:', error);
-    return NextResponse.json({
-      success: false,
-      error: error instanceof Error ? error.message : '메모리 정보를 가져오는 중 오류가 발생했습니다',
-      timestamp: Date.now()
-    }, { status: 500 });
+    console.error('Error fetching memory info:', error);
+    return NextResponse.json(
+      {
+        success: false,
+        error: error instanceof Error ? error.message : String(error)
+      },
+      { status: 500 }
+    );
   }
 }
 
-// 메모리 최적화 작업 수행
-export async function PUT(request: Request) {
+/**
+ * POST 핸들러 - 메모리 최적화 요청 처리
+ */
+export async function POST(request: Request) {
   try {
-    const body = await request.json();
+    const { level = 'medium', emergency = false } = await request.json();
     
-    if (body.type === 'optimize') {
-      // 최적화 레벨 (0-4)
-      const level = parseInt(body.level || '2', 10);
-      const emergency = body.emergency === true;
-      
-      // 서버 측 네이티브 모듈 가져오기
-      const nativeModule = await import('../../../../server/native');
-      
-      // 메모리 최적화 요청
-      const result = await nativeModule.default.optimizeMemory(level, emergency);
-      
-      return NextResponse.json({
-        success: true,
-        result,
-        timestamp: Date.now()
-      });
-    } else if (body.type === 'gc') {
-      // 가비지 컬렉션 강제 수행
-      const nativeModule = await import('../../../../server/native');
-      const result = await nativeModule.default.forceGarbageCollection();
-      
-      return NextResponse.json({
-        success: true,
-        result,
-        timestamp: Date.now()
-      });
-    } else {
-      return NextResponse.json({
-        success: false,
-        error: '지원되지 않는 작업 유형입니다',
-        timestamp: Date.now()
-      }, { status: 400 });
-    }
-  } catch (error) {
-    console.error('메모리 작업 오류:', error);
+    // 최적화 레벨 검증
+    const optimizationLevel = Object.values(OptimizationLevel).includes(level as OptimizationLevel)
+      ? level as OptimizationLevel
+      : OptimizationLevel.MEDIUM;
+    
+    // 메모리 최적화 실행
+    const result = await optimizeMemory(optimizationLevel, emergency);
+    
+    // 최적화 후 메모리 정보 조회
+    const memoryInfo = await getMemoryUsage();
+    
     return NextResponse.json({
-      success: false,
-      error: error instanceof Error ? error.message : '메모리 작업을 수행하는 중 오류가 발생했습니다',
-      timestamp: Date.now()
-    }, { status: 500 });
+      success: true,
+      result,
+      memoryInfo: {
+        ...memoryInfo,
+        heapUsedFormatted: formatBytes(memoryInfo.heapUsed),
+        heapTotalFormatted: formatBytes(memoryInfo.heapTotal),
+        rssFormatted: formatBytes(memoryInfo.rss)
+      }
+    });
+  } catch (error) {
+    console.error('Error optimizing memory:', error);
+    return NextResponse.json(
+      {
+        success: false,
+        error: error instanceof Error ? error.message : String(error)
+      },
+      { status: 500 }
+    );
   }
 }

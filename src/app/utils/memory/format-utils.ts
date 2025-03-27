@@ -1,4 +1,35 @@
 /**
+ * 메모리 관련 포맷팅 유틸리티
+ */
+
+import { formatBytes, calculatePercentage } from '../common-utils';
+import type { MemoryInfo } from '../../../types/memory-types';
+
+/**
+ * 메모리 사용량 정보를 포맷팅합니다.
+ * @param memoryInfo - 메모리 정보 객체
+ * @returns 포맷팅된 메모리 정보 문자열
+ */
+export function formatMemoryInfo(memoryInfo: MemoryInfo): string {
+  if (!memoryInfo) return 'No memory information available';
+  
+  const { heapUsed, heapTotal, rss } = memoryInfo;
+  const usedPercent = calculatePercentage(heapUsed, heapTotal);
+  
+  return `Memory Usage: ${formatBytes(heapUsed)} / ${formatBytes(heapTotal)} (${usedPercent}%)
+RSS: ${formatBytes(rss)}`;
+}
+
+/**
+ * 메모리 사용량을 MB 단위로 변환합니다.
+ * @param bytes - 바이트 단위의 메모리 크기
+ * @returns MB 단위의 메모리 크기
+ */
+export function bytesToMB(bytes: number): number {
+  return Math.round((bytes / 1024 / 1024) * 100) / 100;
+}
+
+/**
  * 메모리 정보 포맷 변환 유틸리티
  * 
  * API 응답과 내부 타입 간의 변환을 표준화하여 일관성 있는 데이터 처리를 지원합니다.
@@ -36,20 +67,38 @@ export function normalizeMemoryInfo(memoryInfo: Record<string, unknown>): Memory
     rss_mb = 0,
     rssMB = 0,
     timestamp = Date.now()
-  } = memoryInfo;
+  } = memoryInfo as {
+    heap_used?: number;
+    heap_total?: number;
+    heap_limit?: number;
+    heap_used_mb?: number;
+    heapUsed?: number;
+    heapTotal?: number;
+    heapLimit?: number;
+    heapUsedMB?: number;
+    percent_used?: number;
+    percentUsed?: number;
+    rss?: number;
+    rss_mb?: number;
+    rssMB?: number;
+    timestamp?: number;
+  };
   
-  // 일관된 포맷으로 변환
+  // 표준화된 객체 반환
   return {
-    // 네이티브 모듈의 네이밍 규칙 사용 (snake_case)
     heap_used: heap_used || heapUsed || 0,
     heap_total: heap_total || heapTotal || 0,
     heap_limit: heap_limit || heapLimit || 0,
-    heap_used_mb: heap_used_mb || heapUsedMB || 
-      (heap_used ? heap_used / (1024 * 1024) : 0),
-    percent_used: percent_used || percentUsed || 
-      (heap_total > 0 ? (heap_used / heap_total) * 100 : 0),
+    heap_used_mb: typeof heap_used_mb === 'number' ? heap_used_mb : 
+                  typeof heapUsedMB === 'number' ? heapUsedMB : 
+                  (heap_used ? heap_used / (1024 * 1024) : 0),
+    percent_used: typeof percent_used === 'number' ? percent_used : 
+                  typeof percentUsed === 'number' ? percentUsed : 
+                  (heap_total > 0 ? ((heap_used || 0) / heap_total) * 100 : 0),
     rss: rss || 0,
-    rss_mb: rss_mb || rssMB || (rss ? rss / (1024 * 1024) : 0),
+    rss_mb: typeof rss_mb === 'number' ? rss_mb : 
+            typeof rssMB === 'number' ? rssMB : 
+            (rss ? rss / (1024 * 1024) : 0),
     timestamp: timestamp || Date.now()
   };
 }
@@ -72,23 +121,7 @@ export function createDefaultMemoryInfo(): MemoryInfo {
     rss: 0,
     rss_mb: 0,
     timestamp,
-    
-    // MemoryInfo 타입에 없는 속성은 제거
   };
-}
-
-/**
- * 메모리 정보 포맷 함수
- * 메모리 정보를 문자열로 포맷
- * 
- * @param info 메모리 정보 객체
- * @returns 포맷된 메모리 정보 문자열
- */
-export function formatMemoryInfo(info: MemoryInfo): string {
-  if (!info) return 'Memory info not available';
-  
-  // 프로퍼티 이름 일치시키기
-  return `Memory usage: ${info.heap_used_mb.toFixed(2)}MB / ${(info.heap_total / (1024 * 1024)).toFixed(2)}MB (${info.percent_used.toFixed(1)}%)`;
 }
 
 /**
@@ -99,33 +132,14 @@ export function formatMemoryInfo(info: MemoryInfo): string {
  * @returns MemoryInfo 객체
  */
 export function createMemoryInfoObject(data: Partial<MemoryInfo>): MemoryInfo {
-  // 명시적으로 올바른 프로퍼티 이름 사용
   return {
     heap_used: data.heap_used || 0,
     heap_total: data.heap_total || 0,
+    heap_limit: data.heap_limit || 0,
     heap_used_mb: data.heap_used_mb || 0,
     percent_used: data.percent_used || 0,
-    timestamp: data.timestamp || Date.now(),
-    // 선택적 속성은 존재할 때만 추가
-    ...(data.rss && { rss: data.rss }),
-    ...(data.rss_mb && { rss_mb: data.rss_mb })
+    rss: data.rss || 0,
+    rss_mb: data.rss_mb || 0,
+    timestamp: data.timestamp || Date.now()
   };
-}
-
-/**
- * 바이트 단위를 읽기 쉬운 형식으로 변환
- * @param bytes 바이트 수
- * @param decimals 소수점 이하 자릿수
- * @returns 포맷된 문자열
- */
-export function formatBytes(bytes: number, decimals: number = 2): string {
-  if (bytes === 0) return '0 Bytes';
-  
-  const k = 1024;
-  const dm = decimals < 0 ? 0 : decimals;
-  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
-  
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
 }

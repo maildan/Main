@@ -19,7 +19,7 @@ interface MainLayoutProps {
   isHeaderVisible?: boolean;
 }
 
-export const MainLayout = memo(function MainLayout({ 
+export const MainLayout = memo(function MainLayout({
   children,
   darkMode = false,
   windowMode = 'normal',
@@ -29,27 +29,41 @@ export const MainLayout = memo(function MainLayout({
   const headerDetectionRef = useRef<HTMLDivElement>(null);
 
   return (
-    <div 
+    <div
       className={`${styles.container} ${darkMode ? 'dark-mode' : ''} ${windowMode === 'fullscreen-auto-hide' ? styles.zenMode : ''}`}
       style={{ position: 'relative', zIndex: 1 }}
     >
       {/* AppHeader 컴포넌트 추가 */}
       {isHeaderVisible && <AppHeader api={electronAPI} />}
-      
+
+      {/* 네비게이션 링크 추가 */}
+      {isHeaderVisible && (
+        <nav className={styles.navLinks}>
+          <ul>
+            <li>
+              <a href="/" className={styles.navLink}>홈</a>
+            </li>
+            <li>
+              <a href="/pages/analysis" className={styles.navLink}>로그 분석</a>
+            </li>
+          </ul>
+        </nav>
+      )}
+
       {/* 자동 숨김 모드일 때 감지 영역 추가 */}
       {windowMode === 'fullscreen-auto-hide' && (
-        <div 
+        <div
           ref={headerDetectionRef}
           className={styles.headerDetectionArea}
           aria-hidden="true"
-          style={{ pointerEvents: 'auto' }} 
+          style={{ pointerEvents: 'auto' }}
         />
       )}
-      
+
       <main className={styles.mainContent}>
         {children}
       </main>
-      
+
       <AppFooter />
     </div>
   );

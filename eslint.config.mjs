@@ -1,41 +1,126 @@
-// 이 파일은 .eslintrc.js 파일로 설정이 통합되었습니다.
-// 프로젝트에서 플랫 구성 포맷을 사용하려는 경우에만 이 파일을 활용하세요.
-import { FlatCompat } from "@eslint/eslintrc";
-import path from "path";
-import { fileURLToPath } from "url";
+import globals from 'globals';
+import typescriptParser from '@typescript-eslint/parser';
+import typescriptPlugin from '@typescript-eslint/eslint-plugin';
+import reactPlugin from 'eslint-plugin-react';
+import reactHooksPlugin from 'eslint-plugin-react-hooks';
+import { nextConfig } from 'eslint-config-next';
+import importPlugin from 'eslint-plugin-import';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-const compat = new FlatCompat({
-  baseDirectory: __dirname,
-  recommendedConfig: {
-    extends: ["./.eslintrc.js"],
-  },
-});
-
-// 무시할 파일 패턴 설정 (.eslintignore 대체)
-const ignores = [
-  'node_modules/**',
-  '.next/**',
-  'out/**',
-  'dist/**',
-  'build/**',
-  'native-modules/**',
-  '*.config.js',
-  '*.config.mjs',
-  '*.json',
-  '*.lock',
-  '.github/**',
-  '.vscode/**',
-  'public/**'
-];
-
-// 빈 구성 경고 제거를 위해 빈 객체 대신 설정된 구성 내보내기
 export default [
-  ...compat.config(),
+  // 기본 정적 파일 및 빌드 결과물 무시
   {
-    ignores,
-    // 추가 설정이 필요한 경우 여기에 작성
-  }
+    ignores: [
+      'node_modules/**',
+      '.next/**',
+      'out/**',
+      'dist/**',
+      'build/**',
+      'native-modules/**',
+      '*.config.js',
+      '*.config.mjs',
+      '*.json',
+      '*.lock',
+      '.github/**',
+      '.vscode/**',
+      'public/**',
+      'coverage/**',
+    ],
+  },
+  
+  // Next.js ESLint 구성 추가
+  ...nextConfig(),
+
+  // 모든 JavaScript 파일에 대한 기본 구성
+  {
+    files: ['**/*.js', '**/*.mjs'],
+    languageOptions: {
+      ecmaVersion: 'latest',
+      sourceType: 'module',
+      globals: {
+        ...globals.node,
+        ...globals.browser,
+        process: 'readonly',
+      },
+      parser: typescriptParser,
+      parserOptions: {
+        ecmaFeatures: {
+          jsx: true,
+        },
+      },
+    },
+    plugins: {
+      import: importPlugin,
+    },
+    rules: {
+      'no-console': ['warn', { allow: ['warn', 'error'] }],
+      'semi': ['error', 'always'],
+      'quotes': ['error', 'single'],
+    },
+  },
+
+  // TypeScript 파일 구성
+  {
+    files: ['**/*.ts', '**/*.tsx'],
+    languageOptions: {
+      ecmaVersion: 'latest',
+      sourceType: 'module',
+      globals: {
+        ...globals.node,
+        ...globals.browser,
+        process: 'readonly',
+      },
+      parser: typescriptParser,
+      parserOptions: {
+        ecmaFeatures: {
+          jsx: true,
+        },
+        project: './tsconfig.json',
+      },
+    },
+    plugins: {
+      '@typescript-eslint': typescriptPlugin,
+      'react': reactPlugin,
+      'react-hooks': reactHooksPlugin,
+      'import': importPlugin,
+    },
+    rules: {
+      // 타입스크립트 관련 규칙
+      '@typescript-eslint/explicit-function-return-type': 'off',
+      '@typescript-eslint/no-explicit-any': 'warn',
+      '@typescript-eslint/ban-ts-comment': ['warn', { 
+        'ts-ignore': 'allow-with-description' 
+      }],
+      '@typescript-eslint/no-unused-vars': ['error', { 
+        argsIgnorePattern: '^_',
+        varsIgnorePattern: '^_' 
+      }],
+
+      // 리액트 관련 규칙
+      'react/react-in-jsx-scope': 'off',
+      'react-hooks/rules-of-hooks': 'error',
+      'react-hooks/exhaustive-deps': 'warn',
+
+      // 코드 스타일
+      'semi': ['error', 'always'],
+      'quotes': ['error', 'single'],
+      'no-console': ['warn', { allow: ['warn', 'error'] }],
+    },
+  },
+
+  // 서버 코드에 대한 설정
+  {
+    files: ['**/server/**/*.js', '**/server/**/*.ts'],
+    rules: {
+      'no-console': 'off',
+    },
+  },
+
+  // 테스트 파일에 대한 설정
+  {
+    files: ['**/*.test.ts', '**/*.test.tsx', '**/__tests__/**/*.ts', '**/__tests__/**/*.tsx'],
+    rules: {
+      'no-console': 'off',
+      '@typescript-eslint/no-explicit-any': 'off',
+    },
+  },
 ];

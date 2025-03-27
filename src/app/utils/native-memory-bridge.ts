@@ -1,9 +1,34 @@
 /**
- * Rust 네이티브 모듈과 통신하는 브릿지 함수들
- * 모든 메모리 최적화 요청은 이 파일을 통해 이루어집니다.
+ * 네이티브 모듈과의 통신 브릿지
  */
-import { OptimizationLevel, MemoryInfo, OptimizationResult, GCResult } from '@/types';
-import { toNativeOptimizationLevel, safeOptimizationLevel } from './enum-converters';
+
+import { MemoryInfo, OptimizationResult, OptimizationLevel, GCResult } from '@/types';
+import { safeOptimizationLevel, toNativeOptimizationLevel } from './memory/optimization-utils';
+
+/**
+ * 네이티브 메모리 정보 요청
+ */
+export async function requestNativeMemoryInfo(): Promise<MemoryInfo | null> {
+  // 기본적인 브라우저 환경 체크
+  if (typeof window === 'undefined') {
+    return null;
+  }
+  
+  try {
+    // 백엔드 API를 통해 메모리 정보 요청
+    const response = await fetch('/api/native/memory/info');
+    if (!response.ok) {
+      throw new Error(`API 요청 실패: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    return data.memoryInfo;
+  } catch (error) {
+    console.error('네이티브 메모리 정보 요청 오류:', error);
+    return null;
+  }
+}
+
 import { optimizeMemory, forceGarbageCollection, getMemoryInfo as fetchMemoryInfo } from './nativeModuleClient';
 
 // 브리지 상태
@@ -85,36 +110,6 @@ async function checkBridgeAvailability(): Promise<boolean> {
     bridgeState.lastCheck = Date.now();
     return false;
   }
-}
-
-/**
- * 안전 최적화 레벨 확인
- * @param level 최적화 레벨 숫자
- * @returns 안전한 범위의 레벨 (0-4)
- */
-function safeOptimizationLevel(level: number): number {
-  if (isNaN(level) || level < 0) return 0;
-  if (level > 4) return 4;
-  return Math.floor(level);
-}
-
-/**
- * 네이티브 메모리 정보 요청
- */
-export async function requestNativeMemoryInfo(): Promise<MemoryInfo | null> {
-  return withErrorHandling(
-    async () => {
-      const response = await fetchMemoryInfo();
-      
-      if (response.success && response.memoryInfo) {
-        return response.memoryInfo;
-      }
-      
-      throw new Error(response.error || '메모리 정보를 가져올 수 없습니다');
-    },
-    () => null,
-    '메모리 정보 요청'
-  );
 }
 
 /**

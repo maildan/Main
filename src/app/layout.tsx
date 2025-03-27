@@ -1,15 +1,11 @@
+import React from 'react';
 import './globals.css';
-import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
-import { ThemeProvider } from './components/ThemeProvider';
-import MainLayout from './components/MainLayout';
+import ThemeProviderWrapper from './components/ThemeProviderWrapper';
+import SelfLearningSystem from './components/SelfLearningSystem';
 
-const inter = Inter({ subsets: ['latin'] });
-
-// page.tsx에서 가져온 metadata를 layout.tsx로 이동
-export const metadata: Metadata = {
-  title: 'Typing Statistics',
-  description: 'Track and analyze your keyboard usage',
+export const metadata = {
+  title: '타이핑 통계',
+  description: '타이핑 패턴 분석 및 통계 앱',
 };
 
 export default function RootLayout({
@@ -18,13 +14,19 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en">
-      <body className={inter.className}>
-        <ThemeProvider>
-          <MainLayout>
-            {children}
-          </MainLayout>
-        </ThemeProvider>
+    <html lang="ko">
+      <body>
+        <ThemeProviderWrapper>
+          {/* 자동 학습 시스템 추가 */}
+          <SelfLearningSystem
+            options={{
+              enableAutoLearning: true,
+              learningIntervalHours: 24,
+              runOnLowActivity: true
+            }}
+          />
+          {children}
+        </ThemeProviderWrapper>
       </body>
     </html>
   );

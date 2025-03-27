@@ -1,38 +1,39 @@
 /**
- * 유틸리티 함수 통합 모듈
- * 
- * 자주 사용되는 유틸리티 함수들을 중앙 집중화하여 내보냅니다.
+ * 유틸리티 모듈 통합 내보내기
  */
 
-// 메모리 관리 관련 함수 재내보내기
-export * from './memory-management';
+// 공통 유틸리티 함수
+export * from './common-utils';
 
-// 메모리 최적화 관련 함수 재내보내기
-export * from './memory-optimizer';
+// 메모리 관련 유틸리티
+export * from './memory';
 
-// 네이티브 모듈 브릿지 함수 재내보내기
-export * from './native-memory-bridge';
+// 파일 관련 유틸리티
+export * from './file-utils';
 
-// GPU 가속화 관련 함수 재내보내기
+// 타입 변환 유틸리티
+export * from './type-converters';
+
+// 성능 측정 유틸리티
+export * from './performance-metrics';
+
+// GPU 가속 유틸리티
 export * from './gpu-acceleration';
 
-// 메모리 관련 훅 재내보내기
-export { 
-  useMemory, 
-  useMemorySettings,
-  useAutoMemoryOptimization 
-} from './memory/hooks';
+// 메모리 최적화 유틸리티
+export * from './memory-optimizer';
 
-// 메모리 포맷팅 유틸리티 재내보내기
-export * from './memory/format-utils';
+// 문제가 있던 참조 - 존재하는 모듈로 수정하거나 주석 처리
+// export * from './storage-utils'; // 파일이 없으면 주석 처리
+// export * from './scroll-utils'; // 파일이 없으면 주석 처리
 
-// GC 유틸리티 재내보내기
-export {
-  suggestGarbageCollection,
-  cleanAllCaches,
-  clearBrowserCaches,
-  clearStorageCaches
-} from './memory/gc-utils';
+// 네이티브 모듈 클라이언트
+export * from './nativeModuleClient';
+
+// 시스템 모니터링
+export * from './system-monitor';
+
+// 추가로 필요한 모듈들이 있다면 여기에 추가
 
 /**
  * 딥 클론 함수

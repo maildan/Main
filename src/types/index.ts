@@ -1,11 +1,101 @@
 /**
- * 애플리케이션 타입 정의 통합 모듈
- * 
- * 이 파일은 타입 선언을 중앙 집중화하여 다른 모듈에서 가져다 쓸 수 있게 합니다.
+ * 애플리케이션에서 사용하는 공통 타입 정의
  */
+
+import { MemoryInfo } from './memory-types';
+import { GpuInfo } from './gpu-types';
+import { NativeModuleInfo, NativeModuleConfig } from './native-module';
+
+// 기존의 타입들은 유지
 
 // 네이티브 모듈 타입 재내보내기
 export * from './native-module';
+
+/**
+ * 앱 내 사용되는 타입 정의의 중앙 집중화 파일
+ */
+
+// 기본 타입 정의들 내보내기
+export * from './common';
+export * from './native-module';
+
+/**
+ * 메모리 정보 인터페이스
+ */
+export interface MemoryInfo {
+  heap_used: number;
+  heap_total: number;
+  heap_limit: number;
+  heap_used_mb: number;
+  percent_used: number;
+  rss: number;
+  rss_mb: number;
+  timestamp: number;
+}
+
+/**
+ * 최적화 레벨 타입
+ */
+export type OptimizationLevel = 'NORMAL' | 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+
+/**
+ * 최적화 결과 인터페이스
+ */
+export interface OptimizationResult {
+  success: boolean;
+  optimizationLevel: number | OptimizationLevel;
+  freedMemory?: number;
+  freedMB?: number;
+  timestamp: number;
+  error?: string;
+  duration?: number;
+}
+
+/**
+ * 가비지 컬렉션 결과 인터페이스
+ */
+export interface GCResult {
+  success: boolean;
+  freedMemory?: number;
+  freedMB?: number;
+  duration?: number;
+  timestamp: number;
+  error?: string;
+}
+
+/**
+ * 메모리 상태 타입
+ */
+export type MemoryState = 'normal' | 'warning' | 'critical';
+
+/**
+ * 코드 처리 모드 타입
+ */
+export type ProcessingMode = 'auto' | 'normal' | 'cpu-intensive' | 'gpu-intensive';
+
+/**
+ * 메모리 설정 인터페이스
+ */
+export interface MemorySettings {
+  preferNativeImplementation: boolean;
+  enableAutomaticFallback: boolean;
+  enableAutomaticOptimization: boolean;
+  optimizationThreshold: number;
+  optimizationInterval: number;
+  aggressiveGC: boolean;
+  enableLogging: boolean;
+  enablePerformanceMetrics: boolean;
+  useMemoryPool: boolean;
+  fallbackRetryDelay: number;
+  poolCleanupInterval: number;
+  processingMode: ProcessingMode;
+  componentSpecificSettings: {
+    [componentId: string]: {
+      optimizeOnUnmount: boolean;
+      aggressiveCleanup: boolean;
+    }
+  };
+}
 
 // 사용자 설정 관련 타입 정의
 export interface UserSettings {
@@ -332,4 +422,29 @@ export interface MemoryOptimizerOptions {
 export interface MemoryOptimizerUtility {
   getMemoryInfo: () => MemoryInfo | null;
   optimizeMemory: (emergency?: boolean) => Promise<GCResult>;
+}
+
+// 중앙화된 타입 내보내기
+export type {
+  MemoryInfo,
+  GpuInfo,
+  NativeModuleInfo,
+  NativeModuleConfig
+};
+
+// 메모리 최적화 레벨 정의 (memory-optimizer.ts와 memory/optimization-utils.ts 간 공유)
+export enum OptimizationLevel {
+  LIGHT = 'light',
+  MEDIUM = 'medium',
+  AGGRESSIVE = 'aggressive',
+  EMERGENCY = 'emergency'
+}
+
+// 메모리 최적화 결과 타입
+export interface OptimizationResult {
+  level: OptimizationLevel;
+  memoryFreed: number;
+  timestamp: number;
+  success: boolean;
+  error?: string;
 }

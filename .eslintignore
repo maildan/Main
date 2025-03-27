@@ -25,3 +25,22 @@ tailwind.config.js
 .github/
 .vscode/
 public/
+
+# 이 파일은 ESLint 9+ 버전에서 더 이상 사용되지 않습니다.
+# 대신 eslint.config.js 파일의 ignores 속성을 사용하세요.
+# 아래 항목들은 참고용으로만 유지됩니다.
+
+node_modules/
+.next/
+out/
+dist/
+build/
+native-modules/
+*.config.js
+*.config.mjs
+*.json
+*.lock
+.github/
+.vscode/
+public/
+coverage/

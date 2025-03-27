@@ -18,11 +18,11 @@ jobs:
     - name: Node.js 설정
       uses: actions/setup-node@v3
       with:
-        node-version: 20
+        node-version: 18
         cache: 'npm'
     
     - name: 의존성 설치
-      run: npm ci
+      run: npm ci --legacy-peer-deps
     
     - name: 린트 검사 실행
       run: npm run lint:check
@@ -45,11 +45,11 @@ jobs:
     - name: Node.js 설정
       uses: actions/setup-node@v3
       with:
-        node-version: 20
+        node-version: 18
         cache: 'npm'
     
     - name: 의존성 설치
-      run: npm ci
+      run: npm ci --legacy-peer-deps
     
     - name: 네이티브 모듈 빌드
       run: npm run build:native
@@ -68,6 +68,10 @@ jobs:
     if: github.ref == 'refs/heads/develop'
     needs: build
     runs-on: ubuntu-latest
+    environment:
+      name: staging
+      url: ${{ vars.STAGING_URL }}
+    
     steps:
       - name: 코드 체크아웃
         uses: actions/checkout@v3
@@ -81,14 +85,16 @@ jobs:
       - name: Node.js 설정
         uses: actions/setup-node@v3
         with:
-          node-version: '20'
+          node-version: '18'
       
       - name: 의존성 설치
-        run: npm ci --production
+        run: npm ci --legacy-peer-deps --production
       
-      # 여기에 스테이징 서버 배포 스크립트를 추가합니다.
       - name: 스테이징 서버 배포
-        run: echo "스테이징 배포 스크립트 실행" # 실제 배포 스크립트로 대체
+        run: npm run deploy:staging
+        env:
+          DEPLOY_TOKEN: ${{ secrets.DEPLOY_TOKEN }}
+          STAGING_URL: ${{ vars.STAGING_URL }}
 
   deploy-production:
     name: 프로덕션 환경 배포
@@ -97,25 +103,28 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: production
-      url: https://typing-stats-app.example.com
+      url: ${{ vars.PRODUCTION_URL }}
+    
     steps:
-      - name: 코드 체크아웃
-        uses: actions/checkout@v3
-        
-      - name: 빌드 결과물 다운로드
-        uses: actions/download-artifact@v3
-        with:
-          name: build-files
-          path: .next
+    - uses: actions/checkout@v3
+    
+    - name: 빌드 결과물 다운로드
+      uses: actions/download-artifact@v3
+      with:
+        name: build-files
+        path: .next
+    
+    - name: Node.js 설정
+      uses: actions/setup-node@v3
+      with:
+        node-version: 18
+        cache: 'npm'
+    
+    - name: 의존성 설치
+      run: npm ci --legacy-peer-deps --production
       
-      - name: Node.js 설정
-        uses: actions/setup-node@v3
-        with:
-          node-version: '20'
-      
-      - name: 의존성 설치
-        run: npm ci --production
-      
-      # 여기에 프로덕션 서버 배포 스크립트를 추가합니다.
-      - name: 프로덕션 서버 배포
-        run: echo "프로덕션 배포 스크립트 실행" # 실제 배포 스크립트로 대체
+    - name: 배포 스크립트 실행
+      run: npm run deploy:prod
+      env:
+        DEPLOY_TOKEN: ${{ secrets.DEPLOY_TOKEN }}
+        PRODUCTION_URL: ${{ vars.PRODUCTION_URL }}

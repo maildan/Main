@@ -4,7 +4,7 @@ stages:
   - deploy
 
 variables:
-  NODE_VERSION: "20"
+  NODE_VERSION: "18"
 
 cache:
   key: ${CI_COMMIT_REF_SLUG}
@@ -15,7 +15,7 @@ test:
   stage: test
   image: node:${NODE_VERSION}
   script:
-    - npm ci
+    - npm ci --legacy-peer-deps
     - npm run lint:check
     - npm run typecheck
     - npm run test:ci
@@ -27,7 +27,7 @@ build:
   stage: build
   image: node:${NODE_VERSION}
   script:
-    - npm ci
+    - npm ci --legacy-peer-deps
     - npm run build:native
     - npm run build
   artifacts:
@@ -39,14 +39,37 @@ build:
     - master
     - develop
 
-deploy:
+deploy_production:
   stage: deploy
   image: node:${NODE_VERSION}
   script:
-    - echo "운영 서버에 배포 중..."
-    # 여기에 실제 배포 명령어를 추가
+    - npm ci --legacy-peer-deps --production
+    - npm run deploy:prod
   environment:
     name: production
+    url: ${PRODUCTION_URL}
+  dependencies:
+    - build
   only:
     - main
     - master
+  variables:
+    DEPLOY_TOKEN: ${DEPLOY_TOKEN}
+    PRODUCTION_URL: ${PRODUCTION_URL}
+
+deploy_staging:
+  stage: deploy
+  image: node:${NODE_VERSION}
+  script:
+    - npm ci --legacy-peer-deps --production
+    - npm run deploy:staging
+  environment:
+    name: staging
+    url: ${STAGING_URL}
+  dependencies:
+    - build
+  only:
+    - develop
+  variables:
+    DEPLOY_TOKEN: ${DEPLOY_TOKEN}
+    STAGING_URL: ${STAGING_URL}

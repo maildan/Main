@@ -1,44 +1,39 @@
 /**
- * 메모리 관련 유틸리티 통합 모듈
+ * 메모리 관련 유틸리티 통합 내보내기
  */
 
-// 하위 모듈 내보내기
+// 메모리 포맷 유틸리티
 export * from './format-utils';
+
+// 메모리 최적화 유틸리티
+export * from './optimization-utils';
+
+// 메모리 캐시 유틸리티
+export * from './cache-utils';
+
+// 가비지 컬렉션 유틸리티
+export * from './gc-utils';
+
+// 메모리 정보 유틸리티
 export * from './memory-info';
 
-// 필요한 훅들 내보내기
-export { 
-  useMemory, 
-  useMemorySettings,
-  useAutoMemoryOptimization, 
-  useFormattedMemoryInfo,
-  useMemoryStatus 
-} from './hooks';
+// 메모리 훅
+export * from './hooks';
 
-// GC 유틸리티 함수 내보내기
-export { 
-  suggestGarbageCollection,
-  clearBrowserCaches, 
-  clearStorageCaches,
-  setupPeriodicGC
-} from './gc-utils';
+// 메모리 로깅
+export * from './logger';
 
-// 메모리 최적화 기능 내보내기
-export {
-  formatMemoryInfo,
-  assessMemoryState,
-  convertNativeMemoryInfo
-} from './memory-info';
+// 메모리 타입 확장
+export * from './types-extended';
 
-// 네이티브 브릿지 대신 네이티브 모듈 클라이언트에서 직접 필요한 함수만 가져오기
-export { 
-  getMemoryInfo, 
-  optimizeMemory, 
-  forceGarbageCollection 
-} from '../nativeModuleClient';
+// 가비지 컬렉션 관련 모듈
+export * from './gc/garbage-collector';
+export * from './gc/optimization-controller';
+export * from './gc/resource-optimizer';
+export * from './gc/event-optimizer';
+export * from './gc/dom-cleanup';
+export * from './gc/emergency-recovery';
 
-// 요청 함수 내보내기
-export {
-  requestNativeMemoryInfo,
-  requestNativeMemoryOptimization
-} from '../native-memory-bridge';
+// 타입 정의
+export * from './types';
+export * from './gc-types';

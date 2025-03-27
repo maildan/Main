@@ -58,27 +58,42 @@ export interface GpuComputationResult<T = any> {
   used_gpu_acceleration: boolean;
 }
 
-// GPU 정보 인터페이스
+/**
+ * GPU 정보를 나타내는 인터페이스
+ */
 export interface GpuInfo {
-  available: boolean;
-  acceleration_enabled: boolean;
-  name: string;
-  vendor: string;
-  driver_info: string;
-  device_type: string;
-  backend: string;
-  compute_supported: boolean;
+  /** GPU 장치 이름 */
+  deviceName: string;
+  
+  /** GPU 메모리 크기 (MB) */
+  memorySize?: number;
+  
+  /** 드라이버 버전 */
+  driverVersion?: string;
+  
+  /** 가속 가능 여부 */
+  accelerationAvailable: boolean;
+  
+  /** 현재 사용 여부 */
+  accelerationActive: boolean;
+  
+  /** GPU 가속 사용 가능한 기능 목록 */
+  features?: string[];
+  
+  /** 조회 시간 */
   timestamp: number;
 }
 
-// GPU 설정 인터페이스
+/**
+ * GPU 설정을 나타내는 인터페이스
+ */
 export interface GpuSettings {
-  enableAcceleration: boolean;
-  prioritizePerformance: boolean;
-  useCacheOptimization: boolean;
-  preferredBackend: string;
-  textureCompression: boolean;
-  workgroupSize: number;
-  useHighPrecision: boolean;
-  maxResourceUsage: 'low' | 'medium' | 'high';
+  /** GPU 가속 사용 여부 */
+  useHardwareAcceleration: boolean;
+  
+  /** 처리 모드 (auto, cpu, gpu) */
+  processingMode: 'auto' | 'cpu' | 'gpu';
+  
+  /** 가속을 적용할 작업 유형 */
+  acceleratedOperations?: string[];
 }

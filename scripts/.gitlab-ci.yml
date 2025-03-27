@@ -1,0 +1,41 @@
+# GitLab CI/CD 파이프라인 설정
+stages:
+  - test
+  - build
+  - deploy
+
+variables:
+  NODE_VERSION: "18"
+
+cache:
+  key: ${CI_COMMIT_REF_SLUG}
+  paths:
+    - node_modules/
+
+test:
+  stage: test
+  image: node:${NODE_VERSION}
+  script:
+    - npm ci --legacy-peer-deps
+    - npm run lint:check
+    - npm run typecheck
+    - npm run test:ci
+  artifacts:
+    reports:
+      junit: junit.xml
+
+build:
+  stage: build
+  image: node:${NODE_VERSION}
+  script:
+    - npm ci --legacy-peer-deps
+    - npm run build:native
+    - npm run build
+  artifacts:
+    paths:
+      - .next/
+      - out/
+  only:
+    - main
+    - master
+    - develop

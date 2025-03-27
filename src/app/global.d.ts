@@ -366,3 +366,86 @@ interface Window {
     startTime: number;
   };
 }
+
+/**
+ * 글로벌 타입 선언
+ */
+
+interface Window {
+  /**
+   * GC를 직접 수행하는 함수
+   * 디버깅 및 테스트 목적으로만 사용해야 함
+   */
+  gc?: () => void;
+  
+  /**
+   * 메모리 최적화 유틸리티
+   */
+  __memoryOptimizer?: {
+    /**
+     * 현재 메모리 정보를 가져오는 함수
+     */
+    getMemoryInfo: () => Promise<any>;
+    
+    /**
+     * 메모리 사용량 백분율 가져오는 함수
+     */
+    getMemoryUsagePercentage: () => Promise<number>;
+    
+    /**
+     * 메모리 최적화 수행 함수
+     */
+    optimizeMemory: (aggressive?: boolean) => Promise<{ success: boolean }>;
+    
+    /**
+     * 가비지 컬렉션 제안 함수
+     */
+    suggestGarbageCollection: () => void;
+    
+    /**
+     * 모든 캐시 지우기 함수
+     */
+    clearAllCaches: () => boolean;
+    
+    /**
+     * 주기적 최적화 설정 함수
+     */
+    setupPeriodicOptimization: (interval?: number, threshold?: number) => () => void;
+    
+    /**
+     * 주기적 최적화 정리 함수
+     */
+    cleanupPeriodicOptimization: () => void;
+    
+    /**
+     * 메모리 최적화 설정
+     */
+    settings: Record<string, any>;
+  };
+  
+  /**
+   * 전자 API
+   */
+  electron?: {
+    sendMessage: (channel: string, ...args: any[]) => void;
+    receiveMessage: (channel: string, func: (...args: any[]) => void) => void;
+  };
+  
+  /**
+   * 네이티브 모듈 접근자
+   */
+  __nativeModuleCache?: {
+    [key: string]: any;
+  };
+}
+
+/**
+ * 성능 메모리 타입 확장 (Chrome 브라우저용)
+ */
+interface Performance {
+  memory?: {
+    jsHeapSizeLimit: number;
+    totalJSHeapSize: number;
+    usedJSHeapSize: number;
+  };
+}

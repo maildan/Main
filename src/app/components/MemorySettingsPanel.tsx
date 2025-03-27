@@ -4,12 +4,12 @@ import React, { useState, useEffect } from 'react';
 import { 
   loadMemorySettings, 
   saveMemorySettings, 
-  resetMemorySettings,
-  MemorySettings 
+  resetMemorySettings 
 } from '../settings/memory-settings';
+import { MemorySettings } from '@/types'; // @/types에서 MemorySettings 타입 가져오기
 import { runComprehensiveBenchmark } from '../utils/performance-metrics';
 // 메모리 유틸리티 가져오기
-import { setupMemoryUtils, getMemoryUsagePercentage } from '../utils/memory';
+import { setupMemoryUtils } from '../utils/memory';
 import { getNativeModuleStatus } from '../utils/nativeModuleClient';
 import styles from './MemorySettingsPanel.module.css';
 
@@ -113,7 +113,10 @@ const MemorySettingsPanel: React.FC<MemorySettingsPanelProps> = ({
       componentSpecificSettings: {
         ...settings.componentSpecificSettings,
         [componentId]: {
-          ...settings.componentSpecificSettings[componentId],
+          ...settings.componentSpecificSettings[componentId] || {
+            optimizeOnUnmount: false,
+            aggressiveCleanup: false
+          },
           [key]: value
         }
       }
@@ -313,7 +316,7 @@ const MemorySettingsPanel: React.FC<MemorySettingsPanelProps> = ({
             </div>
             
             <div className={styles.settingItem}>
-              <div className={styles.settingLabel}>
+              <div class는styles.settingLabel}>
                 <div className={styles.settingTitle}>상세 로깅 활성화</div>
                 <div className={styles.settingDescription}>
                   메모리 사용 패턴 및 최적화 작업 상세 로깅
@@ -421,7 +424,7 @@ const MemorySettingsPanel: React.FC<MemorySettingsPanelProps> = ({
               </p>
               
               {Object.keys(settings.componentSpecificSettings).length > 0 ? (
-                Object.entries(settings.componentSpecificSettings).map(([id, componentSettings]) => (
+                Object.entries(settings.componentSpecificSettings).map(([id, compSettings]) => (
                   <div key={id} className={styles.componentItem}>
                     <div className={styles.componentHeader}>
                       <h4>{id}</h4>
@@ -433,7 +436,7 @@ const MemorySettingsPanel: React.FC<MemorySettingsPanelProps> = ({
                           <label className={styles.switch}>
                             <input 
                               type="checkbox" 
-                              checked={componentSettings.optimizeOnUnmount}
+                              checked={compSettings.optimizeOnUnmount}
                               onChange={(e) => handleComponentSettingChange(
                                 id, 'optimizeOnUnmount', e.target.checked
                               )}
@@ -448,7 +451,7 @@ const MemorySettingsPanel: React.FC<MemorySettingsPanelProps> = ({
                           <label className={styles.switch}>
                             <input 
                               type="checkbox" 
-                              checked={componentSettings.aggressiveCleanup}
+                              checked={compSettings.aggressiveCleanup}
                               onChange={(e) => handleComponentSettingChange(
                                 id, 'aggressiveCleanup', e.target.checked
                               )}

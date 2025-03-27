@@ -209,3 +209,49 @@
   padding-top: 10px; /* 약간의 상단 여백 유지 */
   margin-top: 45px; /* 헤더 높이만큼 마진 추가 */
 }
+
+/* 네비게이션 링크 스타일 추가 */
+.navLinks {
+  display: flex;
+  justify-content: center;
+  padding: 8px;
+  background-color: #f5f5f5;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.navLinks ul {
+  display: flex;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.navLinks li {
+  margin: 0 12px;
+}
+
+.navLink {
+  color: #333;
+  text-decoration: none;
+  font-weight: 500;
+  padding: 5px 10px;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+}
+
+.navLink:hover {
+  background-color: #e0e0e0;
+}
+
+.dark-mode .navLinks {
+  background-color: #2a2a2a;
+  border-bottom: 1px solid #3a3a3a;
+}
+
+.dark-mode .navLink {
+  color: #f0f0f0;
+}
+
+.dark-mode .navLink:hover {
+  background-color: #3a3a3a;
+}

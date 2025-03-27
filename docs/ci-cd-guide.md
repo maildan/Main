@@ -19,10 +19,24 @@ GitHub Actions를 사용하면 코드 저장소에서 직접 워크플로우를 
    - 네이티브 모듈 컴파일
    - Next.js 애플리케이션 빌드
 
+3. **배포**: 환경별 배포
+   - 프로덕션 배포 (main/master 브랜치)
+   - 스테이징 배포 (develop 브랜치)
+
+### 배포 환경 설정
+
+GitHub Actions에서 배포를 위해 다음과 같은 시크릿을 설정해야 합니다:
+
+- `DEPLOY_TOKEN`: 배포 서비스에 인증하기 위한 토큰
+- `PRODUCTION_URL`: 프로덕션 환경 URL
+- `STAGING_URL`: 스테이징 환경 URL
+
+이러한 시크릿은 GitHub 저장소 설정의 "Secrets and variables" > "Actions" 섹션에서 추가할 수 있습니다.
+
 ### 브랜치 전략
 
 - `main` / `master`: 프로덕션 환경에 배포되는 안정적인 코드
-- `develop`: 개발 중인 코드, 다음 릴리스를 위한 통합 브랜치
+- `develop`: 개발 중인 코드, 스테이징 환경에 자동 배포
 - 기능 브랜치: `feature/기능-이름` 형식으로 새 기능 개발
 
 ### 워크플로우 실행 조건
@@ -38,13 +52,24 @@ GitLab에서도 유사한 CI/CD 파이프라인이 설정되어 있습니다.
 
 1. **test**: 코드 테스트
 2. **build**: 애플리케이션 빌드
-3. **deploy**: 배포 (main/master 브랜치에서만 실행)
+3. **deploy**: 배포
+   - deploy_production: main/master 브랜치에서 프로덕션 환경으로 배포
+   - deploy_staging: develop 브랜치에서 스테이징 환경으로 배포
 
 ### GitLab CI/CD 특징
 
 - 캐싱: `node_modules`를 캐싱하여 빌드 속도 개선
 - 아티팩트: 빌드 결과물을 아티팩트로 저장하여 다음 단계에서 사용 가능
 - 환경: 프로덕션 환경에 대한 명시적 배포 단계
+
+### CI/CD 변수 설정
+
+GitLab에서 배포를 위해 다음 변수들을 설정해야 합니다:
+- `DEPLOY_TOKEN`: 배포 서비스에 인증하기 위한 토큰
+- `PRODUCTION_URL`: 프로덕션 환경 URL
+- `STAGING_URL`: 스테이징 환경 URL
+
+이러한 변수는 GitLab 프로젝트의 "Settings" > "CI/CD" > "Variables" 섹션에서 추가할 수 있습니다.
 
 ## CI/CD 환경 변수
 

@@ -1,184 +1,88 @@
 /**
- * 메모리 최적화 유틸리티
+ * 메모리 최적화 조정자 (Orchestrator)
  * 
- * 애플리케이션 메모리 사용량을 최적화하는 기능을 제공합니다.
+ * 이 모듈은 메모리 최적화의 상위 레벨 인터페이스를 제공하고,
+ * 실제 최적화 작업은 memory/optimization-utils.ts와 gc/ 하위 모듈에 위임합니다.
  */
 
-import { MemoryInfo, OptimizationResult, OptimizationLevel } from '@/types';
-import { requestNativeMemoryInfo, requestNativeMemoryOptimization } from './native-memory-bridge';
-import { suggestGarbageCollection, cleanAllCaches } from './memory/gc-utils';
-import { isBrowser } from './memory/gc-utils';
-
-// 최적화 상태 인터페이스
-interface OptimizationState {
-  lastOptimization: number | null;
-  optimizationCount: number;
-  enabled: boolean;
-  isOptimizing: boolean;
-}
-
-// 최적화 옵션 인터페이스
-interface OptimizationOptions {
-  aggressive?: boolean;
-  threshold?: number;
-  emergency?: boolean;
-}
-
-// 최적화 상태 관리
-const optimizationState: OptimizationState = {
-  lastOptimization: null,
-  optimizationCount: 0,
-  enabled: true,
-  isOptimizing: false
-};
+import { OptimizationLevel, OptimizationResult } from '../../types';
+import * as memoryInfo from './memory/memory-info';
+import * as optimizationUtils from './memory/optimization-utils';
+import { performGarbageCollection } from './memory/gc/garbage-collector';
+import { logger } from './memory/logger';
 
 /**
- * 메모리 정보 가져오기
- * @returns 메모리 정보 객체 또는 null
- */
-export async function getMemoryInfo(): Promise<MemoryInfo | null> {
-  try {
-    return await requestNativeMemoryInfo();
-  } catch (error) {
-    console.error('메모리 정보 가져오기 오류:', error);
-    return null;
-  }
-}
-
-/**
- * 메모리 사용량 기반 최적화 수준 결정
- * @param memoryInfo 메모리 정보 객체
- * @returns 최적화 수준
- */
-export function determineOptimizationLevel(memoryInfo: MemoryInfo): OptimizationLevel {
-  const percentUsed = memoryInfo.percentUsed;
-  
-  if (percentUsed >= 90) {
-    return OptimizationLevel.CRITICAL;
-  } else if (percentUsed >= 80) {
-    return OptimizationLevel.HIGH;
-  } else if (percentUsed >= 70) {
-    return OptimizationLevel.MEDIUM;
-  } else if (percentUsed >= 60) {
-    return OptimizationLevel.LOW;
-  } else {
-    return OptimizationLevel.NONE;
-  }
-}
-
-/**
- * 메모리 최적화 수행
- * @param level 최적화 수준
- * @param options 최적화 옵션
- * @returns 최적화 결과 객체 또는 null
+ * 메모리 최적화를 실행합니다.
+ * 
+ * @param level - 최적화 레벨 (기본값: 'medium')
+ * @param emergency - 긴급 상황 여부
+ * @returns 최적화 결과
  */
 export async function optimizeMemory(
-  level: OptimizationLevel | number = OptimizationLevel.MEDIUM,
-  options: OptimizationOptions = {}
-): Promise<OptimizationResult | null> {
-  // 이미 최적화 중이면 건너뛰기
-  if (optimizationState.isOptimizing) {
-    return null;
-  }
-  
+  level: OptimizationLevel = OptimizationLevel.MEDIUM,
+  emergency: boolean = false
+): Promise<OptimizationResult> {
   try {
-    optimizationState.isOptimizing = true;
+    logger.info(`[Memory Optimizer] Starting memory optimization at level: ${level}, emergency: ${emergency}`);
     
-    // 옵션 설정
-    const { aggressive = false, emergency = false } = options;
+    // 현재 메모리 사용량 확인
+    const beforeMemory = await memoryInfo.getMemoryUsage();
     
-    // 레벨 확인
-    const optimizationLevel = typeof level === 'number' 
-      ? level
-      : OptimizationLevel.MEDIUM;
+    // 최적화 실행
+    const result = await optimizationUtils.runOptimization(level, emergency);
     
-    // 네이티브 메모리 최적화 요청
-    const result = await requestNativeMemoryOptimization(
-      optimizationLevel,
-      emergency || aggressive
-    );
+    // 가비지 컬렉션 실행
+    await performGarbageCollection(emergency);
     
-    // 최적화 성공 시 후속 조치
-    if (result && result.success) {
-      // 브라우저 환경에서만 실행
-      if (isBrowser) {
-        // 추가 캐시 정리
-        cleanAllCaches();
-        
-        // GC 제안 (가능한 경우)
-        suggestGarbageCollection();
-      }
-      
-      // 최적화 상태 업데이트
-      optimizationState.lastOptimization = Date.now();
-      optimizationState.optimizationCount++;
-    }
+    // 최적화 후 메모리 사용량 확인
+    const afterMemory = await memoryInfo.getMemoryUsage();
     
-    return result;
-  } catch (error) {
-    console.error('메모리 최적화 오류:', error);
+    // 해제된 메모리 계산
+    const memoryFreed = beforeMemory.heapUsed - afterMemory.heapUsed;
+    
+    logger.info(`[Memory Optimizer] Memory optimization completed. Freed: ${memoryFreed} bytes`);
+    
     return {
-      success: false,
+      level,
+      memoryFreed,
       timestamp: Date.now(),
-      optimizationLevel: level,
-      error: error instanceof Error ? error.message : '알 수 없는 오류'
+      success: true
     };
-  } finally {
-    optimizationState.isOptimizing = false;
-  }
-}
-
-/**
- * 최적화 상태 가져오기
- * @returns 최적화 상태 객체
- */
-export function getOptimizationState(): OptimizationState {
-  return { ...optimizationState };
-}
-
-/**
- * 자동 최적화 활성화 설정
- * @param enabled 활성화 여부
- */
-export function setAutoOptimizationEnabled(enabled: boolean): void {
-  optimizationState.enabled = enabled;
-}
-
-/**
- * 메모리 사용량 확인 및 필요시 최적화
- * @param threshold 최적화 임계값 (%)
- * @returns 최적화 수행 여부
- */
-export async function checkAndOptimize(threshold = 75): Promise<boolean> {
-  // 자동 최적화 비활성화 상태면 건너뛰기
-  if (!optimizationState.enabled) {
-    return false;
-  }
-  
-  try {
-    // 메모리 정보 가져오기
-    const memoryInfo = await getMemoryInfo();
-    
-    if (!memoryInfo) {
-      return false;
-    }
-    
-    // 임계값 초과 시 최적화 수행
-    if (memoryInfo.percentUsed >= threshold) {
-      const level = determineOptimizationLevel(memoryInfo);
-      
-      // 충분히 높은 레벨일 때만 최적화
-      if (level >= OptimizationLevel.MEDIUM) {
-        await optimizeMemory(level, {
-          emergency: level >= OptimizationLevel.CRITICAL
-        });
-        return true;
-      }
-    }
-    
-    return false;
   } catch (error) {
-    console.error('메모리 확인 및 최적화 오류:', error);
-    return false;
+    logger.error('[Memory Optimizer] Error during memory optimization:', error);
+    return {
+      level,
+      memoryFreed: 0,
+      timestamp: Date.now(),
+      success: false,
+      error: error instanceof Error ? error.message : String(error)
+    };
   }
 }
+
+/**
+ * 자동 메모리 최적화 설정을 구성합니다.
+ * 
+ * @param options - 자동 최적화 설정
+ */
+export function configureAutoOptimization(options: {
+  enabled: boolean;
+  interval?: number;
+  threshold?: number;
+}): void {
+  optimizationUtils.configureAutoOptimization(options);
+}
+
+/**
+ * 현재 메모리 상태를 확인하고 필요 시 최적화를 수행합니다.
+ */
+export async function checkAndOptimizeMemory(): Promise<void> {
+  try {
+    const memoryUsage = await memoryInfo.getMemoryUsage();
+    await optimizationUtils.checkAndOptimize(memoryUsage);
+  } catch (error) {
+    logger.error('[Memory Optimizer] Error during memory check and optimize:', error);
+  }
+}
+
+// 추가 메모리 최적화 관련 기능들...
