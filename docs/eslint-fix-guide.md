@@ -30,6 +30,51 @@ node scripts/fix-eslint-errors.js
 3. **모듈 import 스타일 검사**: ESM과 CommonJS 스타일의 import 문법을 검사합니다.
 4. **기본 포맷팅 수정**: 세미콜론, 따옴표 등 기본적인 코드 스타일 문제를 수정합니다.
 
+## 모듈 시스템 호환성 문제
+
+프로젝트에서 종종 발생하는 중요한 오류 중 하나는 ES 모듈과 CommonJS 모듈 사이의 호환성 문제입니다.
+
+### ES 모듈 vs CommonJS 오류
+
+**문제**: 
+```
+ReferenceError: require is not defined in ES module scope, you can use import instead
+```
+
+이 오류는 `package.json`에 `"type": "module"`이 설정된 프로젝트에서 `.js` 파일이 CommonJS 스타일(`require()`)을 사용할 때 발생합니다.
+
+**해결 방법**:
+
+1. **스크립트를 ES 모듈로 변환하기**:
+```javascript
+// 변경 전 (CommonJS)
+const fs = require('fs');
+
+// 변경 후 (ES 모듈)
+import fs from 'fs';
+```
+
+2. **파일 확장자 변경**:
+   - `.js` → `.cjs`: CommonJS 스타일을 유지하고 싶은 파일
+   - `.js` → `.mjs`: ES 모듈 스타일을 명시적으로 표시
+
+3. **스크립트 실행 방법**:
+```bash
+# ES 모듈 스크립트 실행
+node scripts/your-script.js
+
+# CommonJS 스크립트 실행 (확장자 변경된 경우)
+node scripts/your-script.cjs
+```
+
+### 초기화 스크립트 실행 시 오류 해결
+
+`npm run init` 실행 시 `install-native.js` 스크립트에서 발생하는 모듈 시스템 오류는 다음 방법으로 해결할 수 있습니다:
+
+1. `scripts/install-native.js` 파일을 `scripts/install-native.cjs`로 이름 변경
+2. `package.json`의 관련 스크립트에서 경로도 함께 업데이트
+3. 또는 파일을 ES 모듈 형식으로 변환 (`require()` → `import`)
+
 ## ESLint 오류 수정 우선순위
 
 ESLint 오류를 수정할 때는 다음 우선순위를 따르는 것이 좋습니다:

@@ -11,9 +11,9 @@ import { MemoryInfo } from '@/types';
 import { normalizeMemoryInfo } from './format-utils';
 
 /**
- * 메모리 관련 로깅 유틸리티
+ * 메모리 로거 모듈
  * 
- * 메모리 관리 관련 로그를 효율적으로 기록하기 위한 로거를 제공합니다.
+ * 메모리 사용량 및 관련 이벤트를 로깅하기 위한 유틸리티
  */
 
 // 로그 레벨 정의
@@ -174,17 +174,11 @@ export class MemoryLogger {
   getErrorLogs(): LogEntry[] {
     return this.logs.filter(entry => entry.level === LogLevel.ERROR);
   }
-
-  /**
-   * 로그 지우기
-   */
-  clearLogs(): void {
-    this.logs = [];
-  }
 }
 
 // 기본 로거 인스턴스
 export const memoryLogger = new MemoryLogger();
+export const logger = memoryLogger; // 편의를 위한 별칭
 
 // 편의성을 위한 기본 함수 내보내기
 export const debug = memoryLogger.debug.bind(memoryLogger);
@@ -195,45 +189,32 @@ export const error = memoryLogger.error.bind(memoryLogger);
 // 메모리 로그 엔트리 인터페이스
 export interface MemoryLogEntry {
   timestamp: number;
-  info: MemoryInfo;
-  eventType: MemoryEventType;
-  eventDescription?: string;
-  componentId?: string;
-  route?: string;
+  type: string;
+  info: {
+    heap_used?: number;
+    heap_total?: number;
+    heap_limit?: number;
+    external?: number;
+    heap_used_mb?: number;
+    percent_used?: number;
+    [key: string]: any;
+  };
+  tags?: string[];
+  sessionId?: string;
+  eventType?: string;
 }
 
 // 메모리 이벤트 타입 정의
 export enum MemoryEventType {
   PERIODIC_CHECK = 'periodic_check',
-  PAGE_NAVIGATION = 'page_navigation',
+  GC_REQUEST = 'gc_request',
+  THRESHOLD_EXCEEDED = 'threshold_exceeded',
+  EMERGENCY_GC = 'emergency_gc',
+  LOW_MEMORY_WARNING = 'low_memory_warning',
   OPTIMIZATION = 'optimization',
-  COMPONENT_MOUNT = 'component_mount',
-  COMPONENT_UNMOUNT = 'component_unmount',
-  USER_ACTION = 'user_action',
-  GARBAGE_COLLECTION = 'garbage_collection',
-  ERROR = 'error',
-  CUSTOM = 'custom'
+  RESOURCE_RELEASE = 'resource_release',
+  STATE_CHANGE = 'state_change'
 }
-
-// 메모리 사용 통계 인터페이스
-export interface MemoryUsageStats {
-  averageUsage: number;
-  peakUsage: number;
-  minUsage: number;
-  lastUsage: number;
-  usageOverTime: { timestamp: number; usageMB: number }[];
-  optimizationEvents: { timestamp: number; freedMemory: number }[];
-  gcEvents: { timestamp: number; freedMemory: number }[];
-  leakSuspects: { componentId: string; frequency: number }[];
-}
-
-// 인메모리 로그 저장소 (최대 1000개 항목)
-const memoryLogs: MemoryLogEntry[] = [];
-const MAX_LOG_ENTRIES = 1000;
-
-// IndexedDB 저장소 키
-const INDEXEDDB_STORE = 'memoryLogs';
-const MEMORY_LOG_DB = 'typingStatsMemoryDB';
 
 /**
  * 메모리 사용량 로깅
@@ -275,6 +256,7 @@ export async function logMemoryUsage(
   // 로그 항목 생성
   const logEntry: MemoryLogEntry = {
     timestamp: Date.now(),
+    type: 'memory',
     info: standardizedInfo,
     eventType,
     eventDescription,
@@ -356,6 +338,25 @@ async function saveLogToIndexedDB(logEntry: MemoryLogEntry): Promise<void> {
         addRequest.onsuccess = () => {
           resolve();
         };
+        
+        addRequest.onerror = () => {
+          reject(new Error(`로그 항목 저장 실패: ${addRequest.error}`));
+        };
+        
+        // 트랜잭션 완료 이벤트
+        transaction.oncomplete = () => {
+          db.close();
+        };
+      } catch (error) {
+        reject(error);
+      }
+    };
+  });
+}
+
+/**
+ * 저장된 메모리 로그 가져오기
+ * 
         
         addRequest.onerror = () => {
           reject(new Error(`로그 항목 저장 실패: ${addRequest.error}`));

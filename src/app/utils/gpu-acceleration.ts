@@ -1,7 +1,9 @@
 /**
- * GPU 가속화 유틸리티
+ * GPU 언어어 유틸리티
  * 
- * 이 모듈은 네이티브 모듈을 사용하여 GPU 가속화를 관리합니다.
+ * 이 모듈은 네이티브 모듈을 사용하여 GPU 가속화를 관
+
+ * 리합니다.
  */
 
 import { getGpuInfo, performGpuComputation } from './nativeModuleClient';

@@ -32,7 +32,7 @@
     "build:native:debug": "cd native-modules && cargo build --verbose && npm run copy-native-debug",
     "copy-native": "node scripts/copy-native.js",
     "copy-native-debug": "node scripts/copy-native.js --debug",
-    "postinstall": "node scripts/install-native.js",
+    "postinstall": "node scripts/install-native.cjs",
     "deploy:prod": "node scripts/deploy-production.js",
     "deploy:staging": "node scripts/deploy-staging.js",
     "prepare": "husky install"
