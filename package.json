@@ -80,19 +80,20 @@
     "@types/node": "^20.8.10",
     "@types/react": "^18.2.35",
     "@types/react-dom": "^18.2.14",
-    "@typescript-eslint/eslint-plugin": "^7.0.0",
-    "@typescript-eslint/parser": "^7.0.0",
+    "@typescript-eslint/eslint-plugin": "^7.18.0",
+    "@typescript-eslint/parser": "^7.18.0",
     "concurrently": "^8.2.2",
     "cross-env": "^7.0.3",
     "electron": "^29.0.0",
     "electron-builder": "^24.9.1",
     "eslint": "^8.57.0",
     "eslint-plugin-react": "^7.34.0",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "husky": "^8.0.0",
     "prettier": "^3.1.0",
     "rimraf": "^5.0.5",
     "typescript": "^5.3.3",
-    "wait-on": "^7.0.1",
-    "husky": "^8.0.0"
+    "wait-on": "^7.0.1"
   },
   "directories": {
     "doc": "docs"

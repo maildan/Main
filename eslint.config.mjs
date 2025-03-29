@@ -1,33 +1,61 @@
-import eslint from '@eslint/js';
-import tseslint from 'typescript-eslint';
+import js from '@eslint/js';
+import tsParser from '@typescript-eslint/parser';
+import tsPlugin from '@typescript-eslint/eslint-plugin';
+import reactPlugin from 'eslint-plugin-react';
 import nextPlugin from '@next/eslint-plugin-next';
-import reactRecommended from 'eslint-plugin-react/configs/recommended.js';
-import reactHooks from 'eslint-plugin-react-hooks';
 
 export default [
-  eslint.configs.recommended,
-  ...tseslint.configs.recommended,
-  reactRecommended,
-  reactHooks.configs.recommended,
+  // Ignore patterns (replaces .eslintignore)
+  {
+    ignores: [
+      'node_modules/**',
+      '.next/**',
+      'out/**',
+      'dist/**',
+      'build/**',
+      'native-modules/**',
+      '*.config.js',
+      '*.config.cjs',
+      '*.json',
+      '*.lock',
+      '.github/**',
+      '.vscode/**',
+      'public/**',
+      'coverage/**',
+    ]
+  },
+  
+  // Base JS config
+  js.configs.recommended,
+  
+  // Global settings for all files
   {
     files: ['**/*.{js,jsx,ts,tsx}'],
+    languageOptions: {
+      parser: tsParser,
+      parserOptions: {
+        ecmaVersion: 'latest',
+        sourceType: 'module',
+        ecmaFeatures: {
+          jsx: true
+        }
+      }
+    },
     plugins: {
+      '@typescript-eslint': tsPlugin,
+      'react': reactPlugin,
       '@next/next': nextPlugin
     },
     rules: {
-      // Next.js 규칙 직접 설정 (next/core-web-vitals 대신)
-      '@next/next/no-html-link-for-pages': 'error',
-      '@next/next/no-img-element': 'warn',
-      '@next/next/no-unwanted-polyfillio': 'warn',
-      '@next/next/no-sync-scripts': 'error',
-      '@next/next/no-head-element': 'warn',
-      '@next/next/no-document-import-in-page': 'error',
-      
-      // 기존 규칙
+      // React rules
       'react/react-in-jsx-scope': 'off',
       'react/prop-types': 'off',
+      
+      // TypeScript rules
       '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
       '@typescript-eslint/explicit-function-return-type': 'off',
+      
+      // General rules
       'no-console': ['warn', { allow: ['warn', 'error', 'info'] }],
     },
     settings: {
@@ -36,12 +64,16 @@ export default [
       },
     },
   },
+  
+  // JavaScript file specific settings
   {
     files: ['**/*.{js,cjs,mjs}'],
     rules: {
       '@typescript-eslint/no-var-requires': 'off',
     },
   },
+  
+  // Backend file specific settings
   {
     files: ['src/main/**/*.{js,cjs,mjs}', 'src/server/**/*.{js,cjs,mjs}'],
     rules: {
