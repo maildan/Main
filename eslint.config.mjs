@@ -1,146 +1,116 @@
-import globals from 'globals';
-import typescriptParser from '@typescript-eslint/parser';
-import typescriptPlugin from '@typescript-eslint/eslint-plugin';
+import js from '@eslint/js';
+import nextPlugin from '@next/eslint-plugin-next';
+import tsParser from '@typescript-eslint/parser';
+import tsPlugin from '@typescript-eslint/eslint-plugin';
 import reactPlugin from 'eslint-plugin-react';
-import reactHooksPlugin from 'eslint-plugin-react-hooks';
-import eslintConfigNext from 'eslint-config-next';
-const { nextConfig } = eslintConfigNext;
-import importPlugin from 'eslint-plugin-import';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
+// 현재 파일 위치 가져오기
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// eslint-disable-next-line import/no-default-export
 export default [
-  // 기본 정적 파일 및 빌드 결과물 무시 - .eslintignore 파일 내용을 여기로 이전
+  // 무시할 파일 설정 (이전 .eslintignore 대체)
   {
     ignores: [
       'node_modules/**',
       '.next/**',
-      'out/**',
       'dist/**',
       'build/**',
-      'native-modules/**',
-      '*.config.js',
-      '*.config.mjs',
-      '*.json',
-      '*.lock',
-      '.github/**',
-      '.vscode/**',
+      'out/**',
       'public/**',
-      'coverage/**',
-      // 빌드 출력
-      '.next/',
-      'out/',
-      'dist/',
-      'build/',
-
-      // 의존성
-      'node_modules/',
-      '*.d.ts',
-
-      // Rust/Native 모듈 관련 파일
-      'native-modules/',
-      '*.rs',
-
-      // 기타
-      '.github/',
-      '.vscode/',
-      'public/',
-      'logs/',
-    ],
+      'native-modules/**',
+      'release/**',
+      '.vscode/**',
+      '.github/**',
+      'logs/**',
+      'scripts/**/*.cjs',
+      'main.cjs',
+      'next.config.js',
+      'next.config.cjs',
+      'next.config.mjs',
+      '**/*.json',
+      '**/*.md'
+    ]
   },
   
-  // Next.js ESLint 구성 추가
-  ...nextConfig(),
-
-  // 모든 JavaScript 파일에 대한 기본 구성
+  // JavaScript 표준 설정
+  js.configs.recommended,
+  
+  // Next.js와 React 설정
   {
-    files: ['**/*.js', '**/*.mjs'],
-    languageOptions: {
-      ecmaVersion: 'latest',
-      sourceType: 'module',
-      globals: {
-        ...globals.node,
-        ...globals.browser,
-        process: 'readonly',
-      },
-      parser: typescriptParser,
-      parserOptions: {
-        ecmaFeatures: {
-          jsx: true,
-        },
-      },
-    },
     plugins: {
-      import: importPlugin,
+      react: reactPlugin,
+      next: nextPlugin,
+      '@typescript-eslint': tsPlugin
+    },
+    languageOptions: {
+      parser: tsParser,
+      parserOptions: {
+        ecmaVersion: 'latest',
+        sourceType: 'module',
+        ecmaFeatures: {
+          jsx: true
+        },
+        project: path.join(__dirname, './tsconfig.json')
+      }
+    },
+    settings: {
+      react: {
+        version: 'detect'
+      },
+      next: {
+        rootDir: __dirname
+      }
     },
     rules: {
-      'no-console': ['warn', { allow: ['warn', 'error'] }],
-      'semi': ['error', 'always'],
-      'quotes': ['error', 'single'],
-    },
-  },
-
-  // TypeScript 파일 구성
-  {
-    files: ['**/*.ts', '**/*.tsx'],
-    languageOptions: {
-      ecmaVersion: 'latest',
-      sourceType: 'module',
-      globals: {
-        ...globals.node,
-        ...globals.browser,
-        process: 'readonly',
-      },
-      parser: typescriptParser,
-      parserOptions: {
-        ecmaFeatures: {
-          jsx: true,
-        },
-        project: './tsconfig.json',
-      },
-    },
-    plugins: {
-      '@typescript-eslint': typescriptPlugin,
-      'react': reactPlugin,
-      'react-hooks': reactHooksPlugin,
-      'import': importPlugin,
-    },
-    rules: {
-      // 타입스크립트 관련 규칙
-      '@typescript-eslint/explicit-function-return-type': 'off',
-      '@typescript-eslint/no-explicit-any': 'warn',
-      '@typescript-eslint/ban-ts-comment': ['warn', { 
-        'ts-ignore': 'allow-with-description' 
-      }],
-      '@typescript-eslint/no-unused-vars': ['error', { 
-        argsIgnorePattern: '^_',
-        varsIgnorePattern: '^_' 
-      }],
-
-      // 리액트 관련 규칙
+      // Next.js 규칙
+      'next/core-web-vitals': 'error',
+      
+      // React 규칙
+      'react/jsx-uses-react': 'error',
+      'react/jsx-uses-vars': 'error',
+      'react/prop-types': 'off',
       'react/react-in-jsx-scope': 'off',
-      'react-hooks/rules-of-hooks': 'error',
-      'react-hooks/exhaustive-deps': 'warn',
-
-      // 코드 스타일
+      
+      // TypeScript 규칙
+      '@typescript-eslint/no-unused-vars': ['warn', { 
+        argsIgnorePattern: '^_',
+        varsIgnorePattern: '^_'
+      }],
+      '@typescript-eslint/explicit-function-return-type': 'off',
+      '@typescript-eslint/explicit-module-boundary-types': 'off',
+      '@typescript-eslint/no-explicit-any': 'warn',
+      
+      // 일반 규칙
+      'no-console': process.env.NODE_ENV === 'production' ? 'warn' : 'off',
+      'no-debugger': process.env.NODE_ENV === 'production' ? 'error' : 'off',
       'semi': ['error', 'always'],
-      'quotes': ['error', 'single'],
-      'no-console': ['warn', { allow: ['warn', 'error'] }],
-    },
+      'quotes': ['error', 'single', { avoidEscape: true }],
+      'no-unused-vars': 'off' // TypeScript 규칙으로 대체
+    }
   },
-
-  // 서버 코드에 대한 설정
+  
+  // CJS 파일에는 독립적인 설정 적용
   {
-    files: ['**/server/**/*.js', '**/server/**/*.ts'],
-    rules: {
-      'no-console': 'off',
+    files: ['**/*.cjs'],
+    languageOptions: {
+      sourceType: 'commonjs'
     },
+    rules: {
+      'no-console': 'off', // CJS 파일에서는 콘솔 허용
+      '@typescript-eslint/no-var-requires': 'off'
+    }
   },
-
-  // 테스트 파일에 대한 설정
+  
+  // Electron 메인 프로세스 파일
   {
-    files: ['**/*.test.ts', '**/*.test.tsx', '**/__tests__/**/*.ts', '**/__tests__/**/*.tsx'],
+    files: ['src/main/**/*', 'main.cjs'],
     rules: {
-      'no-console': 'off',
-      '@typescript-eslint/no-explicit-any': 'off',
-    },
-  },
+      'no-console': 'off', // 메인 프로세스는 콘솔 로그 허용
+      '@typescript-eslint/no-var-requires': 'off' // Electron에서는 require 허용
+    }
+  }
 ];

@@ -59,7 +59,16 @@ try {
   const packageLockPath = path.join(process.cwd(), 'package-lock.json');
   const backupPath = path.join(process.cwd(), 'package-lock.json.backup');
   
-  if (fs.existsSync(packageLockPath)) {
+  // 추가: package-lock.json이 존재하지 않고 백업이 있는 경우 복원
+  if (!fs.existsSync(packageLockPath) && fs.existsSync(backupPath)) {
+    console.log('⚠️ package-lock.json이 없습니다. 백업에서 복원합니다...');
+    try {
+      fs.copyFileSync(backupPath, packageLockPath);
+      console.log('✅ package-lock.json이 복원되었습니다.');
+    } catch (err) {
+      console.warn('⚠️ package-lock.json 복원 실패:', err.message);
+    }
+  } else if (fs.existsSync(packageLockPath)) {
     try {
       // 파일 크기가 0이거나 JSON 파싱 불가능한 경우 손상된 것으로 간주
       const stats = fs.statSync(packageLockPath);

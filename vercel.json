@@ -32,6 +32,5 @@
       "main": false,
       "master": false
     }
-  },
-  "domains": ["eloop.kro.kr", "staging.eloop.kro.kr"]
+  } 
 }

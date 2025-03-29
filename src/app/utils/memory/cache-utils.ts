@@ -6,8 +6,230 @@
 
 import { isBrowser } from './gc-utils';
 
-// 캐시 만료 시간 기본값 (10분)
-const DEFAULT_CACHE_TTL = 10 * 60 * 1000;
+/**
+ * 메모리 캐시 유틸리티
+ */
+
+// 메모리 효율적인 LRU 캐시 구현
+class LRUCache<K, V> {
+  private capacity: number;
+  private cache: Map<K, V>;
+  private keyTimestamps: Map<K, number>;
+  
+  constructor(capacity: number) {
+    this.capacity = capacity;
+    this.cache = new Map();
+    this.keyTimestamps = new Map();
+  }
+  
+  /**
+   * 캐시에서 값을 가져옴
+   * @param key 캐시 키
+   * @returns 캐시된 값 또는 undefined
+   */
+  get(key: K): V | undefined {
+    const value = this.cache.get(key);
+    if (value !== undefined) {
+      // 접근 시간 업데이트
+      this.keyTimestamps.set(key, Date.now());
+    }
+    return value;
+  }
+  
+  /**
+   * 캐시에 값을 저장
+   * @param key 캐시 키
+   * @param value 캐시할 값
+   */
+  set(key: K, value: V): void {
+    // 용량 초과 시 가장 오래된 항목 제거
+    if (this.cache.size >= this.capacity) {
+      this.evictLeastRecentlyUsed();
+    }
+    
+    this.cache.set(key, value);
+    this.keyTimestamps.set(key, Date.now());
+  }
+  
+  /**
+   * 캐시 항목 삭제
+   * @param key 삭제할 항목 키
+   * @returns 성공 여부
+   */
+  delete(key: K): boolean {
+    const deleted = this.cache.delete(key);
+    if (deleted) {
+      this.keyTimestamps.delete(key);
+    }
+    return deleted;
+  }
+  
+  /**
+   * 캐시 항목 유효성 검사 및 정리
+   * @param maxAge 최대 수명 (ms)
+   * @returns 정리된 항목 수
+   */
+  prune(maxAge: number): number {
+    const now = Date.now();
+    let prunedCount = 0;
+    
+    for (const [key, timestamp] of this.keyTimestamps.entries()) {
+      if (now - timestamp > maxAge) {
+        this.cache.delete(key);
+        this.keyTimestamps.delete(key);
+        prunedCount++;
+      }
+    }
+    
+    return prunedCount;
+  }
+  
+  /**
+   * 가장 오래된 항목 제거
+   * @returns 제거된 키
+   */
+  private evictLeastRecentlyUsed(): K | undefined {
+    let oldestKey: K | undefined;
+    let oldestTime = Infinity;
+    
+    for (const [key, timestamp] of this.keyTimestamps.entries()) {
+      if (timestamp < oldestTime) {
+        oldestKey = key;
+        oldestTime = timestamp;
+      }
+    }
+    
+    if (oldestKey !== undefined) {
+      this.cache.delete(oldestKey);
+      this.keyTimestamps.delete(oldestKey);
+    }
+    
+    return oldestKey;
+  }
+  
+  /**
+   * 캐시 크기
+   */
+  get size(): number {
+    return this.cache.size;
+  }
+  
+  /**
+   * 캐시 용량
+   */
+  get maxSize(): number {
+    return this.capacity;
+  }
+  
+  /**
+   * 모든 캐시 항목 지우기
+   */
+  clear(): void {
+    this.cache.clear();
+    this.keyTimestamps.clear();
+  }
+  
+  /**
+   * 모든 캐시 키 가져오기
+   */
+  keys(): IterableIterator<K> {
+    return this.cache.keys();
+  }
+}
+
+/**
+ * 글로벌 객체 URL 캐시
+ */
+export function setupObjectURLCache(): void {
+  if (typeof window === 'undefined') return;
+  
+  // 객체 URL 캐시 초기화
+  if (!window.__objectUrls) {
+    window.__objectUrls = new Map<string, string>();
+  }
+}
+
+/**
+ * 캐시된 객체 URL 생성
+ * @param blob 블롭 객체
+ * @param key 캐시 키 (선택적)
+ * @returns 객체 URL
+ */
+export function createCachedObjectURL(blob: Blob, key?: string): string {
+  if (typeof window === 'undefined') return '';
+  
+  setupObjectURLCache();
+  
+  const cacheKey = key || `blob-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+  const existingUrl = window.__objectUrls?.get(cacheKey);
+  
+  if (existingUrl) {
+    return existingUrl;
+  }
+  
+  const url = URL.createObjectURL(blob);
+  window.__objectUrls?.set(cacheKey, url);
+  
+  return url;
+}
+
+/**
+ * 캐시에서 객체 URL 해제
+ * @param key 캐시 키 또는 URL
+ */
+export function revokeCachedObjectURL(keyOrUrl: string): void {
+  if (typeof window === 'undefined' || !window.__objectUrls) return;
+  
+  // 키로 직접 찾기
+  if (window.__objectUrls.has(keyOrUrl)) {
+    const url = window.__objectUrls.get(keyOrUrl);
+    if (url) {
+      URL.revokeObjectURL(url);
+    }
+    window.__objectUrls.delete(keyOrUrl);
+    return;
+  }
+  
+  // URL로 찾기
+  for (const [key, url] of window.__objectUrls.entries()) {
+    if (url === keyOrUrl) {
+      URL.revokeObjectURL(url);
+      window.__objectUrls.delete(key);
+      return;
+    }
+  }
+}
+
+/**
+ * 모든 캐시된 객체 URL 정리
+ * @returns 정리된 URL 수
+ */
+export function clearAllCachedObjectURLs(): number {
+  if (typeof window === 'undefined' || !window.__objectUrls) return 0;
+  
+  let count = 0;
+  window.__objectUrls.forEach((url) => {
+    URL.revokeObjectURL(url);
+    count++;
+  });
+  
+  window.__objectUrls.clear();
+  return count;
+}
+
+/**
+ * 메모리 내 시간 제한 캐시 생성
+ * @param maxEntries 최대 항목 수
+ * @returns LRU 캐시 인스턴스
+ */
+export function createTimeBasedCache<T>(maxEntries = 100): LRUCache<string, { data: T, timestamp: number }> {
+  return new LRUCache<string, { data: T, timestamp: number }>(maxEntries);
+}
+
+// 글로벌 LRU 캐시 인스턴스 내보내기
+export const imageCache = new LRUCache<string, HTMLImageElement>(50);
+export const dataCache = new LRUCache<string, any>(100);
+export const computationCache = new LRUCache<string, any>(30);
 
 /**
  * 캐시 항목 인터페이스
