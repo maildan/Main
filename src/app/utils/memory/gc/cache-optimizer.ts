@@ -102,48 +102,16 @@ function clearAppCache(): void {
     // 앱 정의 캐시 객체 정리
     
     // 1. 이미지 변환 캐시
-    if (window.__imageResizeCache) {
-      if (window.__imageResizeCache instanceof Map) {
-        window.__imageResizeCache.clear();
-      } else {
-        // Map이 아닌 경우 빈 객체로 초기화
-        window.__imageResizeCache = new Map<string, HTMLImageElement>();
-      }
-    }
+    cleanupImageResizeCache();
     
     // 2. 객체 URL 캐시
-    if (window.__objectUrls) {
-      if (window.__objectUrls instanceof Map) {
-        window.__objectUrls.forEach(url => {
-          try {
-            URL.revokeObjectURL(url);
-          } catch (e) {
-            // 무시
-          }
-        });
-        window.__objectUrls.clear();
-      } else {
-        window.__objectUrls = new Map<string, string>();
-      }
-    }
+    cleanupObjectUrls();
     
     // 3. 일반 메모리 캐시
-    if (window.__memoryCache) {
-      if (window.__memoryCache instanceof Map) {
-        window.__memoryCache.clear();
-      } else {
-        window.__memoryCache = new Map<string, any>();
-      }
-    }
+    cleanupMemoryCache();
     
     // 4. 스타일 캐시
-    if (window.__styleCache) {
-      if (window.__styleCache instanceof Map) {
-        window.__styleCache.clear();
-      } else {
-        window.__styleCache = new Map<string, any>();
-      }
-    }
+    cleanupStyleCache();
     
     // 5. 위젯 캐시
     if (window.__widgetCache) {
@@ -253,5 +221,165 @@ export function clearOldCache(): void {
     console.log('오래된 캐시 정리 완료');
   } catch (error) {
     console.warn('오래된 캐시 정리 중 오류:', error);
+  }
+}
+
+/**
+ * 캐시 최적화 유틸리티
+ */
+
+/**
+ * 브라우저 캐시 정리
+ * @returns {boolean} 성공 여부
+ */
+export function cleanupCache(): boolean {
+  if (typeof window === 'undefined') return false;
+  
+  try {
+    // 객체 URL 캐시 정리
+    cleanupObjectUrls();
+    
+    // 메모리 캐시 정리
+    cleanupMemoryCache();
+    
+    // 스타일 캐시 정리
+    cleanupStyleCache();
+    
+    // 이미지 리사이즈 캐시 정리
+    cleanupImageResizeCache();
+    
+    return true;
+  } catch (error) {
+    console.error('캐시 정리 중 오류:', error);
+    return false;
+  }
+}
+
+/**
+ * 객체 URL 캐시 정리
+ */
+function cleanupObjectUrls(): void {
+  if (window.__objectUrls) {
+    window.__objectUrls.forEach(url => {
+      try {
+        URL.revokeObjectURL(url);
+      } catch (e) {
+        // 오류 무시
+      }
+    });
+    window.__objectUrls.clear();
+  }
+}
+
+/**
+ * 메모리 캐시 정리
+ */
+function cleanupMemoryCache(): void {
+  if (window.__memoryCache) {
+    window.__memoryCache.clear();
+  }
+}
+
+/**
+ * 스타일 캐시 정리
+ */
+function cleanupStyleCache(): void {
+  if (typeof window === 'undefined') return;
+  
+  // 안전 타입 확인 후 접근
+  if (window.__styleCache) {
+    try {
+      if (window.__styleCache instanceof Map) {
+        // Map인 경우 clear 메서드 사용
+        window.__styleCache.clear();
+      } else if (typeof window.__styleCache === 'object' && window.__styleCache !== null) {
+        // 일반 객체인 경우 속성 삭제
+        Object.keys(window.__styleCache).forEach(key => {
+          delete (window.__styleCache as Record<string, any>)[key];
+        });
+      }
+    } catch (error) {
+      console.error('스타일 캐시 정리 오류:', error);
+    }
+  }
+}
+
+/**
+ * 이미지 리사이즈 캐시 정리
+ */
+function cleanupImageResizeCache(): void {
+  if (typeof window === 'undefined') return;
+  
+  // 안전 타입 확인 후 접근
+  if (window.__imageResizeCache) {
+    try {
+      if (window.__imageResizeCache instanceof Map) {
+        window.__imageResizeCache.clear();
+      } else if (typeof window.__imageResizeCache === 'object' && window.__imageResizeCache !== null) {
+        // Map이 아닌 경우 새 Map으로 교체 (권장 방식)
+        window.__imageResizeCache = new Map<string, HTMLImageElement>();
+      }
+    } catch (error) {
+      console.error('이미지 리사이즈 캐시 정리 오류:', error);
+    }
+  }
+}
+
+/**
+ * 스타일 캐시 정리 (키를 지정하거나 전체 삭제)
+ */
+function clearStyleCache(key?: string): boolean {
+  if (!window.__styleCache) {
+    return false;
+  }
+  
+  if (key) {
+    // Map인지 일반 객체인지 확인 후 적절한 방식으로 삭제
+    if (window.__styleCache instanceof Map) {
+      if (window.__styleCache.has(key)) {
+        return window.__styleCache.delete(key);
+      }
+    } else if (typeof window.__styleCache === 'object') {
+      if (key in (window.__styleCache as Record<string, any>)) {
+        delete (window.__styleCache as Record<string, any>)[key];
+        return true;
+      }
+    }
+    return false;
+  } else {
+    // 전체 캐시 삭제
+    if (window.__styleCache instanceof Map) {
+      window.__styleCache.clear();
+    } else {
+      window.__styleCache = {};
+    }
+    return true;
+  }
+}
+
+/**
+ * 이미지 리사이즈 캐시 정리 (키를 지정하거나 전체 삭제)
+ */
+function clearImageResizeCache(key?: string): boolean {
+  if (!window.__imageResizeCache) {
+    return false;
+  }
+  
+  if (key) {
+    // Map 객체이므로 get 메서드 사용
+    if (window.__imageResizeCache instanceof Map) {
+      if (window.__imageResizeCache.has(key)) {
+        return window.__imageResizeCache.delete(key);
+      }
+    }
+    return false;
+  } else {
+    // 전체 캐시 삭제
+    if (window.__imageResizeCache instanceof Map) {
+      window.__imageResizeCache.clear();
+    } else {
+      window.__imageResizeCache = new Map<string, HTMLImageElement>();
+    }
+    return true;
   }
 }

@@ -36,6 +36,17 @@ declare global {
     
     // Electron API 타입은 별도 정의 활용
     electronAPI?: any;
+
+    // 스타일 캐시 - 두 가지 타입 모두 가능하게 설정
+    __styleCache?: Record<string, any> | Map<string, any>;
+    
+    // 이미지 리사이즈 캐시 - Map으로 설정
+    __imageResizeCache?: Map<string, HTMLImageElement>;
+    
+    // 기타 메모리 관련 전역 속성
+    __objectUrls?: Map<string, string>;
+    __memoryCache?: Map<string, any>;
+    __widgetCache?: Map<string, any>;
   }
 
   // 타입 스크립트가 WebGL 호환성 오류를 발생시키지 않도록 확장

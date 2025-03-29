@@ -33,7 +33,8 @@
     "clean": "rimraf .next out dist",
     "clean:modules": "rimraf node_modules",
     "clean:all": "npm run clean && npm run clean:modules",
-    "prepare": "husky install"
+    "prepare": "husky install",
+    "test": "echo \"No tests defined\""
   },
   "build": {
     "appId": "com.Loop.typingstats",
@@ -92,5 +93,18 @@
     "typescript": "^5.3.3",
     "wait-on": "^7.0.1",
     "husky": "^8.0.0"
-  }
+  },
+  "directories": {
+    "doc": "docs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/maildan/Main.git"
+  },
+  "keywords": [],
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/maildan/Main/issues"
+  },
+  "homepage": "https://github.com/maildan/Main#readme"
 }

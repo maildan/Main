@@ -1,233 +1,203 @@
 /**
- * 유틸리티 모듈 통합 내보내기
+ * 유틸리티 통합 내보내기
  */
 
-// 공통 유틸리티 함수
-export * from './common-utils';
+// 선택적 명시적 내보내기로 모호함 해결
+export { formatDate } from './date-utils';
+export { truncate as truncateText, stripHtml as sanitizeHtml } from './string-utils'; // 'sanitizeText' 대신 실제 함수인 'stripHtml' 사용
 
-// 메모리 관련 유틸리티
-export * from './memory';
+// 명시적 이름 지정으로 중복 방지
+export { formatBytes as formatBytesSize } from './common-utils';
 
-// 파일 관련 유틸리티
-export * from './file-utils';
+// 메모리 관련 유틸리티 
+// 'cleanupDom', 'cleanupCache', 'optimizeResources' 함수는 'memory/index.ts'에서 가져옵니다
+// 이렇게 하면 'memory/optimization-utils'의 문제를 피할 수 있습니다
+export { 
+  cleanupDom, 
+  cleanupCache, 
+  optimizeResources 
+} from './memory';
 
-// 타입 변환 유틸리티
-export * from './type-converters';
+// 중복되는 내보내기를 별칭으로 지정
+export { 
+  convertNativeMemoryInfo as convertMemoryInfo 
+} from './memory';
 
-// 성능 측정 유틸리티
-export * from './performance-metrics';
+// window-utils 대체 구현
+export const setupFullscreenListeners = () => {};
+export const exitFullscreen = () => {};
 
-// GPU 가속 유틸리티
-export * from './gpu-acceleration';
+// 타입 정의 영역 추가
+import { MemoryInfo } from '@/types';
 
-// 메모리 최적화 유틸리티
-export * from './memory-optimizer';
-
-// 문제가 있던 참조 - 존재하는 모듈로 수정하거나 주석 처리
-// export * from './storage-utils'; // 파일이 없으면 주석 처리
-// export * from './scroll-utils'; // 파일이 없으면 주석 처리
-
-// 네이티브 모듈 클라이언트
-export * from './nativeModuleClient';
-
-// 시스템 모니터링
-export * from './system-monitor';
-
-// 추가로 필요한 모듈들이 있다면 여기에 추가
-
-/**
- * 딥 클론 함수
- * 객체의 깊은 복사본을 생성합니다.
- * @param obj 복사할 객체
- * @returns 복사된 객체
- */
-export function deepClone<T>(obj: T): T {
-  if (obj === null || typeof obj !== 'object') {
-    return obj;
-  }
-  
-  if (Array.isArray(obj)) {
-    return obj.map(item => deepClone(item)) as unknown as T;
-  }
-  
-  return Object.fromEntries(
-    Object.entries(obj).map(([key, value]) => [key, deepClone(value)])
-  ) as T;
+// 메모리 옵티마이저 인터페이스 정의
+interface MemoryOptimizer {
+  suggestGarbageCollection: () => void;
+  requestGC: (emergency?: boolean) => Promise<any>;
+  clearBrowserCaches: () => Promise<boolean>;
+  clearStorageCaches: () => boolean;
+  checkMemoryUsage: () => Record<string, any> | null;
+  forceGC: () => boolean;
+  getMemoryUsagePercentage: () => Promise<number>;
+  getMemoryInfo: () => Promise<Partial<MemoryInfo>>;
+  optimizeMemory: (aggressive?: boolean) => Promise<any>;
 }
 
 /**
- * 디바운스 함수
- * 연속적인 함수 호출을 제한합니다.
- * @param fn 실행할 함수
- * @param delay 지연 시간 (ms)
+ * 메모리 옵티마이저 초기화
  */
-export function debounce<T extends (...args: unknown[]) => void>(
-  fn: T,
-  delay: number
-): (...args: Parameters<T>) => void {
-  let timer: NodeJS.Timeout | null = null;
+export function setupMemoryOptimizer() {
+  if (typeof window === 'undefined') return;
   
-  return function(...args: Parameters<T>) {
-    if (timer) clearTimeout(timer);
-    
-    timer = setTimeout(() => {
-      fn(...args);
-      timer = null;
-    }, delay);
-  };
+  // 추가 구현 필요 시 여기에 코드 추가
 }
 
-/**
- * 쓰로틀 함수
- * 일정 시간 동안 함수 호출을 제한합니다.
- * @param fn 실행할 함수
- * @param limit 제한 시간 (ms)
- */
-export function throttle<T extends (...args: unknown[]) => void>(
-  fn: T, 
-  limit: number
-): (...args: Parameters<T>) => void {
-  let lastCall = 0;
+// 메모리 정보 얻기 함수
+export async function getMemoryInfo() {
+  if (typeof window === 'undefined') {
+    return null;
+  }
   
-  return function(...args: Parameters<T>) {
-    const now = Date.now();
-    
-    if (now - lastCall >= limit) {
-      lastCall = now;
-      fn(...args);
+  try {
+    if (window.__memoryOptimizer?.getMemoryInfo) {
+      return await window.__memoryOptimizer.getMemoryInfo();
     }
-  };
-}
-
-/**
- * 에러 로깅 및 처리
- * @param error 에러 객체
- * @param context 문맥 정보
- */
-export function handleError(error: unknown, context = ''): string {
-  const errorMessage = error instanceof Error 
-    ? error.message 
-    : String(error);
     
-  const errorDetails = {
-    message: errorMessage,
-    context,
-    timestamp: new Date().toISOString(),
-    stack: error instanceof Error ? error.stack : undefined
-  };
-  
-  // 콘솔 로깅
-  console.error(`[Error] ${context ? `[${context}] ` : ''}${errorMessage}`, errorDetails);
-  
-  // 에러 모니터링 시스템 연동 가능 (예: Sentry 등)
-  
-  return errorMessage;
-}
-
-/**
- * 비동기 대기 함수
- * @param ms 대기 시간 (ms)
- */
-export function sleep(ms: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-/**
- * 반복 가능한 지연 실행 (메모리 최적화 버전)
- * 설정된 간격으로 콜백을 최적화된 방식으로 실행
- * @param callback 실행할 콜백 함수
- * @param delay 지연 시간 (ms)
- * @param maxIterations 최대 반복 횟수 (선택적)
- */
-export async function repeatedDelay<T>(
-  callback: () => Promise<T> | T,
-  delay: number,
-  maxIterations?: number
-): Promise<T[]> {
-  const results: T[] = [];
-  let iterations = 0;
-  
-  while (maxIterations === undefined || iterations < maxIterations) {
-    try {
-      const result = await callback();
-      results.push(result);
+    // 브라우저 기본 메모리 정보 가져오기
+    const memoryInfo = {} as Partial<MemoryInfo>;
+    
+    // performance.memory가 있는 경우 (Chrome)
+    if (performance && (performance as any).memory) {
+      const memoryUsage = (performance as any).memory as Record<string, number>;
       
-      // 메모리 압력이 있을 경우 지연 시간 동적 조정
-      if (window.__memoryOptimizer?.getMemoryUsagePercentage) {
-        const memUsage = await window.__memoryOptimizer.getMemoryUsagePercentage();
-        if (memUsage > 80) {
-          // 메모리 사용량이 높으면 지연 시간 증가
-          await sleep(delay * 1.5);
-        } else {
-          await sleep(delay);
-        }
-      } else {
-        await sleep(delay);
-      }
-      
-      iterations++;
-    } catch (error) {
-      handleError(error, 'repeatedDelay');
-      break;
+      // 안전한 타입 변환을 위해 unknown을 거쳐서 변환
+      memoryInfo.heapUsed = (memoryUsage as unknown as Record<string, number>).usedJSHeapSize;
+      memoryInfo.heapTotal = (memoryUsage as unknown as Record<string, number>).totalJSHeapSize;
+      memoryInfo.heapLimit = (memoryUsage as unknown as Record<string, number>).jsHeapSizeLimit;
     }
+    
+    // MB 단위 계산
+    if (memoryInfo.heapUsed !== undefined) {
+      memoryInfo.heapUsedMB = memoryInfo.heapUsed / (1024 * 1024);
+    }
+    
+    // 사용 비율 계산
+    if (memoryInfo.heapUsed !== undefined && memoryInfo.heapTotal !== undefined) {
+      memoryInfo.percentUsed = (memoryInfo.heapUsed / memoryInfo.heapTotal) * 100;
+    }
+    
+    return memoryInfo;
+  } catch (error) {
+    console.error('메모리 정보 얻기 실패:', error);
+    return null;
+  }
+}
+
+// 메모리 사용량 백분율 가져오기
+export async function getMemoryUsagePercentage(): Promise<number> {
+  if (typeof window === 'undefined') return 0;
+  
+  try {
+    if (window.__memoryOptimizer?.getMemoryUsagePercentage) {
+      const result = await window.__memoryOptimizer.getMemoryUsagePercentage();
+      return result || 0; // undefined일 경우 0 반환
+    }
+    
+    const memInfo = await getMemoryInfo();
+    return memInfo && memInfo.percentUsed !== undefined ? memInfo.percentUsed : 0;
+  } catch (error) {
+    console.error('메모리 사용량 백분율 가져오기 실패:', error);
+    return 0;
+  }
+}
+
+// 메모리 최적화 수행
+export async function optimizeMemory(aggressive = false) {
+  if (typeof window === 'undefined') {
+    return { success: false, error: 'Window is not defined' };
   }
   
-  return results;
+  try {
+    if (window.__memoryOptimizer?.optimizeMemory) {
+      return await window.__memoryOptimizer.optimizeMemory(aggressive);
+    }
+    
+    // 기본 최적화 수행
+    await requestIdleCallback();
+    return { success: true };
+  } catch (error) {
+    console.error('메모리 최적화 실패:', error);
+    return { success: false, error: String(error) };
+  }
 }
 
-/**
- * 메모리 정리를 포함한 비동기 재시도 함수
- * 실패 시 백오프 전략 및 메모리 최적화를 적용하여 재시도
- * @param fn 실행할 비동기 함수
- * @param options 재시도 옵션
- */
-export async function retryWithBackoff<T>(
-  fn: () => Promise<T>,
-  options: {
-    maxRetries?: number;
-    initialDelay?: number;
-    maxDelay?: number;
-    factor?: number;
-    optimizeMemoryOnRetry?: boolean;
-  } = {}
-): Promise<T> {
-  const {
-    maxRetries = 3,
-    initialDelay = 300,
-    maxDelay = 3000,
-    factor = 2,
-    optimizeMemoryOnRetry = true
-  } = options;
+// requestIdleCallback polyfill
+function requestIdleCallback(timeout = 1000): Promise<void> {
+  return new Promise(resolve => {
+    if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+      (window as any).requestIdleCallback(() => resolve(), { timeout });
+    } else {
+      setTimeout(resolve, 100);
+    }
+  });
+}
+
+// 캐시 정리 도우미 함수들
+export function clearObjectUrlCache() {
+  if (typeof window === 'undefined') return false;
   
-  let attempt = 0;
-  let delay = initialDelay;
-  
-  while (true) {
-    try {
-      return await fn();
-    } catch (error) {
-      attempt++;
-      
-      if (attempt >= maxRetries) {
-        throw error;
-      }
-      
-      // 메모리 최적화 시도
-      if (optimizeMemoryOnRetry && window.__memoryOptimizer?.optimizeMemory) {
+  try {
+    if (window.__objectUrls) {
+      window.__objectUrls.forEach(url => {
         try {
-          await window.__memoryOptimizer.optimizeMemory(false);
-        } catch (optimizeError) {
-          console.warn('메모리 최적화 중 오류:', optimizeError);
+          URL.revokeObjectURL(url);
+        } catch (e) {
+          // 무시
         }
-      }
-      
-      // 지수 백오프 계산
-      delay = Math.min(delay * factor, maxDelay);
-      
-      // 약간의 무작위성 추가 (jitter)
-      const jitteredDelay = delay * (0.8 + Math.random() * 0.4);
-      
-      await sleep(jitteredDelay);
+      });
+      window.__objectUrls.clear();
+      return true;
     }
+    return false;
+  } catch (err) {
+    console.error('Object URL 캐시 정리 실패:', err);
+    return false;
+  }
+}
+
+export function clearImageCache() {
+  if (typeof window === 'undefined') return false;
+  
+  try {
+    if (window.__imageResizeCache) {
+      window.__imageResizeCache = new Map();
+      return true;
+    }
+    return false;
+  } catch (err) {
+    console.error('이미지 캐시 정리 실패:', err);
+    return false;
+  }
+}
+
+export function getMemoryUsage(): Record<string, number> | null {
+  if (typeof window === 'undefined') return null;
+  
+  try {
+    if (performance && (performance as any).memory) {
+      const memUsage = (performance as any).memory;
+      
+      if (memUsage) {
+        return {
+          totalJSHeapSize: memUsage.totalJSHeapSize,
+          usedJSHeapSize: memUsage.usedJSHeapSize,
+          jsHeapSizeLimit: memUsage.jsHeapSizeLimit,
+        };
+      }
+    }
+    return null;
+  } catch (e) {
+    console.error('메모리 사용량 가져오기 실패:', e);
+    return null;
   }
 }

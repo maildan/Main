@@ -46,44 +46,42 @@ interface Window {
   // 전역 메모리 관리 상태
   __memoryOptimizer?: {
     suggestGarbageCollection: () => void;
-    requestGC: (emergency?: boolean) => Promise<GCResult | null>;
+    requestGC: (emergency?: boolean) => Promise<any>;
     clearBrowserCaches: () => Promise<boolean>;
     clearStorageCaches: () => boolean;
     checkMemoryUsage: () => Record<string, number> | null;
     forceGC: () => boolean;
+    getMemoryUsagePercentage: () => Promise<number>;
+    getMemoryInfo: () => Promise<Partial<MemoryInfo>>;
+    optimizeMemory: (aggressive?: boolean) => Promise<any>;
   };
   
   // 이미지 캐시 저장소
-  __imageResizeCache?: Map<string, string>;
+  __imageResizeCache?: Map<string, any>;
   
   // 오브젝트 URL 저장소
   __objectUrls?: Map<string, string>;
   
-  // 앱 복구 기능
-  __appRecovery?: {
-    emergencyCleanup: () => void;
-    diagnostics: () => Record<string, unknown>;
-    optimizeMemory: (level: number) => boolean;
-  };
+  // 스타일 캐시 저장소
+  __styleCache?: Record<string, any> | Map<string, any>;
   
-  // 메모리 관리자
-  __memoryManager?: {
-    settings: {
-      processingMode?: string;
-      [key: string]: any;
-    };
-    memoryInfo?: any;
-    [key: string]: any;
-  };
+  // 메모리 캐시 저장소
+  __memoryCache?: Map<string, any>;
   
-  // 기타 속성들
-  __nativeBinding?: boolean;
-  __gpuInfo?: any;
-  __gpuAccelerator?: any;
-  __objectUrls?: Map<string, string>;
+  // 위젯 캐시 저장소
   __widgetCache?: Map<string, any>;
-  __styleCache?: Record<string, any>;
-  __imageResizeCache?: Record<string, any>;
+  
+  // 애니메이션 프레임 ID 저장소
+  __animationFrameIds?: number[];
+  
+  // 인터벌 ID 저장소
+  __intervalIds?: number[];
+  
+  // 타임아웃 ID 저장소
+  __timeoutIds?: number[];
+  
+  // 동적 모듈 저장소
+  _dynamicModules?: Map<string, any>;
 }
 
 /**

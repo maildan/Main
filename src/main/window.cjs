@@ -38,6 +38,8 @@ async function createWindow() {
         contextIsolation: true,
         sandbox: false,
       },
+      // 앱 아이콘 경로 수정
+      icon: path.join(__dirname, '../../public/app_icon.png'),
       show: false, // 준비될 때까지 숨김
       backgroundColor: appState.settings?.darkMode ? '#121212' : '#f9f9f9',
       titleBarStyle: 'hidden',
@@ -175,6 +177,7 @@ async function createWindow() {
       appState.mainWindow = null;
       
       // 미니뷰도 함께 닫기
+      if (appState.miniViewWindow && !appState.miniViewWindow.isDestroyed()) {
         appState.miniViewWindow.close();
         appState.miniViewWindow = null;
       }

@@ -6,6 +6,9 @@
 
 import { isBrowser } from './gc-utils';
 
+// 기본 캐시 TTL 추가 (초 단위)
+export const DEFAULT_CACHE_TTL = 300; // 5분
+
 /**
  * 메모리 캐시 유틸리티
  */

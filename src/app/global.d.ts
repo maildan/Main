@@ -197,7 +197,7 @@ declare global {
     // 리소스 최적화를 위한 전역 캐시 객체들
     __objectUrls?: Map<string, string>;
     __widgetCache?: Map<string, any>;
-    __styleCache?: Map<string, any>;
+    __styleCache?: Map<string, any> | Record<string, any>;
     __imageResizeCache?: Map<string, HTMLImageElement>;
     
     // 동적 모듈 관리
@@ -242,7 +242,7 @@ interface Window {
   // 캐시 관련
   __objectUrls?: Map<string, string>;
   __widgetCache?: Map<string, any>;
-  __styleCache?: Record<string, any>;
+  __styleCache?: Map<string, any> | Record<string, any>;
   __imageResizeCache?: Record<string, any>;
   
   // GC 관련
@@ -307,7 +307,7 @@ interface Window {
   __imageResizeCache?: Map<string, HTMLImageElement>;
   __objectUrls?: Map<string, string>;
   __memoryCache?: Map<string, any>;
-  __styleCache?: Map<string, any>;
+  __styleCache?: Map<string, any> | Record<string, any>;
   __widgetCache?: Map<string, any>;
   
   // 기타 전역 객체

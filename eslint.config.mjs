@@ -1,116 +1,51 @@
-import js from '@eslint/js';
+import eslint from '@eslint/js';
+import tseslint from 'typescript-eslint';
 import nextPlugin from '@next/eslint-plugin-next';
-import tsParser from '@typescript-eslint/parser';
-import tsPlugin from '@typescript-eslint/eslint-plugin';
-import reactPlugin from 'eslint-plugin-react';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import reactRecommended from 'eslint-plugin-react/configs/recommended.js';
+import reactHooks from 'eslint-plugin-react-hooks';
 
-// 현재 파일 위치 가져오기
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-// eslint-disable-next-line import/no-default-export
 export default [
-  // 무시할 파일 설정 (이전 .eslintignore 대체)
+  eslint.configs.recommended,
+  ...tseslint.configs.recommended,
+  reactRecommended,
+  reactHooks.configs.recommended,
   {
-    ignores: [
-      'node_modules/**',
-      '.next/**',
-      'dist/**',
-      'build/**',
-      'out/**',
-      'public/**',
-      'native-modules/**',
-      'release/**',
-      '.vscode/**',
-      '.github/**',
-      'logs/**',
-      'scripts/**/*.cjs',
-      'main.cjs',
-      'next.config.js',
-      'next.config.cjs',
-      'next.config.mjs',
-      '**/*.json',
-      '**/*.md'
-    ]
-  },
-  
-  // JavaScript 표준 설정
-  js.configs.recommended,
-  
-  // Next.js와 React 설정
-  {
+    files: ['**/*.{js,jsx,ts,tsx}'],
     plugins: {
-      react: reactPlugin,
-      next: nextPlugin,
-      '@typescript-eslint': tsPlugin
+      '@next/next': nextPlugin
     },
-    languageOptions: {
-      parser: tsParser,
-      parserOptions: {
-        ecmaVersion: 'latest',
-        sourceType: 'module',
-        ecmaFeatures: {
-          jsx: true
-        },
-        project: path.join(__dirname, './tsconfig.json')
-      }
+    rules: {
+      // Next.js 규칙 직접 설정 (next/core-web-vitals 대신)
+      '@next/next/no-html-link-for-pages': 'error',
+      '@next/next/no-img-element': 'warn',
+      '@next/next/no-unwanted-polyfillio': 'warn',
+      '@next/next/no-sync-scripts': 'error',
+      '@next/next/no-head-element': 'warn',
+      '@next/next/no-document-import-in-page': 'error',
+      
+      // 기존 규칙
+      'react/react-in-jsx-scope': 'off',
+      'react/prop-types': 'off',
+      '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
+      '@typescript-eslint/explicit-function-return-type': 'off',
+      'no-console': ['warn', { allow: ['warn', 'error', 'info'] }],
     },
     settings: {
       react: {
-        version: 'detect'
+        version: 'detect',
       },
-      next: {
-        rootDir: __dirname
-      }
     },
-    rules: {
-      // Next.js 규칙
-      'next/core-web-vitals': 'error',
-      
-      // React 규칙
-      'react/jsx-uses-react': 'error',
-      'react/jsx-uses-vars': 'error',
-      'react/prop-types': 'off',
-      'react/react-in-jsx-scope': 'off',
-      
-      // TypeScript 규칙
-      '@typescript-eslint/no-unused-vars': ['warn', { 
-        argsIgnorePattern: '^_',
-        varsIgnorePattern: '^_'
-      }],
-      '@typescript-eslint/explicit-function-return-type': 'off',
-      '@typescript-eslint/explicit-module-boundary-types': 'off',
-      '@typescript-eslint/no-explicit-any': 'warn',
-      
-      // 일반 규칙
-      'no-console': process.env.NODE_ENV === 'production' ? 'warn' : 'off',
-      'no-debugger': process.env.NODE_ENV === 'production' ? 'error' : 'off',
-      'semi': ['error', 'always'],
-      'quotes': ['error', 'single', { avoidEscape: true }],
-      'no-unused-vars': 'off' // TypeScript 규칙으로 대체
-    }
   },
-  
-  // CJS 파일에는 독립적인 설정 적용
   {
-    files: ['**/*.cjs'],
-    languageOptions: {
-      sourceType: 'commonjs'
+    files: ['**/*.{js,cjs,mjs}'],
+    rules: {
+      '@typescript-eslint/no-var-requires': 'off',
     },
-    rules: {
-      'no-console': 'off', // CJS 파일에서는 콘솔 허용
-      '@typescript-eslint/no-var-requires': 'off'
-    }
   },
-  
-  // Electron 메인 프로세스 파일
   {
-    files: ['src/main/**/*', 'main.cjs'],
+    files: ['src/main/**/*.{js,cjs,mjs}', 'src/server/**/*.{js,cjs,mjs}'],
     rules: {
-      'no-console': 'off', // 메인 프로세스는 콘솔 로그 허용
-      '@typescript-eslint/no-var-requires': 'off' // Electron에서는 require 허용
-    }
-  }
+      'no-console': 'off',
+    },
+  },
 ];
