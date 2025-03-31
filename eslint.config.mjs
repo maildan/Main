@@ -3,11 +3,12 @@ import typescriptParser from '@typescript-eslint/parser';
 import typescriptPlugin from '@typescript-eslint/eslint-plugin';
 import reactPlugin from 'eslint-plugin-react';
 import reactHooksPlugin from 'eslint-plugin-react-hooks';
-import { nextConfig } from 'eslint-config-next';
+import eslintConfigNext from 'eslint-config-next';
+const { nextConfig } = eslintConfigNext;
 import importPlugin from 'eslint-plugin-import';
 
 export default [
-  // 기본 정적 파일 및 빌드 결과물 무시
+  // 기본 정적 파일 및 빌드 결과물 무시 - .eslintignore 파일 내용을 여기로 이전
   {
     ignores: [
       'node_modules/**',
@@ -24,6 +25,25 @@ export default [
       '.vscode/**',
       'public/**',
       'coverage/**',
+      // 빌드 출력
+      '.next/',
+      'out/',
+      'dist/',
+      'build/',
+
+      // 의존성
+      'node_modules/',
+      '*.d.ts',
+
+      // Rust/Native 모듈 관련 파일
+      'native-modules/',
+      '*.rs',
+
+      // 기타
+      '.github/',
+      '.vscode/',
+      'public/',
+      'logs/',
     ],
   },
   
