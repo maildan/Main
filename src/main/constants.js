@@ -1,11 +1,11 @@
-const path = require('path');
-const { app } = require('electron');  // Electron의 app 모듈 임포트 추가
+import path from 'path';
+import { app } from 'electron';  // Electron의 app 모듈 임포트 추가
 
 // 개발 모드 확인
 const isDev = process.env.NODE_ENV === 'development';
 
 // 앱 상태 관리
-const appState = {
+export const appState = {
   mainWindow: null,
   miniViewWindow: null, // 미니뷰 창 참조
   miniViewStatsInterval: null, // 미니뷰 통계 전송 인터벌
@@ -71,17 +71,17 @@ const appState = {
 };
 
 // IDLE 시간 기준 증가
-const IDLE_TIMEOUT = 5000; // 3초에서 5초로 증가
+export const IDLE_TIMEOUT = 5000; // 3초에서 5초로 증가
 
 // 메모리 최적화 관련 상수 업데이트
-const MEMORY_CHECK_INTERVAL = 30000; // 30초마다 메모리 체크
-const BACKGROUND_ACTIVITY_INTERVAL = 10000; // 백그라운드 활동 간격
-const LOW_MEMORY_THRESHOLD = 50 * 1024 * 1024; // 50MB
-const HIGH_MEMORY_THRESHOLD = 100 * 1024 * 1024; // 100MB
-const CRITICAL_MEMORY_THRESHOLD = 150 * 1024 * 1024; // 150MB
+export const MEMORY_CHECK_INTERVAL = 30000; // 30초마다 메모리 체크
+export const BACKGROUND_ACTIVITY_INTERVAL = 10000; // 백그라운드 활동 간격
+export const LOW_MEMORY_THRESHOLD = 50 * 1024 * 1024; // 50MB
+export const HIGH_MEMORY_THRESHOLD = 100 * 1024 * 1024; // 100MB
+export const CRITICAL_MEMORY_THRESHOLD = 150 * 1024 * 1024; // 150MB
 
 // 단축키나 특수키를 필터링하기 위한 키 목록
-const SPECIAL_KEYS = [
+export const SPECIAL_KEYS = [
   'Alt', 'Control', 'Shift', 'Meta', 'CapsLock', 'Tab',
   'Escape', 'F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8', 'F9', 'F10', 'F11', 'F12',
   'PrintScreen', 'ScrollLock', 'Pause', 'Insert', 'Home', 'PageUp', 'PageDown', 'End', 'Delete',
@@ -92,14 +92,14 @@ const SPECIAL_KEYS = [
 ];
 
 // 브라우저 프로세스 이름 목록
-const BROWSER_PROCESS_NAMES = [
+export const BROWSER_PROCESS_NAMES = [
   'chrome', 'firefox', 'msedge', 'edge', 'safari', 'opera', 'operagx', 'operaair',
   'brave', 'vivaldi', 'arc', 'zenbrowser', 'zen', 'yandex', 
   'maxthon', 'chromium', 'dragon', 'iron', 'torch', 'whale', 'naver'
 ];
 
 // 브라우저 표시 이름 매핑
-const BROWSER_DISPLAY_NAMES = {
+export const BROWSER_DISPLAY_NAMES = {
   'chrome': 'Google Chrome',
   'firefox': 'Mozilla Firefox',
   'msedge': 'Microsoft Edge',
@@ -124,7 +124,7 @@ const BROWSER_DISPLAY_NAMES = {
 };
 
 // 지원되는 웹사이트 카테고리
-const SUPPORTED_WEBSITES = {
+export const SUPPORTED_WEBSITES = {
   // 문서 작업
   docs: [
     { pattern: 'docs.google.com/document', name: '구글 문서' },
@@ -166,10 +166,10 @@ const SUPPORTED_WEBSITES = {
 };
 
 // 웹사이트 URL 패턴 목록 (모든 카테고리 통합)
-const WEBSITE_URL_PATTERNS = Object.values(SUPPORTED_WEBSITES).flat().map(site => site.pattern);
+export const WEBSITE_URL_PATTERNS = Object.values(SUPPORTED_WEBSITES).flat().map(site => site.pattern);
 
 // Google Docs URL 패턴
-const GOOGLE_DOCS_URL_PATTERNS = [
+export const GOOGLE_DOCS_URL_PATTERNS = [
   'docs.google.com/document',
   'docs.google.com/spreadsheets',
   'docs.google.com/presentation',
@@ -178,7 +178,7 @@ const GOOGLE_DOCS_URL_PATTERNS = [
 ];
 
 // Google Docs 창 제목 패턴
-const GOOGLE_DOCS_TITLE_PATTERNS = [
+export const GOOGLE_DOCS_TITLE_PATTERNS = [
   'google docs', '구글 문서', '구글 스프레드시트', 'google sheets',
   'google slides', '구글 프레젠테이션', 'google forms', '구글 설문지',
   'google drawings', '구글 그림', '.gdoc', '.gsheet', '.gslides'
@@ -189,9 +189,11 @@ const userDataPath = process.env.NODE_ENV === 'development'
   ? path.join(__dirname, '../../userData') // 개발 환경
   : app.getPath('userData'); // 프로덕션 환경
 
-const settingsPath = path.join(userDataPath, 'settings.json');
+export const settingsPath = path.join(userDataPath, 'settings.json');
+export const userDataPathExport = userDataPath;
 
-module.exports = {
+// 기본 내보내기 (이전 코드와의 호환성을 위해)
+export default {
   appState,
   isDev,
   IDLE_TIMEOUT,
@@ -203,7 +205,7 @@ module.exports = {
   GOOGLE_DOCS_URL_PATTERNS,
   GOOGLE_DOCS_TITLE_PATTERNS,
   settingsPath,
-  userDataPath,
+  userDataPath: userDataPathExport,
   MEMORY_CHECK_INTERVAL,
   BACKGROUND_ACTIVITY_INTERVAL,
   LOW_MEMORY_THRESHOLD,

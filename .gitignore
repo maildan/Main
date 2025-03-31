@@ -29,6 +29,9 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
+native-modules/target/debug/deps/libwgpu-d62cd49793d3a9a5.rlib*
+
+
 
 # env files (can opt-in for committing if needed)
 .env*

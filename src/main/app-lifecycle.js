@@ -1,13 +1,15 @@
-const { app } = require('electron');
-const { appState, MEMORY_CHECK_INTERVAL, HIGH_MEMORY_THRESHOLD } = require('./constants');
-const { createWindow } = require('./window');
-const { setupKeyboardListener } = require('./keyboard');
-const { setupIpcHandlers } = require('./ipc-handlers');
-const { loadSettings } = require('./settings');
-const { debugLog } = require('./utils');
-const { setupTray, destroyTray } = require('./tray');
-const { setupMemoryMonitoring, performGC } = require('./memory-manager');
-const { switchToLowMemoryMode } = require('./stats');
+import { app } from 'electron';
+import { appState, MEMORY_CHECK_INTERVAL, HIGH_MEMORY_THRESHOLD } from './constants.js';
+import { createWindow } from './window.js';
+import { setupKeyboardListener } from './keyboard.js';
+import { setupIpcHandlers } from './ipc-handlers.js';
+import { loadSettings } from './settings.js';
+import { debugLog } from './utils.js';
+import { setupTray, destroyTray } from './tray.js';
+import { setupMemoryMonitoring, performGC } from './memory-manager.js';
+import { switchToLowMemoryMode } from './stats.js';
+import fs from 'fs';
+import path from 'path';
 
 // GPU 설정 확인 및 적용 함수
 async function setupGpuConfiguration() {
@@ -26,7 +28,7 @@ async function setupGpuConfiguration() {
     
     // Rust 네이티브 모듈 사용 시도
     try {
-      const nativeModule = require('../native-modules');
+      const nativeModule = await import('../native-modules/index.js');
       
       if (nativeModule) {
         // 초기화 함수 확인 - 여러 가능한 함수명 시도
@@ -100,7 +102,7 @@ async function setupGpuConfiguration() {
     }
     
     // 네이티브 모듈 사용 불가능한 경우 기본 Electron 설정 적용
-    const { configureGPU } = require('./electron-config');
+    const { configureGPU } = await import('./electron-config.js');
     
     // GPU 벤더 감지 (가능한 경우)
     let gpuVendor = 'auto';
@@ -123,7 +125,7 @@ async function setupGpuConfiguration() {
     debugLog(`Electron GPU 설정 적용 ${configSuccess ? '성공' : '실패'}`);
     
     // 메모리 설정도 함께 적용
-    const { configureMemorySettings } = require('./electron-config');
+    const { configureMemorySettings } = await import('./electron-config.js');
     configureMemorySettings(highPerformance);
     
     return configSuccess;
@@ -337,18 +339,22 @@ function setupAppEventListeners() {
   app.on('browser-window-blur', () => {
     try {
       // 메모리 최적화 함수를 메모리 매니저에서 가져와서 사용
-      const memoryManager = require('./memory-manager');
-      
-      // 함수 존재 여부 확인 후 호출
-      if (typeof memoryManager.optimizeMemoryForBackground === 'function') {
-        memoryManager.optimizeMemoryForBackground(true);
-        debugLog('앱이 백그라운드로 전환됨: 메모리 최적화 모드 활성화');
-      } else {
-        debugLog('optimizeMemoryForBackground 함수를 찾을 수 없습니다. 대체 로직 사용');
-      }
+      import('./memory-manager.js').then(memoryManager => {
+        // 함수 존재 여부 확인 후 호출
+        if (typeof memoryManager.optimizeMemoryForBackground === 'function') {
+          memoryManager.optimizeMemoryForBackground(true);
+          debugLog('앱이 백그라운드로 전환됨: 메모리 최적화 모드 활성화');
+        } else {
+          debugLog('optimizeMemoryForBackground 함수를 찾을 수 없습니다. 대체 로직 사용');
+        }
+      }).catch(err => {
+        // memory-manager 모듈이 없는 경우 안전하게 처리
+        debugLog('memory-manager 모듈을 로드할 수 없습니다:', err.message);
+        const fallbackMemoryManager = createFallbackMemoryManager();
+        fallbackMemoryManager.optimizeMemoryForBackground(true);
+      });
     } catch (err) {
-      // memory-manager 모듈이 없는 경우 안전하게 처리
-      debugLog('memory-manager 모듈을 로드할 수 없습니다:', err.message);
+      debugLog('메모리 매니저 로드 중 오류:', err.message);
       const fallbackMemoryManager = createFallbackMemoryManager();
       fallbackMemoryManager.optimizeMemoryForBackground(true);
     }
@@ -358,19 +364,25 @@ function setupAppEventListeners() {
   app.on('browser-window-focus', () => {
     try {
       // 메모리 매니저 모듈 동적 로드 시도
-      const memoryManager = require('./memory-manager');
-      
-      // 함수 존재 여부 확인 후 호출
-      if (typeof memoryManager.optimizeMemoryForBackground === 'function') {
-        memoryManager.optimizeMemoryForBackground(false);
-        debugLog('앱이 포그라운드로 복귀, 기본 상태로 전환');
-      } else {
-        debugLog('optimizeMemoryForBackground 함수를 찾을 수 없습니다. 대체 로직 사용');
+      import('./memory-manager.js').then(memoryManager => {
+        // 함수 존재 여부 확인 후 호출
+        if (typeof memoryManager.optimizeMemoryForBackground === 'function') {
+          memoryManager.optimizeMemoryForBackground(false);
+          debugLog('앱이 포그라운드로 복귀, 기본 상태로 전환');
+        } else {
+          debugLog('optimizeMemoryForBackground 함수를 찾을 수 없습니다. 대체 로직 사용');
+          // 대체 로직: 필요시 리소스 복원
+          if (appState.mainWindow && !appState.mainWindow.isDestroyed()) {
+            appState.mainWindow.webContents.send('background-mode', false);
+          }
+        }
+      }).catch(error => {
+        console.error('메모리 매니저 로드 오류:', error);
         // 대체 로직: 필요시 리소스 복원
         if (appState.mainWindow && !appState.mainWindow.isDestroyed()) {
           appState.mainWindow.webContents.send('background-mode', false);
         }
-      }
+      });
     } catch (error) {
       console.error('포그라운드 메모리 최적화 해제 오류:', error);
     }
@@ -382,8 +394,11 @@ function setupAppEventListeners() {
       debugLog('렌더러 프로세스 메모리 부족 또는 충돌:', details);
       // 메모리 긴급 정리
       try {
-        const { freeUpMemoryResources } = require('./memory-manager');
-        freeUpMemoryResources(true);
+        import('./memory-manager.js').then(({ freeUpMemoryResources }) => {
+          freeUpMemoryResources(true);
+        }).catch(error => {
+          console.error('메모리 매니저 로드 오류:', error);
+        });
       } catch (error) {
         console.error('메모리 긴급 정리 중 오류:', error);
       }
@@ -405,8 +420,6 @@ function setupGlobalExceptionHandlers() {
     
     // 오류 로깅 - 실제 프로덕션에서는 로그 파일이나 원격 서버에 기록
     try {
-      const fs = require('fs');
-      const path = require('path');
       const logDir = path.join(app.getPath('userData'), 'logs');
       
       // 로그 디렉토리 확인 및 생성
@@ -443,11 +456,11 @@ function setupGlobalExceptionHandlers() {
       debugLog('메인 창 복구 시도 중...');
       
       // 타이머로 지연시켜 안전하게 재생성
-      setTimeout(() => {
+      setTimeout(async () => {
         try {
           if (appState.mainWindow && appState.mainWindow.isDestroyed()) {
             debugLog('파괴된 창 재생성 시도');
-            const { createWindow } = require('./window');
+            const { createWindow } = await import('./window.js');
             createWindow();
           }
         } catch (e) {
@@ -511,20 +524,34 @@ function createFallbackMemoryManager() {
  * 메모리 및 리소스 관리를 담당합니다.
  */
 
-const { initializeMemoryManager, stopMemoryMonitoring, forceMemoryOptimization } = require('./memory-manager');
+// 비동기적으로 메모리 관리자 모듈 가져오기 
+let memoryManager = null;
 
 // 앱 시작 시 초기화
-function initializeAppLifecycle(settings) {
-  // 메모리 관리자 초기화
-  initializeMemoryManager({
-    monitoringInterval: settings?.reduceMemoryInBackground ? 30000 : 60000,
-    thresholds: {
-      normal: settings?.maxMemoryThreshold ? settings.maxMemoryThreshold * 0.7 : 100,
-      high: settings?.maxMemoryThreshold || 150,
-      critical: settings?.maxMemoryThreshold ? settings.maxMemoryThreshold * 1.5 : 200
-    },
-    enableAutoOptimization: true
-  });
+async function initializeAppLifecycle(settings) {
+  try {
+    // 메모리 관리자 동적 로드
+    const module = await import('./memory-manager.js');
+    memoryManager = {
+      initializeMemoryManager: module.initializeMemoryManager,
+      stopMemoryMonitoring: module.stopMemoryMonitoring,
+      forceMemoryOptimization: module.forceMemoryOptimization
+    };
+    
+    // 메모리 관리자 초기화
+    memoryManager.initializeMemoryManager({
+      monitoringInterval: settings?.reduceMemoryInBackground ? 30000 : 60000,
+      thresholds: {
+        normal: settings?.maxMemoryThreshold ? settings.maxMemoryThreshold * 0.7 : 100,
+        high: settings?.maxMemoryThreshold || 150,
+        critical: settings?.maxMemoryThreshold ? settings.maxMemoryThreshold * 1.5 : 200
+      },
+      enableAutoOptimization: true
+    });
+    
+  } catch (error) {
+    console.error('메모리 관리자 로드 실패:', error);
+  }
   
   // 앱 종료 전 정리 작업
   app.on('before-quit', async (event) => {
@@ -535,10 +562,14 @@ function initializeAppLifecycle(settings) {
       console.log('앱 종료 전 정리 작업 수행 중...');
       
       // 메모리 모니터링 중지
-      stopMemoryMonitoring();
+      if (memoryManager?.stopMemoryMonitoring) {
+        memoryManager.stopMemoryMonitoring();
+      }
       
       // 마지막 메모리 최적화 수행
-      await forceMemoryOptimization(2, false);
+      if (memoryManager?.forceMemoryOptimization) {
+        await memoryManager.forceMemoryOptimization(2, false);
+      }
       
       // 정리 작업 완료 후 앱 종료
       console.log('정리 작업 완료, 앱 종료');
@@ -555,7 +586,9 @@ function initializeAppLifecycle(settings) {
       // 배터리 부족 상태에서 메모리 최적화
       if (status.percent < 20 && !status.charging) {
         console.log('배터리 부족, 메모리 최적화 수행');
-        forceMemoryOptimization(3, false);
+        if (memoryManager?.forceMemoryOptimization) {
+          memoryManager.forceMemoryOptimization(3, false);
+        }
       }
     });
   }
@@ -564,7 +597,9 @@ function initializeAppLifecycle(settings) {
   app.on('browser-window-blur', () => {
     if (settings?.reduceMemoryInBackground) {
       console.log('앱이 백그라운드로 전환됨, 메모리 최적화 수행');
-      forceMemoryOptimization(2, false);
+      if (memoryManager?.forceMemoryOptimization) {
+        memoryManager.forceMemoryOptimization(2, false);
+      }
     }
   });
   
@@ -572,13 +607,18 @@ function initializeAppLifecycle(settings) {
 }
 
 // 모듈 내보내기
-module.exports = {
-  initializeAppLifecycle
-};
-
-module.exports = {
+export {
   initializeApp,
   cleanupApp,
   setupAppEventListeners,
-  setupGpuConfiguration // 새로운 함수 내보내기
+  setupGpuConfiguration,
+  initializeAppLifecycle
+};
+
+// 기본 내보내기
+export default {
+  initializeApp,
+  cleanupApp,
+  setupAppEventListeners,
+  setupGpuConfiguration
 };

@@ -1,4 +1,5 @@
-const { setupAppEventListeners } = require('./src/main/app-lifecycle');
+import { setupAppEventListeners } from './src/main/app-lifecycle.js';
+import { app, BrowserWindow } from 'electron';
 
 // 앱 이벤트 리스너 설정
 setupAppEventListeners();

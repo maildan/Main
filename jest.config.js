@@ -1,5 +1,5 @@
 // Jest 설정 파일
-const nextJest = require('next/jest');
+import nextJest from 'next/jest';
 
 const createJestConfig = nextJest({
   // next.config.js와 .env 파일을 읽어들이기 위한 Next.js 앱 경로
@@ -60,4 +60,4 @@ const customJestConfig = {
 };
 
 // createJestConfig를 내보내 Next.js에서 사용
-module.exports = createJestConfig(customJestConfig);
+export default createJestConfig(customJestConfig);
