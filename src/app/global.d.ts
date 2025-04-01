@@ -187,6 +187,12 @@ declare global {
       determineOptimizationLevel?: () => number;
       settings?: any;
       cleanupPeriodicOptimization?: () => void;
+      clearBrowserCaches?: () => Promise<boolean>;
+      clearStorageCaches?: () => boolean;
+      checkMemoryUsage?: () => Record<string, any> | null;
+      forceGC?: () => boolean;
+      optimizeImageResources?: () => Promise<boolean>;
+      cleanAllCaches?: () => boolean;
     };
     
     // GPU 가속화 관련 전역 객체
@@ -228,6 +234,12 @@ interface Window {
     requestGC?: (emergency?: boolean) => Promise<any>;
     setupPeriodicOptimization?: (interval?: number, threshold?: number) => void;
     cleanupPeriodicOptimization?: () => void;
+    clearBrowserCaches?: () => Promise<boolean>;
+    clearStorageCaches?: () => boolean;
+    checkMemoryUsage?: () => Record<string, any> | null;
+    forceGC?: () => boolean;
+    optimizeImageResources?: () => Promise<boolean>;
+    cleanAllCaches?: () => boolean;
   };
   
   // GPU 관련
@@ -301,6 +313,14 @@ interface Window {
     getMemoryUsagePercentage: () => Promise<number>;
     optimizeMemory: (aggressive: boolean) => Promise<any>;
     setupPeriodicOptimization: (interval?: number, threshold?: number) => () => void;
+    suggestGarbageCollection: () => void;
+    requestGC: (emergency?: boolean) => Promise<any>;
+    clearBrowserCaches: () => Promise<boolean>;
+    clearStorageCaches: () => boolean;
+    checkMemoryUsage: () => Record<string, any> | null;
+    forceGC: () => boolean;
+    optimizeImageResources?: () => Promise<boolean>;
+    cleanAllCaches?: () => boolean;
   };
   
   // 캐시 관련 전역 객체들
@@ -421,6 +441,36 @@ interface Window {
      * 메모리 최적화 설정
      */
     settings: Record<string, any>;
+    
+    /**
+     * 브라우저 캐시 지우기 함수
+     */
+    clearBrowserCaches: () => Promise<boolean>;
+    
+    /**
+     * 스토리지 캐시 지우기 함수
+     */
+    clearStorageCaches: () => boolean;
+    
+    /**
+     * 메모리 사용량 확인 함수
+     */
+    checkMemoryUsage: () => Record<string, any> | null;
+    
+    /**
+     * 강제 GC 수행 함수
+     */
+    forceGC: () => boolean;
+    
+    /**
+     * 이미지 리소스 최적화 함수
+     */
+    optimizeImageResources?: () => Promise<boolean>;
+    
+    /**
+     * 모든 캐시 정리 함수
+     */
+    cleanAllCaches?: () => boolean;
   };
   
   /**

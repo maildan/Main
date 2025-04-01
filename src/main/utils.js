@@ -1,9 +1,9 @@
-const { isDev } = require('./constants');
+import { isDev } from './constants.js';
 
 /**
  * 디버깅 로그 출력
  */
-function debugLog(...args) {
+export function debugLog(...args) {
   const timestamp = new Date().toISOString();
   console.log(`[${timestamp}] DEBUG:`, ...args);
 }
@@ -11,7 +11,7 @@ function debugLog(...args) {
 /**
  * 시간 형식화 함수 (디버깅용)
  */
-function formatTime(seconds) {
+export function formatTime(seconds) {
   if (seconds < 60) return `${seconds}초`;
   
   const minutes = Math.floor(seconds / 60);
@@ -33,16 +33,17 @@ function formatTime(seconds) {
  * @param {Object} fallbackModule - 대체 모듈 (로드 실패 시 사용)
  * @returns {Object} 로드된 모듈 또는 대체 모듈
  */
-function safeRequire(modulePath, fallbackModule = {}) {
+export function safeRequire(modulePath, fallbackModule = {}) {
   try {
-    return require(modulePath);
+    return import(modulePath);
   } catch (error) {
     console.error(`모듈 '${modulePath}' 로드 실패:`, error.message);
     return fallbackModule;
   }
 }
 
-module.exports = {
+// 기존 코드와의 호환성을 위한 기본 내보내기
+export default {
   debugLog,
   formatTime,
   safeRequire

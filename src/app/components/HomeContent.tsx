@@ -1,23 +1,20 @@
 'use client';
 
-import React, { useMemo, useState, useCallback, useEffect } from 'react';
-import TypingStats from './TypingStats'; // default import로 변경
+import React, { useState, useCallback, useEffect } from 'react';
 import { TypingMonitor } from './TypingMonitor';
-import { TypingHistory } from './TypingHistory';
 import { TypingChart } from './TypingChart';
 import { TabNavigation } from './TabNavigation';
 import { MainLayout } from './MainLayout';
 import { DebugPanel } from './DebugPanel';
 import { Settings } from './Settings'; 
 import RestartLoading from './RestartLoading';
-// useToast를 사용하지 않는다면 임포트 제거
-// import { useToast } from './ToastContext';
 import { useElectronApi } from '../hooks/useElectronApi';
 import { useSettings } from '../hooks/useSettings';
 import { useTypingStats } from '../hooks/useTypingStats';
 import { useTabNavigation } from '../hooks/useTabNavigation';
 import { useMemoryManagement } from '../hooks/useMemoryManagement';
 import { useAutoHideHeader } from '../hooks/useAutoHideHeader';
+import { optimizeImageResources } from '../utils/memory/image-optimizer';
 
 // LogEntry 타입 정의 추가
 interface LogEntry {
@@ -57,13 +54,12 @@ export const HomeContent = React.memo(function HomeContent() {
     handleWindowModeChange 
   } = useSettings(electronAPI);
   
-  // 설정 로드 함수 내에서 기본값 설정
-  const loadSettings = async () => {
+  // 사용하지 않는 함수에 _ 추가
+  const _loadSettings = async () => {
     try {
       if (electronAPI && electronAPI.loadSettings) {
         const settings = await electronAPI.loadSettings();
         
-        // GPU 가속 관련 속성이 없는 경우 기본값 설정
         const completeSettings = {
           enabledCategories: settings.enabledCategories || {
             docs: true,
@@ -79,15 +75,12 @@ export const HomeContent = React.memo(function HomeContent() {
           showTrayNotifications: settings.showTrayNotifications ?? true,
           reduceMemoryInBackground: settings.reduceMemoryInBackground ?? true,
           enableMiniView: settings.enableMiniView ?? true,
-          // 기존 값 유지
           useHardwareAcceleration: settings.useHardwareAcceleration ?? false,
           processingMode: settings.processingMode ?? 'auto',
           maxMemoryThreshold: settings.maxMemoryThreshold ?? 100
         };
         
-        // setSettings 대신 handleSaveSettings 사용
         handleSaveSettings(completeSettings);
-        // setDarkMode 대신 handleDarkModeChange 사용
         handleDarkModeChange(settings.darkMode);
       }
     } catch (error) {
@@ -103,7 +96,7 @@ export const HomeContent = React.memo(function HomeContent() {
     toggleDebugMode 
   } = useTabNavigation({ 
     initialTab: 'monitor',
-    electronAPI: api // api는 이제 TabNavigationAPI와 호환됩니다
+    electronAPI: api
   });
   
   // 자동 숨김 헤더 관리
@@ -112,17 +105,17 @@ export const HomeContent = React.memo(function HomeContent() {
     electronAPI
   });
   
-  // 타이핑 통계 관리 - 'typingLogs'로 이름 변경하여 중복 방지
+  // 타이핑 통계 관리 - 사용하지 않는 변수에 대한 구조 분해 할당 수정
   const { 
-    logs: typingLogs, // 이름 변경
-    isLoading, 
+    logs: typingLogs, 
+    isLoading: _isLoading,  // _isLoading 속성이 아닌 isLoading에서 이름 변경
     isTracking,
     displayStats,
     handleStartTracking,
     handleStopTracking,
     handleSaveStats,
     currentStatsRef,
-    fetchLogs
+    fetchLogs: _fetchLogs  // _fetchLogs 속성이 아닌 fetchLogs에서 이름 변경
   } = useTypingStats(electronAPI);
   
   // 현재 표시할 로그 관리
@@ -132,18 +125,18 @@ export const HomeContent = React.memo(function HomeContent() {
   const memoryManager = useMemoryManagement({
     debugMode,
     activeTab,
-    memoryThreshold: 100, // 100MB 기준
-    checkInterval: 30000, // 30초마다 체크
+    memoryThreshold: 100, 
+    checkInterval: 30000, 
     onClearLogs: () => {
-      // 현재 활성 탭이 로그를 사용하지 않는 경우에만 해제
       if (activeTab !== 'history' && activeTab !== 'stats' && activeTab !== 'chart') {
         setCurrentLogs([]);
         
-        // 대용량 데이터 참조 해제를 통한 추가 최적화
-        if (window.__memoryOptimizer?.optimizeImageResources) {
-          window.__memoryOptimizer.optimizeImageResources().catch((err: Error) => {
+        try {
+          optimizeImageResources().catch((err: Error) => {
             console.error('이미지 리소스 최적화 중 오류:', err);
           });
+        } catch (err) {
+          console.error('이미지 최적화 실행 오류:', err);
         }
       }
     }
@@ -151,21 +144,22 @@ export const HomeContent = React.memo(function HomeContent() {
 
   // 컴포넌트 첫 로드 시 메모리 최적화 실행
   useEffect(() => {
-    // 초기 메모리 최적화
-    if (window.__memoryOptimizer?.optimizeMemory) {
-      window.__memoryOptimizer.optimizeMemory(false);
-    }
-    
-    // 주기적으로 이미지 리소스 최적화 (페이지가 오래 열려있을 때)
-    const imageOptimizationInterval = setInterval(() => {
-      if (window.__memoryOptimizer?.optimizeImageResources) {
-        window.__memoryOptimizer.optimizeImageResources().catch((err: Error) => {
-          console.error('이미지 리소스 최적화 주기 작업 중 오류:', err);
+    try {
+      if (window.__memoryOptimizer?.requestGC) {
+        window.__memoryOptimizer.requestGC(false).catch(err => {
+          console.error('메모리 최적화 오류:', err);
         });
       }
-    }, 300000); // 5분마다
+    } catch (err) {
+      console.error('GC 요청 오류:', err);
+    }
     
-    // 인터벌 등록 및 언마운트 시 정리
+    const imageOptimizationInterval = setInterval(() => {
+      optimizeImageResources().catch((err: Error) => {
+        console.error('이미지 리소스 최적화 주기 작업 중 오류:', err);
+      });
+    }, 300000);
+    
     memoryManager.addInterval(imageOptimizationInterval);
     
     return () => {
@@ -173,7 +167,6 @@ export const HomeContent = React.memo(function HomeContent() {
     };
   }, [memoryManager]);
 
-  // 로그 데이터 업데이트 - 타이핑 로그가 변경될 때마다 실행
   React.useEffect(() => {
     if (typingLogs && typingLogs.length > 0) {
       setCurrentLogs(typingLogs);
@@ -182,15 +175,12 @@ export const HomeContent = React.memo(function HomeContent() {
 
   const [isRestarting, setIsRestarting] = useState(false);
 
-  // 재시작 로딩 리스너 추가
   useEffect(() => {
-    // 전자캅에 접근할 수 있는지 확인
     if (!electronAPI) return;
     
     const unsubscribe = electronAPI.onShowRestartLoading?.((data: RestartLoadingData) => {
       setIsRestarting(true);
       
-      // 타임아웃이 있으면 자동으로 숨김
       if (data.timeout) {
         setTimeout(() => {
           setIsRestarting(false);
@@ -203,7 +193,6 @@ export const HomeContent = React.memo(function HomeContent() {
     };
   }, [electronAPI]);
 
-  // 컴포넌트 렌더링 로직
   const renderContent = useCallback(() => {
     switch (activeTab) {
       case 'monitor':
@@ -265,13 +254,11 @@ export const HomeContent = React.memo(function HomeContent() {
       electronAPI={electronAPI}
       isHeaderVisible={isHeaderVisible}
     >
-      {/* 재시작 로딩 오버레이 */}
       <RestartLoading 
         isVisible={isRestarting}
         message="앱을 재시작하는 중입니다"
       />
       
-      {/* 나머지 내용 */}
       <TabNavigation
         activeTab={activeTab}
         onTabChange={handleTabChange}
@@ -279,10 +266,8 @@ export const HomeContent = React.memo(function HomeContent() {
         debugMode={debugMode}
       />
       
-      {/* 메모이제이션된 컴포넌트 사용 */}
       {renderContent()}
       
-      {/* 디버그 패널 */}
       <DebugPanel
         isVisible={debugMode}
         stats={currentStatsRef.current}
@@ -293,8 +278,5 @@ export const HomeContent = React.memo(function HomeContent() {
     </MainLayout>
   );
 });
-
-// 전역 window 타입 확장 - 참고용 주석으로 남겨둠
-// Window.__memoryOptimizer는 이미 다른 파일(types-declarations.d.ts)에 정의되어 있음
 
 export default HomeContent;

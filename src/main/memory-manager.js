@@ -1,8 +1,9 @@
-import { app } from 'electron';
-import { appState, MEMORY_CHECK_INTERVAL, HIGH_MEMORY_THRESHOLD } from './constants.js';
-import { debugLog } from './utils.js';
-import path from 'path';
-import fs from 'fs';
+// ES 모듈 방식에서 CommonJS 방식으로 변경
+const { app } = require('electron');
+const { appState, MEMORY_CHECK_INTERVAL, HIGH_MEMORY_THRESHOLD } = require('./constants');
+const { debugLog } = require('./utils');
+const path = require('path');
+const fs = require('fs');
 
 // 메모리 관리 상태
 let lastMemoryCheck = 0;
@@ -23,14 +24,9 @@ async function loadNativeModule() {
     const possiblePaths = [
       path.join(app.getAppPath(), 'native-modules', 'target', 'release', 'typing_stats_native.node'),
       path.join(app.getAppPath(), 'native-modules', 'target', 'debug', 'typing_stats_native.node'),
-      path.join(app.getAppPath(), '..', 'native-modules', 'target', 'release', 'typing_stats_native.node'),
-      path.join(app.getAppPath(), '..', 'native-modules', 'target', 'debug', 'typing_stats_native.node'),
-      // __dirname으로부터의 상대 경로
+      // __dirname은 CommonJS에서 유효함
       path.join(__dirname, '..', '..', 'native-modules', 'target', 'release', 'typing_stats_native.node'),
-      path.join(__dirname, '..', '..', 'native-modules', 'target', 'debug', 'typing_stats_native.node'),
-      // 추가 경로
-      path.join(process.cwd(), 'native-modules', 'target', 'release', 'typing_stats_native.node'),
-      path.join(process.cwd(), 'native-modules', 'target', 'debug', 'typing_stats_native.node')
+      path.join(__dirname, '..', '..', 'native-modules', 'target', 'debug', 'typing_stats_native.node')
     ];
     
     // 존재하는 모듈 파일 찾기
@@ -38,10 +34,7 @@ async function loadNativeModule() {
       if (fs.existsSync(modulePath)) {
         debugLog(`네이티브 모듈 발견: ${modulePath}`);
         try {
-          // ESM에서는 .node 파일을 직접 import할 수 없음
-          // Electron/Node.js 환경에서는 createRequire를 사용하여 CommonJS 모듈 로드
-          const { createRequire } = await import('module');
-          const require = createRequire(import.meta.url);
+          const require = require;
           nativeModule = require(modulePath);
           debugLog('네이티브 모듈 로드 성공');
           return nativeModule;
@@ -63,7 +56,7 @@ async function loadNativeModule() {
     for (const fallbackPath of possibleFallbackPaths) {
       if (fs.existsSync(fallbackPath)) {
         try {
-          const fallbackModule = await import(fallbackPath);
+          const fallbackModule = require(fallbackPath);
           nativeModule = fallbackModule.default || fallbackModule;
           debugLog(`폴백 모듈 로드 성공: ${fallbackPath}`);
           return nativeModule;
@@ -518,18 +511,13 @@ function getMemoryManagerStats() {
   };
 }
 
-// 모듈 내보내기 - ESM 스타일
-export {
+// 모듈 내보내기를 ESM에서 CommonJS로 변경
+module.exports = {
   initializeMemoryManager,
-  startMemoryMonitoring,
-  stopMemoryMonitoring,
-  checkMemoryUsage,
+  optimizeMemoryForBackground,
   forceMemoryOptimization,
   performGarbageCollection,
   getCurrentMemoryUsage,
-  getMemoryManagerStats,
-  freeUpMemoryResources,
-  optimizeMemoryForBackground,
-  setupMemoryMonitoring,
-  isNativeModuleAvailable
+  isNativeModuleAvailable,
+  getMemoryManagerStats
 };

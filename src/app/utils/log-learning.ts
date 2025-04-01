@@ -4,8 +4,31 @@
  * 로그 데이터를 분석하여 학습하고 애플리케이션을 최적화하는 기능 제공
  */
 
-import { LogEntry, LogType, searchLogs } from './log-utils';
+import { LogType, searchLogs } from './log-utils';
 import { logger } from './memory/logger';
+
+/**
+ * 인터페이스 정의
+ */
+interface WordFrequency {
+  [key: string]: number;
+}
+
+interface HourlyActivity {
+  [hour: number]: number;
+}
+
+interface SessionConversations {
+  [sessionId: string]: number;
+}
+
+interface ErrorGroups {
+  [errorType: string]: {
+    count: number;
+    examples: Array<{ message: string; timestamp: number }>;
+    sessionIds: Set<string>;
+  };
+}
 
 /**
  * 학습 모델 타입 정의
@@ -133,8 +156,8 @@ export async function learnMemoryUsagePatterns(
     }).filter(Boolean);
     
     // 메모리 증가 추세가 높은 세션 정렬
-    sessionTrends.sort((a, b) => b.increaseTrend - a.increaseTrend);
-    const problematicSessions = sessionTrends.filter(session => session.percentIncrease > 15);
+    sessionTrends.sort((a, b) => (b?.increaseTrend || 0) - (a?.increaseTrend || 0));
+    const problematicSessions = sessionTrends.filter(session => session && session.percentIncrease > 15);
     
     // 최적화 추천사항 생성
     const recommendations = [];
@@ -183,7 +206,7 @@ export async function learnMemoryUsagePatterns(
     
     return result;
   } catch (error) {
-    logger.error('메모리 사용 패턴 학습 중 오류:', error);
+    logger.error('메모리 사용 패턴 학습 중 오류:', error as Record<string, unknown>);
     throw error;
   }
 }
@@ -236,7 +259,7 @@ export async function learnUserBehaviorPatterns(
           ...log,
           parsedContent: JSON.parse(log.content)
         };
-      } catch (e) {
+      } catch (_) {  // 사용하지 않는 변수는 _ 로만 표시
         return {
           ...log,
           parsedContent: {
@@ -249,7 +272,7 @@ export async function learnUserBehaviorPatterns(
     });
     
     // 자주 사용되는 단어/구문 분석
-    const wordFrequency = {};
+    const wordFrequency: WordFrequency = {};
     conversations.forEach(conv => {
       const userMessage = conv.parsedContent?.userMessage || '';
       if (!userMessage) return;
@@ -258,21 +281,15 @@ export async function learnUserBehaviorPatterns(
         .toLowerCase()
         .replace(/[^\w\s가-힣]/g, ' ')
         .split(/\s+/)
-        .filter(word => word.length > 1);
+        .filter((word: string) => word.length > 1);
       
-      words.forEach(word => {
+      words.forEach((word: string) => {
         wordFrequency[word] = (wordFrequency[word] || 0) + 1;
       });
     });
     
-    // 가장 많이 사용된 단어 추출
-    const topWords = Object.entries(wordFrequency)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 20)
-      .map(([word, count]) => ({ word, count }));
-    
     // 시간대별 활동 패턴 분석
-    const hourlyActivity = {};
+    const hourlyActivity: HourlyActivity = {};
     conversations.forEach(conv => {
       const timestamp = conv.timestamp || conv.parsedContent?.timestamp;
       if (!timestamp) return;
@@ -289,23 +306,35 @@ export async function learnUserBehaviorPatterns(
       return userMessage.length;
     });
     
-    const avgMessageLength = messageLengths.reduce((sum, len) => sum + len, 0) / messageLengths.length;
+    const avgMessageLength = messageLengths.length > 0 ? 
+      messageLengths.reduce((sum, len) => sum + len, 0) / messageLengths.length : 0;
     
     // 세션별 대화 수 분석
-    const sessionConversations = {};
+    const sessionConversations: SessionConversations = {};
     conversations.forEach(conv => {
       if (!conv.sessionId) return;
       sessionConversations[conv.sessionId] = (sessionConversations[conv.sessionId] || 0) + 1;
     });
     
-    const sessionsArray = Object.entries(sessionConversations).map(([id, count]) => ({ id, count }));
-    const avgConversationsPerSession = sessionsArray.reduce((sum, session) => sum + session.count, 0) / sessionsArray.length;
+    const sessionsArray = Object.entries(sessionConversations)
+      .map(([id, count]) => ({ id, count: count as number }));
     
-    // 활동이 가장 많은 시간대 식별
+    const avgConversationsPerSession = sessionsArray.length > 0 ?
+      sessionsArray.reduce((sum, session) => {
+        return sum + (session && session.count ? session.count : 0);
+      }, 0) / sessionsArray.length : 0;
+    
+    // 활동이 가장 많은 시간대 식별: null 체크 추가
     const activeHours = Object.entries(hourlyActivity)
-      .sort((a, b) => b[1] - a[1])
+      .sort((a, b) => {
+        if (a === null || b === null || a[1] === null || b[1] === null) return 0;
+        return (b[1] as number) - (a[1] as number);
+      })
       .slice(0, 3)
-      .map(([hour, count]) => ({ hour: parseInt(hour), count }));
+      .map(([hour, count]) => ({ 
+        hour: parseInt(hour), 
+        count: count as number 
+      }));
     
     // 추천사항 생성
     const recommendations = [];
@@ -325,22 +354,32 @@ export async function learnUserBehaviorPatterns(
       recommendations.push(`사용자는 세션당 평균 ${Math.round(avgConversationsPerSession)}개의 대화를 나눕니다. 장기 세션 메모리 관리를 최적화하세요.`);
     }
     
-    if (topWords.length > 0) {
+    if (Object.keys(wordFrequency).length > 0) {
+      const topWords = Object.entries(wordFrequency)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 20)
+        .map(([word, count]) => ({ word, count }));
       const topThreeWords = topWords.slice(0, 3).map(w => w.word).join(', ');
       recommendations.push(`가장 자주 사용된 키워드는 "${topThreeWords}"입니다. 이와 관련된 응답을 최적화하세요.`);
     }
     
-    // 학습 결과 반환
+    // 학습 결과 반환 코드에서 타입 단언 안전하게 처리
     const result: LearningResult = {
       modelType: LearningModelType.USER_BEHAVIOR,
       timestamp: Date.now(),
       insights: [
-        { type: 'topWords', data: topWords },
+        { type: 'topWords', data: Object.entries(wordFrequency)
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 20)
+          .map(([word, count]) => ({ word, count })) },
         { type: 'activeHours', data: activeHours },
         { type: 'messageLengths', data: { average: avgMessageLength, max: Math.max(...messageLengths) } },
-        { type: 'sessionsActivity', data: { average: avgConversationsPerSession, maxCount: Math.max(...Object.values(sessionConversations)) } },
+        { type: 'sessionsActivity', data: { 
+          average: avgConversationsPerSession, 
+          maxCount: Math.max(...Object.values(sessionConversations).map(v => v as number)) 
+        } },
       ],
-      recommendations,
+      recommendations: recommendations || [], // null 체크 추가
       metrics: {
         sampleSize: conversations.length,
         uniqueWords: Object.keys(wordFrequency).length,
@@ -349,14 +388,15 @@ export async function learnUserBehaviorPatterns(
       }
     };
     
+    // 타입 안전한 로깅
     logger.info('사용자 행동 패턴 학습 완료', { 
       sampleSize: conversations.length, 
-      recommendations: recommendations.length 
-    });
+      recommendations: recommendations ? recommendations.length : 0 
+    } as Record<string, unknown>);  // 타입 단언 추가
     
     return result;
   } catch (error) {
-    logger.error('사용자 행동 패턴 학습 중 오류:', error);
+    logger.error('사용자 행동 패턴 학습 중 오류:', error as Record<string, unknown>);
     throw error;
   }
 }
@@ -403,7 +443,7 @@ export async function learnErrorPatterns(
     }
     
     // 오류 메시지 분류
-    const errorGroups = {};
+    const errorGroups: ErrorGroups = {};
     errorLogs.forEach(log => {
       // 오류 메시지에서 핵심 부분만 추출
       const errorMessage = log.content || '';
@@ -444,7 +484,7 @@ export async function learnErrorPatterns(
       .sort((a, b) => b.count - a.count);
     
     // 시간대별 오류 발생 패턴
-    const hourlyErrors = {};
+    const hourlyErrors: Record<number, number> = {};
     errorLogs.forEach(log => {
       const date = new Date(log.timestamp);
       const hour = date.getHours();
@@ -505,7 +545,7 @@ export async function learnErrorPatterns(
     
     return result;
   } catch (error) {
-    logger.error('오류 패턴 학습 중 오류:', error);
+    logger.error('오류 패턴 학습 중 오류:', error as Record<string, unknown>);
     throw error;
   }
 }
@@ -583,12 +623,12 @@ function calculateOptimalGCInterval(memoryUsages: any[]): number | null {
   if (memoryUsages.length < 10) return null;
   
   // 메모리 사용량 증가 패턴 분석
-  const timestamps = memoryUsages.map(u => u.timestamp);
-  const memoryValues = memoryUsages.map(u => u.percentUsed);
+  const _timestamps = memoryUsages.map(u => u.timestamp);  // 사용하지 않는 변수에 _ 접두사 추가
+  const _memoryValues = memoryUsages.map(u => u.percentUsed);  // 사용하지 않는 변수에 _ 접두사 추가
   
   // 정렬
   const sortedData = memoryUsages
-    .map((u, i) => ({ timestamp: u.timestamp, value: u.percentUsed }))
+    .map((u, _i) => ({ timestamp: u.timestamp, value: u.percentUsed }))
     .sort((a, b) => a.timestamp - b.timestamp);
   
   // 증가율 계산

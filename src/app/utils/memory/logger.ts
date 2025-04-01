@@ -7,7 +7,6 @@
 
 import { getMemoryInfo } from '../memory-management';
 import { getPerformanceHistory } from '../performance-metrics';
-import { MemoryInfo } from '@/types';
 import { normalizeMemoryInfo } from './format-utils';
 
 /**
@@ -202,6 +201,9 @@ export interface MemoryLogEntry {
   tags?: string[];
   sessionId?: string;
   eventType?: string;
+  eventDescription?: string; // 추가
+  componentId?: string; // 추가
+  route?: string; // 추가
 }
 
 // 메모리 이벤트 타입 정의
@@ -213,8 +215,29 @@ export enum MemoryEventType {
   LOW_MEMORY_WARNING = 'low_memory_warning',
   OPTIMIZATION = 'optimization',
   RESOURCE_RELEASE = 'resource_release',
-  STATE_CHANGE = 'state_change'
+  STATE_CHANGE = 'state_change',
+  GARBAGE_COLLECTION = 'garbage_collection', // 추가
+  COMPONENT_MOUNT = 'component_mount', // 추가
+  PAGE_NAVIGATION = 'page_navigation' // 추가
 }
+
+// 메모리 사용 통계 인터페이스
+export interface MemoryUsageStats {
+  averageUsage: number;
+  peakUsage: number;
+  minUsage: number;
+  lastUsage: number;
+  usageOverTime: Array<{ timestamp: number; usageMB: number }>;
+  optimizationEvents: Array<{ timestamp: number; freedMemory: number }>;
+  gcEvents: Array<{ timestamp: number; freedMemory: number }>;
+  leakSuspects: Array<{ componentId: string; frequency: number }>;
+}
+
+// 누락된 변수와 상수 정의 추가
+const memoryLogs: MemoryLogEntry[] = [];
+const MAX_LOG_ENTRIES = 1000;
+const MEMORY_LOG_DB = 'memory_log_db';
+const INDEXEDDB_STORE = 'memory_logs';
 
 /**
  * 메모리 사용량 로깅
@@ -230,7 +253,7 @@ export async function logMemoryUsage(
   route?: string
 ): Promise<MemoryLogEntry> {
   // 현재 메모리 정보 가져오기
-  const rawMemoryInfo = getMemoryInfo() || {
+  const rawMemoryInfo = await getMemoryInfo() || {
     heap_used: 0,
     heap_total: 0,
     heap_used_mb: 0,
@@ -246,7 +269,7 @@ export async function logMemoryUsage(
   };
   
   // 표준화된 MemoryInfo 인터페이스로 변환
-  const standardizedInfo = normalizeMemoryInfo(rawMemoryInfo);
+  const standardizedInfo = normalizeMemoryInfo(rawMemoryInfo as any);
   
   // 현재 라우트 가져오기 (route 매개변수가 없는 경우)
   if (!route && typeof window !== 'undefined') {
@@ -356,25 +379,6 @@ async function saveLogToIndexedDB(logEntry: MemoryLogEntry): Promise<void> {
 
 /**
  * 저장된 메모리 로그 가져오기
- * 
-        
-        addRequest.onerror = () => {
-          reject(new Error(`로그 항목 저장 실패: ${addRequest.error}`));
-        };
-        
-        // 트랜잭션 완료 이벤트
-        transaction.oncomplete = () => {
-          db.close();
-        };
-      } catch (error) {
-        reject(error);
-      }
-    };
-  });
-}
-
-/**
- * 저장된 메모리 로그 가져오기
  * @param limit 가져올 최대 항목 수
  * @param startTime 시작 시간 (밀리초)
  * @param endTime 종료 시간 (밀리초)
@@ -388,8 +392,8 @@ export async function getMemoryLogs(
   eventTypes?: MemoryEventType[]
 ): Promise<MemoryLogEntry[]> {
   // 시간 기준 필터링
-  const now = Date.now();
-  const filteredByTime = memoryLogs.filter(log => {
+  const _now = Date.now(); // 사용하지 않는 변수에 _ 추가
+  const filteredByTime = memoryLogs.filter((log: MemoryLogEntry) => {
     if (startTime && log.timestamp < startTime) return false;
     if (endTime && log.timestamp > endTime) return false;
     return true;
@@ -397,12 +401,12 @@ export async function getMemoryLogs(
   
   // 이벤트 타입 기준 필터링
   const filtered = eventTypes 
-    ? filteredByTime.filter(log => eventTypes.includes(log.eventType))
+    ? filteredByTime.filter((log: MemoryLogEntry) => eventTypes.includes(log.eventType as MemoryEventType))
     : filteredByTime;
   
   // 최신 순으로 정렬하고 제한된 개수 반환
   return filtered
-    .sort((a, b) => b.timestamp - a.timestamp)
+    .sort((a: MemoryLogEntry, b: MemoryLogEntry) => b.timestamp - a.timestamp)
     .slice(0, limit);
 }
 

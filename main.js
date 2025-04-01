@@ -1,7 +1,2 @@
-import { setupAppEventListeners } from './src/main/app-lifecycle.js';
-import { app, BrowserWindow } from 'electron';
-
-// 앱 이벤트 리스너 설정
-setupAppEventListeners();
-
-// 이것으로 파일 끝. 모든 기능은 모듈화되어 필요한 파일에서 관리됩니다.
+// 이 파일은 실제 main.js 경로인 src/main/main.js로 리다이렉트만 수행해야 합니다
+require('./src/main/main.js');

@@ -1,9 +1,41 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { LearningModelType, LearningResult } from '../utils/log-learning';
-import { formatBytes, getCurrentTimestamp } from '../utils/common-utils';
+import { formatBytes, formatTime } from '../utils/format-utils';
+import KeyboardIcon from '@mui/icons-material/Keyboard';
 import styles from './LogAnalysisPanel.module.css';
+
+/**
+ * 시간별 데이터를 위한 타입 정의
+ */
+interface HourData {
+  hour: number;
+  count: number;
+  percentage?: number;
+  // 필요한 다른 속성들 추가
+}
+
+/**
+ * 세션 데이터를 위한 타입 정의
+ */
+interface SessionData {
+  id: string;
+  duration: number;
+  keyCount: number;
+  date: string;
+  // 필요한 다른 속성들 추가
+}
+
+/**
+ * 단어 데이터를 위한 타입 정의
+ */
+interface WordData {
+  word: string;
+  count: number;
+  percentage?: number;
+  // 필요한 다른 속성들 추가
+}
 
 interface LogAnalysisPanelProps {
   className?: string;
@@ -22,7 +54,7 @@ export default function LogAnalysisPanel({ className = '' }: LogAnalysisPanelPro
   const [combinedRecommendations, setCombinedRecommendations] = useState<string[]>([]);
 
   // 학습 상태
-  const [learningStatus, setLearningStatus] = useState<{
+  const [, setLearningStatus] = useState<{
     isLearning: boolean;
     lastLearningTime: number | null;
     availableModels: LearningModelType[];
@@ -31,6 +63,8 @@ export default function LogAnalysisPanel({ className = '' }: LogAnalysisPanelPro
     lastLearningTime: null,
     availableModels: Object.values(LearningModelType)
   });
+
+  const learningStatusRef = useRef(false);
 
   /**
    * 학습 상태 확인
@@ -54,7 +88,7 @@ export default function LogAnalysisPanel({ className = '' }: LogAnalysisPanelPro
       } else {
         console.error('학습 상태 확인 오류:', data.error);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('학습 상태 확인 중 오류 발생:', error);
     }
   }, []);
@@ -123,8 +157,8 @@ export default function LogAnalysisPanel({ className = '' }: LogAnalysisPanelPro
       } else {
         setError(data.error || '알 수 없는 오류가 발생했습니다.');
       }
-    } catch (error) {
-      setError(error instanceof Error ? error.message : String(error));
+    } catch (error: any) {
+      setError(error.message);
     } finally {
       setIsLoading(false);
     }
@@ -219,15 +253,13 @@ export default function LogAnalysisPanel({ className = '' }: LogAnalysisPanelPro
                 <div key={index} className={styles.insightItem}>
                   <h5>메모리 사용량 피크 시간대</h5>
                   <div className={styles.peakHoursChart}>
-                    {insight.data.map((hour, i) => (
-                      <div key={i} className={styles.peakHourBar}
-                        style={{
-                          height: `${Math.max(30, (hour.avgUsage / 100) * 100)}px`,
-                          backgroundColor: i === 0 ? '#ff6b6b' : '#5c7cfa'
-                        }}
-                      >
-                        <span className={styles.peakHourLabel}>{hour.hour}시</span>
-                        <span className={styles.peakHourValue}>{hour.avgUsage.toFixed(1)}%</span>
+                    {insight.data.map((hour: HourData, i: number) => (
+                      <div key={i} className={styles.hourBar}>
+                        <div 
+                          className={styles.hourBarFill} 
+                          style={{ height: `${hour.percentage || 0}%` }}
+                        />
+                        <span className={styles.hourLabel}>{hour.hour}</span>
                       </div>
                     ))}
                   </div>
@@ -240,15 +272,17 @@ export default function LogAnalysisPanel({ className = '' }: LogAnalysisPanelPro
                 <div key={index} className={styles.insightItem}>
                   <h5>의심되는 메모리 누수 세션</h5>
                   <ul className={styles.sessionsList}>
-                    {insight.data.map((session, i) => (
-                      <li key={i}>
-                        <span>세션 {session.sessionId.substring(0, 8)}</span>
-                        <span className={styles.sessionIncrease} style={{
-                          color: session.percentIncrease > 20 ? '#ff6b6b' : '#5c7cfa'
-                        }}>
-                          증가율: {session.percentIncrease.toFixed(2)}%
-                        </span>
-                      </li>
+                    {insight.data.map((session: SessionData, i: number) => (
+                      <div key={i} className={styles.sessionItem}>
+                        <div className={styles.sessionDetails}>
+                          <span className={styles.sessionDate}>{session.date}</span>
+                          <span className={styles.sessionDuration}>{formatTime(session.duration)}</span>
+                        </div>
+                        <div className={styles.sessionKeyCount}>
+                          <KeyboardIcon className={styles.keyIcon} />
+                          <span>{session.keyCount}</span>
+                        </div>
+                      </div>
                     ))}
                   </ul>
                 </div>
@@ -320,17 +354,12 @@ export default function LogAnalysisPanel({ className = '' }: LogAnalysisPanelPro
                 <div key={index} className={styles.insightItem}>
                   <h5>자주 사용하는 단어</h5>
                   <div className={styles.wordCloud}>
-                    {insight.data.slice(0, 10).map((word, i) => (
-                      <span
-                        key={i}
-                        className={styles.wordItem}
-                        style={{
-                          fontSize: `${Math.max(14, Math.min(24, 14 + (word.count / 5)))}px`,
-                          opacity: 0.7 + ((i / 10) * 0.3)
-                        }}
-                      >
-                        {word.word}
-                      </span>
+                    {insight.data.slice(0, 10).map((word: WordData, i: number) => (
+                      <div key={i} className={styles.wordItem}>
+                        <span className={styles.wordRank}>{i + 1}</span>
+                        <span className={styles.wordText}>{word.word}</span>
+                        <span className={styles.wordCount}>{word.count}</span>
+                      </div>
                     ))}
                   </div>
                 </div>
@@ -342,15 +371,13 @@ export default function LogAnalysisPanel({ className = '' }: LogAnalysisPanelPro
                 <div key={index} className={styles.insightItem}>
                   <h5>활발한 활동 시간대</h5>
                   <div className={styles.activeHoursChart}>
-                    {insight.data.map((hour, i) => (
-                      <div key={i} className={styles.activeHourBar}
-                        style={{
-                          height: `${Math.max(30, (hour.count / 10) * 100)}px`,
-                          backgroundColor: i === 0 ? '#82c91e' : '#15aabf'
-                        }}
-                      >
-                        <span className={styles.activeHourLabel}>{hour.hour}시</span>
-                        <span className={styles.activeHourValue}>{hour.count}회</span>
+                    {insight.data.map((hour: HourData, i: number) => (
+                      <div key={i} className={styles.hourBar}>
+                        <div 
+                          className={styles.hourBarFill} 
+                          style={{ height: `${hour.percentage || 0}%` }}
+                        />
+                        <span className={styles.hourLabel}>{hour.hour}</span>
                       </div>
                     ))}
                   </div>
@@ -423,7 +450,7 @@ export default function LogAnalysisPanel({ className = '' }: LogAnalysisPanelPro
                 <div key={index} className={styles.insightItem}>
                   <h5>가장 빈번한 오류 유형</h5>
                   <ul className={styles.errorsList}>
-                    {insight.data.map((error, i) => (
+                    {insight.data.map((error: any, i: number) => (
                       <li key={i} className={styles.errorItem}>
                         <span className={styles.errorType}>{error.type}</span>
                         <span className={styles.errorCount}>{error.count}회</span>
@@ -449,7 +476,7 @@ export default function LogAnalysisPanel({ className = '' }: LogAnalysisPanelPro
                 <div key={index} className={styles.insightItem}>
                   <h5>오류 발생 빈도 높은 시간대</h5>
                   <div className={styles.errorHoursChart}>
-                    {insight.data.map((hour, i) => (
+                    {insight.data.map((hour: HourData, i: number) => (
                       <div key={i} className={styles.errorHourBar}
                         style={{
                           height: `${Math.max(20, (hour.count / 5) * 100)}px`,

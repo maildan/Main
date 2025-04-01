@@ -66,6 +66,7 @@ export function useTypingStats(electronAPI: ElectronAPI | null) {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isTracking, setIsTracking] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   
   // 메모리 관리를 위한 ref 사용
   const eventsCleanupRef = useRef<(() => void)[]>([]);
@@ -136,6 +137,8 @@ export function useTypingStats(electronAPI: ElectronAPI | null) {
 
   // 로그 데이터 로드 함수
   const fetchLogs = useCallback(async (limit = MAX_LOGS_TO_LOAD) => {
+    if (isLoading) return; // 이미 로딩 중이면 중복 호출 방지
+    
     try {
       setIsLoading(true);
       const endpoint = `/api/getLogs?limit=${limit}`;
@@ -169,7 +172,10 @@ export function useTypingStats(electronAPI: ElectronAPI | null) {
           accuracy: log.accuracy
         }));
         
-        setLogs(optimizedLogs);
+        // 상태 업데이트 조건부로 수행
+        if (JSON.stringify(logs) !== JSON.stringify(optimizedLogs)) {
+          setLogs(optimizedLogs);
+        }
       } else {
         console.error('로그 불러오기 실패:', data.error);
         setLogs([]);
@@ -177,11 +183,12 @@ export function useTypingStats(electronAPI: ElectronAPI | null) {
     } catch (error) {
       console.error('로그 API 요청 오류:', error);
       setLogs([]);
+      setError('로그를 불러오는 중 문제가 발생했습니다.');
       showToast?.('데이터 로드 중 오류가 발생했습니다', 'error');
     } finally {
       setIsLoading(false);
     }
-  }, [showToast]);
+  }, [logs, showToast, isLoading]);
 
   // 데이터베이스 저장 함수
   const saveToDatabase = useCallback(async (record: RecordData) => {
@@ -342,6 +349,7 @@ export function useTypingStats(electronAPI: ElectronAPI | null) {
     handleStopTracking,
     handleSaveStats,
     fetchLogs,
-    currentStatsRef
+    currentStatsRef,
+    error
   };
 }

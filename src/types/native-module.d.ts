@@ -28,13 +28,14 @@ export interface MemoryInfo {
 
 /**
  * 최적화 레벨 열거형
+ * Ensure this enum matches the Rust enum in optimizer.rs
  */
 export enum OptimizationLevel {
-  NONE = 0,
-  LOW = 1,
-  MEDIUM = 2,
-  HIGH = 3,
-  CRITICAL = 4
+  Normal = 0,   // Add missing Normal to match Rust
+  Low = 1,      // Match with Rust's Low
+  Medium = 2,   // Match with Rust's Medium
+  High = 3,     // Match with Rust's High
+  Critical = 4  // Match with Rust's Critical
 }
 
 /**

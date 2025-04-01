@@ -76,8 +76,21 @@ function createEstimatedMemoryInfo(): MemoryInfo {
 export async function getNativeMemoryInfo(): Promise<MemoryInfo | null> {
   try {
     // 네이티브 모듈 연동 함수 호출
-    if (typeof window !== 'undefined' && window.__memoryOptimizer?.getMemoryInfo) {
-      return await window.__memoryOptimizer.getMemoryInfo();
+    if (typeof window !== 'undefined' && window.__memoryOptimizer && typeof window.__memoryOptimizer.checkMemoryUsage === 'function') {
+      const nativeMemoryInfo = window.__memoryOptimizer.checkMemoryUsage();
+      if (nativeMemoryInfo) {
+        return normalizeMemoryInfo(nativeMemoryInfo);
+      }
+    }
+    
+    // API를 통해 가져오기
+    try {
+      const memoryInfo = await requestNativeMemoryInfo();
+      if (memoryInfo) {
+        return memoryInfo;
+      }
+    } catch (apiError) {
+      console.debug('API를 통한 메모리 정보 가져오기 실패:', apiError);
     }
     
     // 네이티브 모듈 사용 불가능한 경우 브라우저 정보 반환
@@ -94,9 +107,13 @@ export async function getNativeMemoryInfo(): Promise<MemoryInfo | null> {
 export async function getMemoryInfo(): Promise<MemoryInfo> {
   // 네이티브 브리지를 통한 요청 시도
   try {
-    const response = await requestNativeMemoryInfo();
-    if (response && response.success) {
-      return response;
+    if (typeof window !== 'undefined' && window.__memoryOptimizer && typeof window.__memoryOptimizer.checkMemoryUsage === 'function') {
+      const nativeMemoryInfo = window.__memoryOptimizer.checkMemoryUsage();
+      if (nativeMemoryInfo) {
+        // nativeMemoryInfo가 MemoryInfo 타입인지 확인하고, 아니라면 변환
+        const memoryInfo: MemoryInfo = normalizeMemoryInfo(nativeMemoryInfo);
+        return memoryInfo;
+      }
     }
   } catch (e) {
     console.error('Native memory info request failed:', e);
@@ -148,5 +165,26 @@ export function convertNativeMemoryInfo(nativeInfo: any): MemoryInfo {
     rss: nativeInfo.rss || 0,
     rss_mb: nativeInfo.rss_mb || 0,
     timestamp: nativeInfo.timestamp || Date.now()
+  };
+}
+
+/**
+ * 메모리 정보 정규화 (필드 이름 통일)
+ */
+function normalizeMemoryInfo(info: any): MemoryInfo {
+  return {
+    heap_used: info.heapUsed || info.heap_used || 0,
+    heapUsed: info.heapUsed || info.heap_used || 0,
+    heap_total: info.heapTotal || info.heap_total || 0,
+    heapTotal: info.heapTotal || info.heap_total || 0,
+    heap_used_mb: info.heapUsedMB || info.heap_used_mb || 0,
+    heapUsedMB: info.heapUsedMB || info.heap_used_mb || 0,
+    rss: info.rss || 0,
+    rss_mb: info.rssMB || info.rss_mb || 0,
+    rssMB: info.rssMB || info.rss_mb || 0,
+    percent_used: info.percentUsed || info.percent_used || 0,
+    percentUsed: info.percentUsed || info.percent_used || 0,
+    heap_limit: info.heapLimit || info.heap_limit || 0,
+    timestamp: info.timestamp || Date.now()
   };
 }

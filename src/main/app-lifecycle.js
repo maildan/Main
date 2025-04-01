@@ -1,15 +1,15 @@
-import { app } from 'electron';
-import { appState, MEMORY_CHECK_INTERVAL, HIGH_MEMORY_THRESHOLD } from './constants.js';
-import { createWindow } from './window.js';
-import { setupKeyboardListener } from './keyboard.js';
-import { setupIpcHandlers } from './ipc-handlers.js';
-import { loadSettings } from './settings.js';
-import { debugLog } from './utils.js';
-import { setupTray, destroyTray } from './tray.js';
-import { setupMemoryMonitoring, performGC } from './memory-manager.js';
-import { switchToLowMemoryMode } from './stats.js';
-import fs from 'fs';
-import path from 'path';
+const { app } = require('electron');
+const { appState, MEMORY_CHECK_INTERVAL, HIGH_MEMORY_THRESHOLD } = require('./constants.js');
+const { createWindow } = require('./window');
+const { setupKeyboardListener } = require('./keyboard.js');
+const { setupIpcHandlers } = require('./ipc-handlers.js');
+const { loadSettings } = require('./settings.js');
+const { debugLog } = require('./utils.js');
+const { setupTray, destroyTray } = require('./tray.js');
+const memoryManager = require('./memory-manager.js');
+const { switchToLowMemoryMode } = require('./stats.js');
+const fs = require('fs');
+const path = require('path');
 
 // GPU 설정 확인 및 적용 함수
 async function setupGpuConfiguration() {
@@ -176,14 +176,11 @@ async function initializeApp() {
     // 메모리 최적화를 위한 주기적 GC
     setInterval(() => {
       try {
-        // performGC 함수 오류 수정
         if (global.gc) {
-          debugLog('주기적인 GC 수행');
-          global.gc();
-        } else if (appState.gcEnabled) {
-          debugLog('gc 함수가 설정되어 있으나 global.gc가 없음');
+          memoryManager.performGarbageCollection();
+          debugLog('GC 수행 완료');
         } else {
-          debugLog('gc 함수 사용 불가');
+          debugLog('GC 함수를 사용할 수 없음');
         }
       } catch (error) {
         debugLog('주기적 GC 수행 중 오류:', error);
@@ -201,7 +198,7 @@ async function initializeApp() {
       debugLog(`GPU 가속 상태: ${appState.gpuEnabled ? '활성화됨' : '비활성화됨'}`);
       
       // 메모리 사용량 모니터링 시작
-      setupMemoryMonitoring();
+      memoryManager.initializeMemoryManager();
       
       // 설정 로드 (이미 GPU 설정에서 로드했으므로 중복되지 않게 수정)
       if (!appState.settings) {
@@ -228,8 +225,12 @@ async function initializeApp() {
         
         // 초기 GC 실행으로 시작 시 사용된 메모리 정리
         setTimeout(() => {
-          performGC();
-          debugLog('초기 메모리 정리 완료');
+          if (global.gc) {
+            memoryManager.performGarbageCollection();
+            debugLog('GC 수행 완료');
+          } else {
+            debugLog('GC 함수를 사용할 수 없음');
+          }
         }, 3000); // 앱 시작 3초 후 GC 실행
       } else {
         debugLog('경고: GC를 사용할 수 없습니다. 메모리 관리가 제한됩니다.');
@@ -297,7 +298,7 @@ function cleanupApp() {
   // 최종 메모리 정리
   if (global.gc) {
     debugLog('종료 전 메모리 정리 실행');
-    global.gc();
+    memoryManager.performGarbageCollection();
   }
   
   debugLog('앱 종료 정리 완료');
@@ -487,7 +488,7 @@ function createFallbackMemoryManager() {
         // GC 직접 호출만 시도
         if (global.gc) {
           setTimeout(() => {
-            global.gc();
+            memoryManager.performGarbageCollection();
             debugLog('GC 호출 완료');
           }, 500);
         }
@@ -509,7 +510,7 @@ function createFallbackMemoryManager() {
       debugLog(`대체 메모리 정리 함수 호출됨 (긴급: ${emergency})`);
       // 기본 GC 수행
       if (global.gc) {
-        global.gc();
+        memoryManager.performGarbageCollection();
         debugLog('기본 GC 수행 완료');
       }
       return true;
@@ -525,21 +526,21 @@ function createFallbackMemoryManager() {
  */
 
 // 비동기적으로 메모리 관리자 모듈 가져오기 
-let memoryManager = null;
+let memoryManagerInstance = null;
 
 // 앱 시작 시 초기화
 async function initializeAppLifecycle(settings) {
   try {
     // 메모리 관리자 동적 로드
     const module = await import('./memory-manager.js');
-    memoryManager = {
+    memoryManagerInstance = {
       initializeMemoryManager: module.initializeMemoryManager,
       stopMemoryMonitoring: module.stopMemoryMonitoring,
       forceMemoryOptimization: module.forceMemoryOptimization
     };
     
     // 메모리 관리자 초기화
-    memoryManager.initializeMemoryManager({
+    memoryManagerInstance.initializeMemoryManager({
       monitoringInterval: settings?.reduceMemoryInBackground ? 30000 : 60000,
       thresholds: {
         normal: settings?.maxMemoryThreshold ? settings.maxMemoryThreshold * 0.7 : 100,
@@ -562,13 +563,13 @@ async function initializeAppLifecycle(settings) {
       console.log('앱 종료 전 정리 작업 수행 중...');
       
       // 메모리 모니터링 중지
-      if (memoryManager?.stopMemoryMonitoring) {
-        memoryManager.stopMemoryMonitoring();
+      if (memoryManagerInstance?.stopMemoryMonitoring) {
+        memoryManagerInstance.stopMemoryMonitoring();
       }
       
       // 마지막 메모리 최적화 수행
-      if (memoryManager?.forceMemoryOptimization) {
-        await memoryManager.forceMemoryOptimization(2, false);
+      if (memoryManagerInstance?.forceMemoryOptimization) {
+        await memoryManagerInstance.forceMemoryOptimization(2, false);
       }
       
       // 정리 작업 완료 후 앱 종료
@@ -586,8 +587,8 @@ async function initializeAppLifecycle(settings) {
       // 배터리 부족 상태에서 메모리 최적화
       if (status.percent < 20 && !status.charging) {
         console.log('배터리 부족, 메모리 최적화 수행');
-        if (memoryManager?.forceMemoryOptimization) {
-          memoryManager.forceMemoryOptimization(3, false);
+        if (memoryManagerInstance?.forceMemoryOptimization) {
+          memoryManagerInstance.forceMemoryOptimization(3, false);
         }
       }
     });
@@ -597,8 +598,8 @@ async function initializeAppLifecycle(settings) {
   app.on('browser-window-blur', () => {
     if (settings?.reduceMemoryInBackground) {
       console.log('앱이 백그라운드로 전환됨, 메모리 최적화 수행');
-      if (memoryManager?.forceMemoryOptimization) {
-        memoryManager.forceMemoryOptimization(2, false);
+      if (memoryManagerInstance?.forceMemoryOptimization) {
+        memoryManagerInstance.forceMemoryOptimization(2, false);
       }
     }
   });
@@ -607,7 +608,7 @@ async function initializeAppLifecycle(settings) {
 }
 
 // 모듈 내보내기
-export {
+module.exports = {
   initializeApp,
   cleanupApp,
   setupAppEventListeners,
@@ -615,8 +616,8 @@ export {
   initializeAppLifecycle
 };
 
-// 기본 내보내기
-export default {
+// CommonJS 방식으로 내보내기
+module.exports.default = {
   initializeApp,
   cleanupApp,
   setupAppEventListeners,

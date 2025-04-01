@@ -287,6 +287,10 @@ h2 {
   /* 글자 간격 및 행간 조정 */
   letter-spacing: 0.03em;
   line-height: 1.6;
+  
+  /* 다크 모드 CSS 변수 */
+  --bg-color-tertiary: #2f363d;
+  --border-color: #444c56;
 }
 
 .dark-mode .header {

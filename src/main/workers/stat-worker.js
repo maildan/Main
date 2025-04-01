@@ -14,15 +14,15 @@ let dataCache = null;
 let lastHeapSize = 0;
 let gcCounter = 0;
 
-// 네이티브 모듈 로드 시도
+// 네이티브 모듈 불러오기 시도
 let nativeModule = null;
 try {
-  // 상대 경로로 네이티브 모듈 로드 시도
-  nativeModule = require('../../../../native-modules');
-  console.log('네이티브 모듈 로드 성공');
-} catch (error) {
-  console.warn('네이티브 모듈 로드 실패:', error.message);
-  // 오류 발생 시 폴백 모드로 동작
+  // 폴백 모듈 사용
+  nativeModule = require('../../server/native/fallback');
+  console.log('폴백 모듈 사용 중');
+} catch (e) {
+  console.error('네이티브 모듈 로드 실패:', e.message);
+  // 에러 발생 시 null 유지
 }
 
 /**
@@ -33,7 +33,22 @@ function getMemoryInfo() {
   try {
     // 네이티브 모듈 사용 시도
     if (nativeModule && typeof nativeModule.get_memory_info === 'function') {
-      const nativeMemoryInfo = JSON.parse(nativeModule.get_memory_info());
+      const nativeMemoryInfoJson = nativeModule.get_memory_info();
+      // 문자열이 아닌 객체가 반환되는 경우 바로 사용
+      let nativeMemoryInfo;
+      if (typeof nativeMemoryInfoJson === 'string') {
+        try {
+          nativeMemoryInfo = JSON.parse(nativeMemoryInfoJson);
+        } catch (parseError) {
+          console.error('메모리 정보 JSON 파싱 오류:', parseError);
+          // 파싱 실패 시 기본 객체 생성
+          nativeMemoryInfo = {};
+        }
+      } else if (typeof nativeMemoryInfoJson === 'object') {
+        // 이미 객체인 경우 그대로 사용
+        nativeMemoryInfo = nativeMemoryInfoJson;
+      }
+      
       if (nativeMemoryInfo && !nativeMemoryInfo.error) {
         return {
           heapUsed: nativeMemoryInfo.heap_used || 0,

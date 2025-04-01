@@ -9,7 +9,7 @@ import {
 import { MemorySettings } from '@/types'; // @/types에서 MemorySettings 타입 가져오기
 import { runComprehensiveBenchmark } from '../utils/performance-metrics';
 // 메모리 유틸리티 가져오기
-import { setupMemoryUtils } from '../utils/memory';
+import { configureAutoOptimization } from '../utils/memory'; // 대체 함수 사용
 import { getNativeModuleStatus } from '../utils/nativeModuleClient';
 import styles from './MemorySettingsPanel.module.css';
 
@@ -55,7 +55,7 @@ const MemorySettingsPanel: React.FC<MemorySettingsPanelProps> = ({
     const initializeSettings = async () => {
       try {
         // 메모리 유틸리티 초기화
-        setupMemoryUtils();
+        configureAutoOptimization({ enabled: true });
         
         // 네이티브 모듈 상태 확인
         const { available } = await getNativeModuleStatus();
@@ -316,7 +316,7 @@ const MemorySettingsPanel: React.FC<MemorySettingsPanelProps> = ({
             </div>
             
             <div className={styles.settingItem}>
-              <div class는styles.settingLabel}>
+              <div className={styles.settingLabel}>
                 <div className={styles.settingTitle}>상세 로깅 활성화</div>
                 <div className={styles.settingDescription}>
                   메모리 사용 패턴 및 최적화 작업 상세 로깅

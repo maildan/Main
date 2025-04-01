@@ -64,7 +64,7 @@ export async function POST(request: Request) {
     }
     
     // 통합 추천사항 생성
-    let combinedRecommendations = [];
+    let combinedRecommendations: string[] = [];
     if (results.length > 1) {
       combinedRecommendations = combineRecommendations(results);
     }

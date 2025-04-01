@@ -1,11 +1,9 @@
-import React from 'react';
 import './globals.css';
-import ThemeProviderWrapper from './components/ThemeProviderWrapper';
-import SelfLearningSystem from './components/SelfLearningSystem';
+import ClientLayout from './ClientLayout';
 
 export const metadata = {
-  title: '타이핑 통계',
-  description: '타이핑 패턴 분석 및 통계 앱',
+  title: '키보드 타이핑 통계 분석기',
+  description: '키보드 입력 패턴 분석 및 통계 앱',
 };
 
 export default function RootLayout({
@@ -16,17 +14,7 @@ export default function RootLayout({
   return (
     <html lang="ko">
       <body>
-        <ThemeProviderWrapper>
-          {/* 자동 학습 시스템 추가 */}
-          <SelfLearningSystem
-            options={{
-              enableAutoLearning: true,
-              learningIntervalHours: 24,
-              runOnLowActivity: true
-            }}
-          />
-          {children}
-        </ThemeProviderWrapper>
+        <ClientLayout>{children}</ClientLayout>
       </body>
     </html>
   );

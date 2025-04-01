@@ -1,23 +1,20 @@
 /**
- * 네이티브 모듈 JavaScript 폴백 구현
+ * 네이티브 모듈 폴백 구현
  * 
- * 이 모듈은 네이티브 모듈이 로드되지 않을 때 사용됩니다.
- * 자체 기능을 모두 JavaScript로 구현합니다.
+ * Rust 네이티브 모듈을 사용할 수 없을 때 기본 JavaScript 구현을 제공합니다.
  */
-
 const { performance } = require('perf_hooks');
-const os = require('os');
 
-// 폴백 모듈 상태
+// 모듈 상태 추적
 const moduleState = {
-  isAvailable: false,
-  isFallback: true,
-  initTime: Date.now(),
+  available: true,
+  lastError: null,
+  initialized: true,
   metrics: {
     calls: 0,
     errors: 0,
-    totalExecutionTime: 0,
-    lastCall: null
+    lastCall: 0,
+    totalExecutionTime: 0
   }
 };
 
@@ -72,68 +69,75 @@ function getMemoryInfo() {
   }
 }
 
-function determineOptimizationLevel(memoryUsedMB, threshold = 100) {
+// 최적화 레벨 결정
+function determineOptimizationLevel() {
   moduleState.metrics.calls++;
   moduleState.metrics.lastCall = Date.now();
   
-  // 메모리 사용량 기준 최적화 레벨 결정
-  const memoryInfo = getMemoryInfo();
-  const usedMB = memoryUsedMB || memoryInfo.heap_used_mb;
-  
-  if (usedMB > threshold * 2) {
-    return 4; // Critical
-  } else if (usedMB > threshold * 1.5) {
-    return 3; // High
-  } else if (usedMB > threshold) {
-    return 2; // Medium
-  } else if (usedMB > threshold * 0.7) {
-    return 1; // Low
-  } else {
+  try {
+    const memUsage = process.memoryUsage();
+    const usedRatio = memUsage.heapUsed / memUsage.heapTotal;
+    
+    if (usedRatio > 0.9) return 4; // Critical
+    if (usedRatio > 0.8) return 3; // High
+    if (usedRatio > 0.7) return 2; // Medium
+    if (usedRatio > 0.5) return 1; // Low
     return 0; // Normal
+  } catch (error) {
+    moduleState.metrics.errors++;
+    console.error('최적화 레벨 결정 오류:', error);
+    return 0;
   }
 }
 
-function requestGarbageCollection(emergency = false) {
+// 가비지 컬렉션 요청
+function requestGarbageCollection() {
   moduleState.metrics.calls++;
   moduleState.metrics.lastCall = Date.now();
   
   try {
     const start = performance.now();
+    const memoryBefore = process.memoryUsage();
     
-    const memoryBefore = getMemoryInfo();
-    
-    // 가비지 컬렉션 요청
+    // Node.js의 GC 시도
     if (global.gc) {
       global.gc();
     } else {
-      // GC 간접 유도
-      const tmp = [];
-      for (let i = 0; i < 1000; i++) {
-        tmp.push(new Array(10000).fill(0));
+      // GC를 직접 호출할 수 없는 경우 메모리를 강제로 해제하기 위한 시도
+      const tempObjects = [];
+      for (let i = 0; i < 10; i++) {
+        tempObjects.push(new Array(10000).fill('x'));
       }
-      tmp.length = 0;
+      tempObjects.length = 0;
     }
     
-    const memoryAfter = getMemoryInfo();
-    
+    const memoryAfter = process.memoryUsage();
     const executionTime = performance.now() - start;
     moduleState.metrics.totalExecutionTime += executionTime;
     
-    return {
+    const freedMemory = Math.max(0, memoryBefore.heapUsed - memoryAfter.heapUsed);
+    const freedMB = freedMemory / (1024 * 1024);
+    
+    return JSON.stringify({
       success: true,
-      memoryBefore,
-      memoryAfter,
-      freedMemory: memoryBefore.heap_used - memoryAfter.heap_used,
-      freedMB: Math.round((memoryBefore.heap_used - memoryAfter.heap_used) / (1024 * 1024) * 100) / 100,
-      timestamp: Date.now()
-    };
+      timestamp: Date.now(),
+      freed_memory: freedMemory,
+      freed_mb: freedMB,
+      duration_ms: Math.round(executionTime)
+    });
   } catch (error) {
     moduleState.metrics.errors++;
-    console.error('가비지 컬렉션 요청 오류:', error);
-    return { success: false, error: error.message, timestamp: Date.now() };
+    console.error('GC 요청 오류:', error);
+    
+    return JSON.stringify({
+      success: false,
+      timestamp: Date.now(),
+      error: error.message
+    });
   }
 }
 
+// 메모리 최적화
 function optimizeMemory(level = 2, emergency = false) {
   moduleState.metrics.calls++;
   moduleState.metrics.lastCall = Date.now();
@@ -164,125 +168,26 @@ function optimizeMemory(level = 2, emergency = false) {
   } catch (error) {
     moduleState.metrics.errors++;
     console.error('메모리 최적화 오류:', error);
-    return { success: false, error: error.message, timestamp: Date.now() };
-  }
-}
-
-// GPU 관련 함수 - 심플 폴백 구현
-function isGpuAccelerationAvailable() {
-  return false; // 폴백 모듈은 GPU 가속화 지원 안함
-}
-
-function getGpuInfo() {
-  return JSON.stringify({
-    available: false,
-    acceleration_enabled: false,
-    device_name: 'JavaScript Fallback',
-    device_type: 'Software',
-    vendor: 'Fallback Mode',
-    driver_version: '1.0.0',
-    timestamp: Date.now()
-  });
-}
-
-function performGpuComputation(data, computationType) {
-  moduleState.metrics.calls++;
-  moduleState.metrics.lastCall = Date.now();
-  
-  try {
-    const start = performance.now();
-    
-    // 작업 유형에 따른 간단한 폴백 처리
-    let result;
-    
-    switch (computationType) {
-      case 'textAnalysis':
-        // 텍스트 분석 폴백
-        result = {
-          word_count: (data.text || '').split(/\s+/).filter(Boolean).length,
-          char_count: (data.text || '').length,
-          complexity_score: 0,
-          gpu_accelerated: false
-        };
-        break;
-        
-      case 'typingStatistics':
-        // 타이핑 통계 폴백
-        const keyCount = data.keyCount || 0;
-        const typingTime = data.typingTime || 0;
-        const errors = data.errors || 0;
-        
-        const wpm = typingTime > 0 ? (keyCount / 5) / (typingTime / 60000) : 0;
-        const accuracy = keyCount > 0 ? 100 - ((errors / keyCount) * 100) : 0;
-        
-        result = {
-          wpm,
-          accuracy,
-          key_count: keyCount,
-          errors,
-          time_ms: typingTime
-        };
-        break;
-        
-      default:
-        result = { message: '폴백 모드에서는 지원되지 않는 계산 유형입니다' };
-    }
-    
-    const executionTime = performance.now() - start;
-    moduleState.metrics.totalExecutionTime += executionTime;
     
     return {
-      success: true,
-      result,
-      computationType,
-      executionTime,
+      success: false,
+      error: error.message,
       timestamp: Date.now()
     };
-  } catch (error) {
-    moduleState.metrics.errors++;
-    console.error('GPU 계산 오류:', error);
-    return { success: false, error: error.message, timestamp: Date.now() };
   }
 }
 
-// 유틸리티 함수
-function getNativeModuleInfo() {
-  return {
-    isAvailable: moduleState.isAvailable,
-    isFallback: moduleState.isFallback,
-    initTime: moduleState.initTime,
-    metrics: { ...moduleState.metrics },
-    version: 'JS-Fallback-1.0.0',
-    platform: process.platform,
-    arch: process.arch,
-    nodeVersion: process.version,
-    timestamp: Date.now()
-  };
+// 네이티브 모듈 사용 가능 여부 확인
+function isNativeModuleAvailable() {
+  return false; // 폴백 모듈이므로 항상 false 반환
 }
 
 // 모듈 내보내기
 module.exports = {
-  // 메모리 관련
   getMemoryInfo,
   determineOptimizationLevel,
   requestGarbageCollection,
   optimizeMemory,
-  
-  // GPU 관련
-  isGpuAccelerationAvailable,
-  getGpuInfo,
-  performGpuComputation,
-  
-  // 유틸리티
-  getNativeModuleInfo,
-  
-  // 스네이크 케이스 별칭 (원래 함수 이름)
-  get_memory_info: getMemoryInfo,
-  determine_optimization_level: determineOptimizationLevel,
-  request_garbage_collection: requestGarbageCollection,
-  optimize_memory: optimizeMemory,
-  is_gpu_acceleration_available: isGpuAccelerationAvailable,
-  get_gpu_info: getGpuInfo,
-  perform_gpu_computation: performGpuComputation,
-  get_native_module_info: getNativeModuleInfo
+  isNativeModuleAvailable,
+  moduleState
 };

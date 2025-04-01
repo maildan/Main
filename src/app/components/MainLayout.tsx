@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import React, { memo, useRef, ReactNode } from 'react';
 import { AppHeader } from './AppHeader';

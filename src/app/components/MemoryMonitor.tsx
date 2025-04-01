@@ -15,7 +15,6 @@ import {
 import { Line } from 'react-chartjs-2';
 import { getMemoryInfo } from '../utils/memory/memory-info';
 import { requestGC } from '../utils/memory/gc-utils';
-import { formatBytes } from '../utils/memory/format-utils';
 import styles from './MemoryMonitor.module.css';
 
 // 차트 등록
@@ -234,7 +233,6 @@ export default function MemoryMonitor({
       }
     };
   }, [pollInterval]);
-  
   // 차트 데이터
   const chartData = {
     labels: memoryData.labels,

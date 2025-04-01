@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import MemoryMonitor from '../components/MemoryMonitor';
 import TypingStats from '../components/TypingStats';
-import { useMemoryOptimizer } from '../utils/memory/hooks';
+import { useAutoMemoryOptimization as useMemoryOptimizer } from '../utils/memory/hooks';
 import { detectGpuCapabilities } from '../utils/gpu-detection';
 import styles from './page.module.css';
 
@@ -14,12 +14,12 @@ export default function DashboardPage() {
   const [stats, setStats] = useState<any>(null);
   const [gpuInfo, setGpuInfo] = useState<any>(null);
   
-  // 메모리 최적화 기능 사용
-  const memoryOptimizer = useMemoryOptimizer({
-    threshold: 100,       // 100MB 이상일 때 경고
-    autoOptimize: true,   // 자동 최적화 활성화
-    showWarnings: true,   // 경고 표시
-    debug: false          // 디버그 모드 비활성화
+  // 메모리 최적화 기능 사용 - lastOptimization 앞에 _ 추가하거나 사용할 경우 _ 제거
+  const { isOptimizing, optimizeMemory } = useMemoryOptimizer({
+    enabled: true,
+    threshold: 80,
+    interval: 60000,
+    showNotifications: true
   });
   
   // 통계 데이터 가져오기
@@ -64,6 +64,12 @@ export default function DashboardPage() {
   const handleStartNewSession = () => {
     router.push('/session/new');
   };
+
+  // 긴급 최적화 처리 - memoryOptimizer 대신 직접 구조 분해한 함수 사용
+  function handleEmergencyOptimize() {
+    // 긴급 최적화 모드로 호출
+    optimizeMemory();
+  }
   
   return (
     <div className={styles.container}>
@@ -142,23 +148,23 @@ export default function DashboardPage() {
           <div className={styles.memoryStatus}>
             <span className={styles.statusLabel}>현재 상태:</span>
             <span className={styles.statusValue}>
-              {memoryOptimizer.isOptimizing ? '최적화 중...' : '준비됨'}
+              {isOptimizing ? '최적화 중...' : '준비됨'}
             </span>
           </div>
           
           <div className={styles.memoryActions}>
             <button 
               className={styles.optimizeButton}
-              onClick={memoryOptimizer.optimizeMemory}
-              disabled={memoryOptimizer.isOptimizing}
+              onClick={() => optimizeMemory()}
+              disabled={isOptimizing}
             >
               메모리 최적화
             </button>
             
             <button 
               className={styles.emergencyButton}
-              onClick={memoryOptimizer.emergencyOptimize}
-              disabled={memoryOptimizer.isOptimizing}
+              onClick={handleEmergencyOptimize}
+              disabled={isOptimizing}
             >
               긴급 최적화
             </button>

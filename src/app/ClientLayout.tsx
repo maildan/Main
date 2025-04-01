@@ -1,45 +1,58 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
-export function ClientLayout({
-  children,
-}: {
-  children: React.ReactNode
-}) {
-  const [darkMode, setDarkMode] = useState(false);
+export default function ClientLayout({ children }: { children: React.ReactNode }) {
+  const [mounted, setMounted] = useState(false);
+  const [isDarkMode, setIsDarkMode] = useState(false);
   
   useEffect(() => {
-    // 로컬 스토리지에서 다크 모드 설정 불러오기
-    const loadDarkModeFromStorage = () => {
+    // 컴포넌트가 마운트된 후에만 실행 (하이드레이션 불일치 방지)
+    setMounted(true);
+    
+    // 다크 모드 감지
+    try {
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)');
+      setIsDarkMode(prefersDark.matches);
+      
+      // 다크 모드 변경 감지
+      const darkModeListener = (e: MediaQueryListEvent) => {
+        setIsDarkMode(e.matches);
+      };
+      prefersDark.addEventListener('change', darkModeListener);
+      
+      // 저장된 다크 모드 설정 불러오기
       try {
-        const savedSettings = localStorage.getItem('app-settings');
-        if (savedSettings) {
-          const settings = JSON.parse(savedSettings);
-          setDarkMode(settings.darkMode || false);
+        const settings = localStorage.getItem('app-settings');
+        if (settings) {
+          const parsed = JSON.parse(settings);
+          if (parsed.darkMode !== undefined) {
+            setIsDarkMode(parsed.darkMode);
+          }
         }
-      } catch (e) {
-        console.error('설정 파싱 오류:', e);
+      } catch (err) {
+        console.warn('설정 로드 실패:', err);
       }
-    };
-    
-    loadDarkModeFromStorage();
-    
-    // 이벤트 리스너 설정
-    const handleDarkModeChange = (e: CustomEvent) => {
-      setDarkMode(e.detail.enabled);
-    };
-    
-    window.addEventListener('darkModeChanged', handleDarkModeChange as EventListener);
-    
-    return () => {
-      window.removeEventListener('darkModeChanged', handleDarkModeChange as EventListener);
-    };
+      
+      return () => {
+        prefersDark.removeEventListener('change', darkModeListener);
+      };
+    } catch (error) {
+      console.error('클라이언트 레이아웃 초기화 오류:', error);
+    }
   }, []);
-
-  return (
-    <div data-theme={darkMode ? 'dark' : 'light'}>
-      {children}
-    </div>
-  );
+  
+  // 하이드레이션 불일치를 방지하기 위해 마운트 전에는 단순 렌더링
+  if (!mounted) {
+    return <>{children}</>;
+  }
+  
+  // 마운트 후 다크 모드 클래스 설정
+  if (isDarkMode) {
+    document.documentElement.classList.add('dark-mode');
+  } else {
+    document.documentElement.classList.remove('dark-mode');
+  }
+  
+  return <>{children}</>;
 }

@@ -97,7 +97,7 @@ export function releaseUnusedResources(): boolean {
           ctx.reset();
           count++;
         }
-      } catch (e) {
+      } catch (_e) {
         // 무시
       }
     });
@@ -182,7 +182,8 @@ export function freeUnusedMemory(): boolean {
     // 이미지 자동 크기 조정 캐시 정리
     if (window.__imageResizeCache) {
       const count = Object.keys(window.__imageResizeCache).length;
-      window.__imageResizeCache = {};
+      // 타입에 맞게 초기화 (Record<string, any>로 정의되어 있음)
+      window.__imageResizeCache = new Map<string, string>();
       clearedItems += count;
     }
     
@@ -408,6 +409,15 @@ export function cleanupObjectCache(): number {
     console.error('객체 캐시 정리 오류:', error);
     return 0;
   }
+}
+
+/**
+ * 리소스 최적화
+ * 리소스를 최적화하는 기본 함수
+ */
+export function optimizeResources(): number {
+  // 기본 구현
+  return 0;
 }
 
 // 유틸리티 함수들
@@ -662,11 +672,13 @@ function removeUnusedObjectReferences(): void {
         if (module && typeof module === 'object' && 'lastUsed' in module) {
           // 오랫동안 사용하지 않은 모듈은 언로드
           if (now - (module.lastUsed as number) > MODULE_UNUSED_THRESHOLD) {
-            if (typeof module.unload === 'function') {
+            // 타입 안전하게 unload 메서드 호출
+            if (module && typeof module === 'object' && 'unload' in module && 
+                typeof module.unload === 'function') {
               try {
                 module.unload();
-              } catch (e) {
-                console.warn(`모듈 '${name}' 언로드 중 오류:`, e);
+              } catch (_e) {
+                console.warn(`모듈 '${name}' 언로드 중 오류:`, _e);
               }
             }
             modules.delete(name);
@@ -701,12 +713,14 @@ function cleanupLargeArrays(): void {
   }
 }
 
-// 윈도우 타입 확장
-interface Window {
-  __objectUrls?: Map<string, string>; // Map으로 변경
+// 윈도우 타입 확장 부분 수정
+
+// 기존 Window 인터페이스 정의를 WindowWithResources로 이름 변경하여 충돌 방지
+interface WindowWithResources {
+  __objectUrls?: Map<string, string>;
   __widgetCache?: Record<string, any> | Map<string, any>;
   __styleCache?: Record<string, any>;
-  __imageResizeCache?: Record<string, any>;
+  __imageResizeCache?: Record<string, any>; // Map이 아닌 Record로 통일
   __textureCache?: Map<string, string>;
   __objectCache?: Map<string, any>;
   __memoryCache?: Map<string, any>;
@@ -714,3 +728,6 @@ interface Window {
   _dynamicModules?: Map<string, any>;
   gc?: () => void;
 }
+
+// Window 타입을 직접 확장하는 대신, 별도 타입으로 두고 필요시 타입 단언 사용
+export type { WindowWithResources };

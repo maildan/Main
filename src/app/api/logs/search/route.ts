@@ -19,11 +19,11 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const options: LogSearchOptions = {
       type: searchParams.get('type') as LogType || undefined,
-      startTime: searchParams.get('startTime') ? parseInt(searchParams.get('startTime')) : undefined,
-      endTime: searchParams.get('endTime') ? parseInt(searchParams.get('endTime')) : undefined,
+      startTime: searchParams.get('startTime') ? parseInt(searchParams.get('startTime') || '0') : undefined,
+      endTime: searchParams.get('endTime') ? parseInt(searchParams.get('endTime') || '0') : undefined,
       query: searchParams.get('query') || undefined,
-      limit: searchParams.get('limit') ? parseInt(searchParams.get('limit')) : 100,
-      offset: searchParams.get('offset') ? parseInt(searchParams.get('offset')) : 0,
+      limit: searchParams.get('limit') ? parseInt(searchParams.get('limit') || '100') : 100,
+      offset: searchParams.get('offset') ? parseInt(searchParams.get('offset') || '0') : 0,
       sessionId: searchParams.get('sessionId') || undefined
     };
     
@@ -125,7 +125,7 @@ async function searchLogsFromFiles(options: LogSearchOptions): Promise<LogEntry[
                 
                 // 태그 필터링
                 if (options.tags && options.tags.length > 0) {
-                  if (!logEntry.tags || !options.tags.some(tag => logEntry.tags.includes(tag))) {
+                  if (!logEntry.tags || !options.tags.some(tag => logEntry.tags?.includes(tag))) {
                     continue;
                   }
                 }

@@ -91,13 +91,15 @@
 }
 
 /* 다크 모드 대응 */
-:global(.dark-mode) {
+.root :global(.dark-mode) {
   --bg-color-tertiary: #2f363d;
   --border-color: #444c56;
-  --text-color-primary: #e1e4e8;
-  --text-color-secondary: #959da5;
-  --primary-color: #2b7de9;
-  --primary-color-hover: #2264bf;
+}
+
+/* 또는 아래 방식으로도 가능합니다 */
+:global(.dark-mode) .root {
+  --bg-color-tertiary: #2f363d;
+  --border-color: #444c56;
 }
 
 /* 반응형 디자인 */

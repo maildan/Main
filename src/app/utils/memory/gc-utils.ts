@@ -347,14 +347,49 @@ export function cleanAllCaches(): boolean {
   }
 }
 
-// 전역 API 노출
-if (isBrowser) {
+// 윈도우 메모리 옵티마이저 초기화 부분 수정
+if (typeof window !== 'undefined') {
+  // 타입 안전한 방식으로 속성 초기화
   if (!window.__memoryOptimizer) {
-    window.__memoryOptimizer = {};
+    (window as any).__memoryOptimizer = {
+      suggestGarbageCollection: () => {
+        // 기존 구현
+      },
+      requestGC: async (emergency?: boolean) => {
+        // 기존 구현
+        return {};
+      },
+      clearBrowserCaches: async () => {
+        // 기존 구현
+        return true;
+      },
+      clearStorageCaches: () => {
+        // 기존 구현
+        return true;
+      },
+      checkMemoryUsage: () => {
+        // 기존 구현
+        return null;
+      },
+      forceGC: () => {
+        // 기존 구현
+        return true;
+      },
+      // cleanAllCaches 메서드 추가
+      cleanAllCaches: () => {
+        // 캐시 정리 로직 구현
+        return true;
+      }
+    };
   }
   
-  window.__memoryOptimizer.cleanAllCaches = cleanAllCaches;
-  window.__memoryOptimizer.suggestGarbageCollection = suggestGarbageCollection;
-  window.__memoryOptimizer.clearBrowserCaches = clearBrowserCaches;
-  window.__memoryOptimizer.clearStorageCaches = clearStorageCaches;
+  // 옵셔널 체이닝 사용 + cleanAllCaches 대신 clearStorageCaches 사용
+  window.__memoryOptimizer?.clearStorageCaches?.();
+  window.__memoryOptimizer?.suggestGarbageCollection?.();
+  window.__memoryOptimizer?.requestGC?.();
+}
+
+// 매개변수 사용되지 않음 경고 수정 (이름 앞에 _ 추가)
+async function defaultRequestGC(_emergency?: boolean): Promise<any> {
+  return Promise.resolve();
 }

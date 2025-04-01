@@ -1,6 +1,26 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useToast } from '../components/ToastContext';
 
+// MemoryOptimizer 인터페이스 추가
+interface MemoryOptimizer {
+  suggestGarbageCollection: () => void;
+  requestGC: (emergency?: boolean) => Promise<any>;
+  clearBrowserCaches: () => Promise<boolean>;
+  clearStorageCaches: () => boolean;
+  checkMemoryUsage: () => Record<string, any> | null;
+  forceGC: () => boolean;
+  getMemoryInfo?: () => any;
+  optimizeMemory?: (aggressive?: boolean) => Promise<any>;
+  optimizeImageResources?: () => Promise<any>;
+}
+
+// Window 인터페이스 확장
+declare global {
+  interface Window {
+    gc?: () => void;
+  }
+}
+
 interface MemoryOptimizationOptions {
   /**
    * 메모리 사용량 임계치 (MB)
@@ -30,7 +50,7 @@ interface MemoryOptimizationOptions {
 }
 
 /**
- * 메모리 최적화 훅
+ * 메모리 최적화 훅 
  * 
  * 앱의 메모리 사용량을 모니터링하고 최적화하는 훅입니다.
  * 
@@ -39,19 +59,20 @@ interface MemoryOptimizationOptions {
  */
 export function useMemoryOptimizer(options: MemoryOptimizationOptions = {}) {
   const {
-    threshold = 75, // 임계치를 80MB에서 75MB로 낮춤
-    checkInterval = 30000, // 기본 확인 주기 30초
+    threshold = 100, // 기본 100MB
+    checkInterval = 30000, // 기본 30초
     showWarnings = true,
-    autoOptimize = true,
+    autoOptimize = false,
     debug = false
   } = options;
   
+  const { showToast } = useToast();
   const [memoryInfo, setMemoryInfo] = useState<any>(null);
   const [isOptimizing, setIsOptimizing] = useState(false);
-  const { showToast } = useToast();
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const optimizeMemoryRef = useRef<(() => void) | null>(null);
   
-  // 메모리 정보 갱신
+  // updateMemoryInfo 함수 선언을 먼저 수행
   const updateMemoryInfo = useCallback(() => {
     try {
       if (typeof window === 'undefined') return null;
@@ -59,19 +80,19 @@ export function useMemoryOptimizer(options: MemoryOptimizationOptions = {}) {
       if (window.__memoryOptimizer?.getMemoryInfo) {
         const info = window.__memoryOptimizer.getMemoryInfo();
         setMemoryInfo(info);
-        
+
         // 임계치 초과 시 처리
         if (info && info.heapUsedMB > threshold) {
           if (debug) {
-            console.warn(`메모리 사용량 경고: ${info.heapUsedMB}MB (임계치: ${threshold}MB)`);
+            console.warn(`메모s리 사용량 경고: ${info.heapUsedMB}MB (임계치: ${threshold}MB)`);
           }
           
           if (showWarnings) {
             showToast(`메모리 사용량이 높습니다: ${Math.round(info.heapUsedMB)}MB`, 'warning');
           }
           
-          if (autoOptimize) {
-            optimizeMemory();
+          if (autoOptimize && optimizeMemoryRef.current) {
+            optimizeMemoryRef.current();
           }
         }
         
@@ -80,23 +101,24 @@ export function useMemoryOptimizer(options: MemoryOptimizationOptions = {}) {
       
       return null;
     } catch (error) {
-      console.error('메모리 정보 갱신 중 오류:', error);
+      console.error('메모리 정보 가져오기 오류:', error);
       return null;
     }
-  }, [threshold, showWarnings, autoOptimize, debug, showToast]);
+  }, [threshold, debug, showWarnings, autoOptimize, showToast]);
   
-  // 메모리 최적화 실행
+  // 메모리 최적화 함수를 updateMemoryInfo 선언 이후에 정의
   const optimizeMemory = useCallback(async () => {
     if (isOptimizing) return;
     
     try {
       setIsOptimizing(true);
       
-      if (window.__memoryOptimizer?.optimizeMemory) {
-        window.__memoryOptimizer.optimizeMemory(false);
-        
-        if (debug) {
-          console.log('메모리 최적화 실행됨');
+      if (typeof window !== 'undefined' && window.__memoryOptimizer?.optimizeMemory) {
+        await window.__memoryOptimizer.optimizeMemory(true); // aggressive 모드로 최적화
+      } else {
+        // 기본 최적화 구현
+        if (typeof window !== 'undefined' && window.gc) {
+          window.gc();
         }
       }
       
@@ -110,72 +132,47 @@ export function useMemoryOptimizer(options: MemoryOptimizationOptions = {}) {
     } finally {
       setIsOptimizing(false);
     }
-  }, [isOptimizing, updateMemoryInfo, debug]);
+  }, [isOptimizing, updateMemoryInfo]);
   
-  // 긴급 메모리 최적화 (적극적 모드)
-  const emergencyOptimize = useCallback(async () => {
-    if (isOptimizing) return;
-    
+  // ref에 최신 함수 유지
+  optimizeMemoryRef.current = optimizeMemory;
+  
+  // 이미지 리소스 최적화
+  const optimizeImageResources = useCallback(async () => {
     try {
-      setIsOptimizing(true);
-      showToast('긴급 메모리 최적화 실행 중...', 'info');
-      
-      if (window.__memoryOptimizer?.optimizeMemory) {
-        window.__memoryOptimizer.optimizeMemory(true); // 적극적 모드
+      if (typeof window !== 'undefined' && window.__memoryOptimizer?.optimizeImageResources) {
+        return await window.__memoryOptimizer.optimizeImageResources();
       }
-      
-      // 이미지 리소스도 최적화
-      if (window.__memoryOptimizer?.optimizeImageResources) {
-        await window.__memoryOptimizer.optimizeImageResources();
-      }
-      
-      // GC 실행 시간 제공
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // 결과 확인 및 알림
-      const newInfo = updateMemoryInfo();
-      
-      if (newInfo && debug) {
-        showToast(`메모리 최적화 완료: ${Math.round(newInfo.heapUsedMB)}MB`, 'success');
-      }
+      return false;
     } catch (error) {
-      console.error('긴급 메모리 최적화 중 오류:', error);
-    } finally {
-      setIsOptimizing(false);
+      console.error('이미지 리소스 최적화 오류:', error);
+      return false;
     }
-  }, [isOptimizing, updateMemoryInfo, debug, showToast]);
+  }, []);
   
-  // 메모리 모니터링 설정
+  // 주기적 메모리 체크 설정
   useEffect(() => {
-    // 초기 메모리 정보 확인
+    // 초기 메모리 정보 가져오기
     updateMemoryInfo();
     
-    // 주기적 메모리 확인 설정
-    intervalRef.current = setInterval(updateMemoryInfo, checkInterval);
+    // 주기적 체크 설정
+    if (checkInterval > 0) {
+      intervalRef.current = setInterval(updateMemoryInfo, checkInterval);
+    }
     
-    // 페이지 가시성 변경 감지
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        updateMemoryInfo();
-      }
-    };
-    
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    
-    // 클린업
     return () => {
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
+        intervalRef.current = null;
       }
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [updateMemoryInfo, checkInterval]);
+  }, [checkInterval, updateMemoryInfo]);
   
   return {
     memoryInfo,
     isOptimizing,
-    updateMemoryInfo,
     optimizeMemory,
-    emergencyOptimize
+    optimizeImageResources,
+    updateMemoryInfo
   };
 }

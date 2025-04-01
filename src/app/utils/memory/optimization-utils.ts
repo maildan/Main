@@ -5,13 +5,28 @@
  * 상위 레벨 인터페이스는 memory-optimizer.ts에서 제공합니다.
  */
 
-import { OptimizationLevel, MemoryInfo } from '../../../types';
+// OptimizationLevel을 값으로 사용할 수 있도록 enum으로 변경
+export enum OptimizationLevel {
+  NONE = 0,
+  LOW = 1,
+  MEDIUM = 2,
+  HIGH = 3,
+  AGGRESSIVE = 4
+}
+
+// safeOptimizationLevel 변수 추가 및 내보내기
+export const safeOptimizationLevel = OptimizationLevel.LOW;
+
+import { MemoryInfo } from '../../../types';
 import { cleanupDom } from './gc/dom-cleanup';
 import { cleanupCache } from './gc/cache-optimizer';
 import { optimizeEvents } from './gc/event-optimizer';
 import { optimizeResources } from './gc/resource-optimizer';
 import { emergencyRecovery } from './gc/emergency-recovery';
 import { logger } from './logger';
+
+// 함수들을 재내보내기
+export { cleanupDom, optimizeResources, emergencyRecovery, cleanupCache };
 
 // 자동 최적화 설정
 let autoOptimizationEnabled = false;
@@ -32,7 +47,7 @@ export async function runOptimization(
   
   // 요청된 레벨에 따라 최적화 작업 수행
   switch (level) {
-    case OptimizationLevel.LIGHT:
+    case OptimizationLevel.LOW:
       await cleanupCache();
       break;
       
@@ -41,15 +56,18 @@ export async function runOptimization(
       await cleanupDom(false);
       break;
       
-    case OptimizationLevel.AGGRESSIVE:
+    case OptimizationLevel.HIGH:
       await cleanupCache();
       await cleanupDom(true);
       await optimizeEvents();
       await optimizeResources();
       break;
       
-    case OptimizationLevel.EMERGENCY:
-      await emergencyRecovery();
+    case OptimizationLevel.AGGRESSIVE:
+      await cleanupCache();
+      await cleanupDom(true);
+      await optimizeEvents();
+      await optimizeResources();
       break;
       
     default:
@@ -94,27 +112,53 @@ export function configureAutoOptimization(options: {
 export async function checkAndOptimize(memoryUsage: MemoryInfo): Promise<void> {
   if (!autoOptimizationEnabled) return;
   
-  const usagePercent = (memoryUsage.heapUsed / memoryUsage.heapTotal) * 100;
-  
-  logger.debug(`[Optimization Utils] Memory usage check: ${usagePercent.toFixed(2)}% (threshold: ${memoryThreshold}%)`);
-  
-  if (usagePercent >= memoryThreshold) {
-    logger.warn(`[Optimization Utils] Memory usage (${usagePercent.toFixed(2)}%) exceeds threshold (${memoryThreshold}%)`);
+  // null 체크 추가
+  if (memoryUsage && memoryUsage.heapUsed !== undefined && memoryUsage.heapTotal !== undefined) {
+    const usagePercent = (memoryUsage.heapUsed / memoryUsage.heapTotal) * 100;
     
-    // 사용량에 따른 최적화 레벨 결정
-    let level = OptimizationLevel.MEDIUM;
-    let emergency = false;
+    logger.debug(`[Optimization Utils] Memory usage check: ${usagePercent.toFixed(2)}% (threshold: ${memoryThreshold}%)`);
     
-    if (usagePercent >= 90) {
-      level = OptimizationLevel.EMERGENCY;
-      emergency = true;
-    } else if (usagePercent >= 85) {
-      level = OptimizationLevel.AGGRESSIVE;
+    if (usagePercent >= memoryThreshold) {
+      logger.warn(`[Optimization Utils] Memory usage (${usagePercent.toFixed(2)}%) exceeds threshold (${memoryThreshold}%)`);
+      
+      // 사용량에 따른 최적화 레벨 결정
+      let level = OptimizationLevel.MEDIUM;
+      let emergency = false;
+      
+      if (usagePercent >= 90) {
+        level = OptimizationLevel.AGGRESSIVE;
+        emergency = true;
+      } else if (usagePercent >= 85) {
+        level = OptimizationLevel.HIGH;
+      }
+      
+      await runOptimization(level, emergency);
     }
-    
-    await runOptimization(level, emergency);
+  }
+}
+
+/**
+ * TypeScript와 Rust enum 간의 변환을 보장하기 위한 함수
+ * 
+ * @param level - TypeScript OptimizationLevel
+ * @returns Rust enum 값
+ */
+export function toNativeOptimizationLevel(level: OptimizationLevel): number {
+  // Rust enum 값과 일치하도록 설정
+  switch(level) {
+    case OptimizationLevel.NONE:
+      return 0;
+    case OptimizationLevel.LOW:
+      return 1;
+    case OptimizationLevel.MEDIUM:
+      return 2;
+    case OptimizationLevel.HIGH:
+      return 3;
+    case OptimizationLevel.AGGRESSIVE:
+      return 4;
+    default:
+      return 2; // 기본값: MEDIUM
   }
 }
 
 // 추가 최적화 유틸리티 함수들...
-// ...existing code...

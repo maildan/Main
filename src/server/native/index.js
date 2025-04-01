@@ -442,6 +442,46 @@ const fallbacks = {
   getNativeModuleVersion: () => '0.1.0-js-fallback'
 };
 
+// 누락된 getMemoryInfo 함수 정의 추가
+// 이 함수는 기본 폴백으로 작동합니다
+function getMemoryInfo() {
+  try {
+    const memoryUsage = process.memoryUsage();
+    const heapUsed = memoryUsage.heapUsed;
+    const heapTotal = memoryUsage.heapTotal;
+    const percentUsed = Math.round((heapUsed / heapTotal) * 10000) / 100;
+    const heapUsedMB = Math.round((heapUsed / (1024 * 1024)) * 100) / 100;
+    
+    return {
+      heap_used: heapUsed,
+      heap_total: heapTotal,
+      heap_limit: memoryUsage.heapTotal,
+      rss: memoryUsage.rss,
+      external: memoryUsage.external,
+      array_buffers: memoryUsage.arrayBuffers,
+      heap_used_mb: heapUsedMB,
+      rss_mb: Math.round((memoryUsage.rss / (1024 * 1024)) * 100) / 100,
+      percent_used: percentUsed,
+      timestamp: Date.now()
+    };
+  } catch (error) {
+    console.error('메모리 정보 가져오기 오류:', error);
+    
+    // 기본값 반환
+    return {
+      heap_used: 0,
+      heap_total: 0,
+      heap_limit: 0,
+      rss: 0,
+      external: 0,
+      heap_used_mb: 0,
+      rss_mb: 0,
+      percent_used: 0,
+      timestamp: Date.now()
+    };
+  }
+}
+
 // 모듈 API 정의
 const nativeModuleApi = {
   // =========== 네이티브 모듈 상태 관련 함수 ===========
@@ -751,7 +791,12 @@ const nativeModuleApi = {
       
       // 문자열 결과 파싱
       if (typeof result === 'string') {
-        return JSON.parse(result);
+        try {
+          return JSON.parse(result);
+        } catch (parseError) {
+          logger.error('워커 풀 통계 파싱 오류', { error: parseError.message });
+          return fallbacks.getWorkerPoolStats();
+        }
       }
       return result;
     } catch (error) {
@@ -881,15 +926,14 @@ async function getNativeModule() {
   
   lastLoadAttempt = now;
   
-  // 가능한 네이티브 모듈 경로
+  // 수정: 가능한 네이티브 모듈 경로
   const possiblePaths = [
-    // 개발 환경 경로
+    // DLL 파일을 직접 로드하지 않고 Node.js 네이티브 모듈로만 로드
     path.join(process.cwd(), 'native-modules', 'target', 'release', 'typing_stats_native.node'),
     path.join(process.cwd(), 'native-modules', 'target', 'debug', 'typing_stats_native.node'),
-    // 프로덕션 환경 경로
-    path.join(process.cwd(), 'node_modules', 'typing-stats-native', 'index.node'),
-    path.join(process.cwd(), '..', 'native-modules', 'target', 'release', 'typing_stats_native.node'),
-    path.join(process.cwd(), '..', 'native-modules', 'target', 'debug', 'typing_stats_native.node')
+    // 다른 가능한 위치
+    path.join(process.cwd(), 'node_modules', '.native-modules', 'typing_stats_native.node'),
+    path.join(process.cwd(), 'src', 'native-modules', 'typing_stats_native.node')
   ];
   
   loggerInfo('네이티브 모듈 로드 시도', { paths: possiblePaths });
@@ -898,8 +942,9 @@ async function getNativeModule() {
   for (const modulePath of possiblePaths) {
     try {
       if (fs.existsSync(modulePath)) {
-        const loadedModule = await import(modulePath);
-        nativeModule = loadedModule.default || loadedModule;
+        // .node 파일만 직접 require로 로드 (ESM 환경에서)
+        const loadedModule = require(modulePath); // import 대신 require 사용
+        nativeModule = loadedModule;
         loggerInfo(`네이티브 모듈 로드 성공: ${modulePath}`);
         return nativeModule;
       }

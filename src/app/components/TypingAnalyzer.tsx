@@ -23,44 +23,49 @@ interface TypingAnalysisResult {
   };
 }
 
-export function TypingAnalyzer({ data, onResult }: { 
-  data: TypingData; 
-  onResult?: (result: TypingAnalysisResult) => void 
+export function TypingAnalyzer({ stats, _isTracking }: { 
+  stats?: TypingData; 
+  _isTracking?: boolean 
 }) {
+  const defaultStats = {
+    keyCount: 0,
+    typingTime: 0,
+    accuracy: 0
+  };
+
+  const safeStats = stats || defaultStats;
+
   const { available, enabled, loading, error, computeWithGpu, toggleGpuAcceleration } = useNativeGpu();
   const [result, setResult] = useState<TypingAnalysisResult | null>(null);
   const [useGpuAcceleration, setUseGpuAcceleration] = useState<boolean>(false);
 
   // 타이핑 통계 분석 수행
   const analyzeTyping = useCallback(async () => {
-    if (!data.keyCount || !data.typingTime) {
+    if (!safeStats.keyCount || !safeStats.typingTime) {
       return;
     }
 
     try {
       if (useGpuAcceleration && enabled) {
         // GPU 가속 분석
-        const computeResult = await computeWithGpu<TypingAnalysisResult>(data, 'typing');
+        const computeResult = await computeWithGpu<TypingAnalysisResult>(safeStats, 'typing');
         
         if (computeResult && computeResult.result_summary) {
           setResult(computeResult.result_summary);
-          if (onResult) onResult(computeResult.result_summary);
         }
       } else {
         // 자바스크립트로 분석 (폴백)
-        const jsResult = analyzeTypingWithJS(data);
+        const jsResult = analyzeTypingWithJS(safeStats);
         setResult(jsResult);
-        if (onResult) onResult(jsResult);
       }
     } catch (err) {
       console.error('타이핑 분석 오류:', err);
       
       // 오류 시 자바스크립트 폴백 사용
-      const jsResult = analyzeTypingWithJS(data);
+      const jsResult = analyzeTypingWithJS(safeStats);
       setResult(jsResult);
-      if (onResult) onResult(jsResult);
     }
-  }, [data, useGpuAcceleration, enabled, computeWithGpu, onResult]);
+  }, [safeStats, useGpuAcceleration, enabled, computeWithGpu]);
 
   // GPU 가속 활성화/비활성화 처리
   const handleToggleGpu = useCallback(async () => {
@@ -74,10 +79,10 @@ export function TypingAnalyzer({ data, onResult }: {
 
   // 데이터 변경 시 재분석
   useEffect(() => {
-    if (data.keyCount > 0 && data.typingTime > 0) {
+    if (safeStats.keyCount > 0 && safeStats.typingTime > 0) {
       analyzeTyping();
     }
-  }, [data, analyzeTyping]);
+  }, [safeStats, analyzeTyping]);
 
   return (
     <div className={styles.container}>
@@ -159,10 +164,10 @@ function analyzeTypingWithJS(data: TypingData): TypingAnalysisResult {
     time_factor: minutes,
     intensity_factor: wpm / 100,
     recommendation: minutes > 30 
-      ? "휴식이 필요합니다" 
+      ? '휴식이 필요합니다' 
       : minutes > 15 
-        ? "짧은 휴식을 고려하세요" 
-        : "좋은 상태입니다"
+        ? '짧은 휴식을 고려하세요' 
+        : '좋은 상태입니다'
   };
   
   return {

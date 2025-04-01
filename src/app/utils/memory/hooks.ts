@@ -10,7 +10,8 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useToast } from '@/app/hooks/useToast';
 import type { MemoryInfo, MemorySettings, OptimizationResult } from '@/types';
 import { getMemoryInfo, optimizeMemory } from '@/app/utils/nativeModuleClient';
-import { formatBytes } from './format-utils';
+// formatBytes 함수 import 경로 수정
+import { formatBytes } from '@/app/utils/format-utils';
 
 export interface UseMemoryOptions {
   autoFetch?: boolean;
@@ -67,23 +68,18 @@ export function useMemory(options: UseMemoryOptions = {}) {
     try {
       setLoading(true);
       
-      // 최적화 레벨 결정
-      const optimizationLevel = level ?? optimizationLevel;
+      // 최적화 레벨 결정 - 선언 전 참조 오류 수정
+      const optimizeLvl = level !== undefined ? level : optimizationLevel;
       
       // 메모리 최적화 수행
-      const response = await optimizeMemory(optimizationLevel);
+      const response = await optimizeMemory(optimizeLvl);
       
       if (response.success) {
         // 최적화 후 메모리 정보 갱신
         await fetchMemoryInfo();
         
-        // 알림 표시 (옵션에 따라)
-        showToast({
-          title: 'Memory Optimized',
-          description: `Freed ${response.result?.freed_mb.toFixed(2)} MB of memory`,
-          type: 'success',
-          duration: 3000
-        });
+        // 알림 표시 (옵션에 따라) - showToast의 인수 타입 수정
+        showToast(`Memory Optimized: Freed ${response.result?.freed_mb.toFixed(2)} MB of memory`);
         
         return response.result;
       } else {
@@ -96,7 +92,7 @@ export function useMemory(options: UseMemoryOptions = {}) {
     } finally {
       setLoading(false);
     }
-  }, [fetchMemoryInfo, showToast]);
+  }, [fetchMemoryInfo, showToast, optimizationLevel]);
   
   // 자동 최적화 수행
   const checkAndOptimizeIfNeeded = useCallback(async () => {
@@ -144,11 +140,21 @@ export function useMemory(options: UseMemoryOptions = {}) {
  * 메모리 설정 관리를 위한 훅
  */
 export function useMemorySettings() {
+  // MemorySettings 인터페이스에 맞게 초기값 설정
   const [settings, setSettings] = useState<MemorySettings>({
-    autoOptimize: true,
-    optimizationThreshold: 75,
-    lowMemoryMode: false,
-    gcInterval: 60000
+    preferNativeImplementation: true,
+    enableAutomaticFallback: true,
+    enableAutomaticOptimization: false,
+    optimizationThreshold: 200,
+    optimizationInterval: 120000,
+    aggressiveGC: false,
+    enableLogging: false,
+    enablePerformanceMetrics: true,
+    useMemoryPool: true,
+    fallbackRetryDelay: 300000,
+    poolCleanupInterval: 180000,
+    processingMode: 'auto',
+    componentSpecificSettings: {}
   });
   
   const [loading, setLoading] = useState(false);
@@ -215,7 +221,8 @@ export function useMemorySettings() {
  * 메모리 사용량 로깅을 위한 훅
  */
 export function useMemoryLogging(interval = 60000) {
-  const { memoryInfo, fetchMemoryInfo } = useMemory({ autoFetch: true, interval });
+  // 앞에 _를 추가하여 사용하지 않는 변수 표시
+  const { memoryInfo } = useMemory({ autoFetch: true, interval });
   
   useEffect(() => {
     const logMemoryUsage = () => {
@@ -253,8 +260,8 @@ export function useAutoMemoryOptimization(options: {
   const [lastOptimization, setLastOptimization] = useState<OptimizationResult | null>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   
-  // 최적화 실행 함수
-  const optimizeMemory = useCallback(async () => {
+  // optimizeMemory 함수 import에 맞게 타입 수정
+  const runOptimization = useCallback(async () => {
     if (!enabled || isOptimizing) return;
     
     try {
@@ -272,33 +279,27 @@ export function useAutoMemoryOptimization(options: {
       // 임계값을 초과하는지 확인
       if (memInfo && memInfo.percentUsed > threshold) {
         // 최적화 수행
-        const optimizationResponse = await optimizeMemory(
+        const optimizationLevel = 
           memInfo.percentUsed > 90 ? 3 : 
-          memInfo.percentUsed > 80 ? 2 : 1
-        );
+          memInfo.percentUsed > 80 ? 2 : 1;
         
-        if (optimizationResponse.success && optimizationResponse.result) {
+        const optimizationResponse = await optimizeMemory(optimizationLevel);
+        
+        if (optimizationResponse?.success && optimizationResponse?.result) {
           setLastOptimization(optimizationResponse.result);
           
           // 알림 표시 (옵션에 따라)
           if (showNotifications) {
-            const freedMB = optimizationResponse.result.freed_mb || 0;
-            showToast({
-              title: 'Memory Optimized',
-              description: `Freed ${freedMB.toFixed(2)} MB of memory`,
-              type: 'success',
-              duration: 3000
-            });
+            const freedMB = optimizationResponse.result?.freed_mb || 0;
+            // 문자열로 변경
+            showToast(`Memory Optimized: Freed ${freedMB.toFixed(2)} MB of memory`);
           }
         }
       }
     } catch (err) {
       if (showNotifications) {
-        showToast({
-          title: 'Memory Optimization Failed',
-          description: err instanceof Error ? err.message : 'Unknown error',
-          type: 'error'
-        });
+        // 문자열로 변경
+        showToast(`Memory Optimization Failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
       }
     } finally {
       setIsOptimizing(false);
@@ -309,10 +310,10 @@ export function useAutoMemoryOptimization(options: {
   useEffect(() => {
     if (enabled && interval > 0) {
       // 초기 최적화 실행
-      optimizeMemory();
+      runOptimization();
       
       // 주기적 최적화 설정
-      intervalRef.current = setInterval(optimizeMemory, interval);
+      intervalRef.current = setInterval(runOptimization, interval);
     }
     
     return () => {
@@ -321,12 +322,12 @@ export function useAutoMemoryOptimization(options: {
         intervalRef.current = null;
       }
     };
-  }, [enabled, interval, optimizeMemory]);
+  }, [enabled, interval, runOptimization]);
   
   return {
     isOptimizing,
     lastOptimization,
-    optimizeMemory
+    optimizeMemory: runOptimization
   };
 }
 
@@ -345,14 +346,14 @@ export function useFormattedMemoryInfo(options: {
   const { memoryInfo, loading, error, fetchMemoryInfo } = 
     useMemory({ autoFetch, interval });
   
-  // 포맷된 메모리 정보
+  // 포맷된 메모리 정보 - undefined 처리 추가
   const formattedInfo = memoryInfo ? {
-    heapUsed: formatBytes(memoryInfo.heapUsed),
-    heapTotal: formatBytes(memoryInfo.heapTotal),
-    rss: formatBytes(memoryInfo.rss),
-    percentUsed: `${memoryInfo.percentUsed.toFixed(1)}%`,
-    heapUsedMB: `${memoryInfo.heapUsedMB.toFixed(2)} MB`,
-    rssMB: `${memoryInfo.rssMB.toFixed(2)} MB`,
+    heapUsed: formatBytes(memoryInfo.heapUsed ?? 0),
+    heapTotal: formatBytes(memoryInfo.heapTotal ?? 0),
+    rss: formatBytes(memoryInfo.rss ?? 0),
+    percentUsed: `${memoryInfo.percentUsed?.toFixed(1) ?? '0'}%`,
+    heapUsedMB: `${memoryInfo.heapUsedMB?.toFixed(2) ?? '0'} MB`,
+    rssMB: `${memoryInfo.rssMB?.toFixed(2) ?? '0'} MB`,
     timestamp: new Date(memoryInfo.timestamp).toLocaleTimeString()
   } : null;
   
@@ -377,11 +378,11 @@ export function useMemoryStatus(thresholds: {
   const { memoryInfo, loading, error, fetchMemoryInfo } = 
     useMemory({ autoFetch: true });
   
-  // 메모리 상태 결정
+  // 메모리 상태 결정 - null 체크 및 옵셔널 체이닝 추가
   const status = memoryInfo 
-    ? (memoryInfo.percentUsed >= critical 
+    ? ((memoryInfo.percentUsed ?? 0) >= critical 
       ? 'critical' 
-      : memoryInfo.percentUsed >= warning 
+      : (memoryInfo.percentUsed ?? 0) >= warning 
         ? 'warning' 
         : 'normal')
     : 'unknown';

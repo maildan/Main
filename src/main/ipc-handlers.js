@@ -337,21 +337,6 @@ function setupIpcHandlers() {
     }
   });
 
-  // 재시작 안내 창 표시 핸들러 추가
-  ipcMain.on('show-restart-prompt', async () => {
-    debugLog('재시작 안내 창 표시 요청 수신');
-    try {
-      const response = await showRestartPrompt();
-      
-      if (response === 0) {
-        // 사용자가 재시작 선택
-        restartApplication();
-      }
-    } catch (error) {
-      console.error('재시작 안내 창 표시 중 오류:', error);
-    }
-  });
-
   // 재시작 창 닫기 핸들러
   ipcMain.on('close-restart-window', () => {
     debugLog('재시작 창 닫기 요청 수신');
@@ -796,34 +781,6 @@ function setupIpcHandlers() {
     }
   });
 
-  // 재시작 안내 창 표시 핸들러 추가
-  ipcMain.on('show-restart-prompt', async () => {
-    debugLog('재시작 안내 창 표시 요청 수신');
-    try {
-      const { showRestartPrompt } = require('./dialogs');
-      const response = await showRestartPrompt();
-      
-      if (response === 0) {
-        // 사용자가 재시작 선택
-        appState.allowQuit = true;
-        app.relaunch();
-        app.exit(0);
-      }
-    } catch (error) {
-      console.error('재시작 안내 창 표시 중 오류:', error);
-    }
-  });
-
-  // 재시작 창 닫기 핸들러 추가
-  ipcMain.on('close-restart-window', () => {
-    debugLog('재시작 창 닫기 요청 수신');
-    
-    if (appState.restartWindow && !appState.restartWindow.isDestroyed()) {
-      appState.restartWindow.close();
-      appState.restartWindow = null;
-    }
-  });
-
   // 다크 모드 설정 가져오기 핸들러 추가
   ipcMain.handle('get-dark-mode', () => {
     debugLog('다크 모드 설정 요청 수신');
@@ -837,8 +794,33 @@ function setupIpcHandlers() {
  * 앱 재시작 공통 함수
  * 중복 코드를 방지하기 위해 별도 함수로 분리
  */
-function restartApplication() {
+function restartApplication() {WW;
   try {
+    // Track that we're already restarting to prevent multiple restarts
+    if (appState.isRestarting) {
+      debugLog('이미 재시작이 진행 중입니다. 중복 요청 무시');
+      return;
+    }
+    
+    appState.isRestarting = true;
+    
+    // 모든 창 정리 (이미 있는 cleanupWindows 함수 사용)
+    const cleanupWindows = () => {
+      // Close all windows including modals
+      Object.keys(appState).forEach(key => {
+        if (key.toLowerCase().includes('window') && appState[key]) {
+          const win = appState[key];
+          if (win && typeof win.close === 'function' && !win.isDestroyed()) {
+            try {
+              win.close();
+            } catch (e) {
+              console.debug(`창 닫기 오류 (무시됨): ${e.message}`);
+            }
+          }
+        }
+      });
+    };
+    
     // 재시작 전에 로딩 화면 표시
     if (appState.mainWindow && !appState.mainWindow.isDestroyed()) {
       appState.mainWindow.webContents.send('show-restart-loading', { 

@@ -1,0 +1,237 @@
+/* 다크 모드/라이트 모드 전환 가능한 재시작 대화상자 스타일 */
+
+:root {
+  /* 라이트 모드 기본 변수 */
+  --bg-color: #f8f9fa;
+  --header-bg: #4d7cfe;
+  --header-text: #ffffff;
+  --text-color: #333333;
+  --text-secondary: #555555;
+  --border-color: #e0e0e0;
+  --button-primary-bg: #4d7cfe;
+  --button-primary-text: #ffffff;
+  --button-primary-hover: #3a6de9;
+  --button-secondary-bg: #f0f0f0;
+  --button-secondary-text: #333333;
+  --button-secondary-hover: #e0e0e0;
+  --shadow-color: rgba(0, 0, 0, 0.1);
+  --spinner-color: #4d7cfe;
+  color-scheme: light;
+}
+
+/* 컨테이너 */
+.container {
+  width: 100%;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+  user-select: none;
+  transition: all 0.3s ease;
+  overflow: hidden;
+  background-color: var(--bg-color);
+  color: var(--text-color);
+}
+
+/* 다크 모드 변수 */
+.dark-mode {
+  --bg-color: #1e1e1e;
+  --header-bg: #2d5bd3;
+  --header-text: #ffffff;
+  --text-color: #e0e0e0;
+  --text-secondary: #b0b0b0;
+  --border-color: #444444;
+  --button-primary-bg: #3968e0;
+  --button-primary-text: #ffffff;
+  --button-primary-hover: #2d5bd3;
+  --button-secondary-bg: #333333;
+  --button-secondary-text: #e0e0e0;
+  --button-secondary-hover: #444444;
+  --shadow-color: rgba(0, 0, 0, 0.3);
+  --spinner-color: #5e8efe;
+  color-scheme: dark;
+}
+
+/* 헤더 영역 */
+.header {
+  height: 40px;
+  background-color: var(--header-bg);
+  color: var(--header-text);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 15px;
+  -webkit-app-region: drag;
+  box-shadow: 0 2px 4px var(--shadow-color);
+}
+
+.header h1 {
+  font-size: 16px;
+  font-weight: 500;
+  margin: 0;
+}
+
+.closeButton {
+  background: none;
+  border: none;
+  color: var(--header-text);
+  font-size: 22px;
+  font-weight: bold;
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+}
+
+.closeButton:hover {
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
+.closeButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* 컨텐츠 영역 */
+.content {
+  flex: 1;
+  padding: 25px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+}
+
+.restartingState, .promptState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 아이콘 */
+.icon {
+  font-size: 36px;
+  margin-bottom: 20px;
+  color: var(--button-primary-bg);
+  animation: pulse 2s infinite;
+}
+
+/* 메시지 */
+.message {
+  margin-bottom: 25px;
+  font-size: 16px;
+  line-height: 1.6;
+  color: var(--text-color);
+  max-width: 320px;
+}
+
+/* 버튼 그룹 */
+.buttons {
+  display: flex;
+  gap: 12px;
+}
+
+.button {
+  padding: 10px 20px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.2s;
+  border: none;
+  outline: none;
+  box-shadow: 0 2px 4px var(--shadow-color);
+}
+
+.button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+.primary {
+  background-color: var(--button-primary-bg);
+  color: var(--button-primary-text);
+}
+
+.primary:hover:not(:disabled) {
+  background-color: var(--button-primary-hover);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px var(--shadow-color);
+}
+
+.secondary {
+  background-color: var(--button-secondary-bg);
+  color: var(--button-secondary-text);
+}
+
+.secondary:hover:not(:disabled) {
+  background-color: var(--button-secondary-hover);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px var(--shadow-color);
+}
+
+/* 로딩 아이콘 */
+.loadingIcon {
+  width: 50px;
+  height: 50px;
+  margin-bottom: 20px;
+}
+
+.spinner {
+  animation: rotate 2s linear infinite;
+  z-index: 2;
+  width: 50px;
+  height: 50px;
+}
+
+.spinner .path {
+  stroke: var(--spinner-color);
+  stroke-linecap: round;
+  animation: dash 1.5s ease-in-out infinite;
+}
+
+/* 애니메이션 */
+@keyframes rotate {
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes dash {
+  0% {
+    stroke-dasharray: 1, 150;
+    stroke-dashoffset: 0;
+  }
+  50% {
+    stroke-dasharray: 90, 150;
+    stroke-dashoffset: -35;
+  }
+  100% {
+    stroke-dasharray: 90, 150;
+    stroke-dashoffset: -124;
+  }
+}
+
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.1);
+    opacity: 0.8;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}

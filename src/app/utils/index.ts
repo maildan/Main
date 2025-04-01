@@ -5,14 +5,24 @@
 // 공통 유틸리티 함수
 export * from './common-utils';
 
-// 메모리 관련 유틸리티
-export * from './memory';
+// 메모리 관련 유틸리티 (충돌 항목 제외하고 내보내기)
+export * from './memory/hooks';
+export * from './memory/gc-utils';
+// export * from './memory'; 대신 아래와 같이 명시적 내보내기
+import * as memoryModule from './memory';
+export {
+  // memory 모듈에서 필요한 것들만 선택적으로 내보내기
+  // 충돌하는 이름은 제외
+  memoryModule
+};
 
 // 파일 관련 유틸리티
 export * from './file-utils';
 
 // 타입 변환 유틸리티
 export * from './type-converters';
+// 명시적으로 별칭을 사용하여 내보내기
+export { convertNativeMemoryInfo as typeConverterMemoryInfo } from './type-converters';
 
 // 성능 측정 유틸리티
 export * from './performance-metrics';
@@ -22,13 +32,17 @@ export * from './gpu-acceleration';
 
 // 메모리 최적화 유틸리티
 export * from './memory-optimizer';
+// 명시적으로 별칭을 사용하여 내보내기
+export { configureAutoOptimization as memoryOptimizerAutoConfig } from './memory-optimizer';
 
 // 문제가 있던 참조 - 존재하는 모듈로 수정하거나 주석 처리
 // export * from './storage-utils'; // 파일이 없으면 주석 처리
 // export * from './scroll-utils'; // 파일이 없으면 주석 처리
 
 // 네이티브 모듈 클라이언트
-export * from './nativeModuleClient';
+// 충돌 해결을 위해 명시적으로 내보내기
+import * as nativeClient from './nativeModuleClient';
+export { nativeClient };
 
 // 시스템 모니터링
 export * from './system-monitor';
@@ -45,11 +59,11 @@ export function deepClone<T>(obj: T): T {
   if (obj === null || typeof obj !== 'object') {
     return obj;
   }
-  
+
   if (Array.isArray(obj)) {
     return obj.map(item => deepClone(item)) as unknown as T;
   }
-  
+
   return Object.fromEntries(
     Object.entries(obj).map(([key, value]) => [key, deepClone(value)])
   ) as T;
@@ -66,10 +80,10 @@ export function debounce<T extends (...args: unknown[]) => void>(
   delay: number
 ): (...args: Parameters<T>) => void {
   let timer: NodeJS.Timeout | null = null;
-  
-  return function(...args: Parameters<T>) {
+
+  return function (...args: Parameters<T>) {
     if (timer) clearTimeout(timer);
-    
+
     timer = setTimeout(() => {
       fn(...args);
       timer = null;
@@ -84,14 +98,14 @@ export function debounce<T extends (...args: unknown[]) => void>(
  * @param limit 제한 시간 (ms)
  */
 export function throttle<T extends (...args: unknown[]) => void>(
-  fn: T, 
+  fn: T,
   limit: number
 ): (...args: Parameters<T>) => void {
   let lastCall = 0;
-  
-  return function(...args: Parameters<T>) {
+
+  return function (...args: Parameters<T>) {
     const now = Date.now();
-    
+
     if (now - lastCall >= limit) {
       lastCall = now;
       fn(...args);
@@ -105,12 +119,12 @@ export function throttle<T extends (...args: unknown[]) => void>(
  * @param context 문맥 정보
  */
 export function handleError(error: unknown, context = ''): string {
-  const message = error instanceof Error 
-    ? error.message 
+  const message = error instanceof Error
+    ? error.message
     : String(error);
-  
+
   console.error(`[${context}]`, error);
-  
+
   return message;
 }
 

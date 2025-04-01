@@ -51,6 +51,11 @@ interface Window {
     clearStorageCaches: () => boolean;
     checkMemoryUsage: () => Record<string, number> | null;
     forceGC: () => boolean;
+    // 추가 메서드들
+    getMemoryInfo: () => any;
+    optimizeMemory: (aggressive?: boolean) => Promise<any>;
+    optimizeImageResources: () => Promise<any>;
+    settings?: Record<string, any>;
   };
   
   // 이미지 캐시 저장소

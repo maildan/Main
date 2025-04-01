@@ -42,6 +42,7 @@ async function createWindow() {
       backgroundColor: appState.settings?.darkMode ? '#121212' : '#f9f9f9',
       titleBarStyle: 'hidden',
       frame: false,
+      icon: path.join(__dirname, '../../public/app_icon.webp'), // 아이콘 추가
       // GPU 가속 관련 설정 추가
       webPreferences: {
         preload: path.join(__dirname, '../../preload.js'),
@@ -160,7 +161,7 @@ async function createWindow() {
         // 트레이 알림 설정이 활성화된 경우 알림 표시
         if (appState.settings.showTrayNotifications && appState.tray) {
           appState.tray.displayBalloon({
-            title: '타이핑 통계 앱',
+            title: 'Loop',
             content: '앱이 트레이로 최소화되었습니다. 계속 모니터링 중입니다.',
             iconType: 'info'
           });
@@ -339,7 +340,8 @@ function createMiniViewWindow() {
     resizable: true,
     alwaysOnTop: true,
     skipTaskbar: true,
-    title: '타이핑 통계 미니뷰',
+    title: 'Loop 미니뷰',
+    icon: path.join(__dirname, '../../public/app_icon.webp'), // 아이콘 추가
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -511,6 +513,7 @@ function createRestartPromptWindow() {
       modal: true,
       frame: false,
       skipTaskbar: true,
+      icon: path.join(__dirname, '../../public/app_icon.webp'), // 아이콘 추가
     });
     
     const restartPageUrl = url.format({
@@ -568,7 +571,8 @@ function createRestartWindow(reason = 'GPU 가속 설정이 변경되었습니�
       nodeIntegration: false
     },
     show: false,
-    center: true
+    center: true,
+    icon: path.join(__dirname, '../../public/app_icon.webp'), // 아이콘 추가
   });
   
   if (isDev) {
