@@ -30,7 +30,10 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 native-modules/target/debug/deps/libwgpu-d62cd49793d3a9a5.rlib*
-
+ad77efd8f3b4778e31e6966ccb46e07d086aa6bc*
+nxative-modules/target/debug/deps/libwgpu-d62cd49793d3a9a5.rlib*
+native-modules/target/
+.eslintcache
 
 
 # env files (can opt-in for committing if needed)
