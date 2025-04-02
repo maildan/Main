@@ -393,8 +393,8 @@ export function withPerformanceOptimization<P extends object>(
       };
     }, []);
 
-    // 공백 제거된 올바른 JSX 구문 - 중괄호와 ...props 사이 공백 제거
-    return <WrappedComponent { ...props } />;
+    // 수정: props 전달 방식 변경, 불필요한 타입 캐스팅 제거
+    return React.createElement(WrappedComponent, props);
   };
 
   // 디버깅을 위한 표시 이름 설정

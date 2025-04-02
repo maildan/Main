@@ -1,1 +1,0 @@
-{"rustc":12488743700189009532,"features":"","declared_features":"","target":0,"profile":0,"path":0,"deps":[[14923790796823607459,"build_script_build",false,2879550163833822844]],"local":[{"RerunIfChanged":{"output":"release\\build\\indexmap-46e76cd78410ebfa\\output","paths":["build.rs"]}}],"rustflags":["-C","target-feature=+crt-static"],"config":0,"compile_kind":0}

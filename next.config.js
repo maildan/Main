@@ -11,7 +11,13 @@ const nextConfig = {
   webpack: (config, { isServer }) => {
     // 메모리 최적화를 위한 설정
     config.optimization.minimize = true;
-    
+
+    // 동적 require 경고 억제 - ignore-loader 문제 해결
+    config.module.rules.push({
+      test: /[\\/]src[\\/]server[\\/]native[\\/]index\.js$/,
+      use: ['null-loader'] // ignore-loader 대신 null-loader 사용
+    });
+
     return config;
   },
   images: {

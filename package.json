@@ -4,7 +4,7 @@
   "private": true,
   "main": "src/main/main.js",
   "scripts": {
-    "dev": "concurrently \"next dev\" \"cross-env NODE_ENV=development electron --expose-gc --js-flags=\\\"--expose-gc\\\" .\"",
+    "dev": "concurrently -n \"next,electron\" -c \"blue,green\" \"next dev\" \"wait-on -l tcp:3000 && cross-env NODE_ENV=development electron --expose-gc --js-flags=\\\"--expose-gc\\\" .\"",
     "start": "concurrently \"next start\" \"electron --expose-gc --js-flags=\\\"--expose-gc\\\" .\"",
     "build": "next build",
     "lint": "eslint --cache --config eslint.config.mjs \"src/**/*.{js,jsx,ts,tsx}\"",
@@ -40,7 +40,10 @@
     "deploy:staging": "node scripts/deploy-staging.cjs",
     "prepare": "husky install",
     "server": "next dev",
-    "electron": "cross-env NODE_ENV=development electron --expose-gc --js-flags=\"--expose-gc\" ."
+    "electron": "cross-env NODE_ENV=development electron --expose-gc --js-flags=\"--expose-gc\" .",
+    "dev:next": "next dev",
+    "dev:electron": "cross-env NODE_ENV=development electron --expose-gc --js-flags=\\\"--expose-gc\\\" .",
+    "dev:debug": "concurrently -n \"next,electron\" -c \"blue,green\" \"next dev\" \"wait-on -l tcp:3000 && cross-env NODE_ENV=development ELECTRON_DEBUG=true electron --inspect=9229 --expose-gc --js-flags=\\\"--expose-gc\\\" .\""
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",
@@ -98,7 +101,8 @@
     "next-sitemap": "^4.2.3",
     "prettier": "^3.2.5",
     "typescript-eslint": "^8.29.0",
-    "wait-on": "^8.0.3"
+    "wait-on": "^8.0.3",
+    "null-loader": "^4.0.1"
   },
   "description": "This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).",
   "keywords": [],

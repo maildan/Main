@@ -182,3 +182,15 @@
 [2025-04-02T10:43:33.804Z][ERROR][native-module] 폴백 모듈을 찾을 수 없음 {"path":"\\C:\\Users\\user\\Desktop\\loop\\src\\server\\native\\fallback\\index.js"}
 [2025-04-02T10:43:34.367Z][INFO][native-module] 네이티브 모듈 로드 시도 {"paths":["C:\\Users\\user\\Desktop\\loop\\native-modules\\target\\debug\\typing_stats_native.node","C:\\Users\\user\\Desktop\\loop\\native-modules\\target\\release\\typing_stats_native.node"]}
 [2025-04-02T10:43:34.369Z][ERROR][native-module] 폴백 모듈을 찾을 수 없음 {"path":"\\C:\\Users\\user\\Desktop\\loop\\src\\server\\native\\fallback\\index.js"}
+[2025-04-02T15:05:19.542Z][INFO][native-module] 네이티브 모듈 로드 시도 {"paths":["C:\\Users\\user\\Desktop\\loop\\native-modules\\target\\debug\\typing_stats_native.node","C:\\Users\\user\\Desktop\\loop\\native-modules\\target\\release\\typing_stats_native.node"]}
+[2025-04-02T15:05:19.545Z][ERROR][native-module] 폴백 모듈을 찾을 수 없음 {"path":"\\C:\\Users\\user\\Desktop\\loop\\src\\server\\native\\fallback\\index.js"}
+[2025-04-02T15:05:19.551Z][INFO][native-module] 네이티브 모듈 로드 시도 {"paths":["C:\\Users\\user\\Desktop\\loop\\native-modules\\target\\debug\\typing_stats_native.node","C:\\Users\\user\\Desktop\\loop\\native-modules\\target\\release\\typing_stats_native.node"]}
+[2025-04-02T15:05:19.552Z][ERROR][native-module] 폴백 모듈을 찾을 수 없음 {"path":"\\C:\\Users\\user\\Desktop\\loop\\src\\server\\native\\fallback\\index.js"}
+[2025-04-02T15:07:33.557Z][INFO][native-module] 네이티브 모듈 로드 시도 {"paths":["C:\\Users\\user\\Desktop\\loop\\native-modules\\target\\debug\\typing_stats_native.node","C:\\Users\\user\\Desktop\\loop\\native-modules\\target\\release\\typing_stats_native.node"]}
+[2025-04-02T15:07:33.559Z][ERROR][native-module] 폴백 모듈을 찾을 수 없음 {"path":"\\C:\\Users\\user\\Desktop\\loop\\src\\server\\native\\fallback\\index.js"}
+[2025-04-02T15:07:34.797Z][INFO][native-module] 네이티브 모듈 로드 시도 {"paths":["C:\\Users\\user\\Desktop\\loop\\native-modules\\target\\debug\\typing_stats_native.node","C:\\Users\\user\\Desktop\\loop\\native-modules\\target\\release\\typing_stats_native.node"]}
+[2025-04-02T15:07:34.800Z][ERROR][native-module] 폴백 모듈을 찾을 수 없음 {"path":"\\C:\\Users\\user\\Desktop\\loop\\src\\server\\native\\fallback\\index.js"}
+[2025-04-02T15:24:22.348Z][INFO][native-module] 네이티브 모듈 로드 시도 {"paths":["C:\\Users\\user\\Desktop\\loop\\native-modules\\target\\debug\\typing_stats_native.node","C:\\Users\\user\\Desktop\\loop\\native-modules\\target\\release\\typing_stats_native.node"]}
+[2025-04-02T15:24:22.350Z][ERROR][native-module] 폴백 모듈을 찾을 수 없음 {"path":"\\C:\\Users\\user\\Desktop\\loop\\src\\server\\native\\fallback\\index.js"}
+[2025-04-02T15:24:31.193Z][INFO][native-module] 네이티브 모듈 로드 시도 {"paths":["C:\\Users\\user\\Desktop\\loop\\native-modules\\target\\debug\\typing_stats_native.node","C:\\Users\\user\\Desktop\\loop\\native-modules\\target\\release\\typing_stats_native.node"]}
+[2025-04-02T15:24:31.195Z][ERROR][native-module] 폴백 모듈을 찾을 수 없음 {"path":"\\C:\\Users\\user\\Desktop\\loop\\src\\server\\native\\fallback\\index.js"}

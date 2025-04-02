@@ -13,9 +13,9 @@ interface AppHeaderProps {
   autoHide?: boolean;
 }
 
-export const AppHeader = memo(function AppHeader({ 
-  api, 
-  isVisible = true, 
+export const AppHeader = memo(function AppHeader({
+  api,
+  isVisible = true,
   onVisibilityChange,
   autoHide = false
 }: AppHeaderProps) {
@@ -47,7 +47,7 @@ export const AppHeader = memo(function AppHeader({
       }
       lastMouseY.current = currentY;
     };
-    
+
     const handleHeaderMouseEnter = () => {
       mouseInsideHeader.current = true;
       if (timeoutRef.current) {
@@ -58,7 +58,7 @@ export const AppHeader = memo(function AppHeader({
     const handleHeaderMouseLeave = () => {
       mouseInsideHeader.current = false;
     };
-    
+
     document.addEventListener('mousemove', handleMouseMove);
     const headerElement = headerRef.current;
     if (headerElement) {
@@ -74,7 +74,7 @@ export const AppHeader = memo(function AppHeader({
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
     };
   }, [autoHide, visibility, onVisibilityChange]);
-  
+
   useEffect(() => {
     if (!autoHide) return;
     const handleClick = () => {
@@ -90,15 +90,15 @@ export const AppHeader = memo(function AppHeader({
   }, [autoHide, visibility, onVisibilityChange]);
 
   return (
-    <div 
+    <div
       ref={headerRef}
       className={`${styles.header} ${!visibility ? styles.hidden : ''} ${theme === 'dark' ? styles.darkMode : ''}`}
       aria-hidden={!visibility}
     >
       <div className={styles.titleBar}>
         <div className={styles.appIcon}>
-          <Image 
-            src="/app-icon.png" 
+          <Image
+            src="/app_icon.webp"
             alt="App Icon"
             width={24}
             height={24}
@@ -107,7 +107,7 @@ export const AppHeader = memo(function AppHeader({
             }}
           />
         </div>
-        <div className={styles.appTitle}>타이핑 통계 앱</div>
+        <div className={styles.appTitle}>Loop</div>
         <WindowControls api={api} />
       </div>
     </div>

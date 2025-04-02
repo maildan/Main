@@ -2,9 +2,33 @@ const { app } = require('electron');
 const path = require('path');
 const { setupAppEventListeners } = require('./app-lifecycle');
 const { debugLog } = require('./utils');
-const { createWindow } = require('./window');
+const { createWindow, getMainWindow } = require('./window');
 const fs = require('fs');
 const http = require('http');
+
+// Next.js 서버가 준비되었는지 확인하는 함수
+function checkIfNextServerReady() {
+  return new Promise((resolve) => {
+    const checkServer = () => {
+      debugLog('Next.js 서버 준비 상태 확인 중...');
+      
+      http.get('http://localhost:3000', (res) => {
+        if (res.statusCode === 200) {
+          debugLog('Next.js 서버 준비됨');
+          resolve(true);
+        } else {
+          debugLog(`Next.js 서버 응답 코드: ${res.statusCode}, 재시도 중...`);
+          setTimeout(checkServer, 1000);
+        }
+      }).on('error', (err) => {
+        debugLog(`Next.js 서버 연결 실패: ${err.message}, 재시도 중...`);
+        setTimeout(checkServer, 1000);
+      });
+    };
+    
+    checkServer();
+  });
+}
 
 // Electron 앱이 단일 인스턴스로 실행되도록 설정
 const gotSingleInstanceLock = app.requestSingleInstanceLock();
@@ -72,6 +96,34 @@ if (!gotSingleInstanceLock) {
   }
   
   setupAppConfig();
+  
+  // app ready 이벤트에서 Next.js 서버 준비 상태 확인 추가
+  app.on('ready', async () => {
+    try {
+      debugLog('앱 준비됨, Next.js 서버 확인 중...');
+      
+      // 개발 모드에서는 Next.js 서버 준비 상태 확인
+      if (process.env.NODE_ENV === 'development') {
+        await checkIfNextServerReady();
+      }
+      
+      // 창 생성
+      createWindow();
+    } catch (error) {
+      debugLog('시작 오류:', error);
+    }
+  });
+  
+  // 두 번째 인스턴스 실행 시 기존 창 활성화
+  app.on('second-instance', (event, commandLine, workingDirectory) => {
+    debugLog('다른 인스턴스가 실행됨, 기존 창 활성화');
+    const mainWindow = getMainWindow();
+    
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.focus();
+    }
+  });
 }
 
 /**
@@ -128,12 +180,8 @@ function setupGpuAcceleration() {
 async function initializeApp() {
   try {
     
-    // ...existing initialization code...
-    
     // 창 생성 전에 메모리 설정 초기화
     setupMemoryManagement();
-    
-    // ...existing window creation code...
     
     // 메모리 최적화를 위한 이벤트 리스너 설정
     setupMemoryOptimizationEvents();

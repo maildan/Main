@@ -13,36 +13,36 @@
  */
 export function performEmergencyRecovery(): boolean {
   console.warn('[메모리 비상] 응급 메모리 복구 기능 실행');
-  
+
   try {
     // 1. 이벤트 리스너 정리
     cleanupEventListeners();
-    
+
     // 2. DOM 리소스 정리
     cleanupDomResources();
-    
+
     // 3. 캐시 정리
     clearAllCaches();
-    
+
     // 4. 타이머 정리
     clearTimers();
-    
+
     // 5. 가비지 컬렉션 유도
     if (typeof window !== 'undefined' && window.gc) {
       window.gc();
     } else {
       forceGarbageCollection();
     }
-    
+
     // 진단 정보 수집
     const diagnostics = collectMemoryDiagnostics();
     console.log('[메모리 비상] 진단 정보:', diagnostics);
-    
+
     // 앱 복구 유틸리티에 진단 정보 등록
     if (typeof window !== 'undefined' && window.__appRecovery) {
       window.__appRecovery.diagnostics = () => collectMemoryDiagnostics();
     }
-    
+
     return true;
   } catch (error) {
     console.error('[메모리 비상] 응급 복구 중 오류 발생:', error);
@@ -57,7 +57,7 @@ export function performEmergencyRecovery(): boolean {
  */
 function cleanupDomResources(): void {
   if (typeof document === 'undefined') return;
-  
+
   try {
     // 숨겨진 이미지 및 미사용 요소 제거
     const hiddenElements = document.querySelectorAll('.hidden, [aria-hidden="true"], [style*="display: none"]');
@@ -67,7 +67,7 @@ function cleanupDomResources(): void {
         el.parentNode?.removeChild(el);
       }
     });
-    
+
     // 이미지 src 정리
     const unusedImages = document.querySelectorAll('img:not(:visible)');
     unusedImages.forEach((img) => {
@@ -89,7 +89,7 @@ function cleanupDomResources(): void {
  */
 function clearAllCaches(): void {
   if (typeof window === 'undefined') return;
-  
+
   try {
     // 브라우저 캐시 API가 있으면 정리
     if ('caches' in window) {
@@ -99,20 +99,20 @@ function clearAllCaches(): void {
         });
       });
     }
-    
+
     // 애플리케이션 캐시 정리
     if (window.__imageResizeCache) {
       // 타입 단언을 사용하여 충돌 해결
       (window.__imageResizeCache as Map<string, any>).clear();
     }
-    
+
     if (window.__objectUrls) {
       for (const [_key, url] of window.__objectUrls) {
         URL.revokeObjectURL(url);
       }
       window.__objectUrls.clear();
     }
-    
+
     // LocalStorage 임시 데이터 정리
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
@@ -120,7 +120,7 @@ function clearAllCaches(): void {
         localStorage.removeItem(key);
       }
     }
-    
+
     // SessionStorage 정리
     sessionStorage.clear();
   } catch (e) {
@@ -135,15 +135,15 @@ function clearAllCaches(): void {
  */
 function cleanupEventListeners(): void {
   if (typeof window === 'undefined') return;
-  
+
   try {
     // 낮은 우선순위 이벤트 리스너 정리
     const lowPriorityEvents = ['mousemove', 'resize', 'scroll'];
-    
+
     lowPriorityEvents.forEach(eventType => {
       // 전역 이벤트 리스너 래핑 (직접적인 제거는 위험함)
       const originalAddEventListener = window.addEventListener;
-      window.addEventListener = function(type: string, listener: EventListenerOrEventListenerObject, options?: boolean | AddEventListenerOptions) {
+      window.addEventListener = function (type: string, listener: EventListenerOrEventListenerObject, options?: boolean | AddEventListenerOptions) {
         if (type === eventType) {
           console.log(`[메모리 비상] ${eventType} 이벤트 리스너 추가 차단됨`);
           return;
@@ -151,7 +151,7 @@ function cleanupEventListeners(): void {
         return originalAddEventListener.call(this, type, listener, options);
       };
     });
-    
+
     // 이벤트 리스너 최적화 모듈 사용 (있는 경우)
     // 타입 확장을 위한 인터페이스 사용
     const memOptimizer = window.__memoryOptimizer as any;
@@ -168,12 +168,12 @@ function cleanupEventListeners(): void {
  */
 function clearTimers(): void {
   if (typeof window === 'undefined') return;
-  
+
   try {
     // 알려진 타이머 ID 정리
     const memOptimizer = window.__memoryOptimizer as any;
     const timerIds = memOptimizer?.timerIds;
-    
+
     if (timerIds && Array.isArray(timerIds)) {
       timerIds.forEach((id: number) => {
         clearTimeout(id);
@@ -195,11 +195,11 @@ function clearTimers(): void {
  */
 export function collectMemoryDiagnostics(): Record<string, unknown> {
   if (typeof window === 'undefined') return {};
-  
+
   try {
     // 메모리 정보 수집
     const memoryInfo: Record<string, unknown> = {};
-    
+
     // 브라우저 메모리 API (Chrome 전용)
     if ((performance as any).memory) {
       const { totalJSHeapSize, usedJSHeapSize, jsHeapSizeLimit } = (performance as any).memory;
@@ -210,7 +210,7 @@ export function collectMemoryDiagnostics(): Record<string, unknown> {
         percentUsed: (usedJSHeapSize / totalJSHeapSize) * 100
       };
     }
-    
+
     // DOM 크기
     memoryInfo.dom = {
       elements: document.querySelectorAll('*').length,
@@ -218,17 +218,17 @@ export function collectMemoryDiagnostics(): Record<string, unknown> {
       scripts: document.querySelectorAll('script').length,
       styleSheets: document.styleSheets.length
     };
-    
+
     // 스토리지 사용량
     memoryInfo.storage = {
       localStorage: localStorage.length,
       sessionStorage: sessionStorage.length
     };
-    
+
     // 이벤트 리스너 수 (추정)
     const allElements = document.querySelectorAll('*');
     let listenerCount = 0;
-    
+
     if ((window as any).getEventListeners) {
       // Chrome 개발자 도구에서 제공하는 getEventListeners 사용
       try {
@@ -236,7 +236,7 @@ export function collectMemoryDiagnostics(): Record<string, unknown> {
         const windowListeners = (window as any).getEventListeners(window) || {};
         const documentListeners = (window as any).getEventListeners(document) || {};
         const bodyListeners = (window as any).getEventListeners(document.body) || {};
-        
+
         listenerCount += Object.values(windowListeners).length;
         listenerCount += Object.values(documentListeners).length;
         listenerCount += Object.values(bodyListeners).length;
@@ -247,14 +247,14 @@ export function collectMemoryDiagnostics(): Record<string, unknown> {
       // 추정: 요소당 평균 0.5개 리스너로 계산
       listenerCount = Math.round(allElements.length * 0.5);
     }
-    
+
     memoryInfo.listeners = {
       estimated: listenerCount,
       window: window.onresize || window.onload ? 'has listeners' : 'no direct listeners',
       document: document.onclick || document.onkeydown ? 'has listeners' : 'no direct listeners',
       body: document.body.onclick ? 'has listeners' : 'no direct listeners'
     };
-    
+
     return {
       timestamp: Date.now(),
       ...memoryInfo
@@ -282,12 +282,12 @@ function forceGarbageCollection(): void {
     }
     // 참조 제거
     objects.length = 0;
-    
+
     // 대량 배열 생성 후 해제
     const arr = new Array(1000000).fill(0);
     // 참조 제거
     arr.length = 0;
-    
+
     // 추가 메모리 압박
     setTimeout(() => {
       // 임시 대량 객체
@@ -311,10 +311,10 @@ if (typeof window !== 'undefined') {
   if (!window.__appRecovery) {
     (window as any).__appRecovery = {};
   }
-  
+
   // 타입 단언을 사용하여 충돌 해결
   const appRecovery = window.__appRecovery as any;
-  
+
   appRecovery.emergencyCleanup = performEmergencyRecovery;
   appRecovery.diagnostics = collectMemoryDiagnostics;
   appRecovery.optimizeMemory = (level: number): boolean => {
@@ -333,11 +333,85 @@ if (typeof window !== 'undefined') {
 }
 
 /**
- * 간단한 응급 복구 기능
- * 
- * @returns {boolean} 복구 성공 여부
+ * 긴급 메모리 복구 함수
+ * @param force 강제 실행 여부
+ * @returns 복구 결과
  */
-export function emergencyRecovery(): boolean {
-  // 기본 구현
-  return true;
+export function emergencyRecovery(force: boolean = false): {
+  success: boolean;
+  freedMB: number;
+  actions: string[];
+} {
+  try {
+    const actions: string[] = [];
+    let freedMB = 0;
+
+    // 1. 가비지 컬렉션 요청
+    if (typeof window !== 'undefined' && window.gc) {
+      window.gc();
+      actions.push('garbage_collection');
+      freedMB += 10;
+    }
+
+    // 2. 로컬 스토리지 정리
+    if (typeof localStorage !== 'undefined') {
+      try {
+        const tempItems = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && key.startsWith('temp_')) {
+            tempItems.push(key);
+          }
+        }
+
+        tempItems.forEach(key => localStorage.removeItem(key));
+
+        if (tempItems.length > 0) {
+          actions.push('localStorage_cleanup');
+          freedMB += 0.5;
+        }
+      } catch (e) {
+        console.error('로컬 스토리지 정리 오류:', e);
+      }
+    }
+
+    // 3. 세션 스토리지 정리
+    if (typeof sessionStorage !== 'undefined') {
+      try {
+        const tempItems = [];
+        for (let i = 0; i < sessionStorage.length; i++) {
+          const key = sessionStorage.key(i);
+          if (key && key.startsWith('temp_')) {
+            tempItems.push(key);
+          }
+        }
+
+        tempItems.forEach(key => sessionStorage.removeItem(key));
+
+        if (tempItems.length > 0) {
+          actions.push('sessionStorage_cleanup');
+          freedMB += 0.3;
+        }
+      } catch (e) {
+        console.error('세션 스토리지 정리 오류:', e);
+      }
+    }
+
+    return {
+      success: true,
+      freedMB,
+      actions
+    };
+  } catch (error) {
+    console.error('긴급 복구 오류:', error);
+    return {
+      success: false,
+      freedMB: 0,
+      actions: ['recovery_failed']
+    };
+  }
 }
+
+export default {
+  emergencyRecovery
+};
