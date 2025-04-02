@@ -7,6 +7,7 @@ const os = require('os');
 const { Worker } = require('worker_threads');
 const { performance } = require('perf_hooks');
 const path = require('path');
+const v8 = require('v8');
 
 // 모듈 상태
 const state = {
@@ -113,45 +114,62 @@ function processTaskSync(taskType, data) {
  * @returns {string} JSON 형식의 메모리 정보
  */
 function get_memory_info() {
-  const memoryUsage = process.memoryUsage();
-  const heapUsed = memoryUsage.heapUsed;
-  const heapTotal = memoryUsage.heapTotal;
-  const rss = memoryUsage.rss;
-  
-  // MB 단위로 변환
-  const heapUsedMB = Math.round(heapUsed / (1024 * 1024) * 100) / 100;
-  const heapTotalMB = Math.round(heapTotal / (1024 * 1024) * 100) / 100;
-  const rssMB = Math.round(rss / (1024 * 1024) * 100) / 100;
-  
-  const result = {
-    success: true,
-    timestamp: getCurrentTimestamp(),
-    heap_used: heapUsed,
-    heap_total: heapTotal,
-    rss: rss,
-    heap_used_mb: heapUsedMB,
-    heap_total_mb: heapTotalMB,
-    rss_mb: rssMB,
-    percent_used: Math.round((heapUsed / heapTotal) * 100),
-    error: null
-  };
-  
-  return JSON.stringify(result);
+  try {
+    const memoryUsage = process.memoryUsage();
+    const heapStats = v8.getHeapStatistics();
+    
+    const result = {
+      heap_used: memoryUsage.heapUsed,
+      heap_total: memoryUsage.heapTotal,
+      heap_limit: heapStats.heap_size_limit,
+      heap_used_mb: Math.round((memoryUsage.heapUsed / 1024 / 1024) * 100) / 100,
+      percent_used: Math.round((memoryUsage.heapUsed / memoryUsage.heapTotal) * 100 * 100) / 100,
+      rss: memoryUsage.rss,
+      rss_mb: Math.round((memoryUsage.rss / 1024 / 1024) * 100) / 100,
+      external: memoryUsage.external,
+      external_mb: Math.round((memoryUsage.external / 1024 / 1024) * 100) / 100,
+      system_total: os.totalmem(),
+      system_free: os.freemem(),
+      system_used_percent: Math.round((1 - os.freemem() / os.totalmem()) * 100 * 100) / 100
+    };
+    
+    return JSON.stringify(result);
+  } catch (error) {
+    return JSON.stringify({
+      error: error.message,
+      heap_used: 0,
+      heap_total: 0,
+      heap_limit: 0,
+      heap_used_mb: 0,
+      percent_used: 0,
+      rss: 0,
+      rss_mb: 0
+    });
+  }
 }
 
 /**
  * 최적화 수준 결정
- * @returns {number} 최적화 수준 (0-4)
+ * @param {Object} memoryInfo 메모리 정보 객체
+ * @param {boolean} emergency 긴급 최적화 필요 여부
+ * @returns {number} 최적화 레벨 (1-4)
  */
-function determine_optimization_level() {
-  const memoryUsage = process.memoryUsage();
-  const ratio = memoryUsage.heapUsed / memoryUsage.heapTotal;
-  
-  if (ratio > 0.9) return 4; // Critical
-  if (ratio > 0.8) return 3; // High
-  if (ratio > 0.7) return 2; // Medium
-  if (ratio > 0.5) return 1; // Low
-  return 0; // Normal
+function determine_optimization_level(memoryInfo, emergency = false) {
+  if (!memoryInfo) {
+    return emergency ? 3 : 1;
+  }
+
+  const percentUsed = memoryInfo.percent_used || 0;
+
+  if (emergency || percentUsed > 90) {
+    return 4; // 최고 수준 (긴급)
+  } else if (percentUsed > 75) {
+    return 3; // 높은 수준
+  } else if (percentUsed > 60) {
+    return 2; // 중간 수준
+  } else {
+    return 1; // 낮은 수준
+  }
 }
 
 /**
@@ -161,57 +179,37 @@ function determine_optimization_level() {
  * @returns {string} JSON 형식의 최적화 결과
  */
 function optimize_memory(level = 'medium', emergency = false) {
-  const startTime = performance.now();
-  
-  // 메모리 최적화 전 상태
-  const memoryBefore = process.memoryUsage();
-  
-  // 가비지 컬렉션 요청
-  if (global.gc) {
-    global.gc();
-  }
-  
-  // 대용량 배열 생성 및 삭제로 GC 유도
   try {
-    const arrSize = emergency ? 100 * 1024 * 1024 : 50 * 1024 * 1024; // 50MB 또는 100MB
-    const arr = new Array(arrSize / 8).fill(0); // 8바이트 단위로 나눔 (number 타입)
-    arr.length = 0;
+    const memoryBefore = process.memoryUsage().heapUsed;
+    
+    // JavaScript GC 수행
+    if (typeof global.gc === 'function') {
+      global.gc(emergency);
+    }
+    
+    const memoryAfter = process.memoryUsage().heapUsed;
+    const freedBytes = Math.max(0, memoryBefore - memoryAfter);
+    const freedMB = Math.round((freedBytes / 1024 / 1024) * 100) / 100;
+    
+    return JSON.stringify({
+      success: true,
+      level: level,
+      emergency: emergency,
+      freed_bytes: freedBytes,
+      freed_mb: freedMB,
+      message: `${freedMB}MB 메모리 정리됨`,
+      timestamp: Date.now()
+    });
   } catch (error) {
-    console.warn('메모리 할당 중 오류:', error);
+    return JSON.stringify({
+      success: false,
+      error: error.message,
+      level: level,
+      emergency: emergency,
+      freed_mb: 0,
+      timestamp: Date.now()
+    });
   }
-  
-  // 메모리 해제를 위한 대기
-  const endTime = performance.now();
-  
-  // 메모리 최적화 후 상태
-  const memoryAfter = process.memoryUsage();
-  
-  // 해제된 메모리 계산
-  const freedMemory = Math.max(0, memoryBefore.heapUsed - memoryAfter.heapUsed);
-  
-  const result = {
-    success: true,
-    timestamp: getCurrentTimestamp(),
-    optimization_level: level,
-    memory_before: {
-      heap_used: memoryBefore.heapUsed,
-      heap_total: memoryBefore.heapTotal,
-      heap_used_mb: memoryBefore.heapUsed / (1024 * 1024),
-      percent_used: Math.round((memoryBefore.heapUsed / memoryBefore.heapTotal) * 100)
-    },
-    memory_after: {
-      heap_used: memoryAfter.heapUsed,
-      heap_total: memoryAfter.heapTotal,
-      heap_used_mb: memoryAfter.heapUsed / (1024 * 1024),
-      percent_used: Math.round((memoryAfter.heapUsed / memoryAfter.heapTotal) * 100)
-    },
-    freed_memory: freedMemory,
-    freed_mb: freedMemory / (1024 * 1024),
-    duration: endTime - startTime,
-    error: null
-  };
-  
-  return JSON.stringify(result);
 }
 
 /**
@@ -260,6 +258,47 @@ function force_garbage_collection() {
 }
 
 /**
+ * 가비지 컬렉션을 요청합니다.
+ * @param {boolean} emergency 긴급 여부
+ * @returns {string} JSON 문자열 형태의 결과
+ */
+function request_garbage_collection(emergency = false) {
+  try {
+    const memoryBefore = process.memoryUsage().heapUsed;
+    
+    // JavaScript GC 수행
+    if (typeof global.gc === 'function') {
+      global.gc(emergency);
+      
+      const memoryAfter = process.memoryUsage().heapUsed;
+      const freedBytes = Math.max(0, memoryBefore - memoryAfter);
+      const freedMB = Math.round((freedBytes / 1024 / 1024) * 100) / 100;
+      
+      return JSON.stringify({
+        success: true,
+        freed_bytes: freedBytes,
+        freed_mb: freedMB,
+        message: `${freedMB}MB 메모리 정리됨`,
+        timestamp: Date.now()
+      });
+    } else {
+      return JSON.stringify({
+        success: false,
+        message: 'GC를 사용할 수 없습니다. --expose-gc 옵션을 사용하세요.',
+        timestamp: Date.now()
+      });
+    }
+  } catch (error) {
+    return JSON.stringify({
+      success: false,
+      error: error.message,
+      message: 'GC 요청 중 오류 발생',
+      timestamp: Date.now()
+    });
+  }
+}
+
+/**
  * GPU 가속 가능 여부 확인
  * @returns {boolean} GPU 가속 가능 여부 (항상 false)
  */
@@ -290,18 +329,42 @@ function disable_gpu_acceleration() {
  * @returns {string} JSON 형식의 GPU 정보
  */
 function get_gpu_info() {
+  // 기기 유형에 따라 다른 정보 반환 (모바일, 내장, 독립 GPU 지원)
+  const userAgent = typeof navigator !== 'undefined' ? navigator.userAgent : '';
+  const isMobile = typeof window !== 'undefined' && /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(userAgent);
+  
+  // GPU 유형 판단 (기기 환경에 따라 다른 값 반환)
+  let deviceType = 'Integrated'; // 기본값은 내장 GPU
+  let deviceName = 'Generic GPU';
+  let vendor = 'JavaScript Fallback';
+  
+  // 모바일 기기인 경우
+  if (isMobile) {
+    deviceType = 'Mobile';
+    deviceName = 'Mobile GPU';
+    vendor = 'Mobile Device';
+  }
+  // Node.js 환경인 경우
+  else if (typeof process !== 'undefined' && process.release && process.release.name === 'node') {
+    deviceType = 'Software';
+    deviceName = 'Software Renderer';
+    vendor = 'Node.js';
+  }
+  
+  // GPU 정보 반환
   const result = {
     success: true,
-    timestamp: getCurrentTimestamp(),
-    name: 'Software Renderer',
-    vendor: 'JavaScript Fallback',
-    driver_info: 'Pure JavaScript implementation',
-    device_type: 'CPU',
+    timestamp: Date.now(),
+    name: deviceName,
+    vendor: vendor,
+    driver_info: 'JavaScript Fallback Implementation',
+    device_type: deviceType,
     backend: 'JavaScript',
     available: true,
     acceleration_enabled: false,
     settings_enabled: false,
-    processing_mode: 'normal'
+    processing_mode: 'normal',
+    performance_class: deviceType === 'Discrete' ? 3 : (deviceType === 'Integrated' ? 2 : 1)
   };
   
   return JSON.stringify(result);
@@ -545,7 +608,7 @@ function get_worker_pool_stats() {
  * @returns {string} 버전 정보
  */
 function get_native_module_version() {
-  return 'typing_stats_native v0.1.0-js-fallback';
+  return '0.1.0-fallback';
 }
 
 /**
@@ -630,6 +693,7 @@ module.exports = {
   determine_optimization_level,
   optimize_memory,
   force_garbage_collection,
+  request_garbage_collection,
   
   // GPU 관련 함수
   is_gpu_acceleration_available,

@@ -1,9 +1,9 @@
-import { isDev } from './constants.js';
+const { isDev } = require('./constants.js');
 
 /**
  * 디버깅 로그 출력
  */
-export function debugLog(...args) {
+function debugLog(...args) {
   const timestamp = new Date().toISOString();
   console.log(`[${timestamp}] DEBUG:`, ...args);
 }
@@ -11,7 +11,7 @@ export function debugLog(...args) {
 /**
  * 시간 형식화 함수 (디버깅용)
  */
-export function formatTime(seconds) {
+function formatTime(seconds) {
   if (seconds < 60) return `${seconds}초`;
   
   const minutes = Math.floor(seconds / 60);
@@ -33,17 +33,27 @@ export function formatTime(seconds) {
  * @param {Object} fallbackModule - 대체 모듈 (로드 실패 시 사용)
  * @returns {Object} 로드된 모듈 또는 대체 모듈
  */
-export function safeRequire(modulePath, fallbackModule = {}) {
+function safeRequire(modulePath, fallbackModule = {}) {
   try {
-    return import(modulePath);
+    const module = require(modulePath);
+    
+    // DLL이나 네이티브 모듈 로딩 시도인 경우 추가 확인
+    if (modulePath.endsWith('.node') || modulePath.endsWith('.dll')) {
+      // 유효한 JS 객체인지 확인 (네이티브 모듈은 객체여야 함)
+      if (typeof module !== 'object') {
+        throw new Error(`유효하지 않은 네이티브 모듈 형식: ${typeof module}`);
+      }
+    }
+    
+    return module;
   } catch (error) {
-    console.error(`모듈 '${modulePath}' 로드 실패:`, error.message);
+    debugLog(`모듈 '${modulePath}' 로드 실패: ${error.message}`);
     return fallbackModule;
   }
 }
 
-// 기존 코드와의 호환성을 위한 기본 내보내기
-export default {
+// CommonJS 방식으로 내보내기
+module.exports = {
   debugLog,
   formatTime,
   safeRequire

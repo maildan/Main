@@ -13,9 +13,10 @@ interface OriginalMemoryInfo {
 }
 
 /**
- * 바이트 값을 사람이 읽기 쉬운 형식으로 포맷팅
- * @param bytes 바이트 수
- * @param decimals 표시할 소수점 자릿수 (기본값: 2)
+ * 바이트 단위를 적절한 단위로 포맷팅
+ * @param bytes 바이트 값
+ * @param decimals 소수점 자릿수
+ * @returns 포맷팅된 문자열
  */
 export function formatBytes(bytes: number, decimals: number = 2): string {
   if (bytes === 0) return '0 Bytes';
@@ -23,9 +24,9 @@ export function formatBytes(bytes: number, decimals: number = 2): string {
   const k = 1024;
   const dm = decimals < 0 ? 0 : decimals;
   const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
-  
+
   const i = Math.floor(Math.log(bytes) / Math.log(k));
-  
+
   return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
 }
 
@@ -64,10 +65,10 @@ export function calculatePercentage(value: number, total: number): number {
  */
 export function formatMemoryInfo(memoryInfo: OriginalMemoryInfo): string {
   if (!memoryInfo) return 'No memory information available';
-  
+
   const { heapUsed, heapTotal, rss } = memoryInfo;
   const usedPercent = calculatePercentage(heapUsed, heapTotal);
-  
+
   return `Memory Usage: ${formatBytes(heapUsed)} / ${formatBytes(heapTotal)} (${usedPercent}%)
 RSS: ${formatBytes(rss)}`;
 }
@@ -102,3 +103,7 @@ export function normalizeMemoryInfo(info: Partial<MemoryInfo>): MemoryInfo {
     timestamp: info.timestamp || Date.now()
   };
 }
+
+export default {
+  formatBytes
+};

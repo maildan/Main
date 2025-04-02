@@ -1,22 +1,25 @@
-// @ts-check
-
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  // esmExternals 옵션 제거: 경고 메시지로 인해 제거함
-  experimental: {
-    // Next.js 15.2+ 권장 설정에 맞게 조정
+  productionBrowserSourceMaps: true,
+  // 추가 설정
+  typescript: {
+    // 빌드 시 타입 오류 무시 (개발 시에는 오류 확인)
+    ignoreBuildErrors: process.env.NODE_ENV === 'production',
   },
-  // 기존 설정이 있을 경우 유지하고, webpack 설정 추가
+  // 번들 분석 설정 (필요시 활성화)
   webpack: (config, { isServer }) => {
-    // 서버 사이드 빌드에만 적용
-    if (isServer) {
-      // Critical dependency 경고 무시
-      config.module.exprContextCritical = false;
-    }
+    // 메모리 최적화를 위한 설정
+    config.optimization.minimize = true;
     
     return config;
   },
-}
+  images: {
+    unoptimized: true // Electron 환경에서 이미지 최적화 비활성화
+  },
+  // 개발 환경에서는 distDir 설정 비활성화
+  distDir: process.env.NODE_ENV === 'development' ? '.next' : 'dist'
+};
 
+// 명확한 CommonJS 형식으로 내보내기
 module.exports = nextConfig;

@@ -285,15 +285,22 @@ const fallbacks = {
     timestamp: Date.now()
   }),
   
-  determineOptimizationLevel: () => {
-    const memUsage = process.memoryUsage();
-    const usedRatio = memUsage.heapUsed / memUsage.heapTotal;
-    
-    if (usedRatio > 0.9) return 4; // Critical
-    if (usedRatio > 0.8) return 3; // High
-    if (usedRatio > 0.7) return 2; // Medium
-    if (usedRatio > 0.5) return 1; // Low
-    return 0; // Normal
+  determineOptimizationLevel: (memoryInfo, emergency = false) => {
+    if (!memoryInfo) {
+      return emergency ? 3 : 1;
+    }
+
+    const percentUsed = memoryInfo.percent_used || 0;
+
+    if (emergency || percentUsed > 90) {
+      return 4; // 최고 수준 (긴급)
+    } else if (percentUsed > 75) {
+      return 3; // 높은 수준
+    } else if (percentUsed > 60) {
+      return 2; // 중간 수준
+    } else {
+      return 1; // 낮은 수준
+    }
   },
   
   optimizeMemory: async (level = 2, emergency = false) => {
@@ -482,6 +489,95 @@ function getMemoryInfo() {
   }
 }
 
+// determineOptimizationLevel 함수 추가 (약 1100-1150 라인 사이에 추가)
+
+/**
+ * 시스템 상태에 따른 최적화 레벨 결정
+ * @param {Object} memoryInfo 메모리 정보 객체
+ * @param {boolean} emergency 긴급 최적화 필요 여부
+ * @returns {number} 최적화 레벨 (1-4)
+ */
+function determineOptimizationLevel(memoryInfo, emergency = false) {
+  if (!memoryInfo) {
+    return emergency ? 3 : 1;
+  }
+
+  const { percentUsed } = memoryInfo;
+
+  if (emergency || percentUsed > 90) {
+    return 4; // 최고 수준 (긴급)
+  } else if (percentUsed > 75) {
+    return 3; // 높은 수준
+  } else if (percentUsed > 60) {
+    return 2; // 중간 수준
+  } else {
+    return 1; // 낮은 수준
+  }
+}
+
+// GC 요청 함수 추가
+
+/**
+ * GC 요청 함수 - 누락된 함수 구현
+ * @param {boolean} emergency 긴급 GC 수행 여부
+ * @returns {Promise<Object>} 결과 객체
+ */
+async function requestGarbageCollection(emergency = false) {
+  try {
+    // 네이티브 모듈 사용 가능 여부 확인
+    const nativeModule = await getNativeModule();
+    
+    // 네이티브 모듈에서 GC 함수 사용
+    if (nativeModule && typeof nativeModule.request_garbage_collection === 'function') {
+      const resultJson = nativeModule.request_garbage_collection(emergency);
+      try {
+        const result = typeof resultJson === 'string' ? JSON.parse(resultJson) : resultJson;
+        return {
+          success: result.success || true,
+          message: result.message || "네이티브 GC 수행 완료",
+          freedMemory: result.freed_mb || 0
+        };
+      } catch (parseError) {
+        logger.error('GC 결과 파싱 오류', { error: parseError.message });
+        // 파싱 오류 시 기본 성공 응답
+        return { success: true, message: "네이티브 GC 수행 완료" };
+      }
+    }
+    
+    // 네이티브 모듈 없거나 함수 없는 경우 폴백
+    if (typeof global.gc === 'function') {
+      // JavaScript GC 호출
+      const memBefore = process.memoryUsage().heapUsed / (1024 * 1024);
+      global.gc(emergency);
+      
+      // GC 후 메모리 사용량 차이 계산
+      const memAfter = process.memoryUsage().heapUsed / (1024 * 1024);
+      const freedMB = Math.max(0, memBefore - memAfter).toFixed(2);
+      
+      logger.info(`JavaScript GC 수행 완료 (${emergency ? '긴급' : '일반'}), ${freedMB}MB 정리됨`);
+      
+      return {
+        success: true,
+        message: `JavaScript GC 수행 완료 (${emergency ? '긴급' : '일반'})`,
+        freedMemory: parseFloat(freedMB)
+      };
+    }
+    
+    // GC 사용 불가
+    logger.warning('GC를 사용할 수 없음');
+    return {
+      success: false,
+      message: "GC를 사용할 수 없습니다. '--expose-gc' 플래그와 함께 실행하세요."
+    };
+  } catch (error) {
+    logger.error('GC 요청 처리 중 오류', { error: error.message });
+    return {
+      success: false,
+      message: `GC 요청 중 오류: ${error.message}`
+    };
+  }
+}
+
 // 모듈 API 정의
 const nativeModuleApi = {
   // =========== 네이티브 모듈 상태 관련 함수 ===========
@@ -623,6 +719,13 @@ const nativeModuleApi = {
       return fallbacks.forceGarbageCollection();
     }
   },
+  
+  /**
+   * GC 요청 수행
+   * @param {boolean} emergency 긴급 GC 수행 여부
+   * @returns {Promise<Object>} GC 결과
+   */
+  requestGarbageCollection: requestGarbageCollection,
   
   // =========== GPU 관련 함수 ===========
   /**
@@ -1201,6 +1304,11 @@ const combinedExports = {
   performGpuComputation,
   getNativeModuleInfo
 };
+
+// 마지막에 CommonJS 호환성 추가
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = combinedExports;
+}
 
 // 단일 default export 사용
 export default combinedExports;

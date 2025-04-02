@@ -2,6 +2,9 @@ const { app } = require('electron');
 const path = require('path');
 const { setupAppEventListeners } = require('./app-lifecycle');
 const { debugLog } = require('./utils');
+const { createWindow } = require('./window');
+const fs = require('fs');
+const http = require('http');
 
 // Electron 앱이 단일 인스턴스로 실행되도록 설정
 const gotSingleInstanceLock = app.requestSingleInstanceLock();

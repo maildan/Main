@@ -28,7 +28,7 @@ async function loadNativeModule() {
       path.join(__dirname, '..', '..', 'native-modules', 'target', 'release', 'typing_stats_native.node'),
       path.join(__dirname, '..', '..', 'native-modules', 'target', 'debug', 'typing_stats_native.node')
     ];
-    
+
     // 존재하는 모듈 파일 찾기
     for (const modulePath of possiblePaths) {
       if (fs.existsSync(modulePath)) {
@@ -43,7 +43,7 @@ async function loadNativeModule() {
         }
       }
     }
-    
+
     // 폴백 모듈 로드 시도
     const possibleFallbackPaths = [
       path.join(app.getAppPath(), 'src', 'server', 'native', 'fallback', 'index.js'),
@@ -52,7 +52,7 @@ async function loadNativeModule() {
       path.join(process.cwd(), 'src', 'server', 'native', 'fallback', 'index.js'),
       path.join(process.cwd(), 'src', 'server', 'native', 'fallback.js')
     ];
-    
+
     for (const fallbackPath of possibleFallbackPaths) {
       if (fs.existsSync(fallbackPath)) {
         try {
@@ -65,7 +65,7 @@ async function loadNativeModule() {
         }
       }
     }
-    
+
     debugLog('네이티브 또는 폴백 모듈을 찾을 수 없음');
     return null;
   })();
@@ -88,17 +88,17 @@ async function isNativeModuleAvailable() {
  */
 function initializeMemoryManager(options = {}) {
   const {
-    checkInterval = MEMORY_CHECK_INTERVAL, 
+    checkInterval = MEMORY_CHECK_INTERVAL,
     optimizeIdle = true
   } = options;
-  
+
   debugLog('메모리 관리자 초기화');
-  
+
   optimizeOnIdle = optimizeIdle;
-  
+
   // 주기적 메모리 체크 시작
   startMemoryMonitoring(checkInterval);
-  
+
   // 초기 메모리 사용량 체크
   checkMemoryUsage();
 }
@@ -109,11 +109,11 @@ function initializeMemoryManager(options = {}) {
  */
 function startMemoryMonitoring(interval = MEMORY_CHECK_INTERVAL) {
   stopMemoryMonitoring(); // 기존 인터벌 정리
-  
+
   memoryCheckInterval = setInterval(() => {
     checkMemoryUsage();
   }, interval);
-  
+
   debugLog(`메모리 모니터링 시작 (간격: ${interval}ms)`);
 }
 
@@ -135,18 +135,18 @@ function stopMemoryMonitoring() {
 function checkMemoryUsage() {
   try {
     lastMemoryCheck = Date.now();
-    
+
     // 현재 메모리 사용량 가져오기
     const memoryUsage = process.memoryUsage();
     const heapUsed = memoryUsage.heapUsed;
     const heapTotal = memoryUsage.heapTotal;
     const rss = memoryUsage.rss;
-    
+
     // MB 단위로 변환
     const heapUsedMB = Math.round(heapUsed / (1024 * 1024) * 100) / 100;
     const heapTotalMB = Math.round(heapTotal / (1024 * 1024) * 100) / 100;
     const rssMB = Math.round(rss / (1024 * 1024) * 100) / 100;
-    
+
     // 메모리 사용량 상태 업데이트
     appState.memoryUsage = {
       lastCheck: lastMemoryCheck,
@@ -158,7 +158,7 @@ function checkMemoryUsage() {
       rssMB,
       percentUsed: Math.round((heapUsed / heapTotal) * 100)
     };
-    
+
     // 메모리 임계치 초과 시 최적화 실행
     if (heapUsed > HIGH_MEMORY_THRESHOLD) {
       // 마지막 최적화로부터 일정 시간 경과한 경우에만 실행
@@ -169,7 +169,7 @@ function checkMemoryUsage() {
         lastOptimizationTime = now;
       }
     }
-    
+
     return appState.memoryUsage;
   } catch (error) {
     debugLog(`메모리 사용량 확인 중 오류: ${error.message}`);
@@ -184,16 +184,16 @@ function checkMemoryUsage() {
 function optimizeMemoryForBackground() {
   try {
     debugLog('백그라운드 메모리 최적화 실행');
-    
+
     // 주요 리소스 정리 및 메모리 최적화
     forceMemoryOptimization(3, false);
-    
+
     // 가비지 컬렉션 권장
     if (global.gc) {
       global.gc();
       debugLog('GC 강제 수행 완료');
     }
-    
+
     // 네이티브 모듈 메모리 최적화 실행
     if (isNativeModuleAvailable() && typeof nativeModule.optimize_memory === 'function') {
       try {
@@ -203,7 +203,7 @@ function optimizeMemoryForBackground() {
         debugLog(`네이티브 메모리 최적화 실패: ${nativeError.message}`);
       }
     }
-    
+
     return true;
   } catch (error) {
     debugLog(`백그라운드 메모리 최적화 중 오류: ${error.message}`);
@@ -219,10 +219,10 @@ function optimizeMemoryForBackground() {
 function freeUpMemoryResources(aggressive = false) {
   try {
     debugLog(`메모리 리소스 정리 ${aggressive ? '(적극적 모드)' : ''}`);
-    
+
     // 가비지 컬렉션 수행
     performGarbageCollection(aggressive);
-    
+
     // 네이티브 모듈 메모리 최적화
     if (isNativeModuleAvailable() && typeof nativeModule.release_unused_resources === 'function') {
       try {
@@ -232,7 +232,7 @@ function freeUpMemoryResources(aggressive = false) {
         debugLog(`네이티브 리소스 정리 실패: ${nativeError.message}`);
       }
     }
-    
+
     return true;
   } catch (error) {
     debugLog(`메모리 리소스 정리 중 오류: ${error.message}`);
@@ -251,16 +251,16 @@ function setupMemoryMonitoring(settings = {}) {
     enableAutoOptimize = true,
     threshold = HIGH_MEMORY_THRESHOLD
   } = settings;
-  
+
   debugLog(`메모리 모니터링 설정 (간격: ${interval}ms, 자동 최적화: ${enableAutoOptimize}, 임계치: ${threshold / (1024 * 1024)}MB)`);
-  
+
   // 기존 모니터링 중지 및 재설정
   stopMemoryMonitoring();
-  
+
   if (enableAutoOptimize) {
     startMemoryMonitoring(interval);
   }
-  
+
   return true;
 }
 
@@ -273,14 +273,14 @@ function setupMemoryMonitoring(settings = {}) {
 async function forceMemoryOptimization(level = 2, emergency = false) {
   try {
     debugLog(`강제 메모리 최적화 수행 (레벨: ${level}, 긴급: ${emergency})`);
-    
+
     let result;
-    
+
     // 네이티브 모듈 사용 가능한 경우
     if (await isNativeModuleAvailable() && nativeModule) {
       // 네이티브 최적화 수준 매핑
       const nativeLevel = ['normal', 'low', 'medium', 'high', 'critical'][level] || 'medium';
-      
+
       try {
         // 함수 이름 확인 (다양한 가능성 대비)
         const optimizeFuncNames = [
@@ -288,7 +288,7 @@ async function forceMemoryOptimization(level = 2, emergency = false) {
           'optimize_memory_async',
           'performMemoryOptimization'
         ];
-        
+
         let optimizeFunc = null;
         for (const funcName of optimizeFuncNames) {
           if (typeof nativeModule[funcName] === 'function') {
@@ -296,7 +296,7 @@ async function forceMemoryOptimization(level = 2, emergency = false) {
             break;
           }
         }
-        
+
         if (optimizeFunc) {
           const jsonResult = optimizeFunc(nativeLevel, emergency);
           result = typeof jsonResult === 'string' ? JSON.parse(jsonResult) : jsonResult;
@@ -312,7 +312,7 @@ async function forceMemoryOptimization(level = 2, emergency = false) {
       // JS 기반 메모리 최적화 수행
       result = await optimizeMemoryWithJS(level, emergency);
     }
-    
+
     return result;
   } catch (error) {
     debugLog(`메모리 최적화 중 오류: ${error.message}`);
@@ -333,24 +333,24 @@ async function forceMemoryOptimization(level = 2, emergency = false) {
  */
 async function optimizeMemoryWithJS(level, emergency) {
   debugLog(`JS 기반 메모리 최적화 실행 (레벨: ${level}, 긴급: ${emergency})`);
-  
+
   const memoryBefore = process.memoryUsage();
-  
+
   // 가비지 컬렉션 수행
   if (global.gc) {
     global.gc(emergency);
   }
-  
+
   // 메모리 사용량에 따른 대기 시간 적용
   await new Promise(resolve => setTimeout(resolve, 100));
-  
+
   // 메모리 최적화 후 사용량 확인
   const memoryAfter = process.memoryUsage();
   const freedMemory = Math.max(0, memoryBefore.heapUsed - memoryAfter.heapUsed);
   const freedMB = Math.round(freedMemory / (1024 * 1024) * 100) / 100;
-  
+
   debugLog(`JS 메모리 최적화 완료: ${freedMB}MB 정리됨`);
-  
+
   return {
     success: true,
     optimization_level: level,
@@ -382,9 +382,9 @@ async function optimizeMemoryWithJS(level, emergency) {
 async function performGarbageCollection(emergency = false) {
   try {
     debugLog(`강제 가비지 컬렉션 수행 (긴급: ${emergency})`);
-    
+
     let result;
-    
+
     if (await isNativeModuleAvailable()) {
       // 네이티브 GC 수행
       try {
@@ -400,7 +400,7 @@ async function performGarbageCollection(emergency = false) {
       // JavaScript 기반 GC 수행
       result = performJsGarbageCollection(emergency);
     }
-    
+
     return result;
   } catch (error) {
     debugLog(`가비지 컬렉션 중 오류: ${error.message}`);
@@ -419,7 +419,7 @@ async function performGarbageCollection(emergency = false) {
  */
 function performJsGarbageCollection(emergency) {
   const memoryBefore = process.memoryUsage();
-  
+
   // JavaScript GC 수행
   if (global.gc) {
     global.gc(emergency);
@@ -435,11 +435,11 @@ function performJsGarbageCollection(emergency) {
     tmpArrays.length = 0;
     debugLog('JavaScript GC 유도 완료');
   }
-  
+
   const memoryAfter = process.memoryUsage();
   const freedMemory = Math.max(0, memoryBefore.heapUsed - memoryAfter.heapUsed);
   const freedMB = Math.round(freedMemory / (1024 * 1024) * 100) / 100;
-  
+
   return {
     success: true,
     freed_memory: freedMemory,
@@ -458,12 +458,12 @@ async function getCurrentMemoryUsage() {
     const heapUsed = memoryUsage.heapUsed;
     const heapTotal = memoryUsage.heapTotal;
     const rss = memoryUsage.rss;
-    
+
     // MB 단위로 변환
     const heapUsedMB = Math.round(heapUsed / (1024 * 1024) * 100) / 100;
     const heapTotalMB = Math.round(heapTotal / (1024 * 1024) * 100) / 100;
     const rssMB = Math.round(rss / (1024 * 1024) * 100) / 100;
-    
+
     // 네이티브 모듈에서 추가 정보 가져오기
     let additionalInfo = {};
     if (await isNativeModuleAvailable() && typeof nativeModule.get_memory_info === 'function') {
@@ -478,7 +478,7 @@ async function getCurrentMemoryUsage() {
         debugLog(`네이티브 메모리 정보 가져오기 실패: ${nativeError.message}`);
       }
     }
-    
+
     return {
       timestamp: Date.now(),
       heap_used: heapUsed,
@@ -511,13 +511,16 @@ function getMemoryManagerStats() {
   };
 }
 
-// 모듈 내보내기를 ESM에서 CommonJS로 변경
-module.exports = {
-  initializeMemoryManager,
-  optimizeMemoryForBackground,
-  forceMemoryOptimization,
-  performGarbageCollection,
-  getCurrentMemoryUsage,
-  isNativeModuleAvailable,
-  getMemoryManagerStats
-};
+// 모듈 내보내기 방식 통일 (추가)
+// ESM과 CommonJS 호환성을 모두 제공
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = {
+    initializeMemoryManager,
+    performGarbageCollection,
+    optimizeMemoryForBackground,
+    freeUpMemoryResources,
+    forceMemoryOptimization,
+    stopMemoryMonitoring,
+    // 추가 필요한 함수들 여기에 포함
+  };
+}

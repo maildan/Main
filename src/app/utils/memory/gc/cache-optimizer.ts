@@ -37,7 +37,7 @@ export function clearAllLowPriorityCache(): void {
         }
       });
     }
-    
+
     // 세션 스토리지의 임시 항목 정리
     if (window.sessionStorage) {
       Object.keys(sessionStorage).forEach(key => {
@@ -58,10 +58,10 @@ export function clearAllCache(): void {
   try {
     // 브라우저 캐시 정리
     clearBrowserCache();
-    
+
     // 애플리케이션 캐시 정리
     clearAppCache();
-    
+
     console.log('모든 캐시 정리 완료');
   } catch (error) {
     console.error('캐시 정리 중 오류:', error);
@@ -77,7 +77,7 @@ function clearBrowserCache(): void {
     if (window.sessionStorage) {
       sessionStorage.clear();
     }
-    
+
     // Cache API를 사용하는 경우 (Service Worker 캐시 등)
     if ('caches' in window) {
       caches.keys().then(cacheNames => {
@@ -100,7 +100,7 @@ function clearBrowserCache(): void {
 function clearAppCache(): void {
   try {
     // 앱 정의 캐시 객체 정리
-    
+
     // 1. 이미지 변환 캐시
     if (!window.__imageResizeCache) {
       // 타입 캐스팅을 사용하여 타입 오류 해결
@@ -110,7 +110,7 @@ function clearAppCache(): void {
       const existingCache = window.__imageResizeCache;
       window.__imageResizeCache = existingCache;
     }
-    
+
     // 2. 객체 URL 캐시
     if (window.__objectUrls) {
       if (window.__objectUrls instanceof Map) {
@@ -126,7 +126,7 @@ function clearAppCache(): void {
         window.__objectUrls = new Map<string, string>();
       }
     }
-    
+
     // 3. 일반 메모리 캐시
     if (window.__memoryCache) {
       if (window.__memoryCache instanceof Map) {
@@ -135,7 +135,7 @@ function clearAppCache(): void {
         window.__memoryCache = new Map<string, any>();
       }
     }
-    
+
     // 4. 스타일 캐시
     if (window.__styleCache) {
       if (window.__styleCache instanceof Map) {
@@ -144,7 +144,7 @@ function clearAppCache(): void {
         window.__styleCache = new Map<string, any>();
       }
     }
-    
+
     // 5. 위젯 캐시
     if (window.__widgetCache) {
       if (window.__widgetCache instanceof Map) {
@@ -180,7 +180,7 @@ export function releaseAllCaches(): void {
         console.warn('IndexedDB 정리 중 오류:', err);
       });
     }
-    
+
     // Storage API 정리
     if (navigator.storage && navigator.storage.estimate) {
       // 사용량 확인 후 필요시 정리
@@ -209,7 +209,7 @@ export function clearStorageCaches(): void {
   try {
     // 로컬 스토리지와 대형 객체 캐시 정리
     clearLargeObjectsAndCaches();
-    
+
     // 추가 스토리지 캐시 정리 작업
     if (window.sessionStorage) {
       // 세션 스토리지 정리 (temp_ 또는 cache_ 시작하는 항목)
@@ -232,11 +232,11 @@ export function clearOldCache(): void {
     // 일정 기간 이상 지난 캐시만 정리
     const now = Date.now();
     const CACHE_EXPIRY = 24 * 60 * 60 * 1000; // 24시간
-    
+
     // 메모리 캐시에서 오래된 항목 제거 - WeakMap은 forEach를 지원하지 않음
     if (window.__memoryCache && window.__memoryCache instanceof Map) {
       const keysToDelete: any[] = [];
-      
+
       window.__memoryCache.forEach((value, key) => {
         if (value && typeof value === 'object' && value.timestamp) {
           if (now - value.timestamp > CACHE_EXPIRY) {
@@ -244,12 +244,12 @@ export function clearOldCache(): void {
           }
         }
       });
-      
+
       keysToDelete.forEach(key => {
         window.__memoryCache?.delete(key);
       });
     }
-    
+
     console.log('오래된 캐시 정리 완료');
   } catch (error) {
     console.warn('오래된 캐시 정리 중 오류:', error);
@@ -284,7 +284,7 @@ if (isBrowser && !window.__imageResizeCache) {
  */
 export function clearImageResizeCache(): number {
   if (!isBrowser) return 0;
-  
+
   try {
     const cacheSize = window.__imageResizeCache?.size || 0;
     window.__imageResizeCache?.clear();
@@ -300,7 +300,7 @@ export function clearImageResizeCache(): number {
  */
 export function cleanupUnusedFonts(): number {
   if (!isBrowser) return 0;
-  
+
   let count = 0;
   try {
     // 문서에서 사용 중인 폰트 패밀리 수집
@@ -314,9 +314,9 @@ export function cleanupUnusedFonts(): number {
         });
       }
     });
-    
+
     // TODO: 불필요한 폰트 언로드 로직 추가
-    
+
     return count;
   } catch (error) {
     console.error('폰트 정리 중 오류:', error);
@@ -329,7 +329,7 @@ export function cleanupUnusedFonts(): number {
  */
 export function cleanupThemeCache(): number {
   if (!isBrowser) return 0;
-  
+
   // 스타일시트 캐싱 관련 특정 구현을 제거
   return 0;
 }
@@ -339,7 +339,7 @@ export function cleanupThemeCache(): number {
  */
 export async function clearServiceWorkerCache(): Promise<number> {
   if (!isBrowser) return 0;
-  
+
   try {
     if (navigator.serviceWorker && navigator.serviceWorker.controller) {
       navigator.serviceWorker.controller.postMessage({ type: 'CLEAR_CACHES' });
@@ -358,21 +358,21 @@ export async function clearServiceWorkerCache(): Promise<number> {
  */
 export function cleanupCache(aggressive: boolean = false): number {
   let count = 0;
-  
+
   // 이미지 리사이징 캐시 정리
   count += clearImageResizeCache();
-  
+
   // 테마 캐시 정리
   count += cleanupThemeCache();
-  
+
   // 공격적 모드일 때만 수행할 작업
   if (aggressive) {
     count += cleanupUnusedFonts();
-    clearServiceWorkerCache().catch(err => 
+    clearServiceWorkerCache().catch(err =>
       console.warn('서비스 워커 캐시 정리 실패:', err)
     );
   }
-  
+
   return count;
 }
 

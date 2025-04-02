@@ -596,6 +596,11 @@ function createRestartWindow(reason = 'GPU 가속 설정이 변경되었습니�
   });
 }
 
+// getMainWindow 함수 추가 - main.js에서 필요함
+function getMainWindow() {
+  return appState.mainWindow;
+}
+
 module.exports = {
   createWindow,
   optimizeForBackground,
@@ -603,5 +608,6 @@ module.exports = {
   createMiniViewWindow,
   toggleMiniView,
   createRestartPromptWindow,
-  createRestartWindow
+  createRestartWindow,
+  getMainWindow  // 이 함수 추가
 };

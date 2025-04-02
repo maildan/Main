@@ -28,7 +28,7 @@ declare global {
  */
 export function clearUnusedImages(): number {
   if (!isBrowser) return 0;
-  
+
   let count = 0;
   try {
     // 비표시 이미지 찾기
@@ -40,11 +40,11 @@ export function clearUnusedImages(): number {
         rect.bottom < -window.innerHeight * 2 || // 화면 위쪽으로 2배 이상 벗어남
         rect.left > window.innerWidth * 2 || // 화면 오른쪽으로 2배 이상 벗어남
         rect.right < -window.innerWidth * 2 || // 화면 왼쪽으로 2배 이상 벗어남
-        img.style.display === 'none' || 
+        img.style.display === 'none' ||
         img.style.visibility === 'hidden'
       );
     });
-    
+
     // src 백업 및 제거
     hiddenImages.forEach(img => {
       if (img.src && !img.dataset.originalSrc) {
@@ -53,7 +53,7 @@ export function clearUnusedImages(): number {
         count++;
       }
     });
-    
+
     return count;
   } catch (error) {
     console.error('이미지 정리 중 오류:', error);
@@ -66,7 +66,7 @@ export function clearUnusedImages(): number {
  */
 export function cleanupHiddenElements(): number {
   if (!isBrowser) return 0;
-  
+
   let count = 0;
   try {
     // 숨겨진 큰 요소 찾기
@@ -74,11 +74,11 @@ export function cleanupHiddenElements(): number {
     const hiddenElements = elements.filter(el => {
       const style = window.getComputedStyle(el);
       return (
-        style.display === 'none' && 
+        style.display === 'none' &&
         el.querySelectorAll('*').length > 50
       );
     });
-    
+
     // 임시로 DOM에서 제거하고 나중에 복구할 수 있도록 참조 저장
     hiddenElements.forEach(el => {
       if (!window.__removedElements) window.__removedElements = [];
@@ -87,11 +87,11 @@ export function cleanupHiddenElements(): number {
         parent: el.parentElement,
         nextSibling: el.nextSibling
       });
-      
+
       el.parentElement?.removeChild(el);
       count++;
     });
-    
+
     return count;
   } catch (error) {
     console.error('숨겨진 요소 정리 중 오류:', error);
@@ -111,7 +111,7 @@ export function cleanupEventListeners(): number {
     const origAddEventListener = EventTarget.prototype.addEventListener;
     const eventEnabled = new Map<string, boolean>();
     heavyEventTypes.forEach(type => eventEnabled.set(type, false));
-    EventTarget.prototype.addEventListener = function(
+    EventTarget.prototype.addEventListener = function (
       type: string,
       listener: EventListenerOrEventListenerObject,
       options?: AddEventListenerOptions | boolean
@@ -173,16 +173,16 @@ export function optimizeDomTree(): number {
  */
 export function performFullDomCleanup(): Record<string, number> {
   if (!isBrowser) return { total: 0 };
-  
+
   const results = {
     images: clearUnusedImages(),
     hiddenElements: cleanupHiddenElements(),
     eventListeners: cleanupEventListeners(),
     domTree: optimizeDomTree()
   };
-  
+
   const total = Object.values(results).reduce((sum, val) => sum + val, 0);
-  
+
   return {
     ...results,
     total
@@ -195,11 +195,11 @@ export function performFullDomCleanup(): Record<string, number> {
  */
 export function restoreImages(): number {
   if (!isBrowser) return 0;
-  
+
   let count = 0;
   try {
     const images = Array.from(document.querySelectorAll('img[data-original-src]')) as HTMLImageElement[];
-    
+
     images.forEach(img => {
       if (img.dataset.originalSrc) {
         img.src = img.dataset.originalSrc;
@@ -207,7 +207,7 @@ export function restoreImages(): number {
         count++;
       }
     });
-    
+
     return count;
   } catch (error) {
     console.error('이미지 복구 중 오류:', error);
@@ -224,14 +224,14 @@ export function restoreImages(): number {
  */
 export function cleanupDom(aggressive: boolean = false): number {
   if (!isBrowser) return 0;
-  
+
   let count = 0;
-  
+
   try {
     // 기본 정리 작업 수행
     count += clearUnusedImages();
     count += cleanupHiddenElements();
-    
+
     // aggressive가 true인 경우 추가 정리 수행
     if (aggressive) {
       count += cleanupEventListeners();
@@ -240,11 +240,11 @@ export function cleanupDom(aggressive: boolean = false): number {
   } catch (error) {
     console.error('DOM 요소 정리 중 오류:', error);
   }
-  
+
   return count;
 }
 
 // 사용하지 않는 함수 (앞에 _ 접두어 추가)
-const _setGpuAcceleration = () => { 
+const _setGpuAcceleration = () => {
   // GPU 가속 설정 구현
 };
