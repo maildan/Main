@@ -40,4 +40,32 @@ export interface MemorySettings {
   interval: number;
   checkEnabled: boolean;
   useNativeModule: boolean;
+  processingMode?: string;
+  maxMemoryThreshold?: number;
+}
+
+/**
+ * 메모리 사용 단계 열거형
+ */
+export enum MemoryUsageLevel {
+  NORMAL = 0,
+  LOW = 1,
+  MEDIUM = 2,
+  HIGH = 3,
+  CRITICAL = 4
+}
+
+/**
+ * 메모리 풀 통계
+ */
+export interface MemoryPoolStats {
+  poolName: string;
+  size: number;
+  activeItems: number;
+  idleItems: number;
+  hitCount: number;
+  missCount: number;
+  hitRate: number;
+  totalAllocated: number;
+  totalReleased: number;
 }
