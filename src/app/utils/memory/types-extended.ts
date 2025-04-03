@@ -1,23 +1,24 @@
 /**
- * 메모리 관련 확장 타입 정의
+ * 확장된 메모리 관련 타입 정의
  */
-import { 
-  GCResult, 
-  OptimizationLevel, 
-  MemoryUsageInfo 
-} from './types';
+
+import {
+  GCResult,
+  OptimizationLevel,
+  MemoryInfo
+} from '@/types';
 
 // ExtendedGCResult 타입 정의 - 중복 선언 해결
 export interface ExtendedGCResult extends GCResult {
   // 추가 필드 정의
   optimizationLevel?: OptimizationLevel;
-  memoryInfoBefore?: MemoryUsageInfo;
-  memoryInfoAfter?: MemoryUsageInfo;
-  detachedEventListeners?: number; 
+  memoryInfoBefore?: MemoryInfo;
+  memoryInfoAfter?: MemoryInfo;
+  detachedEventListeners?: number;
   removedElements?: number;
   cleanedCaches?: number;
   optimizationSource?: string;
-  
+
   // 추가 필드 (타입 일관성 유지)
   heapUsedBefore?: number;
   heapUsedAfter?: number;
@@ -63,7 +64,7 @@ export interface MemoryPoolOptions {
 
 // 메모리 최적화 유틸리티 - 함수 정의
 export interface MemoryOptimizerUtility {
-  getMemoryInfo: () => Promise<MemoryUsageInfo>;
+  getMemoryInfo: () => Promise<MemoryInfo>;
   getMemoryUsagePercentage: () => Promise<number>;
   optimizeMemory: (aggressive: boolean) => Promise<any>;
   suggestGarbageCollection: () => void;
@@ -81,31 +82,31 @@ export interface MemoryOptimizerUtility {
 export interface WindowWithCache extends Window {
   // Object URL 관련
   __objectUrls?: Map<string, string>;
-  
+
   // 위젯 캐시 관련
   __widgetCache?: Map<string, unknown>;
-  
+
   // 스타일 캐시 관련
   __styleCache?: Record<string, unknown>;
-  
-  // 이미지 리사이즈 캐시 관련
-  __imageResizeCache?: Record<string, unknown>;
-  
+
+  // 이미지 리사이즈 캐시 관련 - 타입 수정
+  __imageResizeCache?: Map<string, unknown>;
+
   // 메모리 캐시 관련
   __memoryCache?: Map<string, unknown>;
-  
+
   // 버퍼 캐시 관련
   __bufferCache?: Record<string, unknown>;
-  
+
   // 텍스처 캐시 관련
-  __textureCache?: Map<string, string>;
-  
+  __textureCache?: Map<string, unknown>;
+
   // 객체 캐시 관련
   __objectCache?: Map<string, unknown>;
-  
+
   // 동적 모듈 관리
   _dynamicModules?: Map<string, unknown>;
-  
+
   // 가비지 콜렉션
   gc?: () => void;
 }

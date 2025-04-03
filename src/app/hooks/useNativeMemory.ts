@@ -1,117 +1,144 @@
-'use client';
-
 import { useState, useEffect, useCallback } from 'react';
-import { MemoryInfo, OptimizationLevel, OptimizationResult } from '../../types';
-import { formatBytes } from '../utils/common-utils';
+import { MemoryInfo, OptimizationResult, OptimizationLevel } from '../types';
+import { useInterval } from './useInterval';
 
-/**
- * 네이티브 메모리 사용량 및 최적화 기능을 제공하는 Hook
- * 
- * @returns 메모리 정보, 최적화 함수 및 상태값들
- */
-export function useNativeMemory() {
+interface UseNativeMemoryOptions {
+  interval?: number;
+  autoFetch?: boolean;
+  autoOptimize?: boolean;
+  optimizationThreshold?: number;
+  onMemoryInfo?: (info: MemoryInfo) => void;
+  onOptimizationDone?: (result: OptimizationResult) => void;
+}
+
+export function useNativeMemory({
+  interval = 10000,
+  autoFetch = true,
+  autoOptimize = false,
+  optimizationThreshold = 80,
+  onMemoryInfo,
+  onOptimizationDone
+}: UseNativeMemoryOptions = {}) {
   const [memoryInfo, setMemoryInfo] = useState<MemoryInfo | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [lastOptimization, setLastOptimization] = useState<OptimizationResult | null>(null);
-  const [isOptimizing, setIsOptimizing] = useState<boolean>(false);
+  const [optimizing, setOptimizing] = useState(false);
+  const [lastOptimized, setLastOptimized] = useState<number | null>(null);
 
-  /**
-   * 메모리 정보를 가져옵니다.
-   */
-  const fetchMemoryInfo = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
-    
-    try {
-      const response = await fetch('/api/native/memory');
-      if (!response.ok) {
-        throw new Error(`API 요청 실패: ${response.status} ${response.statusText}`);
-      }
-      
-      const data = await response.json();
-      
-      if (data.success) {
-        setMemoryInfo(data.data);
-      } else {
-        setError(data.error || '알 수 없는 오류가 발생했습니다.');
-      }
-    } catch (err) {
-      console.error('메모리 정보 가져오기 실패:', err);
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+  // fetchMemoryInfo 함수를 선언 전에 선언
+  const optimizeMemory = useCallback(async (level: OptimizationLevel = OptimizationLevel.MEDIUM) => {
+    if (optimizing) return;
 
-  /**
-   * 메모리 최적화를 수행합니다.
-   * 
-   * @param level - 최적화 레벨
-   * @param emergency - 긴급 상황 여부
-   */
-  const optimizeMemory = useCallback(async (
-    level: OptimizationLevel = OptimizationLevel.MEDIUM,
-    emergency: boolean = false
-  ) => {
-    setIsOptimizing(true);
-    setError(null);
-    
+    setOptimizing(true);
+
     try {
-      const response = await fetch('/api/native/memory', {
+      const response = await fetch('/api/memory/optimize', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ level, emergency })
+        body: JSON.stringify({ level })
       });
-      
-      if (!response.ok) {
-        throw new Error(`API 요청 실패: ${response.status} ${response.statusText}`);
-      }
-      
-      const data = await response.json();
-      
-      if (data.success) {
-        setLastOptimization(data.result);
-        setMemoryInfo(data.memoryInfo);
+
+      const result = await response.json();
+
+      if (result.success) {
+        setLastOptimized(Date.now());
+        if (onOptimizationDone) {
+          onOptimizationDone(result);
+        }
       } else {
-        setError(data.error || '알 수 없는 오류가 발생했습니다.');
+        console.error('메모리 최적화 실패:', result.error);
+      }
+
+      // 최적화 후 메모리 정보 업데이트
+      // fetchMemoryInfo 참조 오류 방지를 위해 setTimeout 내에서 호출
+      setTimeout(() => {
+        fetchMemoryInfo();
+      }, 500);
+
+      return result;
+    } catch (err) {
+      console.error('메모리 최적화 오류:', err);
+      return { success: false, error: err instanceof Error ? err.message : '알 수 없는 오류' };
+    } finally {
+      setOptimizing(false);
+    }
+  }, [optimizing, onOptimizationDone]);
+
+  // 메모리 정보 가져오기
+  const fetchMemoryInfo = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const response = await fetch('/api/native/test');
+
+      if (!response.ok) {
+        throw new Error(`서버 오류: ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      if (data.success && data.memoryInfo) {
+        setMemoryInfo(data.memoryInfo);
+
+        if (onMemoryInfo) {
+          onMemoryInfo(data.memoryInfo);
+        }
+
+        // 자동 최적화 확인
+        if (autoOptimize &&
+          data.memoryInfo.percentUsed !== undefined &&
+          data.memoryInfo.percentUsed > optimizationThreshold &&
+          (!lastOptimized || Date.now() - lastOptimized > 60000)) {
+          optimizeMemory(OptimizationLevel.MEDIUM);
+        }
+      } else {
+        setError(data.error || '메모리 정보 없음');
       }
     } catch (err) {
-      console.error('메모리 최적화 실패:', err);
-      setError(err instanceof Error ? err.message : String(err));
+      setError(err instanceof Error ? err.message : '알 수 없는 오류');
     } finally {
-      setIsOptimizing(false);
+      setLoading(false);
     }
-  }, []);
+  }, [autoOptimize, optimizationThreshold, lastOptimized, onMemoryInfo, optimizeMemory]);
 
-  // 주기적으로 메모리 정보 가져오기 (15초마다)
+  // 메모리 사용량 문자열 계산
+  const getMemoryUsageString = useCallback(() => {
+    if (!memoryInfo) return 'N/A';
+
+    const usedMB = memoryInfo.heapUsed !== undefined
+      ? Math.round(memoryInfo.heapUsed / (1024 * 1024) * 10) / 10
+      : 0;
+
+    const totalMB = memoryInfo.heapTotal !== undefined
+      ? Math.round(memoryInfo.heapTotal / (1024 * 1024) * 10) / 10
+      : 0;
+
+    const percent = memoryInfo.percentUsed !== undefined
+      ? Math.round(memoryInfo.percentUsed * 10) / 10
+      : 0;
+
+    return `${usedMB}MB / ${totalMB}MB (${percent}%)`;
+  }, [memoryInfo]);
+
+  // 자동 fetch 간격 설정
+  useInterval(fetchMemoryInfo, autoFetch ? interval : null);
+
+  // 초기 로드
   useEffect(() => {
     fetchMemoryInfo();
-    
-    const intervalId = setInterval(() => {
-      fetchMemoryInfo();
-    }, 15000);
-    
-    return () => clearInterval(intervalId);
   }, [fetchMemoryInfo]);
-
-  // 메모리 사용량 문자열 포맷
-  const formattedMemoryUsage = memoryInfo
-    ? `${formatBytes(memoryInfo.heapUsed)} / ${formatBytes(memoryInfo.heapTotal)} (${memoryInfo.percentUsed.toFixed(1)}%)`
-    : 'Loading...';
 
   return {
     memoryInfo,
-    isLoading,
+    loading,
     error,
-    lastOptimization,
-    isOptimizing,
-    optimizeMemory,
+    optimizing,
+    lastOptimized,
     fetchMemoryInfo,
-    formattedMemoryUsage
+    optimizeMemory,
+    getMemoryUsageString
   };
 }
-
-export default useNativeMemory;

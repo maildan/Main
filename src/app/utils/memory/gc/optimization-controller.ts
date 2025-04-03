@@ -8,6 +8,7 @@
 import { OptimizationLevel } from '@/types';
 import { OptimizationResult } from '@/types';
 import { requestNativeMemoryOptimization, requestNativeGarbageCollection } from '../../native-memory-bridge';
+import { cleanLocalStorage, cleanSessionStorage, clearLargeObjectsAndCaches } from '../storage-cleaner';
 
 // 네이티브 모듈을 사용하여 기본 최적화 수행
 export async function performBasicOptimization(): Promise<OptimizationResult> {
@@ -26,20 +27,21 @@ export async function performHighOptimization(): Promise<OptimizationResult> {
 
 // 네이티브 모듈을 사용하여 위험 수준 최적화 수행
 export async function performCriticalOptimization(): Promise<OptimizationResult> {
-  return requestNativeMemoryOptimization(OptimizationLevel.EXTREME, true) as Promise<OptimizationResult>;
+  return requestNativeMemoryOptimization(OptimizationLevel.CRITICAL, true) as Promise<OptimizationResult>;
 }
 
 // 최적화 수준별 작업
 export async function performOptimizationByLevel(level: OptimizationLevel): Promise<OptimizationResult> {
-  return requestNativeMemoryOptimization(level, level === OptimizationLevel.EXTREME) as Promise<OptimizationResult>;
+  return requestNativeMemoryOptimization(level, level === OptimizationLevel.CRITICAL) as Promise<OptimizationResult>;
 }
 
 // 메모리 최적화 단계를 간략화한 버전
 export async function optimizeMemoryByLevel(level: 0 | 1 | 2 | 3 | 4): Promise<boolean> {
   try {
     // 최적화 수준에 따라 다른 동작 수행
-    const optimizationLevel = level as OptimizationLevel;
-    await requestNativeMemoryOptimization(optimizationLevel, level === 4);
+    // 숫자 타입을 OptimizationLevel로 안전하게 변환
+    const optimizationLevel = level as unknown as OptimizationLevel;
+    await requestNativeMemoryOptimization(Number(optimizationLevel), level === 4);
     return true;
   } catch (error) {
     console.error(`메모리 최적화 실패 (레벨 ${level}):`, error);
@@ -50,20 +52,25 @@ export async function optimizeMemoryByLevel(level: 0 | 1 | 2 | 3 | 4): Promise<b
 // 이미지 및 미디어 캐시 정리
 export async function clearImageCaches(): Promise<boolean> {
   try {
-    if (typeof window === 'undefined') return false;
-    
-    // 이미지 요소 재로드
-    const images = document.querySelectorAll('img');
-    images.forEach(img => {
-      if (img.src && !img.src.startsWith('data:')) {
-        const currentSrc = img.src;
-        img.src = '';
-        setTimeout(() => {
-          img.src = currentSrc;
-        }, 10);
+    if (window.caches) {
+      const cacheNames = await caches.keys();
+      const mediaRegex = /\.(jpg|jpeg|png|gif|webp|mp4|webm|ogg|mp3|wav)$/i;
+
+      for (const cacheName of cacheNames) {
+        const cache = await caches.open(cacheName);
+        const requests = await cache.keys();
+
+        for (const request of requests) {
+          if (mediaRegex.test(request.url)) {
+            await cache.delete(request);
+          }
+        }
       }
-    });
-    
+    }
+
+    // 로컬 스토리지에서 이미지 캐시 정리
+    cleanLocalStorage();
+
     return true;
   } catch (error) {
     console.error('이미지 캐시 정리 오류:', error);
@@ -71,44 +78,12 @@ export async function clearImageCaches(): Promise<boolean> {
   }
 }
 
-// DOM 요소 참조 정리
-export async function cleanupDOMReferences(): Promise<boolean> {
+// 로컬 스토리지 캐시 정리
+export function clearStorageCaches(): boolean {
   try {
-    if (typeof window === 'undefined') return false;
-    
-    // 숨겨진 요소에 연결된 이벤트 정리
-    const hiddenElements = document.querySelectorAll('.hidden, [hidden], [style*="display: none"]');
-    hiddenElements.forEach(element => {
-      if (element instanceof HTMLElement) {
-        // Element에 연결된 모든 속성 정리
-        element.innerHTML = '';
-      }
-    });
-    
-    return true;
-  } catch (error) {
-    console.error('DOM 참조 정리 오류:', error);
-    return false;
-  }
-}
-
-// 브라우저 스토리지 캐시 정리
-export async function clearStorageCaches(): Promise<boolean> {
-  try {
-    if (typeof window === 'undefined') return false;
-    
-    // 세션 스토리지에서 캐시 키 정리
-    if (window.sessionStorage) {
-      const keysToRemove = [];
-      for (let i = 0; i < sessionStorage.length; i++) {
-        const key = sessionStorage.key(i);
-        if (key && (key.includes('cache') || key.includes('temp'))) {
-          keysToRemove.push(key);
-        }
-      }
-      keysToRemove.forEach(key => sessionStorage.removeItem(key));
-    }
-    
+    cleanLocalStorage();
+    cleanSessionStorage();
+    clearLargeObjectsAndCaches();
     return true;
   } catch (error) {
     console.error('스토리지 캐시 정리 오류:', error);
@@ -116,127 +91,77 @@ export async function clearStorageCaches(): Promise<boolean> {
   }
 }
 
-// 비표시 요소 리소스 해제
-export async function unloadNonVisibleResources(): Promise<boolean> {
+// 브라우저 캐시 정리
+export async function clearBrowserCaches(): Promise<boolean> {
   try {
-    if (typeof window === 'undefined') return false;
-    
-    // 화면 밖에 있는 이미지 unload
-    const images = document.querySelectorAll('img');
-    
-    images.forEach(img => {
-      const rect = img.getBoundingClientRect();
-      const isVisible = rect.top < window.innerHeight && rect.bottom > 0 &&
-                         rect.left < window.innerWidth && rect.right > 0;
-      
-      if (!isVisible && img.src && !img.dataset.keepLoaded) {
-        img.dataset.originalSrc = img.src;
-        img.src = '';
-      }
-    });
-    
-    return true;
-  } catch (error) {
-    console.error('비표시 리소스 해제 오류:', error);
-    return false;
-  }
-}
+    if (window.caches) {
+      const cacheNames = await caches.keys();
 
-// 이벤트 리스너 최적화
-export async function optimizeEventListeners(): Promise<boolean> {
-  try {
-    if (typeof window === 'undefined') return false;
-    
-    // 전역 이벤트 리스너 정리 (애플리케이션 코드에서 관리하지 않는 것들)
-    if (window.__animationFrameIds && Array.isArray(window.__animationFrameIds)) {
-      for (const id of window.__animationFrameIds) {
-        cancelAnimationFrame(id);
-      }
-      window.__animationFrameIds = [];
-    }
-    
-    return true;
-  } catch (error) {
-    console.error('이벤트 리스너 최적화 오류:', error);
-    return false;
-  }
-}
-
-// 동적 모듈 해제
-export async function unloadDynamicModules(): Promise<boolean> {
-  try {
-    if (typeof window === 'undefined') return false;
-    
-    // 애플리케이션이 관리하는 사용자 정의 모듈 언로드
-    if (window.__loadedModules && window.__loadedModules instanceof Map) {
-      const modulesToUnload: string[] = [];
-      
-      window.__loadedModules.forEach((module, key) => {
-        if (module && typeof module.unload === 'function') {
-          try {
-            module.unload();
-            modulesToUnload.push(key);
-          } catch (err) {
-            console.warn(`모듈 언로드 오류 (${key}):`, err);
-          }
+      for (const cacheName of cacheNames) {
+        if (cacheName.includes('temp') || cacheName.includes('nonessential')) {
+          await caches.delete(cacheName);
         }
-      });
-      
-      // 언로드된 모듈 삭제
-      modulesToUnload.forEach(key => {
-        window.__loadedModules?.delete(key);
-      });
+      }
     }
-    
+
     return true;
   } catch (error) {
-    console.error('동적 모듈 해제 오류:', error);
+    console.error('브라우저 캐시 정리 오류:', error);
     return false;
   }
 }
 
-// 긴급 메모리 복구
-export async function emergencyMemoryRecovery(): Promise<boolean> {
+// 가비지 컬렉션 요청
+export async function requestGC(emergency = false): Promise<any> {
   try {
-    if (typeof window === 'undefined') return false;
-    
-    // 모든 최적화 함수 호출
-    await Promise.all([
-      clearImageCaches(),
-      cleanupDOMReferences(), 
-      clearStorageCaches(),
-      unloadNonVisibleResources(),
-      optimizeEventListeners(),
-      unloadDynamicModules()
-    ]);
-    
-    // 네이티브 모듈에 긴급 최적화 요청
-    await requestNativeMemoryOptimization(OptimizationLevel.EXTREME, true);
-    
-    // 브라우저 GC 요청
-    await requestNativeGarbageCollection();
-    
-    return true;
+    // emergency 매개변수를 올바르게 전달
+    return await requestNativeGarbageCollection();
   } catch (error) {
-    console.error('긴급 메모리 복구 오류:', error);
-    return false;
+    console.error('가비지 컬렉션 요청 오류:', error);
+    return { success: false, error: String(error) };
   }
 }
 
-// 전역 API에 최적화 함수 등록
-if (typeof window !== 'undefined') {
-  if (!window.__memoryOptimizer) {
-    window.__memoryOptimizer = {};
+// 가비지 컬렉션 제안
+export function suggestGarbageCollection(): void {
+  if (typeof window !== 'undefined' && (window as any).gc) {
+    (window as any).gc();
   }
-  
-  // 기존에 정의된 함수가 있다면 유지, 없다면 새로 추가
-  window.__memoryOptimizer = {
-    ...window.__memoryOptimizer,
-    performBasicOptimization,
-    performMediumOptimization,
-    performHighOptimization,
-    performCriticalOptimization,
-    performOptimizationByLevel,
-    emergencyMemoryRecovery
-  };
 }
+
+// 최적화 컨트롤러 객체
+interface OptimizationController {
+  suggestGarbageCollection: () => void;
+  requestGC: (emergency?: boolean) => Promise<any>;
+  clearBrowserCaches: () => Promise<boolean>;
+  clearStorageCaches: () => boolean;
+  clearImageCaches: () => Promise<boolean>;
+  performBasicOptimization: () => Promise<OptimizationResult>;
+  performMediumOptimization: () => Promise<OptimizationResult>;
+  performHighOptimization: () => Promise<OptimizationResult>;
+  performCriticalOptimization: () => Promise<OptimizationResult>;
+  optimizeMemoryByLevel: (level: 0 | 1 | 2 | 3 | 4) => Promise<boolean>;
+  settings?: Record<string, any>;
+}
+
+// 최적화 컨트롤러 인스턴스 생성 및 내보내기
+export const optimizationController: OptimizationController = {
+  suggestGarbageCollection,
+  requestGC,
+  clearBrowserCaches,
+  clearStorageCaches,
+  clearImageCaches,
+  performBasicOptimization,
+  performMediumOptimization,
+  performHighOptimization,
+  performCriticalOptimization,
+  optimizeMemoryByLevel,
+  settings: {
+    // 기본 설정
+    preferNative: true,
+    aggressiveMode: false,
+    threshold: 80
+  }
+};
+
+export default optimizationController;

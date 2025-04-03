@@ -28,11 +28,18 @@ if (parentPort) {
       handleTask(message);
     }
   });
-  
-  // 워커 준비 알림
+
+  // 메모리 정보 가져오기
+  const memoryInfo = getMemoryInfo();
+
+  // 워커 준비 알림 - worker-ready 타입 사용
   parentPort.postMessage({
-    type: 'worker:ready',
-    threadId
+    type: 'worker-ready',  // 이 메시지 타입을 worker-manager.js에서 처리
+    threadId,
+    memoryInfo,
+    processingMode: nativeModule && typeof nativeModule.get_processing_mode === 'function'
+      ? nativeModule.get_processing_mode()
+      : 'cpu-intensive'
   });
 } else {
   console.error('부모 포트가 없습니다. 워커가 올바르게 시작되지 않았습니다.');
@@ -51,42 +58,42 @@ async function handleTask(message) {
     });
     return;
   }
-  
+
   isProcessing = true;
   console.log(`워커 ${threadId}: 작업 시작 (${message.taskType})`);
-  
+
   try {
     const startTime = Date.now();
-    
+
     // 메모리 사용량 확인
     if (Date.now() - lastMemoryCheck > 5000) {
       const memoryInfo = getMemoryInfo();
       lastMemoryCheck = Date.now();
-      
+
       if (memoryInfo.heapUsed > memoryWarningThreshold) {
         console.warn(`워커 ${threadId}: 메모리 사용량 높음 (${Math.round(memoryInfo.heapUsedMB)}MB)`);
-        
+
         if (global.gc) {
           global.gc();
           console.log(`워커 ${threadId}: GC 수행됨`);
         }
       }
     }
-    
+
     // 네이티브 모듈 사용 시도
     let result = null;
-    
+
     if (nativeModule && typeof nativeModule.submit_task === 'function') {
       try {
         // 데이터 직렬화
-        const dataString = typeof message.data === 'string' 
-          ? message.data 
+        const dataString = typeof message.data === 'string'
+          ? message.data
           : JSON.stringify(message.data);
-        
+
         // 네이티브 모듈에 작업 제출
         const resultJson = nativeModule.submit_task(message.taskType, dataString);
         const parsedResult = JSON.parse(resultJson);
-        
+
         if (parsedResult.success) {
           result = parsedResult.result ? JSON.parse(parsedResult.result) : parsedResult;
         } else {
@@ -99,10 +106,10 @@ async function handleTask(message) {
     } else {
       result = processTaskJS(message.taskType, message.data);
     }
-    
+
     // 처리 시간 계산
     const processingTime = Date.now() - startTime;
-    
+
     // 결과 전송
     parentPort.postMessage({
       type: 'task:completed',
@@ -114,11 +121,11 @@ async function handleTask(message) {
         threadId
       }
     });
-    
+
     console.log(`워커 ${threadId}: 작업 완료 (${processingTime}ms)`);
   } catch (error) {
     console.error(`워커 ${threadId}: 작업 처리 중 오류:`, error);
-    
+
     parentPort.postMessage({
       type: 'task:failed',
       taskId: message.taskId,
@@ -137,17 +144,17 @@ async function handleTask(message) {
  */
 function processTaskJS(taskType, data) {
   console.log(`워커 ${threadId}: JavaScript 처리 (${taskType})`);
-  
+
   switch (taskType) {
     case 'typing_stats':
       return processTypingStats(data);
-    
+
     case 'data_analysis':
       return processDataAnalysis(data);
-    
+
     case 'text_processing':
       return processTextData(data);
-    
+
     default:
       throw new Error(`지원되지 않는 작업 유형: ${taskType}`);
   }
@@ -160,17 +167,17 @@ function processTaskJS(taskType, data) {
  */
 function processTypingStats(data) {
   const { keyCount, typingTime, content } = data;
-  
+
   // 기본 통계 계산
   const minutes = typingTime / 60000; // 밀리초를 분으로 변환
   const wpm = minutes > 0 ? keyCount / 5 / minutes : 0; // WPM 계산
   const kpm = minutes > 0 ? keyCount / minutes : 0; // KPM 계산
-  
+
   // 문자 통계
   const charCount = content ? content.length : 0;
   const charCountNoSpace = content ? content.replace(/\s+/g, '').length : 0;
   const wordCount = content ? content.trim().split(/\s+/).filter(Boolean).length : 0;
-  
+
   return {
     wpm: Math.round(wpm * 10) / 10,
     kpm: Math.round(kpm * 10) / 10,
@@ -214,7 +221,7 @@ function getMemoryInfo() {
   const memoryUsage = v8.getHeapStatistics();
   const heapUsed = memoryUsage.used_heap_size;
   const heapTotal = memoryUsage.total_heap_size;
-  
+
   return {
     heapUsed,
     heapTotal,

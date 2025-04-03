@@ -1,66 +1,84 @@
 /**
  * 메모리 관리를 위한 유틸리티 함수
  */
+import { OptimizationLevel } from '@/types';
+import { optimizationController } from './gc/optimization-controller';
 
 /**
  * 메모리 유틸리티 초기화
  * 앱 실행 시 메모리 관리 시스템을 설정합니다.
  */
 export function setupMemoryUtils(): void {
-  // 글로벌 메모리 최적화 객체가 없는 경우 초기화
-  if (typeof window !== 'undefined' && !window.__memoryOptimizer) {
-    window.__memoryOptimizer = {
-      getMemoryInfo: async () => {
-        try {
-          const memoryInfo = await getMemoryUsage();
-          return memoryInfo;
-        } catch (e) {
-          console.error('메모리 정보 가져오기 오류:', e);
-          return null;
-        }
-      },
+  if (typeof window !== 'undefined') {
+    // window 객체에 최적화 컨트롤러 등록
+    (window as any).__memoryOptimizer = {
+      ...optimizationController,
+
+      // 메모리 사용량 관련 유틸리티 추가
       getMemoryUsagePercentage: async () => {
-        const memoryInfo = await getMemoryUsage();
-        return memoryInfo ? memoryInfo.percent_used : 0;
+        return getMemoryUsagePercentage();
       },
-      optimizeMemory: async (aggressive = false) => {
-        // 최적화 로직 구현
-        return { success: true };
-      },
-      suggestGarbageCollection: () => {
-        if (typeof window.gc === 'function') {
-          window.gc();
-        }
-      },
-      clearAllCaches: () => {
-        // 캐시 정리 로직
-        return true;
-      },
-      setupPeriodicOptimization: (interval = 60000, threshold = 80) => {
-        // 주기적 최적화 설정
-        return () => {}; // 정리 함수
-      },
-      cleanupPeriodicOptimization: () => {
-        // 정리 로직
-      },
-      settings: {}
+
+      // 메모리 최적화 유틸리티 추가
+      optimizeMemory: async (_level: number = 0, _aggressive: boolean = false) => {
+        return optimizationController.performMediumOptimization();
+      }
     };
   }
+}
+
+/**
+ * 주기적인 메모리 모니터링 설정
+ * @param callback 콜백 함수
+ * @param _interval 실행 간격 (밀리초)
+ * @param _threshold 최적화 임계값 (%)
+ */
+export function setupPeriodicMonitoring(
+  callback: (percentage: number) => void,
+  _interval: number = 30000,
+  _threshold: number = 80
+): () => void {
+  let intervalId: NodeJS.Timeout | null = null;
+
+  const checkMemory = async () => {
+    const percentage = await getMemoryUsagePercentage();
+    if (typeof callback === 'function') {
+      callback(percentage);
+    }
+  };
+
+  // 초기 실행
+  checkMemory();
+
+  // 주기적 실행 설정
+  if (typeof window !== 'undefined') {
+    intervalId = setInterval(checkMemory, _interval);
+  }
+
+  // 정리 함수 반환
+  return () => {
+    if (intervalId !== null) {
+      clearInterval(intervalId);
+      intervalId = null;
+    }
+  };
 }
 
 /**
  * 현재 메모리 사용량 백분율 가져오기
  */
 export async function getMemoryUsagePercentage(): Promise<number> {
-  if (typeof window !== 'undefined' && window.__memoryOptimizer?.getMemoryUsagePercentage) {
-    return window.__memoryOptimizer.getMemoryUsagePercentage();
-  }
-  
   try {
+    // 브라우저 환경에서 performance.memory API 사용 시도
+    if (typeof window !== 'undefined' && (window.performance as any)?.memory) {
+      const mem = (window.performance as any).memory;
+      return Math.round((mem.usedJSHeapSize / mem.totalJSHeapSize) * 100);
+    }
+
+    // 대체 구현: 저장된 메모리 정보 사용
     const memoryInfo = await getMemoryUsage();
     return memoryInfo ? memoryInfo.percent_used : 0;
-  } catch (e) {
-    console.error('메모리 사용량 가져오기 오류:', e);
+  } catch (_e) {
     return 0;
   }
 }
@@ -69,10 +87,10 @@ export async function getMemoryUsagePercentage(): Promise<number> {
  * 현재 메모리 사용량 정보 가져오기
  */
 async function getMemoryUsage() {
-  if (typeof window !== 'undefined') {
+  try {
     // 브라우저 환경에서는 performance.memory API 사용 시도
-    if (performance && (performance as any).memory) {
-      const mem = (performance as any).memory;
+    if (typeof window !== 'undefined' && (window.performance as any)?.memory) {
+      const mem = (window.performance as any).memory;
       return {
         heap_used: mem.usedJSHeapSize,
         heap_total: mem.totalJSHeapSize,
@@ -82,8 +100,10 @@ async function getMemoryUsage() {
         timestamp: Date.now()
       };
     }
+  } catch (_e) {
+    // 오류 시 기본값 반환
   }
-  
+
   // 기본값 반환
   return {
     heap_used: 0,
@@ -112,7 +132,13 @@ export function createMemoryInfo(data: Partial<{
     heap_limit: data.heap_limit || 0,
     heap_used_mb: data.heap_used_mb || 0,
     percent_used: data.percent_used || 0,
-    timestamp: data.timestamp || Date.now()
+    timestamp: data.timestamp || Date.now(),
+    // camelCase 별칭 추가 (호환성)
+    heapUsed: data.heap_used || 0,
+    heapTotal: data.heap_total || 0,
+    heapLimit: data.heap_limit || 0,
+    heapUsedMB: data.heap_used_mb || 0,
+    percentUsed: data.percent_used || 0
   };
 }
 
@@ -124,7 +150,7 @@ export function cleanupResources(resources: any[]): void {
     if (resource && typeof resource.dispose === 'function') {
       try {
         resource.dispose();
-      } catch (e) {
+      } catch (_e) {
         // 리소스 해제 에러 무시
       }
     }

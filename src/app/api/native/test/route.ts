@@ -1,27 +1,35 @@
 import { NextResponse } from 'next/server';
-import nativeModule from '../../../../server/native';
 
 export async function GET() {
   try {
+    // 네이티브 모듈 동적 임포트 (타입 에러 해결)
+    const nativeModuleImport = await import('../../../../server/native').catch(() => ({}));
+    // 타입 오류 수정: 객체에 default 속성이 있는지 확인 후 접근
+    const nativeModule = 'default' in nativeModuleImport
+      ? nativeModuleImport.default
+      : nativeModuleImport;
+
     // 네이티브 모듈 확인
     const isLoaded = !!nativeModule;
-    const isFallback = nativeModule && typeof nativeModule.isFallbackMode === 'function'
-      ? nativeModule.isFallbackMode()
+    // 타입 안전하게 속성 확인 및 함수 호출
+    const isFallback = isLoaded &&
+      typeof (nativeModule as any).isFallbackMode === 'function'
+      ? (nativeModule as any).isFallbackMode()
       : true;
 
     // 사용 가능한 함수 목록 확인
     const availableFunctions = isLoaded
       ? Object.keys(nativeModule).filter(
-        (key): key is keyof typeof nativeModule =>
-          typeof nativeModule[key as keyof typeof nativeModule] === 'function'
+        (key) => typeof nativeModule[key as keyof typeof nativeModule] === 'function'
       )
       : [];
 
     // 버전 확인
     let version = 'unknown';
-    if (isLoaded && typeof nativeModule.getNativeModuleVersion === 'function') {
+    if (isLoaded &&
+      typeof (nativeModule as any).getNativeModuleVersion === 'function') {
       try {
-        version = await nativeModule.getNativeModuleVersion();
+        version = await (nativeModule as any).getNativeModuleVersion();
       } catch (err) {
         console.warn('버전 확인 실패:', err);
       }
@@ -29,14 +37,15 @@ export async function GET() {
 
     // 메모리 정보 확인
     let memoryInfo = null;
-    if (isLoaded && typeof nativeModule.getMemoryInfo === 'function') {
+    if (isLoaded &&
+      typeof (nativeModule as any).getMemoryInfo === 'function') {
       try {
-        const memoryResult = await nativeModule.getMemoryInfo();
+        const memoryResult = await (nativeModule as any).getMemoryInfo();
         memoryInfo = typeof memoryResult === 'string'
           ? JSON.parse(memoryResult)
           : memoryResult;
-      } catch (err) {
-        console.warn('메모리 정보 확인 실패:', err);
+      } catch (error) {
+        console.warn('메모리 정보 확인 실패:', error);
       }
     }
 

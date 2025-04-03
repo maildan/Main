@@ -2,14 +2,26 @@
  * 애플리케이션에서 사용하는 공통 타입 정의
  */
 
-import { MemoryInfo } from './memory-types';
+import { MemoryInfo, MemoryUsageInfo } from './memory-types';
 import { GpuInfo } from './gpu-types';
 import { NativeModuleInfo, NativeModuleConfig } from './native-module';
+
+// MemoryUsageInfo를 명시적으로 export
+export { MemoryInfo, MemoryUsageInfo } from './memory-types';
 
 // 기존의 타입들은 유지
 
 // 네이티브 모듈 타입 재내보내기
 export * from './native-module';
+
+// OptimizationLevel enum을 re-export
+export {
+  OptimizationLevel,
+  NativeOptimizationLevel,
+  OPTIMIZATION_LEVEL_DESCRIPTIONS,
+  APP_TO_NATIVE_LEVEL_MAP,
+  NATIVE_TO_APP_LEVEL_MAP
+} from './optimization-level';
 
 /**
  * 앱 내 사용되는 타입 정의의 중앙 집중화 파일
@@ -34,21 +46,39 @@ export interface MemoryInfo {
 }
 
 /**
- * 최적화 레벨 타입
- */
-export type OptimizationLevel = 'NORMAL' | 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
-
-/**
  * 최적화 결과 인터페이스
+ * Rust 코드와 호환성을 위해 정의
  */
 export interface OptimizationResult {
+  // 성공 여부
   success: boolean;
-  optimizationLevel: number | OptimizationLevel;
+
+  // 최적화 레벨 (Rust와 호환성)
+  optimizationLevel: OptimizationLevel;
+
+  // JS 측 호환성을 위한 별칭
+  level?: OptimizationLevel;
+
+  // 해제된 메모리 (바이트)
+  memoryFreed?: number;
   freedMemory?: number;
+
+  // 해제된 메모리 (MB)
   freedMB?: number;
-  timestamp: number;
-  error?: string;
+  freed_mb?: number;
+
+  // 소요 시간 (밀리초)
   duration?: number;
+
+  // 타임스탬프 (UNIX 밀리초)
+  timestamp: number;
+
+  // 오류 메시지 (실패 시)
+  error?: string;
+
+  // 메모리 정보
+  memory_before?: MemoryInfo;
+  memory_after?: MemoryInfo;
 }
 
 /**
@@ -198,16 +228,6 @@ export enum MemoryEventType {
   GC = 'gc'
 }
 
-// 메모리 최적화 수준 열거형
-export enum OptimizationLevel {
-  NORMAL = 0,
-  LOW = 1,
-  MEDIUM = 2,
-  HIGH = 3,
-  CRITICAL = 4,
-  EXTREME = 4 // CRITICAL과 같은 값으로 설정하여 호환성 유지
-}
-
 // 최적화 프로필 타입
 export type OptimizationProfile = 'performance' | 'balanced' | 'memory-saving' | 'custom';
 
@@ -279,23 +299,6 @@ export interface MemoryInfo {
   rssMB?: number;
 }
 
-// 최적화 결과 인터페이스
-export interface OptimizationResult {
-  success: boolean;
-  optimization_level: number;
-  memory_before?: MemoryInfo;
-  memory_after?: MemoryInfo;
-  freed_memory?: number;
-  freed_mb?: number;
-  duration?: number;
-  timestamp: number;
-  error?: string;
-
-  // 선택적 별칭 추가 - 코드 호환성을 위함
-  freedMemory?: number;
-  freedMB?: number;
-}
-
 // 가비지 컬렉션 결과 인터페이스
 export interface GCResult {
   success: boolean;
@@ -352,7 +355,7 @@ export interface MachineInfo {
     /** 아키텍처 */
     arch: string;
   };
-  
+
   /** 메모리 정보 */
   memoryInfo: {
     /** 총 메모리 (MB) */
@@ -360,7 +363,7 @@ export interface MachineInfo {
     /** 여유 메모리 (MB) */
     freeMemoryMB: number;
   };
-  
+
   /** 운영체제 정보 */
   osInfo: {
     /** 운영체제 유형 */
@@ -378,19 +381,19 @@ export interface MachineInfo {
 export interface PerformanceInfo {
   /** 앱 실행 시간 (초) */
   uptime: number;
-  
+
   /** 평균 CPU 사용률 (%) */
   avgCpuUsage: number;
-  
+
   /** 현재 메모리 사용량 (MB) */
   memoryUsageMB: number;
-  
+
   /** 최대 메모리 사용량 (MB) */
   peakMemoryUsageMB: number;
-  
+
   /** 마지막 최적화 시간 */
   lastOptimizationTime?: number;
-  
+
   /** 최적화 횟수 */
   optimizationCount: number;
 }
@@ -427,6 +430,7 @@ export interface MemoryOptimizerUtility {
 // 중앙화된 타입 내보내기
 export type {
   MemoryInfo,
+  MemoryUsageInfo,
   GpuInfo,
   NativeModuleInfo,
   NativeModuleConfig
@@ -434,10 +438,14 @@ export type {
 
 // 메모리 최적화 레벨 정의 (memory-optimizer.ts와 memory/optimization-utils.ts 간 공유)
 export enum OptimizationLevel {
-  LIGHT = 'light',
-  MEDIUM = 'medium',
-  AGGRESSIVE = 'aggressive',
-  EMERGENCY = 'emergency'
+  NONE = 0,
+  LOW = 1,
+  MEDIUM = 2,
+  HIGH = 3,
+  AGGRESSIVE = 4,
+  // 이전 코드와 호환되도록 별칭 추가
+  NORMAL = 0,
+  CRITICAL = 4
 }
 
 // 메모리 최적화 결과 타입

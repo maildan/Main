@@ -6,47 +6,38 @@
  * 메모리 사용량 정보를 나타내는 인터페이스
  */
 export interface MemoryInfo {
-  /** 현재 힙 사용량 (바이트) */
-  heapUsed: number;
-  
-  /** 총 힙 크기 (바이트) */
-  heapTotal: number;
-  
-  /** 실제 메모리 사용량 (바이트) */
+  // 바이트 단위 속성 (snake_case)
+  heap_used: number;
+  heap_total: number;
+  heap_limit: number;
   rss: number;
-  
-  /** 외부 메모리 사용량 (바이트) */
-  external: number;
-  
-  /** 메모리 사용량 측정 시간 */
+  rss_mb: number;
+  heap_used_mb: number;
+  percent_used: number;
   timestamp: number;
-  
-  /** MB 단위의 힙 사용량 */
-  heapUsedMB: number;
-  
-  /** MB 단위의 RSS 사용량 */
-  rssMB: number;
-  
-  /** 힙 사용 비율 (%) */
-  percentUsed: number;
+
+  // 바이트 단위 속성 (camelCase - 호환성)
+  heapUsed?: number;
+  heapTotal?: number;
+  heapLimit?: number;
+  heapUsedMB?: number;
+  rssMB?: number;
+  percentUsed?: number;
+  external?: number;
 }
+
+/**
+ * 메모리 사용량 정보의 별칭 (호환성 유지)
+ */
+export type MemoryUsageInfo = MemoryInfo;
 
 /**
  * 메모리 설정을 나타내는 인터페이스
  */
 export interface MemorySettings {
-  /** 최대 메모리 사용 임계값 (MB) */
-  maxMemoryThreshold: number;
-  
-  /** 메모리 최적화 활성화 여부 */
-  enableMemoryOptimization: boolean;
-  
-  /** 자동 가비지 컬렉션 활성화 여부 */
-  enableAutoGC: boolean;
-  
-  /** 가비지 컬렉션 주기 (밀리초) */
-  gcInterval: number;
-  
-  /** 백그라운드에서 메모리 사용 최소화 여부 */
-  reduceMemoryInBackground: boolean;
+  autoOptimize: boolean;
+  optimizationThreshold: number;
+  interval: number;
+  checkEnabled: boolean;
+  useNativeModule: boolean;
 }

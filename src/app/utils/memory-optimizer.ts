@@ -2,13 +2,13 @@
  * 메모리 최적화 조정자 (Orchestrator)
  * 
  * 이 모듈은 메모리 최적화의 상위 레벨 인터페이스를 제공하고,
- * 실제 최적화 작업은 memory/optimization-utils.ts와 gc/ 하위 모듈에 위임합니다.
+ * 실제 최적화 작업은 memory/ 하위 모듈에 위임합니다.
  */
 
-import { OptimizationLevel, OptimizationResult } from '../../types';
+import { OptimizationLevel, OptimizationResult } from '@/types';
 import * as memoryInfo from './memory/memory-info';
 import * as optimizationUtils from './memory/optimization-utils';
-import { performGarbageCollection } from './memory/gc/garbage-collector';
+import { suggestGC as performGarbageCollection } from './memory/gc/garbage-collector';
 import { logger } from './memory/logger';
 
 /**
@@ -24,34 +24,40 @@ export async function optimizeMemory(
 ): Promise<OptimizationResult> {
   try {
     logger.info(`[Memory Optimizer] Starting memory optimization at level: ${level}, emergency: ${emergency}`);
-    
+
     // 현재 메모리 사용량 확인
     const beforeMemory = await memoryInfo.getMemoryUsage();
-    
+
     // 최적화 실행
-    const result = await optimizationUtils.runOptimization(level, emergency);
-    
+    const _result = await optimizationUtils.runOptimization(level, emergency);
+
     // 가비지 컬렉션 실행
     await performGarbageCollection(emergency);
-    
+
     // 최적화 후 메모리 사용량 확인
     const afterMemory = await memoryInfo.getMemoryUsage();
-    
-    // 해제된 메모리 계산
-    const memoryFreed = beforeMemory.heapUsed - afterMemory.heapUsed;
-    
+
+    // 해제된 메모리 계산 (null 체크 추가)
+    const memoryFreed = beforeMemory && afterMemory &&
+      beforeMemory.heapUsed !== undefined && afterMemory.heapUsed !== undefined ?
+      beforeMemory.heapUsed - afterMemory.heapUsed : 0;
+
     logger.info(`[Memory Optimizer] Memory optimization completed. Freed: ${memoryFreed} bytes`);
-    
+
     return {
-      level,
+      optimizationLevel: level,  // Rust와 일치시킴
+      level,                    // 이전 코드와 호환성
       memoryFreed,
       timestamp: Date.now(),
       success: true
     };
   } catch (error) {
-    logger.error('[Memory Optimizer] Error during memory optimization:', error);
+    logger.error('[Memory Optimizer] Error during memory optimization:',
+      error instanceof Error ? { message: error.message, stack: error.stack } as Record<string, unknown> : {});
+
     return {
-      level,
+      optimizationLevel: level,  // Rust와 일치시킴
+      level,                     // 이전 코드와 호환성
       memoryFreed: 0,
       timestamp: Date.now(),
       success: false,
@@ -79,10 +85,55 @@ export function configureAutoOptimization(options: {
 export async function checkAndOptimizeMemory(): Promise<void> {
   try {
     const memoryUsage = await memoryInfo.getMemoryUsage();
-    await optimizationUtils.checkAndOptimize(memoryUsage);
+    await optimizationUtils.runOptimization(OptimizationLevel.MEDIUM, false);
   } catch (error) {
-    logger.error('[Memory Optimizer] Error during memory check and optimize:', error);
+    logger.error(
+      '[Memory Optimizer] Error during memory check and optimize:',
+      error instanceof Error ? { message: error.message, stack: error.stack } : {}
+    );
   }
 }
 
-// 추가 메모리 최적화 관련 기능들...
+/**
+ * 메모리 사용량 분석 및 보고
+ */
+export async function analyzeMemoryUsage(): Promise<{
+  used: number;
+  total: number;
+  percent: number;
+  needsOptimization: boolean;
+}> {
+  try {
+    const memory = await memoryInfo.getMemoryUsage();
+
+    if (!memory) {
+      return {
+        used: 0,
+        total: 0,
+        percent: 0,
+        needsOptimization: false
+      };
+    }
+
+    const percent = memory.percentUsed ||
+      (memory.heapTotal && memory.heapUsed ?
+        (memory.heapUsed / memory.heapTotal) * 100 : 0);
+
+    return {
+      used: memory.heapUsedMB || 0,
+      total: memory.heapTotal ? memory.heapTotal / (1024 * 1024) : 0,
+      percent,
+      needsOptimization: percent > 75
+    };
+  } catch (error) {
+    logger.error('[Memory Optimizer] Error analyzing memory usage:',
+      error instanceof Error ? { message: error.message } as Record<string, unknown> : {});
+
+    return {
+      used: 0,
+      total: 0,
+      percent: 0,
+      needsOptimization: false
+    };
+  }
+}

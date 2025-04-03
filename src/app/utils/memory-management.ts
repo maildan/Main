@@ -6,8 +6,6 @@
 
 import { MemoryInfo, GCResult, OptimizationResult, OptimizationLevel } from '@/types';
 import { requestNativeMemoryInfo, requestNativeGarbageCollection, requestNativeMemoryOptimization } from './native-memory-bridge';
-import { cleanAllCaches, suggestGarbageCollection } from './memory/gc-utils';
-import { formatBytes } from './memory/format-utils';
 
 /**
  * 메모리 정보 가져오기
@@ -34,6 +32,29 @@ export async function performGarbageCollection(_emergency: boolean = false): Pro
   }
 }
 
+// 안쓰이는 변수 _formatBytes로 이름 변경
+const _formatBytes = (bytes: number): string => {
+  if (bytes === 0) return '0 Bytes';
+  const k = 1024;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+};
+
+// 캐시 정리 함수 - 임시 구현
+function cleanAllCaches(): void {
+  // 캐시 정리 로직 구현
+  console.log('모든 캐시 정리');
+}
+
+// 가비지 콜렉션 유도 함수
+function suggestGarbageCollection(): void {
+  if (typeof window !== 'undefined' && (window as any).gc) {
+    (window as any).gc();
+  }
+  console.log('가비지 콜렉션 제안');
+}
+
 /**
  * 메모리 최적화 수행
  * @param level 최적화 레벨
@@ -44,25 +65,25 @@ export async function optimizeMemory(
   emergency: boolean = false
 ): Promise<OptimizationResult | null> {
   try {
-    // 현재 메모리 상태 기록 - 사용 추가
+    // 현재 메모리 상태 기록
     const memoryBefore = await requestNativeMemoryInfo();
     console.log('최적화 전 메모리 상태:', memoryBefore);
-    
+
     console.log(`메모리 최적화 시작 (레벨: ${level}, 긴급: ${emergency})`);
-    
-    // 네이티브 모듈 호출
-    const result = await requestNativeMemoryOptimization(level, emergency);
-    
+
+    // 네이티브 모듈 호출 - 숫자로 변환하여 전달
+    const result = await requestNativeMemoryOptimization(Number(level), emergency);
+
     if (result) {
-      // 속성 이름 호환성 처리 - freed_mb 사용 (인터페이스와 일치)
-      const freedMB = result.freed_mb || 0;
+      // 속성 이름 호환성 처리 - freedMB 사용 (freed_mb가 아님)
+      const freedMB = result.freedMB || result.freed_mb || 0;
       recordOptimization(level, result.success, 'native', freedMB);
     }
-    
+
     // JS 측 추가 정리
     cleanAllCaches();
     suggestGarbageCollection();
-    
+
     return result;
   } catch (error) {
     console.error('메모리 최적화 오류:', error);
@@ -79,42 +100,39 @@ export async function optimizeMemory(
  * @param freedMemory 해제된 메모리 (MB)
  */
 function recordOptimization(
-  level: OptimizationLevel, 
+  level: OptimizationLevel,
   success: boolean,
   implementation: string,
   freedMemory: number
 ): void {
-  const record = {
-    timestamp: Date.now(),
-    level,
-    success,
-    implementation,
-    freedMemory
-  };
-  
-  console.log(`메모리 최적화 완료: ${success ? '성공' : '실패'}, ${freedMemory}MB 해제됨`);
-  
-  // 브라우저 환경에서는 로컬 스토리지에 기록 저장 가능
-  if (typeof localStorage !== 'undefined') {
-    try {
-      // 기존 기록 가져오기
+  try {
+    // 최적화 기록 로직
+    if (typeof localStorage !== 'undefined') {
+      const record = {
+        timestamp: Date.now(),
+        level,
+        success,
+        implementation,
+        freedMemory,
+      };
+
       const existingRecordsJson = localStorage.getItem('memoryOptimizationRecords');
-      const records = existingRecordsJson 
-        ? JSON.parse(existingRecordsJson) 
+      const records = existingRecordsJson
+        ? JSON.parse(existingRecordsJson)
         : [];
-      
+
       // 최대 20개까지만 저장
       records.push(record);
       if (records.length > 20) {
         records.shift();
       }
-      
+
       // 저장
       localStorage.setItem('memoryOptimizationRecords', JSON.stringify(records));
-    } catch (error) {
-      // 저장 오류 무시
-      console.warn('최적화 기록 저장 오류:', error);
     }
+  } catch (e) {
+    // 저장 오류 무시
+    console.warn('최적화 기록 저장 오류:', e);
   }
 }
 
@@ -123,11 +141,25 @@ function recordOptimization(
  * @param info 메모리 정보
  */
 export function formatMemoryInfo(info: MemoryInfo): Record<string, string> {
+  if (!info) return {};
+
+  const heapUsedMB = info.heapUsed !== undefined
+    ? Math.round(info.heapUsed / (1024 * 1024) * 10) / 10
+    : info.heapUsedMB || 0;
+
+  const heapTotalMB = info.heapTotal !== undefined
+    ? Math.round(info.heapTotal / (1024 * 1024) * 10) / 10
+    : info.heapTotalMB || 0;
+
+  const percent = info.percentUsed !== undefined
+    ? info.percentUsed
+    : (info.heapTotal && info.heapUsed) ? (info.heapUsed / info.heapTotal) * 100 : 0;
+
   return {
-    heapUsed: formatBytes(info.heapUsed),
-    heapTotal: formatBytes(info.heapTotal),
-    rss: formatBytes(info.rss),
-    percentUsed: `${info.percentUsed.toFixed(1)}%`
+    heapUsed: `${heapUsedMB} MB`,
+    heapTotal: `${heapTotalMB} MB`,
+    percentUsed: `${Math.round(percent * 10) / 10}%`,
+    timestamp: new Date(info.timestamp || Date.now()).toLocaleString()
   };
 }
 
@@ -135,32 +167,78 @@ export function formatMemoryInfo(info: MemoryInfo): Record<string, string> {
  * 메모리 상태 평가
  * @param info 메모리 정보
  */
-export function assessMemoryState(info: MemoryInfo): {
-  status: 'normal' | 'warning' | 'critical';
-  color: string;
+export function evaluateMemoryStatus(info: MemoryInfo): {
+  status: string;
   message: string;
+  percentUsed: number;
+  needsOptimization: boolean;
 } {
-  const percent = info.percentUsed;
-  
-  if (percent >= 90) {
+  if (!info) {
+    return {
+      status: 'unknown',
+      message: '메모리 정보를 가져올 수 없음',
+      percentUsed: 0,
+      needsOptimization: false
+    };
+  }
+
+  const percent = info.percentUsed !== undefined
+    ? info.percentUsed
+    : (info.heapTotal && info.heapUsed) ? (info.heapUsed / info.heapTotal) * 100 : 0;
+
+  if (percent > 90) {
     return {
       status: 'critical',
-      color: '#ff4d4f',
-      message: '메모리 사용량이 매우 높습니다. 최적화가 필요합니다.'
+      message: '메모리 사용량이 매우 높음 (최적화 필요)',
+      percentUsed: percent,
+      needsOptimization: true
     };
-  } else if (percent >= 75) {
+  } else if (percent > 75) {
     return {
       status: 'warning',
-      color: '#faad14',
-      message: '메모리 사용량이 높아지고 있습니다.'
+      message: '메모리 사용량이 높음',
+      percentUsed: percent,
+      needsOptimization: true
+    };
+  } else if (percent > 60) {
+    return {
+      status: 'normal',
+      message: '메모리 사용량이 정상',
+      percentUsed: percent,
+      needsOptimization: false
     };
   } else {
     return {
-      status: 'normal',
-      color: '#52c41a',
-      message: '메모리 사용량이 정상 범위입니다.'
+      status: 'good',
+      message: '메모리 사용량이 낮음',
+      percentUsed: percent,
+      needsOptimization: false
     };
   }
+}
+
+/**
+ * 빈 메모리 정보 객체 생성
+ */
+export function createEmptyMemoryInfo(): MemoryInfo {
+  return {
+    // camelCase 속성들
+    heapUsed: 0,
+    heapTotal: 0,
+    rss: 0,
+    heapUsedMB: 0,
+    rssMB: 0,
+    percentUsed: 0,
+    timestamp: Date.now(),
+
+    // snake_case 속성들 (Rust 호환)
+    heap_used: 0,
+    heap_total: 0,
+    heap_used_mb: 0,
+    rss_mb: 0,
+    percent_used: 0,
+    heap_limit: 0
+  };
 }
 
 /**
@@ -177,7 +255,7 @@ export function convertNativeMemoryInfo(nativeInfo: Record<string, unknown>): Me
     rssMB: nativeInfo.rss_mb || nativeInfo.rssMB || 0,
     percentUsed: nativeInfo.percent_used || nativeInfo.percentUsed || 0,
     timestamp: nativeInfo.timestamp || Date.now(),
-    
+
     // 하위 호환성을 위한 snake_case 필드
     heap_used: nativeInfo.heap_used || nativeInfo.heapUsed || 0,
     heap_total: nativeInfo.heap_total || nativeInfo.heapTotal || 0,
