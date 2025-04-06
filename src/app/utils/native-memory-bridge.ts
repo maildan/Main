@@ -3,7 +3,7 @@
  */
 
 import { MemoryInfo, OptimizationResult, OptimizationLevel, GCResult } from '@/types';
-import { safeOptimizationLevel, toNativeOptimizationLevel } from './memory/optimization-utils';
+import { safeOptimizationLevel } from './memory/optimization-utils';
 
 /**
  * 네이티브 메모리 정보 요청
@@ -13,14 +13,14 @@ export async function requestNativeMemoryInfo(): Promise<MemoryInfo | null> {
   if (typeof window === 'undefined') {
     return null;
   }
-  
+
   try {
     // 백엔드 API를 통해 메모리 정보 요청
     const response = await fetch('/api/native/memory/info');
     if (!response.ok) {
       throw new Error(`API 요청 실패: ${response.status}`);
     }
-    
+
     const data = await response.json();
     return data.memoryInfo;
   } catch (error) {
@@ -54,23 +54,23 @@ async function withErrorHandling<T>(
       // 브리지 상태 확인
       await checkBridgeAvailability();
     }
-    
+
     if (!bridgeState.isAvailable) {
       console.warn(`Native bridge not available for ${operationName}`);
       return fallback();
     }
-    
+
     // 작업 실행
     return await operation();
   } catch (error) {
     // 오류 기록
     bridgeState.errorCount++;
-    bridgeState.lastError = error instanceof Error 
-      ? error 
+    bridgeState.lastError = error instanceof Error
+      ? error
       : new Error(String(error));
-    
+
     console.error(`Native bridge error in ${operationName}:`, error);
-    
+
     // 폴백 반환
     return fallback();
   }
@@ -86,26 +86,26 @@ async function checkBridgeAvailability(): Promise<boolean> {
     if (now - bridgeState.lastCheck < 10000 && bridgeState.isInitialized) {
       return bridgeState.isAvailable;
     }
-    
+
     // 메모리 정보 가져오기 시도로 가용성 확인
     const response = await fetchMemoryInfo();
-    
+
     bridgeState.isAvailable = response.success;
     bridgeState.isInitialized = true;
     bridgeState.lastCheck = now;
-    
+
     if (!response.success) {
       bridgeState.lastError = new Error(response.error || 'Unknown error in native bridge');
     } else {
       bridgeState.lastError = null;
     }
-    
+
     return bridgeState.isAvailable;
   } catch (error) {
     bridgeState.isAvailable = false;
     bridgeState.isInitialized = true;
-    bridgeState.lastError = error instanceof Error 
-      ? error 
+    bridgeState.lastError = error instanceof Error
+      ? error
       : new Error(String(error));
     bridgeState.lastCheck = Date.now();
     return false;
@@ -119,11 +119,11 @@ export async function requestNativeGarbageCollection(): Promise<GCResult | null>
   return withErrorHandling(
     async () => {
       const response = await forceGarbageCollection();
-      
+
       if (response.success && response.result) {
         return response.result;
       }
-      
+
       throw new Error(response.error || '가비지 컬렉션을 수행할 수 없습니다');
     },
     () => ({
@@ -147,15 +147,15 @@ export async function requestNativeMemoryOptimization(
 ): Promise<OptimizationResult | null> {
   // 올바른 레벨 값 확보
   const safeLevel = safeOptimizationLevel(level);
-  
+
   return withErrorHandling(
     async () => {
       const response = await optimizeMemory(safeLevel, emergency);
-      
+
       if (response.success && response.result) {
         return response.result;
       }
-      
+
       throw new Error(response.error || '메모리 최적화를 수행할 수 없습니다');
     },
     () => ({
@@ -181,7 +181,7 @@ export async function checkNativeBridgeStatus(): Promise<{
   lastError: string | null;
 }> {
   await checkBridgeAvailability();
-  
+
   return {
     available: bridgeState.isAvailable,
     initialized: bridgeState.isInitialized,
