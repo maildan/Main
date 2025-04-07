@@ -2,10 +2,13 @@
  * 로그 저장 API 엔드포인트
  */
 
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { writeFile, mkdir } from 'fs/promises';
 import { join, dirname } from 'path';
 import { LogEntry } from '@/app/utils/log-utils';
+
+// 정적 내보내기 설정 추가
+export const dynamic = 'force-static';
 
 /**
  * 로그를 저장합니다.

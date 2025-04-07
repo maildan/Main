@@ -1,5 +1,8 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/mysql';
+
+// 동적 라우트로 변경
+export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {

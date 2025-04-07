@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+// 정적 내보내기 설정 추가
+export const dynamic = 'force-static';
+
 /**
  * 메모리 설정 가져오기 API
  */

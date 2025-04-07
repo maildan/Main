@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import pool from '@/lib/mysql';
 
+// 동적 라우트로 변경
+export const dynamic = 'force-dynamic';
+
 // 로그 항목 인터페이스 정의
 interface LogEntry {
   id?: number;
@@ -14,9 +17,6 @@ interface LogEntry {
   browser?: string;
   website?: string;
 }
-
-// "force-dynamic" 제거 - electron 환경에서는 필요하지 않음
-// export const dynamic = 'force-dynamic'; 
 
 export async function GET() {
   try {

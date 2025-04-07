@@ -64,7 +64,7 @@ export default function LogAnalysisPanel({ className = '' }: LogAnalysisPanelPro
     availableModels: Object.values(LearningModelType)
   });
 
-  const learningStatusRef = useRef(false);
+  const _learningStatusRef = useRef(false);
 
   /**
    * 학습 상태 확인

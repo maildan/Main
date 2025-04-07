@@ -2,7 +2,7 @@
  * 로그 학습 API 엔드포인트
  */
 
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { 
   LearningModelType, 
   learnMemoryUsagePatterns,
@@ -10,6 +10,9 @@ import {
   learnErrorPatterns,
   combineRecommendations
 } from '@/app/utils/log-learning';
+
+// 정적 내보내기 설정 추가
+export const dynamic = 'force-static';
 
 /**
  * 로그 데이터에서 학습을 수행합니다.

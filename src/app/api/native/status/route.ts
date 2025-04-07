@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import nativeModule from '../../../../server/native';
 
+// 동적 라우트로 변경
+export const dynamic = 'force-dynamic';
+
 // 네이티브 모듈 상태 조회
 export async function GET() {
   try {

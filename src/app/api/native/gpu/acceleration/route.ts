@@ -2,8 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import {
   enableGpuAcceleration,
   disableGpuAcceleration,
-  setGpuAcceleration // checkGpuAcceleration -> setGpuAcceleration 으로 변경
+  setGpuAcceleration
 } from '@/app/utils/gpu-acceleration';
+
+// 정적 내보내기 설정 추가
+export const dynamic = 'force-static';
 
 export async function GET(_request: NextRequest) {
   try {

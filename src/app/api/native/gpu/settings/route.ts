@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+// 동적 라우트로 변경
+export const dynamic = 'force-dynamic';
+
 /**
  * GPU 설정 가져오기 API
  */

@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import nativeModule from '../../../../../server/native';
 
+// 정적 내보내기 설정 추가
+export const dynamic = 'force-static';
+
 export async function GET() {
   try {
     let result;

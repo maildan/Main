@@ -2,10 +2,13 @@
  * 로그 검색 API 엔드포인트
  */
 
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { readdir, readFile } from 'fs/promises';
 import { join } from 'path';
 import { LogEntry, LogSearchOptions, LogType } from '@/app/utils/log-utils';
+
+// force-dynamic으로 변경 - 동적 URL 파라미터를 사용하기 때문
+export const dynamic = 'force-dynamic';
 
 /**
  * 로그를 검색합니다.

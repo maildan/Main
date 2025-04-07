@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+// 동적 라우트로 변경
+export const dynamic = 'force-dynamic';
+
 /**
  * 메모리 설정 초기화 API
  */

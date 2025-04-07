@@ -7,6 +7,11 @@ const nextConfig = {
     // 빌드 시 타입 오류 무시 (개발 시에는 오류 확인)
     ignoreBuildErrors: process.env.NODE_ENV === 'production',
   },
+  
+  // 정적 내보내기 설정
+  // 환경 변수로 정적 내보내기 여부를 제어할 수 있도록 수정
+  output: process.env.NEXT_STATIC_EXPORT === 'true' ? 'export' : undefined,
+  
   // 번들 분석 설정 (필요시 활성화)
   webpack: (config, { isServer, dev }) => {
     // 메모리 최적화를 위한 설정
@@ -84,16 +89,16 @@ const nextConfig = {
   images: {
     unoptimized: true // Electron 환경에서 이미지 최적화 비활성화
   },
-  // 출력 경로 설정 - 개발 환경과 프로덕션 환경에 따라 다르게 설정
-  // distDir을 상수로 설정하여 일관성 유지
+  // distDir 설정 수정: next-sitemap과 일치하도록
   distDir: '.next',
-
-  // 출력 설정 추가 - Next.js 플랫폼에 따라 출력 경로 지정
-  output: process.env.NODE_ENV === 'production' ? 'export' : undefined,
-
+  
+  // 빌드 시 API 라우트 처리 설정
+  trailingSlash: true,
+  
   // 개발 서버에 대한 추가 최적화
   experimental: {
-    // 불필요한 모듈 로딩 방지 
+    // 최적화
+    // 불필요한 모듈 로딩 방지
     optimizePackageImports: [
       'lodash',
       'react-icons',
@@ -102,7 +107,6 @@ const nextConfig = {
       'date-fns',
       'framer-motion'
     ],
-
     // turbo 설정 - 객체 형태로 전달
     turbo: process.env.NODE_ENV === 'development' ? {
       loaders: {}

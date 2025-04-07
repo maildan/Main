@@ -2,10 +2,13 @@
  * 메모리 정보를 제공하는 API 라우트
  */
 
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { optimizeMemory } from '../../../utils/memory-optimizer';
 import { getMemoryUsage } from '../../../utils/memory/memory-info';
 import { formatBytes } from '../../../utils/common-utils';
+
+// 동적 라우트로 변경
+export const dynamic = 'force-dynamic';
 
 // OptimizationLevel 타입 대신 값으로 정의
 const OPTIMIZATION_LEVEL = {

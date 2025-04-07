@@ -1,4 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
+
+// 정적 내보내기 설정 추가
+export const dynamic = 'force-static';
+
 // 모듈 경로 수정 (가능한 대안들)
 // import { workerPool } from '@/utils/worker-pool';
 // 또는 아래 경로들 중 적합한 것 사용

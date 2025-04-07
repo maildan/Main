@@ -1,4 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
+
+// 동적 라우트로 변경
+export const dynamic = 'force-dynamic';
+
 import pool from '@/lib/mysql';
 
 export async function POST(req: NextRequest) {

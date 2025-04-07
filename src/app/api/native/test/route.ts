@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server';
 
+// static export와 호환되도록 'error'로 변경
+export const dynamic = 'error';
+
 export async function GET() {
   try {
     // 네이티브 모듈 동적 임포트 (타입 에러 해결)
