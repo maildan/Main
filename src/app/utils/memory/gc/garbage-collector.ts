@@ -4,7 +4,7 @@
  * 메모리 GC 및 최적화 기능을 제공합니다.
  */
 
-import { OptimizationLevel, GCResult } from '../types';
+import { OptimizationLevel, GCResult } from '@/types';
 import { MemoryInfo } from '@/types';
 import { MEMORY_THRESHOLDS } from '../constants/memory-thresholds';
 import { getMemoryUsage } from '../memory-info';
@@ -52,15 +52,15 @@ export function determineOptimizationLevel(info: MemoryInfo): OptimizationLevel 
   const usedMB = info.heap_used_mb;
 
   if (usedMB < MEMORY_THRESHOLDS.LOW) {
-    return OptimizationLevel.None;
+    return OptimizationLevel.NONE;
   } else if (usedMB < MEMORY_THRESHOLDS.MEDIUM) {
-    return OptimizationLevel.Low;
+    return OptimizationLevel.LOW;
   } else if (usedMB < MEMORY_THRESHOLDS.HIGH) {
-    return OptimizationLevel.Medium;
+    return OptimizationLevel.MEDIUM;
   } else if (usedMB < MEMORY_THRESHOLDS.CRITICAL) {
-    return OptimizationLevel.High;
+    return OptimizationLevel.HIGH;
   } else {
-    return OptimizationLevel.Extreme;
+    return OptimizationLevel.CRITICAL;
   }
 }
 
@@ -269,13 +269,13 @@ function getMemoryInfo(): { jsHeapSize: number; totalJSHeapSize: number; jsHeapS
  */
 function createMemoryPressure(): void {
   // 임시로 큰 배열 생성 후 삭제
-  let arr = null;
+  let _arr = null;
   try {
-    arr = new Array(1000000).fill(0).map(() => new Object());
-  } catch (e) {
+    _arr = new Array(1000000).fill(0).map(() => new Object());
+  } catch (_) {
     // 오류 무시 (메모리 부족으로 인한 예외 가능성)
   }
 
   // 변수 참조 해제
-  arr = null;
+  _arr = null;
 }

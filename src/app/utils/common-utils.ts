@@ -199,3 +199,22 @@ export function throttle<T extends (...args: any[]) => any>(
     }
   };
 }
+
+/**
+ * 문자열이 비어있거나 공백만 있는지 확인
+ * @param str 검사할 문자열
+ * @returns 비어있거나 공백만 있는 경우 true, 그렇지 않으면 false
+ */
+export function isEmptyString(str: string | null | undefined): boolean {
+  return str === null || str === undefined || str.trim() === '';
+}
+
+/**
+ * 객체가 비어있는지 확인
+ * @param obj 검사할 객체
+ * @returns 비어있는 경우 true, 그렇지 않으면 false
+ */
+export function isEmptyObject(obj: Record<string, any> | null | undefined): boolean {
+  if (obj === null || obj === undefined) return true;
+  return Object.keys(obj).length === 0;
+}

@@ -15,7 +15,7 @@ import {
 import { cleanupDom as cleanupDOMReferences } from '../dom-cleanup';
 
 // 스토리지 클리너에서 가져오기
-import { clearStorageCaches } from '../storage-cleaner';
+import { clearAllStorageCaches } from '../storage-cleaner'; // 수정: clearStorageCaches -> clearAllStorageCaches
 
 // 리소스 최적화 유틸리티 함수 가져오기
 import { unloadNonVisibleResources } from './resource-optimizer';
@@ -35,7 +35,7 @@ export {
   performOptimizationByLevel,
   clearImageCaches,
   cleanupDOMReferences,
-  clearStorageCaches,
+  clearAllStorageCaches,
   unloadNonVisibleResources,
   optimizeEventListeners,
   unloadDynamicModules,

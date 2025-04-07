@@ -11,6 +11,50 @@ export enum _MemoryEventType {
 }
 
 /**
+ * 메모리 최적화 옵션
+ */
+export interface MemoryOptimizationOptions {
+  // 기본 옵션
+  level?: number;
+  emergency?: boolean;
+
+  // DOM 정리 옵션
+  cleanupDom?: boolean;
+  aggressiveDomCleanup?: boolean;
+
+  // 캐시 정리 옵션
+  clearCache?: boolean;
+  clearAllCache?: boolean;
+
+  // 기타 옵션
+  timeout?: number;
+  retryCount?: number;
+}
+
+/**
+ * 메모리 상태 enum
+ */
+export enum MemoryState {
+  NORMAL = 'normal',
+  WARNING = 'warning',
+  CRITICAL = 'critical'
+}
+
+/**
+ * 최적화 모드 enum
+ */
+export enum OptimizationMode {
+  AUTO = 'auto',
+  MANUAL = 'manual',
+  SCHEDULED = 'scheduled'
+}
+
+/**
+ * 다른 곳에서 정의된 타입 참조
+ */
+export type { GCResult, OptimizationLevel, OptimizationResult } from '@/types';
+
+/**
  * 메모리 사용량 단위 타입
  */
 export type MemoryUnit = 'Bytes' | 'KB' | 'MB' | 'GB';

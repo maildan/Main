@@ -1,56 +1,45 @@
 /**
  * 가비지 컬렉션 관련 타입 정의
- * 메모리 최적화 모듈에서 사용되는 공통 타입
  */
-import { GCResult } from './types';
-import { MemoryInfo } from '@/types';
+
+import { GCResult, OptimizationResult, OptimizationLevel } from '@/types';
 
 /**
- * 최적화 레벨 타입
- * 0: 정상 - 최적화 필요 없음
- * 0.5: 관찰 - 경량 최적화
- * 1: 주의 - 중간 수준 최적화
- * 2: 경고 - 고수준 최적화
- * 3: 위험 - 최대 수준 최적화
+ * GC 수행 옵션
  */
-export type OptimizationLevel = 0 | 0.5 | 1 | 2 | 3;
-
-/**
- * 캐시 최적화 설정
- */
-export interface CacheOptimizationOptions {
-  includeIndexedDB?: boolean;
-  includeAppCache?: boolean;
-  includeLocalStorage?: boolean;
-  includeSessionStorage?: boolean;
-  includeServiceWorker?: boolean;
+export interface GCOptions {
+  emergency?: boolean;
+  timeout?: number;
+  forceNative?: boolean;
 }
 
 /**
- * DOM 최적화 설정
+ * GC 확장 결과 타입
  */
-export interface DOMOptimizationOptions {
-  cleanupHiddenElements?: boolean;
-  unloadOffscreenImages?: boolean;
-  optimizeOffscreenElements?: boolean;
-  removeUnusedEventListeners?: boolean;
+export interface ExtendedGCResult extends GCResult {
+  source?: 'native' | 'js';
+  heapBefore?: number;
+  heapAfter?: number;
+  details?: Record<string, any>;
 }
 
 /**
  * 이벤트 최적화 설정
  */
 export interface EventOptimizationOptions {
-  whitelistedEvents?: string[];
-  cleanupThreshold?: number; // 밀리초 단위의 비활성 임계값
+  cleanupDetachedEvents?: boolean;
+  cleanupDuplicateEvents?: boolean;
+  throttleFrequentEvents?: boolean;
 }
 
 /**
  * 리소스 최적화 설정
  */
 export interface ResourceOptimizationOptions {
-  unloadIframes?: boolean;
-  pauseMedia?: boolean;
-  offscreenBufferSize?: number; // 뷰포트 외부 여백 크기 (픽셀)
+  cleanupImages?: boolean;
+  cleanupDomElements?: boolean;
+  cleanupCaches?: boolean;
+  cleanupTimers?: boolean;
 }
 
 /**
@@ -59,8 +48,8 @@ export interface ResourceOptimizationOptions {
 export interface MemoryOptimizationRequest {
   level: OptimizationLevel;
   emergency?: boolean;
-  cacheOptions?: CacheOptimizationOptions;
-  domOptions?: DOMOptimizationOptions;
+  componentId?: string;
+  source?: string;
   eventOptions?: EventOptimizationOptions;
   resourceOptions?: ResourceOptimizationOptions;
 }
@@ -70,14 +59,12 @@ export interface MemoryOptimizationRequest {
  */
 export interface MemoryOptimizationResponse {
   success: boolean;
-  optimizationLevel: OptimizationLevel;
-  memoryBefore?: MemoryInfo;
-  memoryAfter?: MemoryInfo;
   freedMemory?: number;
   freedMB?: number;
   duration?: number;
-  timestamp: number;
   error?: string;
+  level: OptimizationLevel;
+  timestamp: number;
 }
 
 /**

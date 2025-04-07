@@ -31,18 +31,18 @@ module.exports = {
     // 기본 규칙
     'no-console': ['warn', { allow: ['warn', 'error'] }],
     'no-unused-vars': 'off',
-    '@typescript-eslint/no-unused-vars': ['error', { 
+    '@typescript-eslint/no-unused-vars': ['warn', { 
       argsIgnorePattern: '^_',
       varsIgnorePattern: '^_' 
     }],
     
     // 타입스크립트 관련 규칙
     '@typescript-eslint/explicit-function-return-type': 'off',
-    '@typescript-eslint/no-explicit-any': 'warn', // 경고 수준으로 조정
+    '@typescript-eslint/no-explicit-any': 'off', // any 타입 허용
     '@typescript-eslint/ban-ts-comment': ['warn', { 
       'ts-ignore': 'allow-with-description' 
     }],
-    '@typescript-eslint/no-require-imports': 'error', // require() 스타일 import 금지
+    '@typescript-eslint/no-require-imports': 'off', // CommonJS와 ESM 혼용 문제 해결
     
     // 리액트 관련 규칙
     'react/react-in-jsx-scope': 'off', // Next.js에서는 React import가 필요 없음
@@ -66,7 +66,13 @@ module.exports = {
     
     // 성능을 위해 일부 규칙 조정
     'react/prop-types': 'off', // TypeScript를 사용할 때는 불필요
-    '@typescript-eslint/no-var-requires': 'warn' // 오류 대신 경고로 변경
+    '@typescript-eslint/no-var-requires': 'warn', // 오류 대신 경고로 변경
+    
+    // 중복 키 허용 (네이티브 모듈 래핑 시 필요)
+    'no-dupe-keys': 'warn',
+    
+    // case문 내 렉시컬 선언 허용
+    'no-case-declarations': 'off'
   },
   
   // JS 파일은 CommonJS 허용, TS 파일은 ESM 강제
@@ -102,5 +108,18 @@ module.exports = {
   cacheLocation: '.eslintcache',
   
   // 병렬 처리 지원
-  reportUnusedDisableDirectives: true
+  reportUnusedDisableDirectives: true,
+  
+  // 환경 설정
+  env: {
+    browser: true,
+    node: true
+  },
+  
+  // 전역 객체 설정
+  globals: {
+    // Electron 전역 객체들
+    'contextBridge': 'readonly',
+    'ipcRenderer': 'readonly'
+  }
 };

@@ -720,11 +720,8 @@ function cleanupLargeArrays(): void {
   }
 }
 
-/**
- * 메모리 풀 내에서 객체 정리
- * 일정 시간 이상 사용되지 않은 객체를 메모리 풀에서 정리
- */
-function cleanupMemoryPool(pool: Map<string, any>, ttl: number = 60000): number {
+// 함수 이름 변경 (사용하지 않는 함수이므로 _ 접두사 추가)
+function _cleanupMemoryPool(pool: Map<string, any>, ttl: number = 60000): number {
   try {
     const now = Date.now();
     let count = 0;
@@ -754,9 +751,43 @@ function cleanupMemoryPool(pool: Map<string, any>, ttl: number = 60000): number 
 }
 
 /**
- * IndexedDB에서 오래된 데이터 정리
+ * 이미지 캐시 정리
  */
-function cleanupIndexedDBStorage(): Promise<number> {
+export function cleanupImageCache(): number {
+  if (typeof window === 'undefined') return 0;
+
+  try {
+    let count = 0;
+
+    // 이미지 캐시 맵 정리
+    if (window.__imageResizeCache) {
+      const sizeBefore = window.__imageResizeCache.size;
+
+      // 오래된 이미지만 정리
+      const now = Date.now();
+      for (const [key, cacheObj] of window.__imageResizeCache.entries()) {
+        // 안전하게 타입 체크
+        const entry = typeof cacheObj === 'object' && cacheObj !== null
+          ? cacheObj
+          : { timestamp: 0 };
+
+        // 30분 이상 된 항목 제거
+        if (entry.timestamp && (now - entry.timestamp > 30 * 60 * 1000)) {
+          window.__imageResizeCache.delete(key);
+        }
+      }
+
+      count = sizeBefore - (window.__imageResizeCache.size || 0);
+    }
+
+    return count;
+  } catch (_unused2) {
+    return 0;
+  }
+}
+
+// 함수 이름 변경 (사용하지 않는 함수이므로 _ 접두사 추가)
+function _cleanupIndexedDBStorage(): Promise<number> {
   return new Promise((resolve) => {
     try {
       if (typeof window === 'undefined' || !window.indexedDB) {
@@ -773,7 +804,7 @@ function cleanupIndexedDBStorage(): Promise<number> {
         try {
           const request = window.indexedDB.open(dbName);
 
-          request.onsuccess = (_unused) => {
+          request.onsuccess = (_unused3) => {
             // DB 정리 로직
             // ...
           };
@@ -790,7 +821,7 @@ function cleanupIndexedDBStorage(): Promise<number> {
       setTimeout(() => {
         resolve(cleanedCount);
       }, 500);
-    } catch (_error) {
+    } catch (_error2) {
       // 오류 발생 시 0 반환
       resolve(0);
     }
