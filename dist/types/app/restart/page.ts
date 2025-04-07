@@ -1,4 +1,4 @@
-// File: C:\Users\user\Desktop\typing-stats-app\src\app\restart\page.tsx
+// File: C:\Users\user\Desktop\loop\src\app\restart\page.tsx
 import * as entry from '../../../../src/app/restart/page.js'
 import type { ResolvingMetadata, ResolvingViewport } from 'next/dist/lib/metadata/types/metadata-interface.js'
 

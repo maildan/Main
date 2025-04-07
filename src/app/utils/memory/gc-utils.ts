@@ -28,6 +28,8 @@ export async function requestGC(_emergency: boolean = false): Promise<GCResult |
     console.error('가비지 컬렉션 요청 오류:', error);
     return {
       success: false,
+      freedMemory: 0,
+      freedMB: 0,
       timestamp: Date.now(),
       error: error instanceof Error ? error.message : '알 수 없는 오류'
     };
@@ -42,17 +44,17 @@ export async function cleanupMemory(): Promise<boolean> {
   try {
     // 브라우저 환경에서만 실행
     if (!isBrowser) return false;
-    
+
     // 가능한 경우 global.gc 호출
     if (typeof window.gc === 'function') {
       window.gc();
     }
-    
+
     // 미사용 이미지 캐시 정리
     if (window.__imageResizeCache) {
       window.__imageResizeCache.clear();
     }
-    
+
     // 오브젝트 URL 정리
     if (window.__objectUrls) {
       for (const [_key, url] of window.__objectUrls) {
@@ -60,7 +62,7 @@ export async function cleanupMemory(): Promise<boolean> {
       }
       window.__objectUrls.clear();
     }
-    
+
     return true;
   } catch (error) {
     console.error('메모리 정리 오류:', error);
@@ -77,7 +79,7 @@ export function setupPeriodicGC(interval: number = 60000): () => void {
   const timerId = setInterval(async () => {
     await requestGC(false);
   }, interval);
-  
+
   return () => {
     clearInterval(timerId);
   };
@@ -96,14 +98,14 @@ export function suggestGarbageCollection(): void {
     } else {
       // GC를 직접 호출할 수 없는 경우 간접적으로 메모리 압박을 가함
       const now = Date.now();
-      
+
       // 너무 자주 호출되지 않도록 조절
       if (now - lastGCTime < MIN_GC_INTERVAL) {
         return;
       }
-      
+
       lastGCTime = now;
-      
+
       // 메모리 할당 후 해제하여 GC 유도
       try {
         const arr = new Array(10000).fill({});
@@ -121,7 +123,7 @@ export function suggestGarbageCollection(): void {
 export async function clearBrowserCaches(): Promise<boolean> {
   try {
     if (!isBrowser) return false;
-    
+
     // 사용 가능한 캐시 API가 있으면 정리
     if ('caches' in window) {
       const cacheNames = await window.caches.keys();
@@ -129,7 +131,7 @@ export async function clearBrowserCaches(): Promise<boolean> {
         cacheNames.map(cacheName => window.caches.delete(cacheName))
       );
     }
-    
+
     return true;
   } catch (error) {
     console.error('브라우저 캐시 정리 오류:', error);
@@ -143,16 +145,16 @@ export async function clearBrowserCaches(): Promise<boolean> {
 export function clearStorageCaches(): boolean {
   try {
     if (!isBrowser) return false;
-    
+
     // 세션 스토리지는 완전히 정리
     if (window.sessionStorage) {
       window.sessionStorage.clear();
     }
-    
+
     // 로컬 스토리지는 임시 데이터만 정리
     if (window.localStorage) {
       const keysToDelete: string[] = [];
-      
+
       for (let i = 0; i < window.localStorage.length; i++) {
         const key = window.localStorage.key(i);
         // null 체크 추가
@@ -160,10 +162,10 @@ export function clearStorageCaches(): boolean {
           keysToDelete.push(key);
         }
       }
-      
+
       keysToDelete.forEach(key => window.localStorage.removeItem(key));
     }
-    
+
     return true;
   } catch (error) {
     console.error('스토리지 캐시 정리 오류:', error);
@@ -211,14 +213,14 @@ function cleanLocalStorageCache(): boolean {
   try {
     // 임시 데이터만 정리
     const keysToRemove: string[] = [];
-    
+
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
       if (key && (key.startsWith('cache_') || key.startsWith('temp_'))) {
         keysToRemove.push(key);
       }
     }
-    
+
     keysToRemove.forEach(key => localStorage.removeItem(key));
     return true;
   } catch (error) {
@@ -236,7 +238,7 @@ function cleanMemoryCache(): boolean {
     if (window.__imageResizeCache) {
       window.__imageResizeCache.clear();
     }
-    
+
     // 오브젝트 URL 정리
     if (window.__objectUrls) {
       for (const [_key, url] of window.__objectUrls) {
@@ -244,7 +246,7 @@ function cleanMemoryCache(): boolean {
       }
       window.__objectUrls.clear();
     }
-    
+
     return true;
   } catch (error) {
     console.error('메모리 캐시 정리 오류:', error);
@@ -258,13 +260,13 @@ function cleanMemoryCache(): boolean {
 export function cleanInactiveCaches(): boolean {
   try {
     if (!isBrowser) return false;
-    
+
     // 접근 시간 추적을 위한 메타데이터 키
     const CACHE_ACCESS_KEY = 'cache_last_access';
-    
+
     // 현재 시간
     const now = Date.now();
-    
+
     // 마지막 접근 시간 정보 로드
     let accessInfo: Record<string, number> = {};
     try {
@@ -275,7 +277,7 @@ export function cleanInactiveCaches(): boolean {
     } catch {
       // 파싱 오류 무시, 빈 객체 사용
     }
-    
+
     // 캐시 항목 스캔
     const keysToCheck: string[] = [];
     for (let i = 0; i < localStorage.length; i++) {
@@ -284,23 +286,23 @@ export function cleanInactiveCaches(): boolean {
         keysToCheck.push(key);
       }
     }
-    
+
     // 일정 시간 접근되지 않은 캐시 정리 (7일 이상)
     const expiryTime = 7 * 24 * 60 * 60 * 1000; // 7일
     const expiredKeys = keysToCheck.filter(key => {
       const lastAccess = accessInfo[key] || 0;
       return now - lastAccess > expiryTime;
     });
-    
+
     // 만료된 키 제거
     expiredKeys.forEach(key => {
       localStorage.removeItem(key);
       delete accessInfo[key];
     });
-    
+
     // 접근 정보 업데이트
     localStorage.setItem(CACHE_ACCESS_KEY, JSON.stringify(accessInfo));
-    
+
     return true;
   } catch (error) {
     console.error('비활성 캐시 정리 오류:', error);
@@ -314,32 +316,32 @@ export function cleanInactiveCaches(): boolean {
 export function cleanAllCaches(): boolean {
   try {
     if (!isBrowser) return false;
-    
+
     // 세션 스토리지 정리
     sessionStorage.clear();
-    
+
     // 로컬 스토리지에서 캐시 키 찾기
     const cacheKeys: string[] = [];
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
       if (key && (
-        key.startsWith('cache_') || 
-        key.startsWith('temp_') || 
+        key.startsWith('cache_') ||
+        key.startsWith('temp_') ||
         key.includes('cache')
       )) {
         cacheKeys.push(key);
       }
     }
-    
+
     // 캐시 키 제거
     cacheKeys.forEach(key => localStorage.removeItem(key));
-    
+
     // 메모리 내 캐시 정리
     cleanMemoryCache();
-    
+
     // 브라우저 캐시 정리
     clearBrowserCaches();
-    
+
     return true;
   } catch (error) {
     console.error('모든 캐시 정리 오류:', error);
@@ -382,7 +384,7 @@ if (typeof window !== 'undefined') {
       }
     };
   }
-  
+
   // 옵셔널 체이닝 사용 + cleanAllCaches 대신 clearStorageCaches 사용
   window.__memoryOptimizer?.clearStorageCaches?.();
   window.__memoryOptimizer?.suggestGarbageCollection?.();
@@ -390,6 +392,6 @@ if (typeof window !== 'undefined') {
 }
 
 // 매개변수 사용되지 않음 경고 수정 (이름 앞에 _ 추가)
-async function defaultRequestGC(_emergency?: boolean): Promise<any> {
+async function _defaultRequestGC(_emergency?: boolean): Promise<any> {
   return Promise.resolve();
 }

@@ -22,7 +22,7 @@
     "typecheck": "tsc --noEmit",
     "format": "prettier --write \"**/*.{js,jsx,ts,tsx,json,md}\"",
     "analyze": "cross-env ANALYZE=true next build",
-    "postbuild": "next-sitemap",
+    "postbuild": "next-sitemap --config next-sitemap.config.js",
     "init": "npm install --legacy-peer-deps && npm run fix:eslint-config && npm run lint:fix-all && node scripts/setup-eslint.cjs && node scripts/setup-cicd.cjs",
     "init:fix-all": "npm run fix:eslint-config && npm run lint:fix-all && node scripts/setup-eslint.cjs",
     "init:ci": "npm ci --legacy-peer-deps && npm run typecheck && npm run lint:check && npm run build",

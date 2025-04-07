@@ -4,13 +4,13 @@
  * 프론트엔드에서 네이티브 모듈 기능을 사용하기 위한 래퍼 함수들을 제공합니다.
  */
 
-import type { 
-  MemoryInfo, 
-  OptimizationResult, 
-  GCResult, 
-  GpuInfo,
-  GpuComputationResult,
-  TaskResult
+import type {
+  MemoryInfo,
+  OptimizationResult,
+  GCResult,
+  // GpuInfo,
+  // GpuComputationResult,
+  // TaskResult 
 } from '@/types';
 import { OptimizationLevel } from '@/types/native-module';
 
@@ -34,7 +34,7 @@ async function enhancedFetch(url: string, options: RequestInit = {}): Promise<Re
         ...options.headers,
       },
     });
-    
+
     return response;
   } catch (error) {
     console.error(`Fetch 요청 실패 (${url}):`, error);
@@ -49,14 +49,14 @@ export async function getMemoryInfo() {
   if (!isBrowser) {
     return { success: false, error: 'Server environment', timestamp: Date.now() };
   }
-  
+
   try {
     const response = await enhancedFetch('/api/native/memory');
-    
+
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
-    
+
     return await response.json();
   } catch (error) {
     console.error('메모리 정보 가져오기 실패:', error);
@@ -80,11 +80,11 @@ export async function optimizeMemory(level = 2, emergency = false) {
         emergency
       }),
     });
-    
+
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
-    
+
     return await response.json();
   } catch (error) {
     console.error('메모리 최적화 실패:', error);
@@ -106,11 +106,11 @@ export async function forceGarbageCollection() {
         type: 'gc'
       }),
     });
-    
+
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
-    
+
     return await response.json();
   } catch (error) {
     console.error('가비지 컬렉션 실패:', error);
@@ -127,11 +127,11 @@ export async function forceGarbageCollection() {
 export async function getGpuInfo() {
   try {
     const response = await enhancedFetch('/api/native/gpu');
-    
+
     if (!response.ok) {
       throw new Error(`GPU 정보 요청 실패: ${response.status}`);
     }
-    
+
     return await response.json();
   } catch (error) {
     console.error('GPU 정보 가져오기 오류:', error);
@@ -155,18 +155,18 @@ export async function setGpuAcceleration(enable: boolean) {
     const requestBody = JSON.stringify({
       enable
     });
-    
+
     // 요청 보내기
     const response = await enhancedFetch('/api/native/gpu/acceleration', {
       method: 'PUT',
       body: requestBody
     });
-    
+
     // 응답 처리
     if (!response.ok) {
       throw new Error(`GPU 가속 설정 요청 실패: ${response.status}`);
     }
-    
+
     return await response.json();
   } catch (error) {
     console.error('GPU 가속 설정 오류:', error);
@@ -185,25 +185,25 @@ export async function setGpuAcceleration(enable: boolean) {
  * @param data 계산에 사용할 데이터
  * @param computationType 계산 유형
  */
-export async function performGpuComputation<T = unknown>(data: unknown, computationType: string) {
+export async function performGpuComputation<_T = unknown>(data: unknown, computationType: string) {
   try {
     // 요청 데이터 준비
     const requestBody = JSON.stringify({
       data,
       computationType
     });
-    
+
     // 요청 보내기
     const response = await enhancedFetch('/api/native/gpu', {
       method: 'POST',
       body: requestBody
     });
-    
+
     // 응답 처리
     if (!response.ok) {
       throw new Error(`GPU 계산 요청 실패: ${response.status}`);
     }
-    
+
     return await response.json();
   } catch (error) {
     console.error('GPU 계산 오류:', error);
@@ -222,26 +222,26 @@ export async function getNativeModuleStatus() {
   if (!isBrowser) {
     return { success: false, error: 'Server environment', timestamp: Date.now() };
   }
-  
+
   // 캐시된 상태가 있고 TTL 내라면 캐시된 값 반환
   const now = Date.now();
   if (moduleStatusCache && now - lastStatusCheck < STATUS_CACHE_TTL) {
     return moduleStatusCache;
   }
-  
+
   try {
     const response = await enhancedFetch('/api/native/status');
-    
+
     if (!response.ok) {
       throw new Error(`네이티브 모듈 상태 요청 실패: ${response.status}`);
     }
-    
+
     const result = await response.json();
-    
+
     // 캐시 업데이트
     moduleStatusCache = result;
     lastStatusCheck = now;
-    
+
     return result;
   } catch (error) {
     console.error('네이티브 모듈 상태 확인 실패:', error);

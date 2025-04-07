@@ -8,7 +8,20 @@
   "..\\node_modules\\next\\dist\\client\\index.js -> ../pages/_error": {
     "id": 9341,
     "files": [
-      "static/chunks/341.66f870a6a6a3f675.js"
+      "static/chunks/341.d3db469324d5a518.js"
+    ]
+  },
+  "app\\page.tsx -> ./components/NativeModuleTest": {
+    "id": 1001,
+    "files": [
+      "static/css/534f6afa1b4b15d2.css",
+      "static/chunks/1.deeb261e8fda5016.js"
+    ]
+  },
+  "app\\utils\\native-memory-bridge.ts -> ../../server/native": {
+    "id": 910,
+    "files": [
+      "static/chunks/910.19682e7e3525f8de.js"
     ]
   }
 }

@@ -1,200 +1,290 @@
 /**
- * 네이티브 모듈과의 통신 브릿지
+ * 네이티브 메모리 모듈 브리지
+ * 
+ * 이 모듈은 네이티브 모듈과 연결하여 메모리 관련 기능을 제공합니다.
  */
 
-import { MemoryInfo, OptimizationResult, OptimizationLevel, GCResult } from '@/types';
-import { safeOptimizationLevel } from './memory/optimization-utils';
+import { MemoryInfo, GCResult, OptimizationLevel } from '@/types';
+import { toNativeOptimizationLevel } from './enum-converters';
+
+/**
+ * 네이티브 모듈 로드
+ * 빌드 타임에 사용 가능한 모든 메서드를 찾을 수 없어 any 타입 사용
+ */
+async function loadNativeModule(): Promise<any> {
+  try {
+    // Typescript 타입 오류 피하기 위해 dynamic import 사용
+    const moduleImport = await import('../../server/native').catch(() => null);
+
+    // import의 결과가 default 속성을 가지거나 직접 객체인 경우 처리
+    if (moduleImport) {
+      return 'default' in moduleImport ? moduleImport.default : moduleImport;
+    }
+
+    return null;
+  } catch (error) {
+    console.error('네이티브 모듈 로드 오류:', error);
+    return null;
+  }
+}
 
 /**
  * 네이티브 메모리 정보 요청
+ * @returns Promise<MemoryInfo | null>
  */
 export async function requestNativeMemoryInfo(): Promise<MemoryInfo | null> {
-  // 기본적인 브라우저 환경 체크
-  if (typeof window === 'undefined') {
-    return null;
-  }
-
   try {
-    // 백엔드 API를 통해 메모리 정보 요청
-    const response = await fetch('/api/native/memory/info');
-    if (!response.ok) {
-      throw new Error(`API 요청 실패: ${response.status}`);
+    const nativeModule = await loadNativeModule();
+
+    if (!nativeModule || typeof nativeModule.getMemoryInfo !== 'function') {
+      return null;
     }
 
-    const data = await response.json();
-    return data.memoryInfo;
+    const result = await nativeModule.getMemoryInfo();
+
+    // 결과가 문자열인 경우 JSON 파싱
+    if (typeof result === 'string') {
+      try {
+        return JSON.parse(result) as MemoryInfo;
+      } catch (e) {
+        console.error('메모리 정보 파싱 오류:', e);
+        return null;
+      }
+    }
+
+    return result as MemoryInfo;
   } catch (error) {
     console.error('네이티브 메모리 정보 요청 오류:', error);
     return null;
   }
 }
 
-import { optimizeMemory, forceGarbageCollection, getMemoryInfo as fetchMemoryInfo } from './nativeModuleClient';
-
-// 브리지 상태
-const bridgeState = {
-  isInitialized: false,
-  isAvailable: false,
-  lastError: null as Error | null,
-  lastCheck: 0,
-  errorCount: 0
-};
-
-/**
- * 에러 처리 래퍼 함수
- */
-async function withErrorHandling<T>(
-  operation: () => Promise<T>, // 타입 오류 수정
-  fallback: () => Promise<T> | T | null,
-  operationName: string
-): Promise<T | null> {
-  try {
-    // 브리지가 초기화되지 않은 경우
-    if (!bridgeState.isInitialized) {
-      // 브리지 상태 확인
-      await checkBridgeAvailability();
-    }
-
-    if (!bridgeState.isAvailable) {
-      console.warn(`Native bridge not available for ${operationName}`);
-      return fallback();
-    }
-
-    // 작업 실행
-    return await operation();
-  } catch (error) {
-    // 오류 기록
-    bridgeState.errorCount++;
-    bridgeState.lastError = error instanceof Error
-      ? error
-      : new Error(String(error));
-
-    console.error(`Native bridge error in ${operationName}:`, error);
-
-    // 폴백 반환
-    return fallback();
-  }
-}
-
-/**
- * 브리지 가용성 확인
- */
-async function checkBridgeAvailability(): Promise<boolean> {
-  try {
-    // 마지막 확인 후 10초 이내면 캐시된 값 반환
-    const now = Date.now();
-    if (now - bridgeState.lastCheck < 10000 && bridgeState.isInitialized) {
-      return bridgeState.isAvailable;
-    }
-
-    // 메모리 정보 가져오기 시도로 가용성 확인
-    const response = await fetchMemoryInfo();
-
-    bridgeState.isAvailable = response.success;
-    bridgeState.isInitialized = true;
-    bridgeState.lastCheck = now;
-
-    if (!response.success) {
-      bridgeState.lastError = new Error(response.error || 'Unknown error in native bridge');
-    } else {
-      bridgeState.lastError = null;
-    }
-
-    return bridgeState.isAvailable;
-  } catch (error) {
-    bridgeState.isAvailable = false;
-    bridgeState.isInitialized = true;
-    bridgeState.lastError = error instanceof Error
-      ? error
-      : new Error(String(error));
-    bridgeState.lastCheck = Date.now();
-    return false;
-  }
-}
-
 /**
  * 네이티브 가비지 컬렉션 요청
+ * @returns Promise<GCResult | null>
  */
 export async function requestNativeGarbageCollection(): Promise<GCResult | null> {
-  return withErrorHandling(
-    async () => {
-      const response = await forceGarbageCollection();
+  try {
+    const nativeModule = await loadNativeModule();
 
-      if (response.success && response.result) {
-        return response.result;
+    if (!nativeModule || typeof nativeModule.performGarbageCollection !== 'function') {
+      return null;
+    }
+
+    const result = await nativeModule.performGarbageCollection();
+
+    // 결과가 문자열인 경우 JSON 파싱
+    if (typeof result === 'string') {
+      try {
+        return JSON.parse(result) as GCResult;
+      } catch (e) {
+        console.error('GC 결과 파싱 오류:', e);
+        return null;
       }
+    }
 
-      throw new Error(response.error || '가비지 컬렉션을 수행할 수 없습니다');
-    },
-    () => ({
-      success: false,
-      timestamp: Date.now(),
-      freedMemory: 0,
-      freedMB: 0,
-      duration: 0,
-      error: bridgeState.lastError?.message || '가비지 컬렉션을 사용할 수 없습니다'
-    }),
-    '가비지 컬렉션'
-  );
+    return result as GCResult;
+  } catch (error) {
+    console.error('네이티브 가비지 컬렉션 요청 오류:', error);
+    return null;
+  }
 }
 
 /**
  * 네이티브 메모리 최적화 요청
+ * @param level 최적화 레벨
+ * @param emergency 긴급 여부
+ * @returns Promise<any | null>
  */
 export async function requestNativeMemoryOptimization(
-  level: number,
-  emergency = false
-): Promise<OptimizationResult | null> {
-  // 올바른 레벨 값 확보
-  const safeLevel = safeOptimizationLevel(level);
+  level: OptimizationLevel | number,
+  emergency: boolean = false
+): Promise<any | null> {
+  try {
+    const nativeModule = await loadNativeModule();
 
-  return withErrorHandling(
-    async () => {
-      const response = await optimizeMemory(safeLevel, emergency);
+    if (!nativeModule || typeof nativeModule.optimizeMemory !== 'function') {
+      return null;
+    }
 
-      if (response.success && response.result) {
-        return response.result;
+    // 네이티브 최적화 레벨로 변환
+    const nativeLevel = typeof level === 'number'
+      ? toNativeOptimizationLevel(level as OptimizationLevel)
+      : toNativeOptimizationLevel(level);
+
+    const result = await nativeModule.optimizeMemory(nativeLevel, emergency);
+
+    // 결과가 문자열인 경우 JSON 파싱
+    if (typeof result === 'string') {
+      try {
+        return JSON.parse(result);
+      } catch (e) {
+        console.error('최적화 결과 파싱 오류:', e);
+        return null;
       }
+    }
 
-      throw new Error(response.error || '메모리 최적화를 수행할 수 없습니다');
-    },
-    () => ({
-      success: false,
-      optimizationLevel: safeLevel,
-      timestamp: Date.now(),
-      freedMemory: 0,
-      freedMB: 0,
-      error: bridgeState.lastError?.message || '메모리 최적화를 사용할 수 없습니다'
-    }),
-    '메모리 최적화'
-  );
+    return result;
+  } catch (error) {
+    console.error('네이티브 메모리 최적화 요청 오류:', error);
+    return null;
+  }
 }
 
 /**
- * 네이티브 브리지 상태 확인
+ * 네이티브 모듈 상태 확인
+ * @returns Promise<{ available: boolean, version: string }>
  */
-export async function checkNativeBridgeStatus(): Promise<{
+export async function getNativeModuleStatus(): Promise<{
   available: boolean;
-  initialized: boolean;
-  lastCheck: number;
-  errorCount: number;
-  lastError: string | null;
+  version: string;
+  fallbackMode: boolean;
 }> {
-  await checkBridgeAvailability();
+  try {
+    const nativeModule = await loadNativeModule();
 
-  return {
-    available: bridgeState.isAvailable,
-    initialized: bridgeState.isInitialized,
-    lastCheck: bridgeState.lastCheck,
-    errorCount: bridgeState.errorCount,
-    lastError: bridgeState.lastError?.message || null
-  };
+    if (!nativeModule) {
+      return { available: false, version: 'unavailable', fallbackMode: true };
+    }
+
+    let version = 'unknown';
+    if (typeof nativeModule.getNativeModuleVersion === 'function') {
+      try {
+        version = await nativeModule.getNativeModuleVersion();
+      } catch (e) {
+        console.warn('네이티브 모듈 버전 확인 오류:', e);
+      }
+    }
+
+    let fallbackMode = false;
+    if (typeof nativeModule.isFallbackMode === 'function') {
+      try {
+        fallbackMode = await nativeModule.isFallbackMode();
+      } catch (e) {
+        console.warn('네이티브 모듈 폴백 모드 확인 오류:', e);
+        fallbackMode = true;
+      }
+    }
+
+    return {
+      available: true,
+      version,
+      fallbackMode
+    };
+  } catch (error) {
+    console.error('네이티브 모듈 상태 확인 오류:', error);
+    return {
+      available: false,
+      version: 'error',
+      fallbackMode: true
+    };
+  }
 }
 
 /**
- * 브리지 상태 게터 함수들
+ * GPU 정보 가져오기
  */
-export const getNativeBridgeState = () => ({ ...bridgeState });
-export const isNativeBridgeAvailable = () => bridgeState.isAvailable;
-export const getBridgeErrorCount = () => bridgeState.errorCount;
-export const getLastBridgeError = () => bridgeState.lastError;
+export async function getGpuInfo(): Promise<any> {
+  try {
+    const nativeModule = await loadNativeModule();
+
+    if (!nativeModule || typeof nativeModule.getGpuInfo !== 'function') {
+      return { success: false, error: 'GPU 정보 함수 사용 불가' };
+    }
+
+    return await nativeModule.getGpuInfo();
+  } catch (error) {
+    console.error('GPU 정보 가져오기 오류:', error);
+    return { success: false, error: String(error) };
+  }
+}
+
+/**
+ * GPU 가속화 설정
+ * @param enable 활성화 여부
+ */
+export async function setGpuAcceleration(enable: boolean): Promise<any> {
+  try {
+    const nativeModule = await loadNativeModule();
+
+    if (!nativeModule || typeof nativeModule.setGpuAcceleration !== 'function') {
+      return { success: false, error: 'GPU 가속화 함수 사용 불가' };
+    }
+
+    return await nativeModule.setGpuAcceleration(enable);
+  } catch (error) {
+    console.error('GPU 가속화 설정 오류:', error);
+    return { success: false, error: String(error) };
+  }
+}
+
+/**
+ * GPU 계산 수행
+ * @param data 계산 데이터
+ * @param taskType 작업 유형
+ */
+export async function performGpuComputation<T = unknown>(
+  data: unknown,
+  taskType: string
+): Promise<{ success: boolean; result?: T; error?: string }> {
+  try {
+    const nativeModule = await loadNativeModule();
+
+    if (!nativeModule || typeof nativeModule.performGpuComputation !== 'function') {
+      return { success: false, error: 'GPU 계산 함수 사용 불가' };
+    }
+
+    const result = await nativeModule.performGpuComputation(data, taskType);
+    return result;
+  } catch (error) {
+    console.error('GPU 계산 오류:', error);
+    return { success: false, error: String(error) };
+  }
+}
+
+/**
+ * 네이티브 메모리 설정 정보 가져오기
+ * @returns Promise<any | null>
+ */
+export async function getNativeMemorySettings(): Promise<any | null> {
+  try {
+    const nativeModule = await loadNativeModule();
+    if (!nativeModule || typeof nativeModule.get_memory_settings_json !== 'function') {
+      return null;
+    }
+
+    const settingsJson = nativeModule.get_memory_settings_json();
+    return JSON.parse(settingsJson);
+  } catch (error) {
+    console.error('네이티브 메모리 설정 가져오기 오류:', error);
+    return null;
+  }
+}
+
+/**
+ * 네이티브 메모리 설정 업데이트
+ * @param settings 업데이트할 설정 객체
+ * @returns Promise<boolean>
+ */
+export async function updateNativeMemorySettings(settings: any): Promise<boolean> {
+  try {
+    const nativeModule = await loadNativeModule();
+    if (!nativeModule || typeof nativeModule.update_memory_settings_json !== 'function') {
+      return false;
+    }
+
+    const settingsJson = JSON.stringify(settings);
+    const result = nativeModule.update_memory_settings_json(settingsJson);
+
+    // 결과가 JSON 문자열인 경우 파싱
+    if (typeof result === 'string') {
+      const parsed = JSON.parse(result);
+      return parsed.success === true;
+    }
+
+    return !!result;
+  } catch (error) {
+    console.error('네이티브 메모리 설정 업데이트 오류:', error);
+    return false;
+  }
+}

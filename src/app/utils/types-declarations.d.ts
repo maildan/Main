@@ -39,56 +39,52 @@ interface Window {
     setUpdateInterval: (interval: number) => Promise<boolean>;
     getSystemInfo: () => Promise<SystemInfo>;
   };
-  
-  // 가비지 컬렉션 관련
+
+  // GC 함수 - 일부 브라우저에서 특수 플래그로 활성화됨
   gc?: () => void;
-  
-  // 전역 메모리 관리 상태
+
+  // 메모리 최적화 관련 전역 객체
   __memoryOptimizer?: {
-    suggestGarbageCollection: () => void;
-    requestGC: (emergency?: boolean) => Promise<GCResult | null>;
-    clearBrowserCaches: () => Promise<boolean>;
-    clearStorageCaches: () => boolean;
-    checkMemoryUsage: () => Record<string, number> | null;
-    forceGC: () => boolean;
-    // 추가 메서드들
-    getMemoryInfo: () => any;
-    optimizeMemory: (aggressive?: boolean) => Promise<any>;
-    optimizeImageResources: () => Promise<any>;
+    suggestGarbageCollection?: () => void;
+    requestGC?: (emergency?: boolean) => Promise<any>;
+    clearBrowserCaches?: () => Promise<boolean>;
+    clearStorageCaches?: () => boolean;
+    checkMemoryUsage?: () => any;
+    forceGC?: () => boolean;
+    optimizeMemory?: (aggressive?: boolean) => void;
+    cleanAllCaches?: () => boolean;
+    cleanupPeriodicOptimization?: () => void;
     settings?: Record<string, any>;
-  };
-  
-  // 이미지 캐시 저장소
-  __imageResizeCache?: Map<string, string>;
-  
-  // 오브젝트 URL 저장소
-  __objectUrls?: Map<string, string>;
-  
-  // 앱 복구 기능
-  __appRecovery?: {
-    emergencyCleanup: () => void;
-    diagnostics: () => Record<string, unknown>;
-    optimizeMemory: (level: number) => boolean;
-  };
-  
-  // 메모리 관리자
-  __memoryManager?: {
-    settings: {
-      processingMode?: string;
-      [key: string]: any;
-    };
-    memoryInfo?: any;
     [key: string]: any;
   };
-  
-  // 기타 속성들
-  __nativeBinding?: boolean;
-  __gpuInfo?: any;
-  __gpuAccelerator?: any;
+
+  // 이미지 리사이즈 캐시
+  __imageResizeCache?: Map<string, string>;
+
+  // 오브젝트 URL 저장소
   __objectUrls?: Map<string, string>;
-  __widgetCache?: Map<string, any>;
-  __styleCache?: Record<string, any>;
-  __imageResizeCache?: Record<string, any>;
+
+  // GPU 가속 관련 전역 객체
+  __gpuAccelerator?: {
+    isGpuAccelerationEnabled?: () => Promise<boolean>;
+    getGpuInformation?: () => Promise<any>;
+    toggleGpuAcceleration?: (enable: boolean) => Promise<boolean>;
+    enableGpuAcceleration?: () => Promise<boolean>;
+    disableGpuAcceleration?: () => Promise<boolean>;
+    evaluateGpuPerformance?: () => Promise<number>;
+    executeGpuTask?: <T>(taskType: string, data: unknown) => Promise<T | null>;
+    settings?: Record<string, any>; // settings 속성 추가
+  };
+
+  // 메모리 관리자
+  __memoryManager?: {
+    memoryInfo?: any;
+    settings?: Record<string, any>;
+    [key: string]: any;
+  };
+
+  // 이벤트 리스너 추적
+  __eventListeners?: Record<string, Array<{ cleanup?: () => void }>>;
 }
 
 /**

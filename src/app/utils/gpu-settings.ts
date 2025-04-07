@@ -7,6 +7,8 @@
 
 import { getLocalStorage as getStorageItem, setLocalStorage as setStorageItem } from './storage-utils';
 import { setGpuAcceleration, getGpuInfo } from './nativeModuleClient';
+// Remove conflicting import and use the function defined in this file
+import { isGpuAccelerationEnabled } from './gpu-acceleration';
 
 // GPU 설정 인터페이스
 export interface GpuSettings {
@@ -39,19 +41,14 @@ const STORAGE_KEY = 'gpu-settings';
  */
 export async function loadGpuSettings(): Promise<GpuSettings> {
   try {
-    const settings = await getStorageItem<GpuSettings>(STORAGE_KEY);
-    if (!settings) {
-      return defaultGpuSettings;
+    const savedSettings = await getStorageItem(STORAGE_KEY);
+    if (typeof savedSettings === 'string') {
+      return { ...defaultGpuSettings, ...(JSON.parse(savedSettings) as GpuSettings) };
     }
-    
-    return {
-      ...defaultGpuSettings,
-      ...settings
-    };
   } catch (error) {
-    console.error('GPU 설정 로드 오류:', error);
-    return defaultGpuSettings;
+    console.error('GPU 설정 불러오기 오류:', error);
   }
+  return { ...defaultGpuSettings };
 }
 
 /**
@@ -60,7 +57,14 @@ export async function loadGpuSettings(): Promise<GpuSettings> {
  */
 export async function saveGpuSettings(settings: GpuSettings): Promise<boolean> {
   try {
-    await setStorageItem(STORAGE_KEY, settings);
+    await setStorageItem(STORAGE_KEY, JSON.stringify(settings));
+
+    // 전역 GPU 설정 객체 업데이트
+    updateGlobalGpuSettings(settings);
+
+    // 하드웨어 가속 설정 변경
+    await setGpuAccelerationState(settings.useHardwareAcceleration);
+
     return true;
   } catch (error) {
     console.error('GPU 설정 저장 오류:', error);
@@ -75,18 +79,18 @@ export async function saveGpuSettings(settings: GpuSettings): Promise<boolean> {
  */
 export async function setGpuAccelerationState(enabled: boolean): Promise<boolean> {
   try {
-    const success = await setGpuAcceleration(enabled);
-    
-    if (success) {
-      // 설정 업데이트
-      const settings = await loadGpuSettings();
+    const response = await setGpuAcceleration(enabled);
+
+    // 전역 설정 업데이트
+    if (typeof window !== 'undefined' && window.__gpuAccelerator) {
+      const settings = window.__gpuAccelerator.settings || {};
       settings.useHardwareAcceleration = enabled;
-      await saveGpuSettings(settings);
+      window.__gpuAccelerator.settings = settings;
     }
-    
-    return success;
+
+    return response.success === true;
   } catch (error) {
-    console.error('GPU 가속화 설정 오류:', error);
+    console.error('GPU 가속화 설정 변경 오류:', error);
     return false;
   }
 }
@@ -95,7 +99,16 @@ export async function setGpuAccelerationState(enabled: boolean): Promise<boolean
 // 타입 선언은 types-declarations.d.ts에 정의된 것과 일치시킴
 declare global {
   interface Window {
-    __gpuAccelerator?: any;
+    __gpuAccelerator?: {
+      isGpuAccelerationEnabled?: () => Promise<boolean>;
+      getGpuInformation?: () => Promise<any>;
+      toggleGpuAcceleration?: (enable: boolean) => Promise<boolean>;
+      enableGpuAcceleration?: () => Promise<boolean>;
+      disableGpuAcceleration?: () => Promise<boolean>;
+      evaluateGpuPerformance?: () => Promise<number>;
+      executeGpuTask?: <T = unknown>(taskType: string, data: unknown) => Promise<T | null>;
+      settings?: Record<string, any>;
+    };
   }
 }
 
@@ -106,11 +119,11 @@ declare global {
 export async function getGpuInformation(): Promise<any | null> {
   try {
     const response = await getGpuInfo();
-    
+
     if (response.success && response.gpuInfo) {
       return response.gpuInfo;
     }
-    
+
     return null;
   } catch (error) {
     console.error('GPU 정보 가져오기 오류:', error);
@@ -124,13 +137,13 @@ export async function getGpuInformation(): Promise<any | null> {
 export async function initializeGpuSettings(): Promise<void> {
   try {
     const settings = await loadGpuSettings();
-    
+
     // 하드웨어 가속화 설정 적용
     await setGpuAccelerationState(settings.useHardwareAcceleration);
-    
+
     // 전역 설정 객체 업데이트
     updateGlobalGpuSettings(settings);
-    
+
     console.log('GPU 설정 초기화 완료:', settings);
   } catch (error) {
     console.error('GPU 설정 초기화 중 오류 발생:', error);
@@ -141,13 +154,33 @@ export async function initializeGpuSettings(): Promise<void> {
  * 전역 GPU 설정 객체 업데이트
  */
 function updateGlobalGpuSettings(settings: GpuSettings): void {
-  // 윈도우 객체가 정의된 경우에만 실행
   if (typeof window !== 'undefined') {
-    if (!window.__gpuAccelerator) {
-      window.__gpuAccelerator = {};
-    }
-    
-    window.__gpuAccelerator.settings = settings;
+    window.__gpuAccelerator = {
+      isGpuAccelerationEnabled: async function () {
+        return isGpuAccelerationEnabled();
+      },
+      getGpuInformation: async function () {
+        return getGpuInformation();
+      },
+      toggleGpuAcceleration: async function (enable: boolean) {
+        return setGpuAccelerationState(enable);
+      },
+      enableGpuAcceleration: async function () {
+        return setGpuAccelerationState(true);
+      },
+      disableGpuAcceleration: async function () {
+        return setGpuAccelerationState(false);
+      },
+      evaluateGpuPerformance: async function () {
+        // 구현 필요시 추가
+        return 0;
+      },
+      executeGpuTask: async function <T = unknown>(_taskType: string, _data: unknown): Promise<T | null> {
+        // 구현 필요시 추가
+        return null;
+      },
+      settings
+    };
   }
 }
 
@@ -157,9 +190,9 @@ function updateGlobalGpuSettings(settings: GpuSettings): void {
  */
 export async function resetGpuSettings(): Promise<boolean> {
   try {
-    return await saveGpuSettings(defaultGpuSettings);
+    return await saveGpuSettings({ ...defaultGpuSettings });
   } catch (error) {
-    console.error('GPU 설정 재설정 중 오류 발생:', error);
+    console.error('GPU 설정 재설정 오류:', error);
     return false;
   }
 }
@@ -172,7 +205,7 @@ export async function getRecommendedGpuSettings(): Promise<Partial<GpuSettings>>
   try {
     // GPU 정보 가져오기
     const gpuInfo = await getGpuInformation();
-    
+
     if (!gpuInfo) {
       // GPU 정보를 가져올 수 없는 경우 기본 설정 반환
       return {
@@ -181,12 +214,12 @@ export async function getRecommendedGpuSettings(): Promise<Partial<GpuSettings>>
         highPerformance: false
       };
     }
-    
+
     // GPU 유형에 따른 설정 추천
     const deviceType = gpuInfo.device_type || '';
     const isIntegrated = deviceType.includes('Integrated');
     const isDiscrete = deviceType.includes('Discrete');
-    
+
     if (isDiscrete) {
       // 디스크리트 GPU - 고성능 설정
       return {
@@ -216,7 +249,9 @@ export async function getRecommendedGpuSettings(): Promise<Partial<GpuSettings>>
     console.error('GPU 설정 추천 중 오류 발생:', error);
     return {
       useHardwareAcceleration: false,
-      processingMode: 'cpu-intensive'
+      processingMode: 'cpu-intensive',
+      highPerformance: false,
+      memoryLimit: 64
     };
   }
 }

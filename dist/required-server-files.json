@@ -95,7 +95,7 @@
         "transform": "lodash/{{member}}"
       }
     },
-    "outputFileTracingRoot": "C:\\Users\\user\\Desktop\\typing-stats-app",
+    "outputFileTracingRoot": "C:\\Users\\user\\Desktop\\loop",
     "experimental": {
       "allowedDevOrigins": [],
       "nodeMiddleware": false,
@@ -174,7 +174,7 @@
       "forceSwcTransforms": false,
       "largePageDataBytes": 128000,
       "turbo": {
-        "root": "C:\\Users\\user\\Desktop\\typing-stats-app"
+        "root": "C:\\Users\\user\\Desktop\\loop"
       },
       "typedRoutes": false,
       "typedEnv": false,
@@ -280,7 +280,7 @@
     "bundlePagesRouterDependencies": false,
     "configFileName": "next.config.js"
   },
-  "appDir": "C:\\Users\\user\\Desktop\\typing-stats-app",
+  "appDir": "C:\\Users\\user\\Desktop\\loop",
   "relativeAppDir": "",
   "files": [
     "dist\\routes-manifest.json",

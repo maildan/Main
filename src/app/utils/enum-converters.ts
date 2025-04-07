@@ -2,14 +2,40 @@
  * 최적화 레벨 열거형 변환 유틸리티
  */
 import {
-  OptimizationLevel,
+  OptimizationLevel
+} from '@/types';
+import {
   NativeOptimizationLevel,
   APP_TO_NATIVE_LEVEL_MAP,
-  NATIVE_TO_APP_LEVEL_MAP,
-  MemoryEventType,
-  MemoryUsageLevel,
-  GpuTaskType
-} from '@/types';
+  NATIVE_TO_APP_LEVEL_MAP
+} from '@/types/optimization-level';
+import { MemoryUsageLevel } from '@/types';
+
+// MemoryEventType 열거형 선언
+export enum MemoryEventType {
+  PERIODIC_CHECK = 'periodic_check',
+  PAGE_NAVIGATION = 'page_navigation',
+  OPTIMIZATION = 'optimization',
+  COMPONENT_MOUNT = 'component_mount',
+  COMPONENT_UNMOUNT = 'component_unmount',
+  USER_ACTION = 'user_action',
+  GARBAGE_COLLECTION = 'garbage_collection',
+  RESOURCE_LOADING = 'resource_loading',
+  ERROR = 'error',
+  WARNING = 'warning',
+  CUSTOM = 'custom'
+}
+
+// GpuTaskType 열거형 선언
+export enum GpuTaskType {
+  MATRIX_MULTIPLICATION = 0,
+  TEXT_ANALYSIS = 1,
+  PATTERN_DETECTION = 2,
+  IMAGE_PROCESSING = 3,
+  DATA_AGGREGATION = 4,
+  TYPING_STATISTICS = 5,
+  CUSTOM = 6
+}
 
 /**
  * 최적화 레벨 문자열을 열거형으로 변환

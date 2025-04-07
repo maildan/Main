@@ -5,7 +5,8 @@
 import { requestNativeMemoryOptimization } from '@/app/utils/native-memory-bridge';
 import { OptimizationLevel } from '@/types/native-module';
 import { getMemoryInfo } from '../memory-info';
-import { logMemoryUsage, MemoryEventType } from '../logger';
+import { logMemoryUsage } from '../logger';
+import { MemoryEventType } from '@/app/utils/enum-converters'; // enum-converters에서 가져오기
 
 /**
  * 가벼운 수준의 메모리 최적화 수행
@@ -90,13 +91,13 @@ const optimizationHistory: Array<{
  */
 export async function recommendOptimizationLevel(): Promise<number> {
   const memoryInfo = await getMemoryInfo();
-  
+
   if (!memoryInfo) {
     return 0; // 정보를 얻을 수 없는 경우 기본값
   }
-  
+
   const memoryUsagePercent = memoryInfo.percentUsed || 0;
-  
+
   if (memoryUsagePercent > OPTIMIZATION_THRESHOLDS.LEVEL_4) {
     return 4;
   } else if (memoryUsagePercent > OPTIMIZATION_THRESHOLDS.LEVEL_3) {
@@ -106,7 +107,7 @@ export async function recommendOptimizationLevel(): Promise<number> {
   } else if (memoryUsagePercent > OPTIMIZATION_THRESHOLDS.LEVEL_1) {
     return 1;
   }
-  
+
   return 0;
 }
 
@@ -116,25 +117,25 @@ export async function recommendOptimizationLevel(): Promise<number> {
 export async function reportMemoryUsage(level: number): Promise<void> {
   try {
     const memoryInfo = await getMemoryInfo();
-    
+
     if (!memoryInfo) {
       return;
     }
-    
+
     const heapUsedMB = memoryInfo.heapUsedMB || 0;
     const percentUsed = memoryInfo.percentUsed || 0;
-    
+
     const message = `메모리 최적화 (레벨 ${level}) 완료: ${heapUsedMB.toFixed(2)}MB (${percentUsed.toFixed(1)}%)`;
-    
+
     // 로그 기록
     await logMemoryUsage(
       MemoryEventType.OPTIMIZATION,
       message
     );
-    
+
     // 콘솔 로깅
     console.log(message);
-    
+
     // 내역 저장
     recordOptimization(level, heapUsedMB);
   } catch (error) {
@@ -147,14 +148,14 @@ export async function reportMemoryUsage(level: number): Promise<void> {
  */
 function recordOptimization(level: number, currentMemory: number): void {
   const lastEntry = optimizationHistory[optimizationHistory.length - 1];
-  
+
   optimizationHistory.push({
     timestamp: Date.now(),
     level,
     memoryBefore: lastEntry?.memoryAfter || currentMemory,
     memoryAfter: currentMemory
   });
-  
+
   // 최대 100개 항목 유지
   if (optimizationHistory.length > 100) {
     optimizationHistory.shift();

@@ -40,7 +40,7 @@ export function performEmergencyRecovery(): boolean {
 
     // 앱 복구 유틸리티에 진단 정보 등록
     if (typeof window !== 'undefined' && window.__appRecovery) {
-      window.__appRecovery.diagnostics = () => collectMemoryDiagnostics();
+      (window.__appRecovery as any).diagnostics = () => collectMemoryDiagnostics();
     }
 
     return true;

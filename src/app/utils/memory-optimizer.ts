@@ -45,10 +45,10 @@ export async function optimizeMemory(
     logger.info(`[Memory Optimizer] Memory optimization completed. Freed: ${memoryFreed} bytes`);
 
     return {
-      optimizationLevel: level,  // Rust와 일치시킴
-      level,                    // 이전 코드와 호환성
-      memoryFreed,
+      optimizationLevel: level,
+      // OptimizationResult에 있는 필수 속성으로 통일
       timestamp: Date.now(),
+      freedMemory: memoryFreed,
       success: true
     };
   } catch (error) {
@@ -56,10 +56,10 @@ export async function optimizeMemory(
       error instanceof Error ? { message: error.message, stack: error.stack } as Record<string, unknown> : {});
 
     return {
-      optimizationLevel: level,  // Rust와 일치시킴
-      level,                     // 이전 코드와 호환성
-      memoryFreed: 0,
+      optimizationLevel: level,
+      // OptimizationResult에 있는 필수 속성으로 통일
       timestamp: Date.now(),
+      freedMemory: 0,
       success: false,
       error: error instanceof Error ? error.message : String(error)
     };
@@ -84,7 +84,8 @@ export function configureAutoOptimization(options: {
  */
 export async function checkAndOptimizeMemory(): Promise<void> {
   try {
-    const memoryUsage = await memoryInfo.getMemoryUsage();
+    // 사용하지 않는 memoryUsage 변수에 언더스코어 추가
+    const _memoryUsage = await memoryInfo.getMemoryUsage();
     await optimizationUtils.runOptimization(OptimizationLevel.MEDIUM, false);
   } catch (error) {
     logger.error(

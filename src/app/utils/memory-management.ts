@@ -41,14 +41,14 @@ const _formatBytes = (bytes: number): string => {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 };
 
-// 캐시 정리 함수 - 임시 구현
-function cleanAllCaches(): void {
+// 캐시 정리 함수 - 임시 구현 (미사용 변수에 _ 접두사 추가)
+function _cleanAllCaches(): void {
   // 캐시 정리 로직 구현
   console.log('모든 캐시 정리');
 }
 
-// 가비지 콜렉션 유도 함수
-function suggestGarbageCollection(): void {
+// 가비지 콜렉션 유도 함수 (미사용 변수에 _ 접두사 추가)
+function _suggestGarbageCollection(): void {
   if (typeof window !== 'undefined' && (window as any).gc) {
     (window as any).gc();
   }
@@ -77,7 +77,7 @@ export async function optimizeMemory(
     if (result) {
       // 속성 이름 호환성 처리 - 일관된 속성 사용
       const freedMB = result.freedMB || result.freed_mb || 0;
-      
+
       // 모든 필수 속성 지정 (타입 충돌 해결)
       return {
         success: result.success,
@@ -106,7 +106,7 @@ export async function optimizeMemory(
  * @param implementation 구현 ('native' 또는 'js')
  * @param freedMemory 해제된 메모리 (MB)
  */
-function recordOptimization(
+function _recordOptimization(
   level: OptimizationLevel,
   success: boolean,
   implementation: string,
@@ -156,7 +156,7 @@ export function formatMemoryInfo(info: MemoryInfo): Record<string, string> {
 
   const heapTotalMB = info.heapTotal !== undefined
     ? Math.round(info.heapTotal / (1024 * 1024) * 10) / 10
-    : info.heapTotalMB || 0;
+    : 0;
 
   const percent = info.percentUsed !== undefined
     ? info.percentUsed
@@ -253,15 +253,43 @@ export function createEmptyMemoryInfo(): MemoryInfo {
  * @param nativeInfo 네이티브 메모리 정보
  */
 export function convertNativeMemoryInfo(nativeInfo: Record<string, unknown>): MemoryInfo {
-  // any 타입 사용이 불가피한 경우 (네이티브 모듈 응답 형식이 다양할 수 있음)
-  return {
-    heapUsed: nativeInfo.heap_used || nativeInfo.heapUsed || 0,
-    heapTotal: nativeInfo.heap_total || nativeInfo.heapTotal || 0,
-    rss: nativeInfo.rss || 0,
-    heapUsedMB: nativeInfo.heap_used_mb || nativeInfo.heapUsedMB || 0,
-    heap_used_mb: nativeInfo.heap_used_mb || nativeInfo.heapUsedMB || 0,
-    rss_mb: nativeInfo.rss_mb || nativeInfo.rssMB || 0,
-    percent_used: nativeInfo.percent_used || nativeInfo.percentUsed || 0,
-    heap_limit: nativeInfo.heap_limit
+  // 기본값 생성 (타입 오류 방지)
+  const result: MemoryInfo = {
+    timestamp: Date.now(),
+    heap_used: 0,
+    heap_total: 0,
+    heap_limit: 0,
+    rss: 0,
+    heap_used_mb: 0,
+    rss_mb: 0,
+    percent_used: 0
   };
+
+  // nativeInfo에서 있는 속성만 가져오기
+  if (nativeInfo) {
+    // 안전한 타입 캐스팅으로 속성 할당
+    if (typeof nativeInfo.heap_used === 'number') result.heap_used = nativeInfo.heap_used;
+    if (typeof nativeInfo.heapUsed === 'number') result.heapUsed = nativeInfo.heapUsed;
+
+    if (typeof nativeInfo.heap_total === 'number') result.heap_total = nativeInfo.heap_total;
+    if (typeof nativeInfo.heapTotal === 'number') result.heapTotal = nativeInfo.heapTotal;
+
+    if (typeof nativeInfo.rss === 'number') result.rss = nativeInfo.rss;
+
+    if (typeof nativeInfo.heap_used_mb === 'number') result.heap_used_mb = nativeInfo.heap_used_mb;
+    if (typeof nativeInfo.heapUsedMB === 'number') result.heapUsedMB = nativeInfo.heapUsedMB;
+
+    if (typeof nativeInfo.rss_mb === 'number') result.rss_mb = nativeInfo.rss_mb;
+    if (typeof nativeInfo.rssMB === 'number') result.rssMB = nativeInfo.rssMB;
+
+    if (typeof nativeInfo.percent_used === 'number') result.percent_used = nativeInfo.percent_used;
+    if (typeof nativeInfo.percentUsed === 'number') result.percentUsed = nativeInfo.percentUsed;
+
+    if (typeof nativeInfo.heap_limit === 'number') result.heap_limit = nativeInfo.heap_limit;
+    if (typeof nativeInfo.heapLimit === 'number') result.heapLimit = nativeInfo.heapLimit;
+
+    if (typeof nativeInfo.timestamp === 'number') result.timestamp = nativeInfo.timestamp;
+  }
+
+  return result;
 }

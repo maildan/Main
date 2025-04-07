@@ -5,7 +5,7 @@
 
 import { debounce } from 'lodash';
 
-type EventHandler = () => void;
+type _EventHandler = () => void; // 사용되지 않는 타입에 _ 접두사 추가
 type EventCleanupHandler = () => void;
 type EventCleanupRegistry = Map<string, EventCleanupHandler[]>;
 
@@ -30,27 +30,27 @@ export function registerOptimizedEventListener(
   // 요소와 핸들러가 있는지 확인
   if (!element || !handler) {
     console.warn('Invalid element or handler for event registration');
-    return () => {}; // No-op cleanup function
+    return () => { }; // No-op cleanup function
   }
 
   // 이벤트 리스너 등록
   element.addEventListener(eventType, handler, options);
-  
+
   // 정리 함수 생성
   const cleanup = () => {
     element.removeEventListener(eventType, handler, options);
   };
-  
+
   // 등록된 정리 함수를 등록
   const key = getElementKey(element);
-  
+
   if (!eventCleanupRegistry.has(key)) {
     eventCleanupRegistry.set(key, []);
   }
-  
+
   const cleanupHandlers = eventCleanupRegistry.get(key)!;
   cleanupHandlers.push(cleanup);
-  
+
   return cleanup;
 }
 
@@ -74,11 +74,11 @@ export function createDebouncedEventHandler<T extends (...args: any[]) => void>(
 export function cleanupAllEventListeners(element: HTMLElement | Window | Document): void {
   const key = getElementKey(element);
   const cleanupHandlers = eventCleanupRegistry.get(key);
-  
+
   if (cleanupHandlers && cleanupHandlers.length > 0) {
     // 모든 정리 함수 실행
     cleanupHandlers.forEach(cleanup => cleanup());
-    
+
     // 정리 함수 목록 비우기
     eventCleanupRegistry.set(key, []);
   }
@@ -97,7 +97,7 @@ function getElementKey(element: HTMLElement | Window | Document): string {
     const id = element.id || '';
     const tagName = element.tagName || '';
     const classes = element.className || '';
-    
+
     return `${tagName}#${id}.${classes}`;
   } else {
     return String(Math.random()); // 폴백
@@ -113,9 +113,9 @@ export function optimizeEvents(): void {
   for (const handlers of eventCleanupRegistry.values()) {
     totalHandlers += handlers.length;
   }
-  
+
   console.log(`Current event handlers registered: ${totalHandlers}`);
-  
+
   // 지나치게 많은 핸들러가 등록되어 있다면 경고
   if (totalHandlers > 100) {
     console.warn('High number of event handlers detected. Consider cleaning up unused listeners.');
@@ -134,7 +134,7 @@ export function registerOptimizedScrollListener(
 ): EventCleanupHandler {
   // 디바운스된 핸들러 생성
   const debouncedHandler = createDebouncedEventHandler(handler, wait);
-  
+
   // 스크롤 이벤트 리스너 등록 (passive true로 성능 최적화)
   return registerOptimizedEventListener(
     window,
@@ -151,12 +151,12 @@ export function registerOptimizedScrollListener(
  * @returns 정리 함수
  */
 export function registerOptimizedResizeListener(
-  handler: (event: UIEvent) => void,
+  handler: (event: Event) => void, // Event 타입으로 변경
   wait = 200
 ): EventCleanupHandler {
   // 디바운스된 핸들러 생성
   const debouncedHandler = createDebouncedEventHandler(handler, wait);
-  
+
   // 리사이즈 이벤트 리스너 등록
   return registerOptimizedEventListener(window, 'resize', debouncedHandler);
 }
@@ -183,10 +183,10 @@ if (typeof window !== 'undefined') {
       for (const [_key, handlers] of eventCleanupRegistry.entries()) {
         handlers.forEach(cleanup => cleanup());
       }
-      
+
       // 등록 정보 초기화
       eventCleanupRegistry.clear();
-    } catch (_) {
+    } catch (_e) {  // 변수명에 _ 접두사 추가
       // 언로드 중 오류는 무시
     }
   });

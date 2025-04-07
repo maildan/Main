@@ -86,11 +86,11 @@ export interface WindowWithCache extends Window {
   // 위젯 캐시 관련
   __widgetCache?: Map<string, unknown>;
 
-  // 스타일 캐시 관련
-  __styleCache?: Record<string, unknown>;
+  // 스타일 캐시 관련 - Map<string, unknown>으로 수정
+  __styleCache?: Map<string, unknown>;
 
-  // 이미지 리사이즈 캐시 관련 - 타입 수정
-  __imageResizeCache?: Map<string, unknown>;
+  // 이미지 리사이즈 캐시 관련
+  __imageResizeCache?: Map<string, string>;
 
   // 메모리 캐시 관련
   __memoryCache?: Map<string, unknown>;

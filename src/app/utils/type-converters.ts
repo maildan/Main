@@ -22,7 +22,7 @@ export function snakeToCamel<T extends Record<string, any>>(obj: T): Record<stri
     const camelKey = key.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
     result[camelKey] = typeof value === 'object' ? snakeToCamel(value) : value;
   }
-  
+
   return result;
 }
 
@@ -42,12 +42,12 @@ export function camelToSnake<T extends Record<string, any>>(obj: T): Record<stri
     // camelCase를 snake_case로 변환
     const snakeKey = key.replace(/([A-Z])/g, letter => `_${letter.toLowerCase()}`);
     const value = obj[key];
-    
+
     // 값이 객체이면 재귀적으로 변환
-    result[snakeKey] = value !== null && typeof value === 'object' 
-      ? camelToSnake(value) 
+    result[snakeKey] = value !== null && typeof value === 'object'
+      ? camelToSnake(value)
       : value;
-    
+
     return result;
   }, {} as Record<string, any>);
 }
@@ -84,12 +84,10 @@ export function convertNativeOptimizationResult(nativeResult: any): Optimization
   // 최적화 결과 기본 구조 생성 - OptimizationResult 타입에 맞게 필요한 속성 추가
   const result: OptimizationResult = {
     success: nativeResult.success,
-    optimization_level: nativeResult.optimization_level,
-    // OptimizationResult 인터페이스에 필요한 속성 추가
     optimizationLevel: nativeResult.optimization_level || nativeResult.optimizationLevel || 0,
-    level: nativeResult.level || nativeResult.optimization_level || 0,
-    memoryFreed: nativeResult.freedMemory || nativeResult.freed_memory || 0,
     timestamp: nativeResult.timestamp || Date.now(),
+    freedMemory: nativeResult.freedMemory || nativeResult.freed_memory || 0,
+    // 'level' 속성 제거 - OptimizationResult에 없는 속성
     error: nativeResult.error
   };
 
@@ -99,6 +97,7 @@ export function convertNativeOptimizationResult(nativeResult: any): Optimization
   }
 
   if (nativeResult.freedMB || nativeResult.freed_mb) {
+    result.freedMB = nativeResult.freedMB || nativeResult.freed_mb;
     result.freed_mb = nativeResult.freedMB || nativeResult.freed_mb;
   }
 
@@ -106,17 +105,18 @@ export function convertNativeOptimizationResult(nativeResult: any): Optimization
     result.duration = nativeResult.duration;
   }
 
-  // 메모리 정보 추가 - 타입 단언으로 타입 호환성 문제 해결
+  // 메모리 정보 추가 - memory_before, memory_after 속성이 OptimizationResult에 없으므로 주석 처리
+  // 필요한 경우 확장 인터페이스에서 처리하거나 any 타입 단언 사용
   if (nativeResult.memoryBefore || nativeResult.memory_before) {
     const memBefore = nativeResult.memoryBefore || nativeResult.memory_before;
     // 타입 호환성 문제 해결을 위해 as any 사용
-    result.memory_before = memBefore ? (convertNativeMemoryInfo(memBefore) as any) : undefined;
+    (result as any).memory_before = memBefore ? (convertNativeMemoryInfo(memBefore) as any) : undefined;
   }
 
   if (nativeResult.memoryAfter || nativeResult.memory_after) {
     const memAfter = nativeResult.memoryAfter || nativeResult.memory_after;
     // 타입 호환성 문제 해결을 위해 as any 사용
-    result.memory_after = memAfter ? (convertNativeMemoryInfo(memAfter) as any) : undefined;
+    (result as any).memory_after = memAfter ? (convertNativeMemoryInfo(memAfter) as any) : undefined;
   }
 
   return result;
@@ -126,20 +126,18 @@ export function convertNativeOptimizationResult(nativeResult: any): Optimization
  * 네이티브 GC 결과를 TS GC 결과 객체로 변환
  */
 export function convertNativeGCResult(nativeResult: any): GCResult {
-  // GC 결과 기본 구조 생성
-  const result: GCResult = {
-    success: nativeResult.success,
-    freedMemory: nativeResult.freedMemory || nativeResult.freed_memory || 0,
-    timestamp: nativeResult.timestamp || Date.now(),
-    error: nativeResult.error
+  if (!nativeResult) return {
+    success: false,
+    timestamp: Date.now(),
+    freedMemory: 0,
+    freedMB: 0 // GCResult 타입에 필요한 필수 속성 추가
   };
 
-  // 선택적 속성 추가
-  if (nativeResult.freedMB || nativeResult.freed_mb) {
-    result.freedMB = nativeResult.freedMB || nativeResult.freed_mb;
-  }
-
-  // 'duration' 속성이 GCResult 타입에 없기 때문에 제거
-
-  return result;
+  return {
+    success: nativeResult.success || false,
+    timestamp: nativeResult.timestamp || Date.now(),
+    freedMemory: nativeResult.freedMemory || nativeResult.freed_memory || 0,
+    freedMB: nativeResult.freedMB || nativeResult.freed_mb || 0, // 필수 속성이므로 기본값 제공
+    error: nativeResult.error
+  };
 }
