@@ -162,6 +162,41 @@ try {
   
   debugLog('GC 플래그 상태:', hasGcFlag ? '사용 가능' : '사용 불가능');
   appState.gcEnabled = typeof global.gc === 'function';
+  
+  // 강제 GC 함수 준비
+  if (appState.gcEnabled) {
+    debugLog('강제 GC 함수 사용 가능');
+    appState.forceGC = () => {
+      try {
+        debugLog('강제 GC 수행 중...');
+        global.gc();
+        debugLog('강제 GC 수행 완료');
+        return true;
+      } catch (error) {
+        debugLog('강제 GC 수행 중 오류:', error);
+        return false;
+      }
+    };
+  } else {
+    debugLog('강제 GC 함수 사용 불가능');
+    appState.forceGC = () => {
+      debugLog('GC 함수를 사용할 수 없음, 메모리 압박 생성');
+      try {
+        // 메모리 압박을 통한 간접 GC 유도
+        const arr = [];
+        for (let i = 0; i < 1000; i++) {
+          arr.push(new Array(10000).fill(0));
+        }
+        // 메모리 해제
+        arr.length = 0;
+        debugLog('메모리 압박 생성 완료');
+        return true;
+      } catch (error) {
+        debugLog('메모리 압박 생성 중 오류:', error);
+        return false;
+      }
+    };
+  }
 } catch (error) {
   debugLog('GC 상태 확인 중 오류:', error);
 }
@@ -170,83 +205,71 @@ try {
  * 앱 초기화 함수
  */
 async function initializeApp() {
+  debugLog('앱 초기화 시작');
+  
   try {
-    debugLog('앱 초기화 시작');
+    // 워커 스레드 초기화
+    const { initWorkers } = require('./workers/worker-manager');
+    initWorkers();
+    debugLog('워커 풀 초기화 완료');
     
-    // 메모리 최적화를 위한 주기적 GC
-    setInterval(() => {
-      try {
+    // 메모리 모니터링 시작
+    startMemoryMonitoring();
+    
+    // GPU 설정 초기화
+    await setupGpuConfiguration();
+    debugLog('GPU 설정 초기화 완료');
+    
+    // 설정 확인
+    debugLog(`GPU 가속 상태: ${appState.gpuEnabled ? '활성화됨' : '비활성화됨'}`);
+    
+    // 메모리 사용량 모니터링 시작
+    memoryManager.initializeMemoryManager();
+    
+    // 설정 로드 (이미 GPU 설정에서 로드했으므로 중복되지 않게 수정)
+    if (!appState.settings) {
+      await loadSettings();
+    }
+    
+    // 메인 윈도우 생성
+    createWindow();
+    
+    // 키보드 리스너 설정
+    setupKeyboardListener();
+    
+    // IPC 핸들러 설정
+    setupIpcHandlers();
+    
+    // 트레이 설정 추가
+    if (appState.settings.minimizeToTray) {
+      setupTray();
+    }
+    
+    // GC가 사용 가능한지 확인
+    if (typeof global.gc === 'function') {
+      debugLog('GC 사용 가능 - 초기화 후 메모리 정리 실행');
+      
+      // 초기 GC 실행으로 시작 시 사용된 메모리 정리
+      setTimeout(() => {
         if (global.gc) {
           memoryManager.performGarbageCollection();
           debugLog('GC 수행 완료');
         } else {
           debugLog('GC 함수를 사용할 수 없음');
         }
-      } catch (error) {
-        debugLog('주기적 GC 수행 중 오류:', error);
-      }
-    }, 120000); // 2분마다
-    
-    debugLog('앱 초기화 시작');
-    
-    try {
-      // GPU 설정 초기화
-      await setupGpuConfiguration();
-      debugLog('GPU 설정 초기화 완료');
-      
-      // 설정 확인
-      debugLog(`GPU 가속 상태: ${appState.gpuEnabled ? '활성화됨' : '비활성화됨'}`);
-      
-      // 메모리 사용량 모니터링 시작
-      memoryManager.initializeMemoryManager();
-      
-      // 설정 로드 (이미 GPU 설정에서 로드했으므로 중복되지 않게 수정)
-      if (!appState.settings) {
-        await loadSettings();
-      }
-      
-      // 메인 윈도우 생성
-      createWindow();
-      
-      // 키보드 리스너 설정
-      setupKeyboardListener();
-      
-      // IPC 핸들러 설정
-      setupIpcHandlers();
-      
-      // 트레이 설정 추가
-      if (appState.settings.minimizeToTray) {
-        setupTray();
-      }
-      
-      // GC가 사용 가능한지 확인
-      if (typeof global.gc === 'function') {
-        debugLog('GC 사용 가능 - 초기화 후 메모리 정리 실행');
-        
-        // 초기 GC 실행으로 시작 시 사용된 메모리 정리
-        setTimeout(() => {
-          if (global.gc) {
-            memoryManager.performGarbageCollection();
-            debugLog('GC 수행 완료');
-          } else {
-            debugLog('GC 함수를 사용할 수 없음');
-          }
-        }, 3000); // 앱 시작 3초 후 GC 실행
-      } else {
-        debugLog('경고: GC를 사용할 수 없습니다. 메모리 관리가 제한됩니다.');
-        debugLog('GC 활성화를 위해 --expose-gc 플래그로 앱을 다시 시작하세요.');
-      }
-      
-      debugLog('앱 초기화 완료');
-    } catch (error) {
-      console.error('앱 초기화 중 오류:', error);
-      // 오류 발생 시 기본 설정으로 계속 시도
-      createWindow();
-      setupKeyboardListener();
-      setupIpcHandlers();
+      }, 3000); // 앱 시작 3초 후 GC 실행
+    } else {
+      debugLog('경고: GC를 사용할 수 없습니다. 메모리 관리가 제한됩니다.');
+      debugLog('GC 활성화를 위해 --expose-gc 플래그로 앱을 다시 시작하세요.');
     }
+    
+    debugLog('앱 초기화 완료');
   } catch (error) {
-    console.error('앱 초기화 중 오류:', error);
+    debugLog('앱 초기화 중 오류:', error);
+    // 오류 발생 시 기본 설정으로 계속 시도
+    createWindow();
+    setupKeyboardListener();
+    setupIpcHandlers();
   }
 }
 
@@ -254,54 +277,130 @@ async function initializeApp() {
  * 앱 종료 정리 함수 - 메모리 최적화
  */
 function cleanupApp() {
-  debugLog('앱 종료 정리 시작');
+  debugLog('앱 정리 시작');
   
-  // 키보드 리스너 해제
-  if (appState.keyboardListener) {
-    appState.keyboardListener.kill();
-    appState.keyboardListener = null;
+  try {
+    // 메모리 모니터링 중지
+    stopMemoryMonitoring();
+    
+    // 워커 풀 정리
+    const { cleanupWorkerPool } = require('./workers/worker-manager');
+    if (typeof cleanupWorkerPool === 'function') {
+      cleanupWorkerPool();
+    }
+    
+    // 키보드 리스너 해제
+    if (appState.keyboardListener) {
+      appState.keyboardListener.kill();
+      appState.keyboardListener = null;
+    }
+    
+    // 모든 인터벌 정리
+    if (appState.miniViewStatsInterval) {
+      clearInterval(appState.miniViewStatsInterval);
+      appState.miniViewStatsInterval = null;
+    }
+    
+    if (appState.updateInterval) {
+      clearInterval(appState.updateInterval);
+      appState.updateInterval = null;
+    }
+    
+    // 대용량 객체 참조 해제
+    if (appState.currentStats) {
+      // 복제본 생성하지 않고 직접 속성 초기화
+      Object.keys(appState.currentStats).forEach(key => {
+        if (typeof appState.currentStats[key] === 'object' && appState.currentStats[key] !== null) {
+          appState.currentStats[key] = null;
+        }
+      });
+    }
+    
+    // 이벤트 리스너 참조 해제
+    if (appState.mainWindow) {
+      appState.mainWindow.removeAllListeners();
+    }
+    
+    if (appState.miniViewWindow) {
+      appState.miniViewWindow.removeAllListeners();
+    }
+    
+    // 트레이 제거 추가
+    destroyTray();
+    
+    // 최종 메모리 정리
+    if (global.gc) {
+      debugLog('종료 전 메모리 정리 실행');
+      memoryManager.performGarbageCollection();
+    }
+    
+    debugLog('앱 정리 완료');
+  } catch (error) {
+    debugLog('앱 정리 중 오류:', error);
   }
+}
+
+// 메모리 모니터링 관련 변수
+let memoryMonitoringInterval = null;
+
+/**
+ * 메모리 모니터링 시작
+ */
+function startMemoryMonitoring() {
+  if (memoryMonitoringInterval) return;
   
-  // 모든 인터벌 정리
-  if (appState.miniViewStatsInterval) {
-    clearInterval(appState.miniViewStatsInterval);
-    appState.miniViewStatsInterval = null;
-  }
+  debugLog('메모리 모니터링 시작');
   
-  if (appState.updateInterval) {
-    clearInterval(appState.updateInterval);
-    appState.updateInterval = null;
-  }
-  
-  // 대용량 객체 참조 해제
-  if (appState.currentStats) {
-    // 복제본 생성하지 않고 직접 속성 초기화
-    Object.keys(appState.currentStats).forEach(key => {
-      if (typeof appState.currentStats[key] === 'object' && appState.currentStats[key] !== null) {
-        appState.currentStats[key] = null;
+  memoryMonitoringInterval = setInterval(() => {
+    try {
+      const memoryInfo = process.memoryUsage();
+      const heapUsedMB = Math.round(memoryInfo.heapUsed / 1024 / 1024 * 100) / 100;
+      const heapTotalMB = Math.round(memoryInfo.heapTotal / 1024 / 1024 * 100) / 100;
+      const percentUsed = Math.round(memoryInfo.heapUsed / memoryInfo.heapTotal * 100 * 100) / 100;
+      
+      debugLog(`메모리 사용량: ${heapUsedMB}MB / ${heapTotalMB}MB (${percentUsed}%)`);
+      
+      // 메모리 사용량이 높으면 자동 최적화
+      if (percentUsed > 80) {
+        debugLog('메모리 사용량이 높음, 자동 최적화 수행');
+        optimizeMemory();
       }
-    });
+    } catch (error) {
+      debugLog('메모리 모니터링 중 오류:', error);
+    }
+  }, 60000); // 60초마다 확인
+}
+
+/**
+ * 메모리 모니터링 중지
+ */
+function stopMemoryMonitoring() {
+  if (!memoryMonitoringInterval) return;
+  
+  debugLog('메모리 모니터링 중지');
+  
+  clearInterval(memoryMonitoringInterval);
+  memoryMonitoringInterval = null;
+}
+
+/**
+ * 메모리 최적화 수행
+ */
+function optimizeMemory() {
+  debugLog('메모리 최적화 수행');
+  
+  try {
+    // 강제 GC 수행
+    if (appState.forceGC) {
+      appState.forceGC();
+    }
+    
+    // 추가 최적화 작업...
+    
+    debugLog('메모리 최적화 완료');
+  } catch (error) {
+    debugLog('메모리 최적화 중 오류:', error);
   }
-  
-  // 이벤트 리스너 참조 해제
-  if (appState.mainWindow) {
-    appState.mainWindow.removeAllListeners();
-  }
-  
-  if (appState.miniViewWindow) {
-    appState.miniViewWindow.removeAllListeners();
-  }
-  
-  // 트레이 제거 추가
-  destroyTray();
-  
-  // 최종 메모리 정리
-  if (global.gc) {
-    debugLog('종료 전 메모리 정리 실행');
-    memoryManager.performGarbageCollection();
-  }
-  
-  debugLog('앱 종료 정리 완료');
 }
 
 /**

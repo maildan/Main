@@ -6,26 +6,26 @@ const http = require('http');
  */
 function debugLog(...args) {
   const timestamp = new Date().toISOString();
-  console.log(`[${timestamp}] DEBUG:`, ...args);
+
+  // 개발 모드 또는 디버그 모드인 경우에만 로그 출력
+  if (isDev || process.env.ELECTRON_DEBUG === 'true') {
+    console.log(`[${timestamp}] DEBUG:`, ...args);
+  }
+
+  // 로그 파일에 저장 (필요시 구현)
 }
 
 /**
  * 시간 형식화 함수 (디버깅용)
  */
 function formatTime(seconds) {
-  if (seconds < 60) return `${seconds}초`;
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const secs = Math.floor(seconds % 60);
 
-  const minutes = Math.floor(seconds / 60);
-  const remainingSeconds = seconds % 60;
-
-  if (minutes < 60) {
-    return `${minutes}분 ${remainingSeconds}초`;
-  }
-
-  const hours = Math.floor(minutes / 60);
-  const remainingMinutes = minutes % 60;
-
-  return `${hours}시간 ${remainingMinutes}분 ${remainingSeconds}초`;
+  return [hours, minutes, secs]
+    .map(v => v.toString().padStart(2, '0'))
+    .join(':');
 }
 
 /**
@@ -36,19 +36,11 @@ function formatTime(seconds) {
  */
 function safeRequire(modulePath, fallbackModule = {}) {
   try {
-    const module = require(modulePath);
-
-    // DLL이나 네이티브 모듈 로딩 시도인 경우 추가 확인
-    if (modulePath.endsWith('.node') || modulePath.endsWith('.dll')) {
-      // 유효한 JS 객체인지 확인 (네이티브 모듈은 객체여야 함)
-      if (typeof module !== 'object') {
-        throw new Error(`유효하지 않은 네이티브 모듈 형식: ${typeof module}`);
-      }
-    }
-
-    return module;
+    const mod = require(modulePath);
+    debugLog(`모듈 로드 성공: ${modulePath}`);
+    return mod;
   } catch (error) {
-    debugLog(`모듈 '${modulePath}' 로드 실패: ${error.message}`);
+    debugLog(`모듈 로드 실패: ${modulePath}, 오류: ${error.message}`);
     return fallbackModule;
   }
 }
@@ -61,15 +53,25 @@ function safeRequire(modulePath, fallbackModule = {}) {
  */
 function isServerRunning(host = 'localhost', port = 3000) {
   return new Promise((resolve) => {
-    const req = http.get(`http://${host}:${port}`, { timeout: 1000 }, (res) => {
-      resolve(res.statusCode === 200);
-      res.resume(); // 리소스 해제
-    }).on('error', () => {
+    try {
+      const req = http.get(`http://${host}:${port}`, (res) => {
+        resolve(res.statusCode === 200);
+        req.destroy();
+      });
+
+      req.on('error', () => {
+        resolve(false);
+        req.destroy();
+      });
+
+      req.setTimeout(2000, () => {
+        resolve(false);
+        req.destroy();
+      });
+    } catch (error) {
+      debugLog(`서버 연결 확인 중 오류: ${error.message}`);
       resolve(false);
-    }).on('timeout', () => {
-      req.abort();
-      resolve(false);
-    });
+    }
   });
 }
 
@@ -83,23 +85,51 @@ function isServerRunning(host = 'localhost', port = 3000) {
  */
 async function waitForServer(host = 'localhost', port = 3000, timeout = 30000, interval = 1000) {
   const startTime = Date.now();
+  const endTime = startTime + timeout;
 
-  while (Date.now() - startTime < timeout) {
+  debugLog(`서버 준비 대기 시작: ${host}:${port}`);
+
+  while (Date.now() < endTime) {
     if (await isServerRunning(host, port)) {
+      const elapsedSec = Math.round((Date.now() - startTime) / 1000);
+      debugLog(`서버 준비 완료 (${elapsedSec}초 소요)`);
       return true;
     }
-    debugLog(`서버 대기 중... (${Math.round((Date.now() - startTime) / 1000)}초)`);
+
+    const elapsedSec = Math.round((Date.now() - startTime) / 1000);
+    debugLog(`서버 대기 중... (${elapsedSec}초)`);
     await new Promise(resolve => setTimeout(resolve, interval));
   }
 
+  debugLog(`서버 준비 타임아웃 (${timeout / 1000}초)`);
   return false;
 }
 
-// CommonJS 방식으로 내보내기
+/**
+ * 디버그용 메모리 정보 출력
+ */
+function logMemoryUsage() {
+  try {
+    const memoryInfo = process.memoryUsage();
+    const formatMB = (bytes) => (bytes / 1024 / 1024).toFixed(2) + ' MB';
+
+    debugLog('메모리 사용량:');
+    debugLog(`- RSS: ${formatMB(memoryInfo.rss)}`);
+    debugLog(`- Heap Total: ${formatMB(memoryInfo.heapTotal)}`);
+    debugLog(`- Heap Used: ${formatMB(memoryInfo.heapUsed)}`);
+    debugLog(`- External: ${formatMB(memoryInfo.external || 0)}`);
+    debugLog(`- Array Buffers: ${formatMB(memoryInfo.arrayBuffers || 0)}`);
+  } catch (error) {
+    debugLog('메모리 정보 가져오기 오류:', error);
+  }
+}
+
+// 모듈 내보내기
 module.exports = {
   debugLog,
   formatTime,
   safeRequire,
   isServerRunning,
-  waitForServer
+  waitForServer,
+  logMemoryUsage
 };

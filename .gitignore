@@ -19,6 +19,7 @@
 
 # production
 /build
+/dist
 
 # misc
 .DS_Store
@@ -36,7 +37,6 @@ native-modules/target/
 native-modules/target/*
 .eslintcache
 native-modules/target/debug/deps/libwgpu-d62cd49793d3a9a5.rlib/
-6a13088042ea0f5ad6c9564c4538b5e12b67d695950d26d9278f1507571435f*
 6a13088042ea0f5ad6c9564c4538b5e12b67d695950d26d9278f1507571435f/
 d77efd8f3b4778e31e6966ccb46e07d086aa6b/
 d77efd8f3b4778e31e6966ccb46e07d086aa6b*

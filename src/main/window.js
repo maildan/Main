@@ -9,8 +9,9 @@ const { setupTray } = require('./tray');
 
 /**
  * 메인 윈도우 생성 함수
+ * @param {boolean} showErrorScreen - 오류 화면 표시 여부
  */
-async function createWindow() {
+async function createWindow(showErrorScreen = false) {
   try {
     // 이미 윈도우가 있는 경우 표시하고 포커스
     if (appState.mainWindow) {
@@ -78,6 +79,75 @@ async function createWindow() {
       mainWindow.webContents.executeJavaScript(
         'document.documentElement.classList.add("dark-mode");'
       );
+    }
+
+    if (showErrorScreen) {
+      debugLog('Next.js 서버 연결 실패, 오류 화면 표시');
+
+      // 오류 화면 HTML 파일 경로
+      const errorHtmlPath = path.join(__dirname, '../../error.html');
+
+      // 오류 화면 파일 존재 여부 확인
+      if (fs.existsSync(errorHtmlPath)) {
+        // file:// 프로토콜로 오류 화면 로드
+        mainWindow.loadFile(errorHtmlPath);
+      } else {
+        // 인라인 오류 HTML
+        const errorHtml = `
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <title>연결 오류</title>
+            <meta charset="UTF-8">
+            <style>
+              body { font-family: Arial; padding: 20px; color: #333; background: #f0f0f0; }
+              .container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+              h1 { color: #2196F3; }
+              pre { background: #f5f5f5; padding: 10px; border-radius: 4px; overflow: auto; }
+              .error { color: #e53935; }
+              .solution { margin-top: 20px; border-top: 1px solid #eee; padding-top: 20px; }
+              button { padding: 10px 15px; background: #2196F3; color: white; border: none; border-radius: 4px; cursor: pointer; margin-right: 10px; }
+              button:hover { background: #1976D2; }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <h1>Next.js 서버 연결 오류</h1>
+              <p>Next.js 서버에 연결할 수 없습니다.</p>
+              <p class="error">오류: Next.js 서버가 실행 중인지 확인하세요.</p>
+              <div class="solution">
+                <h3>해결 방법:</h3>
+                <p>터미널에서 아래 명령어 실행 후 앱을 다시 시작하세요:</p>
+                <ol>
+                  <li>개발 모드: <code>npm run dev:next</code></li>
+                  <li>또는 전체 앱 실행: <code>npm run dev</code></li>
+                </ol>
+                <button onclick="window.location.reload()">새로고침</button>
+                <button onclick="window.electronAPI.restartApp()">앱 재시작</button>
+              </div>
+            </div>
+            <script>
+              // 5초마다 자동으로 연결 재시도
+              setInterval(() => {
+                fetch('http://localhost:3000')
+                  .then(response => {
+                    if (response.status === 200) {
+                      window.location.reload();
+                    }
+                  })
+                  .catch(e => console.log('서버 확인 중...'));
+              }, 5000);
+            </script>
+          </body>
+          </html>
+        `;
+
+        mainWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(errorHtml)}`);
+      }
+    } else {
+      // 정상 모드 - Next.js 서버 URL 로드
+      const appUrl = isDev ? 'http://localhost:3000' : 'file://' + path.join(__dirname, '../../dist/index.html');
+      mainWindow.loadURL(appUrl);
     }
 
     // 로드 URL 결정

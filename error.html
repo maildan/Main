@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>연결 오류</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+      background-color: #f5f5f5;
+      color: #333;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      margin: 0;
+      padding: 20px;
+      text-align: center;
+    }
+    
+    .error-container {
+      background-color: white;
+      border-radius: 8px;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+      padding: 30px;
+      max-width: 500px;
+      width: 100%;
+    }
+    
+    .error-icon {
+      font-size: 48px;
+      margin-bottom: 20px;
+    }
+    
+    h1 {
+      margin-top: 0;
+      color: #e53935;
+    }
+    
+    p {
+      line-height: 1.6;
+      margin-bottom: 20px;
+    }
+    
+    .actions {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    
+    button {
+      background-color: #4285f4;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      padding: 10px 16px;
+      font-size: 14px;
+      cursor: pointer;
+      transition: background-color 0.3s;
+    }
+    
+    button:hover {
+      background-color: #3367d6;
+    }
+    
+    .secondary {
+      background-color: #f5f5f5;
+      color: #333;
+      border: 1px solid #ddd;
+    }
+    
+    .secondary:hover {
+      background-color: #e0e0e0;
+    }
+
+    .dark-mode {
+      background-color: #121212;
+      color: #e0e0e0;
+    }
+
+    .dark-mode .error-container {
+      background-color: #1e1e1e;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4);
+    }
+
+    .dark-mode h1 {
+      color: #f44336;
+    }
+
+    .dark-mode .secondary {
+      background-color: #333;
+      color: #e0e0e0;
+      border: 1px solid #444;
+    }
+
+    .dark-mode .secondary:hover {
+      background-color: #444;
+    }
+  </style>
+</head>
+<body>
+  <div class="error-container">
+    <div class="error-icon">❌</div>
+    <h1>연결 오류</h1>
+    <p>Next.js 개발 서버에 연결할 수 없습니다. 다음 단계를 시도해보세요:</p>
+    <ol style="text-align: left;">
+      <li>Next.js 서버가 실행 중인지 확인하세요. (<code>npm run dev:next</code>)</li>
+      <li>방화벽이나 네트워크 설정이 연결을 차단하지 않는지 확인하세요.</li>
+      <li>애플리케이션을 다시 시작해보세요.</li>
+    </ol>
+    <div class="actions">
+      <button id="retry-btn">다시 시도</button>
+      <button id="open-next-btn" class="secondary">Next.js 서버 시작</button>
+      <button id="exit-btn" class="secondary">종료</button>
+    </div>
+  </div>
+
+  <script>
+    // 테마 설정
+    function checkDarkMode() {
+      try {
+        const isDarkMode = window.electronAPI?.isDarkMode?.() || false;
+        if (isDarkMode) {
+          document.body.classList.add('dark-mode');
+        } else {
+          document.body.classList.remove('dark-mode');
+        }
+      } catch (e) {
+        console.error('다크 모드 확인 중 오류:', e);
+      }
+    }
+    
+    // 페이지 로드 시 테마 확인
+    document.addEventListener('DOMContentLoaded', checkDarkMode);
+    
+    // 버튼 동작 설정
+    document.getElementById('retry-btn').addEventListener('click', () => {
+      if (window.electronAPI && window.electronAPI.reloadApp) {
+        window.electronAPI.reloadApp();
+      } else {
+        window.location.reload();
+      }
+    });
+    
+    document.getElementById('open-next-btn').addEventListener('click', () => {
+      if (window.electronAPI && window.electronAPI.startNextServer) {
+        window.electronAPI.startNextServer();
+      } else {
+        alert('Next.js 서버를 시작할 수 없습니다. 수동으로 실행해주세요.');
+      }
+    });
+    
+    document.getElementById('exit-btn').addEventListener('click', () => {
+      if (window.electronAPI && window.electronAPI.quit) {
+        window.electronAPI.quit();
+      } else {
+        window.close();
+      }
+    });
+  </script>
+</body>
+</html>

@@ -69,75 +69,67 @@ function resolveNativeModulePath() {
 
 /**
  * 네이티브 모듈 로드 시도
- * @returns {Promise<boolean>} 로드 성공 여부
  */
-async function loadNativeModule() {
-  if (moduleState.initialization.attempted) {
-    return moduleState.isAvailable;
-  }
+function loadNativeModule() {
+  if (nativeModule) return nativeModule;
 
-  moduleState.initialization.attempted = true;
-  moduleState.initialization.timestamp = Date.now();
+  try {
+    // 오류 발생: .dll 파일이 JavaScript로 잘못 로드됨
+    // 타입 체크 및 확장자 확인으로 해결
+    const modulePath = path.join(__dirname, '../../../native-modules');
+    let nativeBinding;
 
-  const potentialPaths = resolveNativeModulePath();
-  logger.info('네이티브 모듈 로드 시도', { paths: potentialPaths });
-
-  // 모든 가능한 경로에서 모듈 로드 시도
-  for (const modulePath of potentialPaths) {
-    if (fs.existsSync(modulePath)) {
+    // NODE_ENV에 따라 다른 경로 시도
+    if (process.env.NODE_ENV === 'production') {
       try {
-        logger.info(`네이티브 모듈 발견: ${modulePath}`);
-        // .node 파일은 require로 로드 (ESM에서는 직접 import 불가)
-        moduleState.nativeModule = require(modulePath);
-        moduleState.isAvailable = true;
-        moduleState.isFallback = false;
+        // 제품 환경에서는 release 버전 사용
+        nativeBinding = require(path.join(modulePath, 'release/typing_stats_native'));
+      } catch (prodError) {
+        logger.warn('프로덕션 네이티브 모듈 로드 실패:', { error: prodError.message });
+        // 폴백: 개발 버전 시도
+        nativeBinding = require(path.join(modulePath, 'debug/typing_stats_native'));
+      }
+    } else {
+      try {
+        // 개발 환경: 파일 확장자 처리 주의
+        const debugPath = path.join(modulePath, 'debug/typing_stats_native');
 
-        // 모듈 초기화 수행
-        if (typeof moduleState.nativeModule.initialize_native_modules === 'function') {
-          const initSuccess = moduleState.nativeModule.initialize_native_modules();
-          logger.info(`네이티브 모듈 초기화 ${initSuccess ? '성공' : '실패'}`);
-
-          // 초기화 실패 시 모듈 사용 불가 처리
-          if (!initSuccess) {
-            moduleState.isAvailable = false;
-            moduleState.lastError = new Error('네이티브 모듈 초기화 실패');
-            continue;
-          }
+        // require가 아닌 fs.existsSync로 파일 존재 여부 확인
+        if (fs.existsSync(`${debugPath}.node`)) {
+          nativeBinding = require(`${debugPath}.node`);
+        } else if (fs.existsSync(debugPath)) {
+          nativeBinding = require(debugPath);
+        } else {
+          throw new Error(`네이티브 모듈을 찾을 수 없음: ${debugPath}`);
         }
-
-        // 종료 시 정리 함수 등록
-        setupCleanupHandlers();
-
-        moduleState.initialization.success = true;
-        logger.info('네이티브 모듈 로드 성공');
-        return true;
-      } catch (error) {
-        logger.error('네이티브 모듈 로드 오류', { error: error.message, stack: error.stack });
-        moduleState.lastError = error;
+      } catch (devError) {
+        logger.warn('개발 네이티브 모듈 로드 실패:', { error: devError.message });
+        throw devError;
       }
     }
-  }
 
-  // 네이티브 모듈 로드 실패 시 폴백 모듈 로드
-  if (!moduleState.isAvailable) {
-    try {
-      const fallbackPath = path.join(path.dirname(new URL(import.meta.url).pathname), 'fallback', 'index.js');
-      if (fs.existsSync(fallbackPath)) {
-        logger.info(`폴백 모듈 로드: ${fallbackPath}`);
-        const fallbackModule = await import(fallbackPath);
-        moduleState.nativeModule = fallbackModule.default || fallbackModule;
-        moduleState.isAvailable = true;
-        moduleState.isFallback = true;
-      } else {
-        logger.error('폴백 모듈을 찾을 수 없음', { path: fallbackPath });
-      }
-    } catch (fallbackError) {
-      logger.error('폴백 모듈 로드 오류', { error: fallbackError.message });
-      moduleState.lastError = fallbackError;
+    // 모듈 유효성 검사
+    if (!nativeBinding || typeof nativeBinding !== 'object') {
+      throw new Error('유효하지 않은 네이티브 모듈');
     }
-  }
 
-  return moduleState.isAvailable;
+    nativeModule = nativeBinding;
+    moduleState.fallbackMode = false;
+    return nativeModule;
+  } catch (error) {
+    logger.error('네이티브 모듈 로드 실패:', { error: error.message });
+
+    // 인라인 폄백 구현 사용하고 콘솔에 명확하게 표시
+    console.log('인라인 폄백 구현 사용');
+
+    // 모듈 상태 설정
+    moduleState.fallbackMode = true;
+    moduleState.fallbackReason = error.message;
+
+    // 폄백 모듈 반환
+    nativeModule = fallbacks;
+    return nativeModule;
+  }
 }
 
 /**
@@ -177,7 +169,7 @@ function setupCleanupHandlers() {
 /**
  * 네이티브 함수 호출 래퍼 (성능 측정, 오류 처리 포함)
  * @param {Function} nativeFunction 네이티브 모듈 함수
- * @param {Function} fallbackFunction 폴백 함수
+ * @param {Function} fallbackFunction 폄백 함수
  * @param {any} defaultValue 기본 반환값
  * @param {boolean} isAsync 비동기 함수 여부
  * @returns {Function} 래핑된 함수
@@ -189,7 +181,7 @@ function createFunctionWrapper(nativeFunction, fallbackFunction, defaultValue, i
   }
 
   return function (...args) {
-    // 모듈 사용 불가 시 폴백 사용
+    // 모듈 사용 불가 시 폄백 사용
     if (!moduleState.isAvailable) {
       return fallbackFunction ? fallbackFunction(...args) : defaultValue;
     }
@@ -203,7 +195,7 @@ function createFunctionWrapper(nativeFunction, fallbackFunction, defaultValue, i
 
       // 네이티브 모듈 함수 호출
       if (moduleState.isFallback) {
-        // 폴백 모듈 사용 중이면 폴백 함수 호출
+        // 폄백 모듈 사용 중이면 폄백 함수 호출
         result = fallbackFunction ? fallbackFunction(...args) : defaultValue;
       } else {
         // 진짜 네이티브 모듈 함수 호출
@@ -228,7 +220,7 @@ function createFunctionWrapper(nativeFunction, fallbackFunction, defaultValue, i
             args: JSON.stringify(args)
           });
 
-          // 폴백 함수가 있으면 호출
+          // 폄백 함수가 있으면 호출
           if (fallbackFunction) {
             return fallbackFunction(...args);
           }
@@ -245,7 +237,7 @@ function createFunctionWrapper(nativeFunction, fallbackFunction, defaultValue, i
         args: JSON.stringify(args)
       });
 
-      // 오류 발생 시 폴백 사용
+      // 오류 발생 시 폄백 사용
       return fallbackFunction ? fallbackFunction(...args) : defaultValue;
     }
   };
@@ -269,10 +261,10 @@ function updatePerformanceMetrics(funcName, executionTime) {
 }
 
 /**
- * 기본 폴백 구현
+ * 기본 폄백 구현
  */
 const fallbacks = {
-  // 메모리 관련 폴백
+  // 메모리 관련 폄백
   getMemoryInfo: () => ({
     heap_used: process.memoryUsage().heapUsed,
     heap_total: process.memoryUsage().heapTotal,
@@ -370,7 +362,7 @@ const fallbacks = {
     };
   },
 
-  // GPU 관련 폴백
+  // GPU 관련 폄백
   isGpuAccelerationAvailable: () => false,
 
   enableGpuAcceleration: () => false,
@@ -380,7 +372,7 @@ const fallbacks = {
   getGpuInfo: () => ({
     name: 'JavaScript Fallback GPU',
     vendor: 'Node.js',
-    driver_info: 'JavaScript 폴백 구현',
+    driver_info: 'JavaScript 폄백 구현',
     device_type: 'CPU',
     backend: 'JavaScript',
     available: false
@@ -395,14 +387,14 @@ const fallbacks = {
     timestamp: Date.now()
   }),
 
-  // 워커 관련 폴백
+  // 워커 관련 폄백
   initializeWorkerPool: (threadCount = 0) => {
-    logger.info('JavaScript 폴백 워커 풀 초기화');
+    logger.info('JavaScript 폄백 워커 풀 초기화');
     return true;
   },
 
   shutdownWorkerPool: () => {
-    logger.info('JavaScript 폴백 워커 풀 종료');
+    logger.info('JavaScript 폄백 워커 풀 종료');
     return true;
   },
 
@@ -428,7 +420,7 @@ const fallbacks = {
     timestamp: Date.now()
   }),
 
-  // 모듈 정보 관련 폴백
+  // 모듈 정보 관련 폄백
   getModuleInfo: () => ({
     name: 'typing-stats-native',
     version: '0.1.0-js-fallback',
@@ -463,8 +455,8 @@ function isNativeModuleAvailable() {
 }
 
 /**
- * 폴백 모듈 사용 가능 여부 확인
- * @returns {boolean} 폴백 모듈 사용 가능 여부
+ * 폄백 모듈 사용 가능 여부 확인
+ * @returns {boolean} 폄백 모듈 사용 가능 여부
  */
 function isFallbackModuleAvailable() {
   return fallbackModule !== null;
@@ -476,7 +468,7 @@ async function getNativeFallback() {
     return fallbackModule;
   }
 
-  // 폴백 모듈 경로 - 경로 형식 수정
+  // 폄백 모듈 경로 - 경로 형식 수정
   const possibleFallbackPaths = [
     // 상대 경로 방식으로 수정
     path.join(__dirname, 'fallback', 'index.js'),
@@ -520,15 +512,15 @@ async function getNativeFallback() {
     }
   }
 
-  logError('폴백 모듈을 찾을 수 없음, 인라인 폴백 생성');
+  logError('폴백 모듈을 찾을 수 없음, 인라인 폄백 생성');
 
-  // 인라인 폴백 생성
+  // 인라인 폄백 생성
   fallbackModule = createInlineFallback();
   return fallbackModule;
 }
 
 // 누락된 getMemoryInfo 함수 정의 추가
-// 이 함수는 기본 폴백으로 작동합니다
+// 이 함수는 기본 폄백으로 작동합니다
 function getMemoryInfo() {
   try {
     const memoryUsage = process.memoryUsage();
@@ -622,7 +614,7 @@ async function requestGarbageCollection(emergency = false) {
       }
     }
 
-    // 네이티브 모듈 없거나 함수 없는 경우 폴백
+    // 네이티브 모듈 없거나 함수 없는 경우 폄백
     if (typeof global.gc === 'function') {
       // JavaScript GC 호출
       const memBefore = process.memoryUsage().heapUsed / (1024 * 1024);
@@ -675,73 +667,14 @@ function isGpuAccelerationAvailable() {
   }
 }
 
-// 폴백 모듈 경로 수정 부분
-
-async function getNativeFallback() {
-  // 캐싱된 모듈이 있으면 반환
-  if (fallbackModule !== null) {
-    return fallbackModule;
-  }
-
-  // 폴백 모듈 경로 - 여러 가능한 경로 시도
-  const possibleFallbackPaths = [
-    // 상대 경로 방식으로 수정
-    path.join(__dirname, 'fallback', 'index.js'),
-    path.join(__dirname, 'fallback.js'),
-    // 절대 경로는 그대로 유지
-    path.join(process.cwd(), 'src', 'server', 'native', 'fallback', 'index.js'),
-    path.join(process.cwd(), 'dist', 'server', 'native', 'fallback', 'index.js')
-  ];
-
-  // 로그에 모든 시도 경로 기록
-  loggerInfo('폴백 모듈 로드 시도', { paths: possibleFallbackPaths });
-
-  // 각 경로 시도
-  for (const fallbackPath of possibleFallbackPaths) {
-    try {
-      if (fs.existsSync(fallbackPath)) {
-        // CommonJS 모듈 로드 방식 시도 (Next.js 환경 호환성)
-        if (require) {
-          try {
-            fallbackModule = require(fallbackPath);
-            loggerInfo(`폴백 모듈 로드(CommonJS): ${fallbackPath}`);
-            return fallbackModule;
-          } catch (requireError) {
-            logWarning(`폴백 모듈 CommonJS 로드 실패: ${fallbackPath}`, { error: requireError.message });
-            // CommonJS 실패 시 ESM 시도
-          }
-        }
-
-        // ESM 방식 로드 시도
-        try {
-          const loadedModule = await import(fallbackPath);
-          fallbackModule = loadedModule.default || loadedModule;
-          loggerInfo(`폴백 모듈 로드(ESM): ${fallbackPath}`);
-          return fallbackModule;
-        } catch (importError) {
-          logWarning(`폴백 모듈 ESM 로드 실패: ${fallbackPath}`, { error: importError.message });
-        }
-      }
-    } catch (error) {
-      logWarning(`폴백 모듈 접근 실패: ${fallbackPath}`, { error: error.message });
-    }
-  }
-
-  logError('폴백 모듈을 찾을 수 없음, 인라인 폴백 생성');
-
-  // 인라인 폴백 생성
-  fallbackModule = createInlineFallback();
-  return fallbackModule;
-}
-
 /**
- * 인라인 폴백 모듈 생성
- * 모든 폴백 로드 시도 실패 시 사용
+ * 인라인 폄백 모듈 생성
+ * 모든 폄백 로드 시도 실패 시 사용
  */
 function createInlineFallback() {
-  logInfo('인라인 폴백 모듈 생성');
+  logInfo('인라인 폄백 모듈 생성');
   return {
-    // 기본 폴백 함수들
+    // 기본 폄백 함수들
     get_memory_info: function () {
       const memoryUsage = process.memoryUsage();
       return JSON.stringify({
@@ -755,7 +688,7 @@ function createInlineFallback() {
       });
     },
 
-    // GPU 관련 폴백 기능 추가
+    // GPU 관련 폄백 기능 추가
     is_gpu_acceleration_available: function () {
       return false;
     },
@@ -778,7 +711,7 @@ function createInlineFallback() {
       });
     },
 
-    // 기타 필요한 폴백 함수들
+    // 기타 필요한 폄백 함수들
     optimize_memory: function (level, emergency) {
       if (global.gc) {
         global.gc();
@@ -823,8 +756,8 @@ const nativeModuleApi = {
   },
 
   /**
-   * 폴백 모드 사용 중인지 확인
-   * @returns {boolean} 폴백 모드 사용 여부
+   * 폄백 모드 사용 중인지 확인
+   * @returns {boolean} 폄백 모드 사용 여부
    */
   isFallbackMode: () => {
     if (!moduleState.initialization.attempted) {
@@ -1290,16 +1223,8 @@ async function getNativeModule() {
     }
   }
 
-  logWarning('네이티브 모듈을 찾을 수 없음, 폴백 모듈 사용 시도');
+  logWarning('네이티브 모듈을 찾을 수 없음, 폄백 모듈 사용 시도');
   return null;
-}
-
-/**
- * 폴백 모듈 사용 가능 여부 확인
- * @returns {boolean} 폴백 모듈 사용 가능 여부
- */
-function isFallbackModuleAvailable() {
-  return fallbackModule !== null;
 }
 
 /**
@@ -1321,7 +1246,7 @@ async function getNativeModuleInfo() {
 
 /**
  * 네이티브 함수 래핑
- * 네이티브 모듈이 없으면 폴백을 사용하고, 두 모듈 모두 없으면 에러 반환
+ * 네이티브 모듈이 없으면 폄백을 사용하고, 두 모듈 모두 없으면 에러 반환
  * @param {string} functionName 함수 이름
  * @param {Array} args 함수 인자
  * @returns {Promise<any>} 함수 실행 결과
@@ -1335,16 +1260,16 @@ async function callNativeFunction(functionName, ...args) {
     return nativeModule[functionName](...args);
   }
 
-  // 폴백 모듈 로드 시도
+  // 폄백 모듈 로드 시도
   const fallbackModule = await getNativeFallback();
 
   if (fallbackModule && typeof fallbackModule[functionName] === 'function') {
-    // 폴백 모듈 함수 호출
+    // 폄백 모듈 함수 호출
     return fallbackModule[functionName](...args);
   }
 
   // 두 모듈 모두 사용할 수 없음 - 기본값 반환
-  logError(`${functionName} 함수를 네이티브 모듈과 폴백 모듈 모두에서 찾을 수 없습니다`);
+  logError(`${functionName} 함수를 네이티브 모듈과 폄백 모듈 모두에서 찾을 수 없습니다`);
 
   // 함수별 기본 응답 생성
   return createDefaultResponse(functionName);
@@ -1477,7 +1402,7 @@ const combinedExports = {
   // 네이티브 모듈 API
   ...nativeModuleApi,
 
-  // 폴백 구현 함수들
+  // 폄백 구현 함수들
   getMemoryInfo,
   determineOptimizationLevel,
   requestGarbageCollection,

@@ -7,25 +7,58 @@ const fs = require('fs');
 const http = require('http');
 
 // Next.js 서버가 준비되었는지 확인하는 함수
-function checkIfNextServerReady() {
+function checkIfNextServerReady(maxRetries = 30, retryInterval = 1000) {
   return new Promise((resolve) => {
+    let retries = 0;
+
     const checkServer = () => {
-      debugLog('Next.js 서버 준비 상태 확인 중...');
-      
-      http.get('http://localhost:3000', (res) => {
+      debugLog(`Next.js 서버 준비 상태 확인 중... (시도: ${retries + 1}/${maxRetries})`);
+
+      // HTTP 요청 객체 생성
+      const req = http.get('http://localhost:3000', (res) => {
         if (res.statusCode === 200) {
           debugLog('Next.js 서버 준비됨');
           resolve(true);
+          req.destroy(); // 연결 명시적 종료
         } else {
           debugLog(`Next.js 서버 응답 코드: ${res.statusCode}, 재시도 중...`);
-          setTimeout(checkServer, 1000);
+          req.destroy(); // 연결 명시적 종료
+          if (retries < maxRetries) {
+            retries++;
+            setTimeout(checkServer, retryInterval);
+          } else {
+            debugLog('최대 재시도 횟수 초과. 서버가 응답하지 않습니다.');
+            resolve(false);
+          }
         }
-      }).on('error', (err) => {
+      });
+
+      req.on('error', (err) => {
         debugLog(`Next.js 서버 연결 실패: ${err.message}, 재시도 중...`);
-        setTimeout(checkServer, 1000);
+        req.destroy(); // 오류 발생 시 연결 명시적 종료
+        if (retries < maxRetries) {
+          retries++;
+          setTimeout(checkServer, retryInterval);
+        } else {
+          debugLog('최대 재시도 횟수 초과. 서버가 응답하지 않습니다.');
+          resolve(false);
+        }
+      });
+
+      // 타임아웃 설정
+      req.setTimeout(2000, () => {
+        debugLog('Next.js 서버 연결 타임아웃, 재시도 중...');
+        req.destroy(); // 타임아웃 시 연결 명시적 종료
+        if (retries < maxRetries) {
+          retries++;
+          setTimeout(checkServer, retryInterval);
+        } else {
+          debugLog('최대 재시도 횟수 초과. 서버가 응답하지 않습니다.');
+          resolve(false);
+        }
       });
     };
-    
+
     checkServer();
   });
 }
@@ -38,41 +71,66 @@ if (!gotSingleInstanceLock) {
 } else {
   // 앱 초기화 전 GC 플래그 설정 (app.commandLine.appendSwitch는 app.ready 전에 호출해야 함)
   try {
+    // 플래그 추가 전에 현재 플래그 상태 확인
+    const hasGcFlag = process.argv.includes('--expose-gc') ||
+      process.execArgv.includes('--expose-gc') ||
+      process.execArgv.some(arg => arg.includes('--expose-gc'));
+
     // 중요: 이 플래그는 앱 초기화 전에 설정해야 합니다
-    if (process.argv.indexOf('--expose-gc') === -1) {
+    if (!hasGcFlag) {
+      debugLog('GC 노출 플래그 설정 중...');
       app.commandLine.appendSwitch('js-flags', '--expose-gc');
       debugLog('GC 노출 플래그 설정 완료');
     } else {
       debugLog('GC 노출 플래그가 이미 설정되어 있습니다');
     }
-    
+
     // Chrome 스타일의 GPU 가속을 위한 기본 플래그 추가 (app.ready 전)
     if (!app.commandLine.hasSwitch('disable-gpu')) {
       // 기본 GPU 설정 - app-lifecycle에서 세부 설정함
       app.commandLine.appendSwitch('enable-hardware-acceleration');
       app.commandLine.appendSwitch('enable-gpu-rasterization');
       app.commandLine.appendSwitch('enable-zero-copy');
-      
+
       debugLog('기본 GPU 가속 플래그 설정 완료');
     }
+
+    // 디버그 모드 확인
+    const isDebugMode = process.env.ELECTRON_DEBUG === 'true';
+    if (isDebugMode) {
+      debugLog('디버그 모드 활성화됨');
+      app.commandLine.appendSwitch('remote-debugging-port', '9222');
+    }
+
+    // 워커 스레드 디버깅 플래그 추가
+
+    // 콘솔 디버깅 향상
+    console.debug = (...args) => console.log('[Debug]', ...args);
+
   } catch (error) {
     debugLog('플래그 설정 실패:', error);
   }
-  
+
   // 앱 시작 전 설정
   function setupAppConfig() {
     try {
       debugLog('앱 설정 초기화 시작');
-      
+
       // 메모리 관련 플래그 추가
       app.commandLine.appendSwitch('js-flags', '--max-old-space-size=256');
       app.commandLine.appendSwitch('disable-site-isolation-trials');
-      
+
+      // 워커 스레드 메시지 디버깅 활성화
+      process.env.NODE_DEBUG = process.env.NODE_DEBUG || '';
+      if (!process.env.NODE_DEBUG.includes('worker')) {
+        process.env.NODE_DEBUG += ' worker';
+      }
+
       // GPU 설정을 app-lifecycle에서 처리하도록 변경
       // 이 시점에서는 기본 설정만 적용
-      
+
       debugLog('기본 앱 설정 적용 완료');
-      
+
       // 초기 실행 설정
       const gotTheLock = app.requestSingleInstanceLock();
       if (!gotTheLock) {
@@ -80,9 +138,20 @@ if (!gotSingleInstanceLock) {
         app.quit();
         return;
       }
-      
+
       // 메인 프로세스 초기화 시간 확보
       debugLog('메인 프로세스 초기화 대기 중...');
+
+      // 전역 예외 핸들러 설정
+      process.on('uncaughtException', (error) => {
+        debugLog('처리되지 않은 예외:', error);
+      });
+
+      process.on('unhandledRejection', (reason, promise) => {
+        debugLog('처리되지 않은 프로미스 거부:', reason);
+      });
+
+      // 타임아웃 설정으로 초기화 시간 확보
       setTimeout(() => {
         // 앱 이벤트 리스너 설정
         setupAppEventListeners();
@@ -94,31 +163,46 @@ if (!gotSingleInstanceLock) {
       setupAppEventListeners();
     }
   }
-  
+
   setupAppConfig();
-  
+
   // app ready 이벤트에서 Next.js 서버 준비 상태 확인 추가
   app.on('ready', async () => {
     try {
       debugLog('앱 준비됨, Next.js 서버 확인 중...');
-      
+
       // 개발 모드에서는 Next.js 서버 준비 상태 확인
+      const maxRetries = 30; // 최대 30회 시도 (30초)
+
       if (process.env.NODE_ENV === 'development') {
-        await checkIfNextServerReady();
+        const serverReady = await checkIfNextServerReady(maxRetries, 1000);
+        if (!serverReady) {
+          debugLog('Next.js 서버가 응답하지 않습니다. 오류 화면 표시');
+          createWindow(true); // 오류 화면 표시 플래그 전달
+          return;
+        }
       }
-      
+
+      // 전역 예외 핸들러 설정
+      process.on('uncaughtException', (error) => {
+        debugLog('처리되지 않은 예외:', error);
+      });
+
+      debugLog('전역 예외 핸들러 설정 완료');
+
       // 창 생성
-      createWindow();
+      createWindow(false); // 정상 모드로 창 생성
     } catch (error) {
       debugLog('시작 오류:', error);
+      createWindow(true); // 오류 모드로 창 생성
     }
   });
-  
+
   // 두 번째 인스턴스 실행 시 기존 창 활성화
   app.on('second-instance', (event, commandLine, workingDirectory) => {
     debugLog('다른 인스턴스가 실행됨, 기존 창 활성화');
     const mainWindow = getMainWindow();
-    
+
     if (mainWindow) {
       if (mainWindow.isMinimized()) mainWindow.restore();
       mainWindow.focus();
@@ -131,7 +215,7 @@ if (!gotSingleInstanceLock) {
  */
 function setupGpuAcceleration() {
   const { settings } = appState;
-  
+
   // GPU 하드웨어 가속 설정에 따라 스위치 적용
   if (settings && settings.useHardwareAcceleration) {
     // GPU 가속화 활성화
@@ -139,38 +223,38 @@ function setupGpuAcceleration() {
     app.commandLine.appendSwitch('enable-zero-copy');
     app.commandLine.appendSwitch('enable-hardware-overlays', 'single-fullscreen,single-on-top');
     app.commandLine.appendSwitch('enable-features', 'VaapiVideoDecoder');
-    
+
     // 고급 WebGL 최적화
     app.commandLine.appendSwitch('enable-webgl');
     app.commandLine.appendSwitch('canvas-oop-rasterization');
-    
+
     // V8 최적화
     app.commandLine.appendSwitch('js-flags', '--max-old-space-size=4096');
-    
+
     debugLog('GPU 하드웨어 가속이 활성화되었습니다.');
   } else {
     // 소프트웨어 렌더링 사용 (GPU 가속 비활성화)
     app.disableHardwareAcceleration();
     app.commandLine.appendSwitch('disable-gpu');
-    
+
     // 메모리 사용 최적화 (하드웨어 가속이 꺼진 경우)
     app.commandLine.appendSwitch('js-flags', '--max-old-space-size=2048');
-    
+
     debugLog('GPU 하드웨어 가속이 비활성화되었습니다. 소프트웨어 렌더링을 사용합니다.');
   }
-  
+
   // 공통 성능 최적화 설정
   app.commandLine.appendSwitch('enable-features', 'SharedArrayBuffer');
   app.commandLine.appendSwitch('disable-features', 'OutOfBlinkCors');
   app.commandLine.appendSwitch('disable-site-isolation-trials');
-  
+
   // 메모리 압축 활성화
   app.commandLine.appendSwitch('enable-features', 'MemoryPressureBasedSourceBufferGC');
   app.commandLine.appendSwitch('force-fieldtrials', 'MemoryPressureBasedSourceBufferGC/Enabled');
-  
+
   // CrashPad 비활성화 (선택적, 메모리 사용 감소)
   app.commandLine.appendSwitch('disable-crash-reporter');
-  
+
   return settings?.useHardwareAcceleration || false;
 }
 
@@ -179,10 +263,10 @@ function setupGpuAcceleration() {
  */
 async function initializeApp() {
   try {
-    
+
     // 창 생성 전에 메모리 설정 초기화
     setupMemoryManagement();
-    
+
     // 메모리 최적화를 위한 이벤트 리스너 설정
     setupMemoryOptimizationEvents();
   } catch (error) {
@@ -196,24 +280,24 @@ async function initializeApp() {
  */
 function setupMemoryManagement() {
   const { settings } = appState;
-  
+
   // 메모리 사용량 모니터링 간격 설정
   appState.memoryMonitorInterval = settings?.reduceMemoryInBackground ? 30000 : 60000; // 30초 또는 60초
-  
+
   // 메모리 임계값 설정
   appState.memoryThreshold = {
     high: settings?.maxMemoryThreshold || 150, // MB 단위
     critical: (settings?.maxMemoryThreshold || 150) * 1.5
   };
-  
+
   try {
     // 네이티브 메모리 모듈 초기화
     const { isNativeModuleAvailable, initializeMemorySettings } = require('../server/native');
-    
+
     // 네이티브 모듈이 사용 가능한 경우 설정 초기화
     if (isNativeModuleAvailable()) {
       console.log('네이티브 메모리 모듈 초기화 중...');
-      
+
       // 네이티브 모듈에 설정 전달
       const memorySettings = {
         enable_automatic_optimization: true,
@@ -227,7 +311,7 @@ function setupMemoryManagement() {
         use_memory_pool: true,
         pool_cleanup_interval: 300000 // 5분
       };
-      
+
       initializeMemorySettings(JSON.stringify(memorySettings));
       console.log('네이티브 메모리 모듈 설정 초기화 완료');
     } else {
@@ -245,10 +329,10 @@ function setupMemoryManagement() {
 function setupMemoryOptimizationEvents() {
   const { app, ipcMain } = require('electron');
   const { isNativeModuleAvailable, optimizeMemory, forceGarbageCollection } = require('../server/native');
-  
+
   // 메모리 사용량 모니터링 타이머
   let memoryMonitorTimer = null;
-  
+
   // 메모리 사용량 확인 및 최적화
   const checkMemoryUsage = async () => {
     try {
@@ -256,11 +340,11 @@ function setupMemoryOptimizationEvents() {
       const memoryInfo = process.memoryUsage();
       const heapUsedMB = Math.round(memoryInfo.heapUsed / 1024 / 1024);
       const { high, critical } = appState.memoryThreshold;
-      
+
       // 메모리 사용량이 임계값 초과 시 최적화 수행
       if (heapUsedMB > critical) {
         console.log(`메모리 사용량 위험 수준 (${heapUsedMB}MB > ${critical}MB), 긴급 최적화 수행`);
-        
+
         // 네이티브 모듈 사용 가능 시 네이티브 최적화 사용
         if (isNativeModuleAvailable()) {
           await optimizeMemory(4, true); // 레벨 4(긴급)로 최적화
@@ -270,7 +354,7 @@ function setupMemoryOptimizationEvents() {
         }
       } else if (heapUsedMB > high) {
         console.log(`메모리 사용량 높음 (${heapUsedMB}MB > ${high}MB), 일반 최적화 수행`);
-        
+
         // 네이티브 모듈 사용 가능 시 네이티브 최적화 사용
         if (isNativeModuleAvailable()) {
           await optimizeMemory(2, false); // 레벨 2(중간)로 최적화
@@ -283,13 +367,13 @@ function setupMemoryOptimizationEvents() {
       console.error('메모리 사용량 확인 중 오류:', error);
     }
   };
-  
+
   // 앱이 백그라운드로 전환될 때 메모리 최적화
   app.on('browser-window-blur', async () => {
     if (appState.settings?.reduceMemoryInBackground) {
       try {
         console.log('앱이 백그라운드로 전환됨, 메모리 최적화 수행');
-        
+
         // 네이티브 모듈 사용 가능 시 네이티브 최적화 사용
         if (isNativeModuleAvailable()) {
           await optimizeMemory(3, false); // 레벨 3(높음)로 최적화
@@ -302,12 +386,12 @@ function setupMemoryOptimizationEvents() {
       }
     }
   });
-  
+
   // 렌더러에서 메모리 최적화 요청 처리
   ipcMain.handle('optimize-memory', async (event, emergency = false) => {
     try {
       console.log(`메모리 최적화 요청 수신 (긴급: ${emergency})`);
-      
+
       if (isNativeModuleAvailable()) {
         const level = emergency ? 4 : 2;
         const result = await optimizeMemory(level, emergency);
@@ -322,12 +406,12 @@ function setupMemoryOptimizationEvents() {
       return { success: false, error: error.message };
     }
   });
-  
+
   // 렌더러에서 GC 요청 처리
   ipcMain.handle('request-gc', async (event, emergency = false) => {
     try {
       console.log(`GC 요청 수신 (긴급: ${emergency})`);
-      
+
       if (isNativeModuleAvailable()) {
         const result = await forceGarbageCollection();
         return { success: true, result };
@@ -341,14 +425,14 @@ function setupMemoryOptimizationEvents() {
       return { success: false, error: error.message };
     }
   });
-  
+
   // 주기적 메모리 모니터링 시작
   if (memoryMonitorTimer) {
     clearInterval(memoryMonitorTimer);
   }
-  
+
   memoryMonitorTimer = setInterval(checkMemoryUsage, appState.memoryMonitorInterval);
-  
+
   // 앱 종료 시 모니터링 중지
   app.on('before-quit', () => {
     if (memoryMonitorTimer) {
@@ -356,6 +440,6 @@ function setupMemoryOptimizationEvents() {
       memoryMonitorTimer = null;
     }
   });
-  
+
   console.log(`메모리 최적화 이벤트 리스너 설정 완료 (모니터링 간격: ${appState.memoryMonitorInterval}ms)`);
 }

@@ -38,7 +38,7 @@ function createWorker() {
   const worker = new Worker(workerPath);
 
   worker.on('message', (message) => {
-    // 기존 메시지 타입 처리
+    // 메시지 타입에 따른 로깅 및 처리
     if (message.type === 'task:completed') {
       // 작업 완료 처리
       const { taskId, result } = message;
@@ -55,20 +55,23 @@ function createWorker() {
       // 실패 콜백 실행
       executeTaskErrorCallback(taskId, error);
     }
-    // worker-ready 메시지 처리 추가
     else if (message.type === 'worker-ready') {
       // 워커 준비 상태 처리
       const { threadId, memoryInfo, processingMode } = message;
-      debugLog(`워커 준비됨 (ID: ${threadId || 'unknown'}, 메모리: ${memoryInfo?.heapUsedMB?.toFixed(2) || 'N/A'}MB, 모드: ${processingMode || 'normal'}`);
+      const memoryUsedMB = memoryInfo?.heapUsedMB?.toFixed(2) || 'N/A';
+
+      debugLog(`워커 준비됨 (ID: ${threadId || '?'}, 메모리: ${memoryUsedMB}MB, 모드: ${processingMode || 'normal'})`);
 
       // 워커를 사용 가능한 상태로 설정
       worker.isReady = true;
       worker.isBusy = false;
       worker.lastUsed = Date.now();
+      worker.memoryInfo = memoryInfo;
+      worker.processingMode = processingMode;
     }
     else {
-      // 알 수 없는 메시지 유형을 디버그 로그에 기록
-      debugLog(`워커로부터 알 수 없는 메시지: ${JSON.stringify(message)}`);
+      // 알 수 없는 메시지 유형을 더 명확하게 로깅
+      debugLog(`워커로부터 알 수 없는 메시지 유형 수신: ${message.type || 'undefined'}`);
     }
   });
 
@@ -119,6 +122,7 @@ function createWorker() {
  */
 function executeTaskCallback(taskId, result) {
   // 콜백 호출 구현
+  debugLog(`작업 완료 콜백 실행: ${taskId}`);
 }
 
 /**
@@ -128,13 +132,34 @@ function executeTaskCallback(taskId, result) {
  */
 function executeTaskErrorCallback(taskId, error) {
   // 오류 콜백 호출 구현
+  debugLog(`작업 오류 콜백 실행: ${taskId}, 오류: ${error}`);
+}
+
+/**
+ * 사용 가능한 워커 가져오기
+ * @returns {Worker|null} 사용 가능한 워커 또는 null
+ */
+function getAvailableWorker() {
+  // 사용 가능한 워커 찾기
+  const availableWorker = workerPool.find(worker => worker.isReady && !worker.isBusy);
+
+  if (availableWorker) {
+    availableWorker.isBusy = true;
+    availableWorker.lastUsed = Date.now();
+    return availableWorker;
+  }
+
+  // 사용 가능한 워커가 없으면 null 반환
+  return null;
 }
 
 // 모듈 내보내기
 module.exports = {
   initWorkers,
-  getAvailableWorker() {
-    // 사용 가능한 워커 반환 구현
-  },
-  // 기타 내보낼 함수들...
+  getAvailableWorker,
+  createWorker,
+  getAllWorkers: () => [...workerPool],
+  getWorkerCount: () => workerPool.length,
+  getReadyWorkerCount: () => workerPool.filter(w => w.isReady).length,
+  getBusyWorkerCount: () => workerPool.filter(w => w.isBusy).length
 };
