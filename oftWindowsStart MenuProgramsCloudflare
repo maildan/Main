@@ -1,0 +1,265 @@
+[33mcommit 04d64ba2f25465f018cbd5c665a9729987d27024[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mcommit[m[33m)[m
+Merge: 594b50e 285145a
+Author: umsehun <sakills914@gmail.com>
+Date:   Mon Apr 7 09:09:36 2025 +0900
+
+    Merge branch 'master' into commit
+
+[33mcommit 594b50e835257aa81ac0dd1c507475ead18f5ac8[m[33m ([m[1;31morigin/commit[m[33m)[m
+Author: umsehun <sakills914@gmail.com>
+Date:   Mon Apr 7 08:07:38 2025 +0900
+
+    feat:pull commit
+
+[33mcommit 32f5fc4dda962498615de16c08debc33fef18778[m[33m ([m[1;32mtest[m[33m)[m
+Author: umsehun <sakills914@gmail.com>
+Date:   Thu Apr 3 19:33:05 2025 +0900
+
+    feat:git filter-branch
+
+[33mcommit 9f6174388eeeb64209a99694c330769aaa7c4d3e[m
+Author: umsehun <sakills914@gmail.com>
+Date:   Thu Apr 3 19:15:55 2025 +0900
+
+    feat:bug_fix
+
+[33mcommit 09a6656fd9f91f44e139468b2337bfe48970950f[m
+Author: umsehun <sakills914@gmail.com>
+Date:   Thu Apr 3 08:25:27 2025 +0900
+
+    feat:native modules 수정
+
+[33mcommit b9be998b2587d5a29bbb945b2e8a7633b98315eb[m
+Author: umsehun <sakills914@gmail.com>
+Date:   Thu Apr 3 08:08:31 2025 +0900
+
+    feat:gititgnore 개선
+
+[33mcommit 08732bcec6bbe36f034115ab361de43957670e9a[m
+Author: umsehun <sakills914@gmail.com>
+Date:   Wed Apr 2 23:57:03 2025 +0900
+
+    feat:.gitignore fix
+
+[33mcommit f29476fcdb7c2791095afd63112af0bccba5be28[m
+Author: umsehun <sakills914@gmail.com>
+Date:   Wed Apr 2 23:43:17 2025 +0900
+
+    feat:npm run dev
+
+[33mcommit c688c030f8d9906033e20c6901c43ea537aa774c[m
+Author: umsehun <sakills914@gmail.com>
+Date:   Wed Apr 2 07:55:35 2025 +0900
+
+    feat:앱 build 오류 수정
+
+[33mcommit 560808ac4660a9bc962ea9088bfd2ae0a5983447[m
+Author: umsehun <sakills914@gmail.com>
+Date:   Tue Apr 1 08:28:53 2025 +0900
+
+    feat:.gitgnore 수정
+
+[33mcommit be3b49076b224c840911612550723c278844c250[m
+Author: umsehun <sakills914@gmail.com>
+Date:   Tue Apr 1 08:17:21 2025 +0900
+
+    feat:test commit
+
+[33mcommit 9c0d508e18d4a3048a04d355d301e42da748cd81[m[33m ([m[1;32mrust[m[33m)[m
+Author: umsehun <sakills914@gmail.com>
+Date:   Tue Apr 1 07:59:32 2025 +0900
+
+    feat: npm run dev 오류
+
+[33mcommit 285145ad55cedf125768d8f72a317b716418c0bf[m[33m ([m[1;31morigin/master[m[33m, [m[1;31morigin/HEAD[m[33m, [m[1;32mmaster[m[33m)[m
+Author: 임세훈 <165880427+umsehun@users.noreply.github.com>
+Date:   Fri Mar 28 01:03:30 2025 +0900
+
+    Create blank.yml
+
+[33mcommit 42f81eff87e4227e1bae5243b2d4b2f7f8ba613b[m
+Author: umsehun <sakills914@gmail.com>
+Date:   Thu Mar 27 21:49:22 2025 +0900
+
+    fix: package.json 오류 수정
+
+[33mcommit 23714806dcb0e421ed879bc4b9fbd8aebdb9db22[m
+Author: umsehun <sakills914@gmail.com>
+Date:   Thu Mar 27 21:23:18 2025 +0900
+
+    fix:npm 관련 버그 수정
+
+[33mcommit df32e0e471cb36555460a36c8e0ce1a94b8c98c7[m
+Author: umsehun <sakills914@gmail.com>
+Date:   Wed Mar 26 09:29:19 2025 +0900
+
+    feat:CI/CD 배포 자동화 && ESLint 기법 오류 자동화
+
+[33mcommit a1de2204b38c183df849cb7cc4e507cd32ae6e60[m
+Author: umsehun <sakills914@gmail.com>
+Date:   Tue Mar 25 18:08:34 2025 +0900
+
+    feat:test
+
+[33mcommit d9650ba88403973bb13eecbb28803e0b97ea0e92[m[33m ([m[1;32mcheck[m[33m)[m
+Author: umsehun <sakills914@gmail.com>
+Date:   Tue Mar 25 17:54:45 2025 +0900
+
+    fix:메모리 최적화 GPU 가속화 수정
+
+[33mcommit 43896e9928173390953ccc0e19beb5ff2c5e35a2[m
+Author: umsehun <sakills914@gmail.com>
+Date:   Tue Mar 25 14:44:49 2025 +0900
+
+    fix:fucking_rust , ts , js bug
+
+[33mcommit 9c9eceec8df299d0a4a33c1ea195f901243694a5[m
+Author: umsehun <sakills914@gmail.com>
+Date:   Tue Mar 25 08:06:51 2025 +0900
+
+    fix:모듈 에러 수정
+
+[33mcommit ad59c6d1fd874307980433f3c38fc0d74334e251[m
+Author: umsehun <sakills914@gmail.com>
+Date:   Tue Mar 25 01:06:39 2025 +0900
+
+    feat:rut_메모리 최적화 && GPU 가속화
+
+[33mcommit dcea56d955e8b8ca277386acba1b895c98da2a40[m
+Author: umsehun <sakills914@gmail.com>
+Date:   Mon Mar 24 20:15:43 2025 +0900
+
+    fix:rust
+
+[33mcommit d76f19e40d3d0097c4306452755974c601b1d09a[m
+Author: umsehun <sakills914@gmail.com>
+Date:   Mon Mar 24 17:31:59 2025 +0900
+
+    feat:rust_fixed
+
+[33mcommit 5b29c479e6d13e6bf2696c77917c70381118f3f8[m
+Author: umsehun <sakills914@gmail.com>
+Date:   Mon Mar 24 15:04:24 2025 +0900
+
+    feat:rust 메모리 최적화 && rust 모듈 설치
+
+[33mcommit f3233a922103fd435d8cadde0633a2533130abb7[m
+Author: umsehun <sakills914@gmail.com>
+Date:   Mon Mar 24 14:20:15 2025 +0900
+
+    feat:memory_rust
+
+[33mcommit 4d112eeae0204ba21a7a7147d5447b9205dc4a61[m[33m ([m[1;32mmain[m[33m, [m[1;32mcehck[m[33m, [m[1;32mcehcek[m[33m)[m
+Author: umsehun <sakills914@gmail.com>
+Date:   Mon Mar 24 10:07:27 2025 +0900
+
+    feat:오류수정?
+
+[33mcommit 358c61d2e60f8d469edf9c1f1bb6067365defb2a[m
+Author: umsehun <sakills914@gmail.com>
+Date:   Thu Mar 20 02:18:09 2025 +0900
+
+    feat:메모리 최적화 모듈화
+
+[33mcommit 31b02186b317d3405ad935a88d0b098a3c59c211[m
+Author: umsehun <sakills914@gmail.com>
+Date:   Wed Mar 19 20:16:30 2025 +0900
+
+    fix:window 클래스 오류 수정
+
+[33mcommit f65125103711f6cf4cbccf35e10944bfe0f5abbb[m
+Author: umsehun <sakills914@gmail.com>
+Date:   Wed Mar 19 20:09:45 2025 +0900
+
+    fix:dailogs.js 추가
+
+[33mcommit 09504bbdb263beee87cea6d2f893d0db7748f589[m
+Author: umsehun <sakills914@gmail.com>
+Date:   Wed Mar 19 20:06:57 2025 +0900
+
+    fix:GPU 가속화 ( chrome 가속화 방식 ) 개선
+
+[33mcommit 7356c5e16fa8027064f043a0ed24e999d5702295[m
+Author: umsehun <sakills914@gmail.com>
+Date:   Wed Mar 19 13:25:39 2025 +0900
+
+    feat:Gpu 가속화
+
+[33mcommit 38c28425290eef72c73379bc5777094a91fd0a89[m
+Author: umsehun <sakills914@gmail.com>
+Date:   Wed Mar 19 12:23:40 2025 +0900
+
+    feat:메모리 최적화 V2
+
+[33mcommit d498afed7af13d153170f33a7259a8a58b3c304a[m
+Author: umsehun <sakills914@gmail.com>
+Date:   Wed Mar 19 12:05:42 2025 +0900
+
+    feat: page.tsx 모듈화
+
+[33mcommit 2c1c6cf0269b510297c2f735ea1af6a6eb00baa0[m
+Author: umsehun <sakills914@gmail.com>
+Date:   Wed Mar 19 11:11:37 2025 +0900
+
+    feat:메모리 최적화
+
+[33mcommit 3fb1f5f05b254a5519dc8b2cf175a58596c08cd0[m
+Author: umsehun <sakills914@gmail.com>
+Date:   Wed Mar 19 02:47:07 2025 +0900
+
+    feat:미니 뷰 테스팅
+
+[33mcommit d8204408c4c8d5ed980615f38375bafd2578c437[m
+Author: umsehun <sakills914@gmail.com>
+Date:   Tue Mar 18 20:17:43 2025 +0900
+
+    feat:메모리 최적화
+
+[33mcommit 2f4e30c6a50fb8f3e690a5724d109af49717fcc4[m
+Author: myagmb28 <myagmb28s@gmail.com>
+Date:   Tue Mar 18 19:49:20 2025 +0900
+
+    Delete pull_request_template.md
+    
+    from master
+
+[33mcommit 45e9d350118c23d7767576f064b6fce53a5db8a9[m
+Author: umsehun <sakills914@gmail.com>
+Date:   Tue Mar 18 19:44:34 2025 +0900
+
+    feat:UI 수정
+
+[33mcommit ceca61ac96e0811e8f712969c58643d76884e8c0[m[33m ([m[1;31morigin/feature[m[33m)[m
+Merge: 8960e5e 04d449e
+Author: myagmb28 <myagmb28s@gmail.com>
+Date:   Tue Mar 18 16:41:52 2025 +0900
+
+    Merge pull request #1 from maildan/feature
+    
+    Create pull
+
+[33mcommit 04d449eb706682ab077fd593048f39e982c023b8[m
+Author: myagmb28 <myagmb28s@gmail.com>
+Date:   Tue Mar 18 16:38:48 2025 +0900
+
+    Update pull_request_template
+    
+    that's it
+
+[33mcommit 0e0dc4a9ea660c2e96a7062b8c35170de716d503[m
+Author: umsehun <sakills914@gmail.com>
+Date:   Tue Mar 18 15:15:01 2025 +0900
+
+    feat:앱 테스트
+
+[33mcommit 28db8cefabd11b818f4798a665cf3eaf39bfc3e1[m
+Author: 임세훈 <165880427+umsehun@users.noreply.github.com>
+Date:   Tue Mar 18 15:06:51 2025 +0900
+
+    Create pull
+
+[33mcommit 8960e5e9a182f074c479d96c0597c774fbf03e57[m[33m ([m[1;31morigin/release[m[33m, [m[1;31morigin/hotfix[m[33m, [m[1;31morigin/develop[m[33m)[m
+Author: myagmb28Dev <myagmb28s@gmail.com>
+Date:   Wed Mar 12 20:22:33 2025 +0900
+
+    Initial commit
