@@ -367,7 +367,6 @@ export async function getMemoryLogs(
   eventTypes?: MemoryEventType[]
 ): Promise<MemoryLogEntry[]> {
   // 시간 기준 필터링
-  const _now = Date.now(); // 사용하지 않는 변수에 _ 추가
   const filteredByTime = memoryLogs.filter((log: MemoryLogEntry) => {
     if (startTime && log.timestamp < startTime) return false;
     if (endTime && log.timestamp > endTime) return false;
@@ -382,31 +381,6 @@ export async function getMemoryLogs(
   // 최신 순으로 정렬하고 제한된 개수 반환
   return filtered
     .sort((a: MemoryLogEntry, b: MemoryLogEntry) => b.timestamp - a.timestamp)
-    .slice(0, limit);
-}
-
-/**
- * 메모리 사용 통계 분석
- * @param startTime 시작 시간 (밀리초)
- * @param endTime 종료 시간 (밀리초)
- * @returns 메모리 사용 통계
- */
-export async function analyzeMemoryUsage(
-  startTime: number = Date.now() - 24 * 60 * 60 * 1000, // 기본: 24시간
-  endTime: number = Date.now()
-): Promise<MemoryUsageStats> {
-  // 지정된 기간의 로그 가져오기
-  const logs = await getMemoryLogs(1000, startTime, endTime);
-
-  if (logs.length === 0) {
-    throw new Error('분석할 메모리 로그가 없습니다');
-  }
-
-  // 기본 통계 계산
-  const usages = logs.map(log => log.info.heap_used_mb || 0);
-  const avgUsage = usages.reduce((sum, usage) => sum + usage, 0) / usages.length;
-  const peakUsage = Math.max(...usages);
-  const minUsage = Math.min(...usages);
     .slice(0, limit);
 }
 

@@ -22,17 +22,21 @@ export async function getMemoryUsage(): Promise<MemoryInfo | null> {
     if (typeof window === 'undefined' || !performance || !(performance as any).memory) {
       return createEstimatedMemoryInfo();
     }
-    
+
     const memory = (performance as any).memory as PerformanceMemory;
-    
+
+    if (!memory) {
+      throw new Error('브라우저 메모리 API를 사용할 수 없습니다.');
+    }
+
     const heap_used = memory.usedJSHeapSize;
     const heap_total = memory.totalJSHeapSize;
     const heap_limit = memory.jsHeapSizeLimit;
     const percent_used = (heap_used / heap_total) * 100;
-    
+
     // RSS 추정 (정확한 값을 얻을 수 없으므로 힙 크기의 1.5배로 추정)
     const rss = Math.round(heap_total * 1.5);
-    
+
     return {
       heap_used,
       heap_total,
@@ -57,14 +61,16 @@ function createEstimatedMemoryInfo(): MemoryInfo {
   // 추정치로 기본값 제공
   const estimatedHeapUsed = 50 * 1024 * 1024; // 50MB
   const estimatedHeapTotal = 100 * 1024 * 1024; // 100MB
-  
+  const estimatedHeapLimit = estimatedHeapTotal * 2;
+  const estimatedRss = Math.round(estimatedHeapTotal * 1.5);
+
   return {
     heap_used: estimatedHeapUsed,
     heap_total: estimatedHeapTotal,
-    heap_limit: estimatedHeapTotal * 2,
+    heap_limit: estimatedHeapLimit,
     heap_used_mb: Math.round(estimatedHeapUsed / (1024 * 1024) * 10) / 10,
-    rss: Math.round(estimatedHeapTotal * 1.5),
-    rss_mb: Math.round(estimatedHeapTotal * 1.5 / (1024 * 1024) * 10) / 10,
+    rss: estimatedRss,
+    rss_mb: Math.round(estimatedRss / (1024 * 1024) * 10) / 10,
     percent_used: 50,
     timestamp: Date.now()
   };
@@ -82,7 +88,7 @@ export async function getNativeMemoryInfo(): Promise<MemoryInfo | null> {
         return normalizeMemoryInfo(nativeMemoryInfo);
       }
     }
-    
+
     // API를 통해 가져오기
     try {
       const memoryInfo = await requestNativeMemoryInfo();
@@ -92,7 +98,7 @@ export async function getNativeMemoryInfo(): Promise<MemoryInfo | null> {
     } catch (apiError) {
       console.debug('API를 통한 메모리 정보 가져오기 실패:', apiError);
     }
-    
+
     // 네이티브 모듈 사용 불가능한 경우 브라우저 정보 반환
     return getMemoryUsage();
   } catch (error) {
@@ -111,8 +117,7 @@ export async function getMemoryInfo(): Promise<MemoryInfo> {
       const nativeMemoryInfo = window.__memoryOptimizer.checkMemoryUsage();
       if (nativeMemoryInfo) {
         // nativeMemoryInfo가 MemoryInfo 타입인지 확인하고, 아니라면 변환
-        const memoryInfo: MemoryInfo = normalizeMemoryInfo(nativeMemoryInfo);
-        return memoryInfo;
+        return normalizeMemoryInfo(nativeMemoryInfo);
       }
     }
   } catch (e) {
@@ -129,11 +134,11 @@ export async function getMemoryInfo(): Promise<MemoryInfo> {
  */
 export function formatMemoryInfo(info: MemoryInfo): string {
   if (!info) return 'Memory info not available';
-  
+
   const usedMB = info.heap_used_mb.toFixed(1);
   const totalMB = (info.heap_total / (1024 * 1024)).toFixed(1);
   const percent = info.percent_used.toFixed(1);
-  
+
   return `Memory: ${usedMB}MB / ${totalMB}MB (${percent}%)`;
 }
 
@@ -142,36 +147,25 @@ export function formatMemoryInfo(info: MemoryInfo): string {
  */
 export function assessMemoryState(memoryInfo: MemoryInfo): 'normal' | 'warning' | 'critical' {
   const percentUsed = memoryInfo.percent_used;
-  
+
   if (percentUsed > 85) {
     return 'critical';
   } else if (percentUsed > 70) {
     return 'warning';
   }
-  
-  return 'normal';
-}
 
-/**
- * 네이티브 메모리 정보를 앱 형식으로 변환
- */
-export function convertNativeMemoryInfo(nativeInfo: any): MemoryInfo {
-  return {
-    heap_used: nativeInfo.heap_used || 0,
-    heap_total: nativeInfo.heap_total || 0,
-    heap_limit: nativeInfo.heap_limit || 0,
-    heap_used_mb: nativeInfo.heap_used_mb || 0,
-    percent_used: nativeInfo.percent_used || 0,
-    rss: nativeInfo.rss || 0,
-    rss_mb: nativeInfo.rss_mb || 0,
-    timestamp: nativeInfo.timestamp || Date.now()
-  };
+  return 'normal';
 }
 
 /**
  * 메모리 정보 정규화 (필드 이름 통일)
  */
-function normalizeMemoryInfo(info: any): MemoryInfo {
+export function normalizeMemoryInfo(info: any): MemoryInfo {
+  if (!info) {
+    return createEstimatedMemoryInfo();
+  }
+
+  // 기존 키가 없는 경우 대체값 제공
   return {
     heap_used: info.heapUsed || info.heap_used || 0,
     heapUsed: info.heapUsed || info.heap_used || 0,
