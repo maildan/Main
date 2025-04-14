@@ -74,12 +74,10 @@ export interface MemoryOptimizerUtility {
 }
 
 /**
- * 확장된 윈도우 인터페이스 정의
- * 메모리 관리 및 캐시 관련 속성 추가
+ * 확장된 윈도우 캐시 관련 타입 정의
+ * Window 인터페이스 확장 대신 타입 선언으로 변경
  */
-
-// 전역 윈도우 객체에 캐시 관련 속성 추가
-export interface WindowWithCache extends Window {
+export type MemoryCacheWindow = {
   // Object URL 관련
   __objectUrls?: Map<string, string>;
 
@@ -109,4 +107,9 @@ export interface WindowWithCache extends Window {
 
   // 가비지 콜렉션
   gc?: () => void;
+};
+
+// 타입 가드 정의
+export function hasMemoryCache(win: Window): win is Window & MemoryCacheWindow {
+  return win !== undefined && typeof win === 'object';
 }

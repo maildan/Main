@@ -7,17 +7,9 @@
 import { getSystemStatus } from './system-monitor';
 import { optimizeMemory } from './nativeModuleClient';
 import { setGpuAcceleration } from './gpu-acceleration';
-import { MemoryUsageLevel } from '@/types';
+import { MemoryUsageLevel, ProcessingMode, SystemStatus, MemorySettings, OptimizationLevel } from '@/types';
 import { useCallback, useEffect, useRef } from 'react';
 import React from 'react';
-
-// OptimizationLevel을 타입이 아닌 열거형으로 재정의
-export enum OptimizationLevel {
-  LOW = 1,
-  MEDIUM = 2,
-  HIGH = 3,
-  EXTREME = 4
-}
 
 // 최적화 설정
 interface OptimizationSettings {
@@ -59,14 +51,22 @@ export async function analyzeAndOptimize(forced = false): Promise<boolean> {
 
     // 시스템 상태 확인
     const status = await getSystemStatus(true);
+    
+    // 메모리 정보가 없으면 기본값 사용
+    const memoryInfo = status.memory ?? {
+      percentUsed: 0,
+      level: MemoryUsageLevel.LOW,
+      heapUsedMB: 0,
+      rssMB: 0
+    };
 
     // 메모리 사용량이 임계치 이상이거나 강제 모드인 경우에만 최적화
-    if (status.memory.percentUsed >= currentSettings.memoryThreshold || forced) {
+    if (memoryInfo.percentUsed >= currentSettings.memoryThreshold || forced) {
       // 메모리 레벨에 따른 최적화 수준 결정
       let optimizationLevel = 0;
       let emergency = false;
 
-      switch (status.memory.level) {
+      switch (memoryInfo.level) {
         case MemoryUsageLevel.CRITICAL:
           optimizationLevel = 4;
           emergency = true;
@@ -94,14 +94,20 @@ export async function analyzeAndOptimize(forced = false): Promise<boolean> {
       }
     }
 
+    // 처리 모드 정보가 없으면 기본값 사용
+    const processingInfo = status.processing ?? {
+      mode: ProcessingMode.NORMAL,
+      gpuEnabled: false
+    };
+
     // GPU 가속 여부 결정
     if (currentSettings.switchToGpuIfAvailable) {
       const shouldUseGpu =
-        status.memory.level !== MemoryUsageLevel.CRITICAL &&
-        status.memory.level !== MemoryUsageLevel.HIGH;
+        memoryInfo.level !== MemoryUsageLevel.CRITICAL &&
+        memoryInfo.level !== MemoryUsageLevel.HIGH;
 
       // 현재 GPU 상태와 다른 경우에만 변경
-      if (shouldUseGpu !== status.processing.gpuEnabled) {
+      if (shouldUseGpu !== processingInfo.gpuEnabled) {
         await setGpuAcceleration(shouldUseGpu);
       }
     }
@@ -165,11 +171,12 @@ export async function processBatched<T, R>(
 
   // 처리 전 시스템 상태 확인
   const status = await getSystemStatus();
+  const memoryLevel = status.memory?.level ?? MemoryUsageLevel.LOW;
 
   // 메모리 사용량이 높으면 배치 크기 줄이기
-  if (status.memory.level === MemoryUsageLevel.HIGH) {
+  if (memoryLevel === MemoryUsageLevel.HIGH) {
     batchSize = Math.max(10, Math.floor(batchSize / 2));
-  } else if (status.memory.level === MemoryUsageLevel.CRITICAL) {
+  } else if (memoryLevel === MemoryUsageLevel.CRITICAL) {
     batchSize = Math.max(5, Math.floor(batchSize / 4));
   }
 
@@ -184,9 +191,10 @@ export async function processBatched<T, R>(
     // 배치 처리 후 메모리 사용량이 높으면 최적화 수행
     if (i + batchSize < items.length) {
       const currentStatus = await getSystemStatus(true);
+      const currentMemoryLevel = currentStatus.memory?.level ?? MemoryUsageLevel.LOW;
 
-      if (currentStatus.memory.level === MemoryUsageLevel.HIGH ||
-        currentStatus.memory.level === MemoryUsageLevel.CRITICAL) {
+      if (currentMemoryLevel === MemoryUsageLevel.HIGH ||
+        currentMemoryLevel === MemoryUsageLevel.CRITICAL) {
         await analyzeAndOptimize(true);
 
         // 잠시 딜레이를 주어 GC가 실행될 시간 제공
@@ -226,7 +234,7 @@ export async function optimizeForBackground(): Promise<boolean> {
  */
 export async function optimizePerformance(
   // 수정: OptimizationLevel 열거형 값 사용
-  level: number = OptimizationLevel.MEDIUM,
+  level: OptimizationLevel = OptimizationLevel.MEDIUM,
   emergency: boolean = false
 ): Promise<boolean> {
   try {
@@ -402,4 +410,90 @@ export function withPerformanceOptimization<P extends object>(
   OptimizedComponent.displayName = `WithPerformanceOptimization(${displayName})`;
 
   return OptimizedComponent;
+}
+
+/**
+ * 시스템 상태에 따라 메모리 최적화 수행
+ * @param status 시스템 상태
+ * @param currentSettings 메모리 설정
+ * @param forced 강제 최적화 여부
+ */
+function optimizeBasedOnSystemStatus(status: SystemStatus, currentSettings: MemorySettings, forced = false): void {
+  // status.memory와 status.processing이 undefined일 경우를 대비한 기본값 설정
+  const memoryInfo = status.memory ?? {
+    percentUsed: 0,
+    level: MemoryUsageLevel.LOW,
+    heapUsedMB: 0,
+    rssMB: 0
+  };
+  
+  const processingInfo = status.processing ?? {
+    mode: ProcessingMode.NORMAL,
+    gpuEnabled: false
+  };
+
+  // 메모리 임계값 초과 또는 강제 최적화 시 수행
+  if (memoryInfo.percentUsed >= currentSettings.memoryThreshold || forced) {
+    // 최적화 수준 선택
+    let optimizationLevel: OptimizationLevel;
+    
+    // 메모리 사용 수준에 따른 최적화 강도 설정
+    switch (memoryInfo.level) {
+      case MemoryUsageLevel.CRITICAL:
+        optimizationLevel = OptimizationLevel.AGGRESSIVE;
+        break;
+      case MemoryUsageLevel.HIGH:
+        optimizationLevel = OptimizationLevel.HIGH;
+        break;
+      case MemoryUsageLevel.MEDIUM:
+        optimizationLevel = OptimizationLevel.MEDIUM;
+        break;
+      default:
+        optimizationLevel = OptimizationLevel.LOW;
+    }
+
+    // 최적화 실행
+    optimizeMemory(optimizationLevel);
+    
+    // 보조 최적화 작업: 하드웨어 가속 최적화
+    const shouldUseGpu = 
+      memoryInfo.level !== MemoryUsageLevel.CRITICAL &&
+      memoryInfo.level !== MemoryUsageLevel.HIGH;
+    
+    // GPU 가속 설정 변경 필요한 경우
+    if (shouldUseGpu !== processingInfo.gpuEnabled) {
+      setGpuAcceleration(shouldUseGpu);
+    }
+  }
+}
+
+/**
+ * 시스템 성능에 따른 권장 테마 반환
+ * @param status 시스템 상태
+ * @returns 권장 테마
+ */
+function getRecommendedThemeBasedOnPerformance(status: SystemStatus): 'light' | 'dark' | 'system' {
+  // memory 필드가 undefined일 경우를 대비한 기본값 설정
+  const memoryLevel = status.memory?.level ?? MemoryUsageLevel.LOW;
+  
+  if (memoryLevel === MemoryUsageLevel.HIGH) {
+    return 'light'; // 메모리 높음 - 라이트 테마 (일반적으로 DOM 요소가 덜 복잡함)
+  } else if (memoryLevel === MemoryUsageLevel.CRITICAL) {
+    return 'light'; // 메모리 위험 - 라이트 테마 (최소한의 스타일)
+  } else {
+    return 'system'; // 메모리 정상 - 시스템 기본값 유지
+  }
+}
+
+/**
+ * 시스템 상태에 따라 애니메이션 축소 여부 결정
+ * @param currentStatus 시스템 상태
+ * @returns 애니메이션 축소 여부
+ */
+function shouldUseReducedAnimations(currentStatus: SystemStatus): boolean {
+  // memory 필드가 undefined일 경우를 대비한 기본값 설정
+  const memoryLevel = currentStatus.memory?.level ?? MemoryUsageLevel.LOW;
+  
+  // 메모리 사용량이 높거나 위험한 경우에는 애니메이션 최소화
+  return memoryLevel === MemoryUsageLevel.HIGH || memoryLevel === MemoryUsageLevel.CRITICAL;
 }

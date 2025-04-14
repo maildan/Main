@@ -74,34 +74,44 @@ async function checkSystemStatus() {
     const memoryLevel = getMemoryUsageLevel(percentUsed);
     
     // 처리 모드 결정
-    let processingMode: ProcessingMode = 'normal';
+    let processingMode: ProcessingMode = ProcessingMode.NORMAL;
     
     if (memoryLevel === MemoryUsageLevel.CRITICAL) {
-      processingMode = 'memory-saving';
+      processingMode = ProcessingMode.MEMORY_SAVING;
     } else if (memoryLevel === MemoryUsageLevel.HIGH) {
-      processingMode = 'cpu-intensive';
+      processingMode = ProcessingMode.CPU_INTENSIVE;
     } else if (gpuInfo?.available && gpuInfo?.accelerationEnabled) {
-      processingMode = 'gpu-intensive';
+      processingMode = ProcessingMode.GPU_INTENSIVE;
     }
     
     // 시스템 상태 업데이트
     const status: SystemStatus = {
+      cpuUsage: 0,
+      memoryUsage: percentUsed / 100,
+      memoryUsageMB: memoryInfo.heapUsedMB || 0,
+      totalMemoryMB: memoryInfo.heapTotal ? memoryInfo.heapTotal / (1024 * 1024) : 0,
+      memoryLevel: memoryLevel,
+      processingMode: processingMode,
+      isOptimizing: false,
+      lastOptimizationTime: Date.now(),
+      uptime: process.uptime ? process.uptime() : 0,
+      
       memory: {
         percentUsed,
         level: memoryLevel,
-        heapUsedMB: memoryInfo.heapUsedMB,
-        rssMB: memoryInfo.rssMB
+        heapUsedMB: memoryInfo.heapUsedMB || 0,
+        rssMB: memoryInfo.rssMB || 0
       },
+      
       processing: {
         mode: processingMode,
         gpuEnabled: Boolean(gpuInfo?.accelerationEnabled)
       },
+      
       optimizations: {
-        count: 0, // 이 정보는 현재 API에서 제공하지 않음
-        lastTimestamp: 0,
-        freedMemoryMB: 0
-      },
-      timestamp: Date.now()
+        count: 0,
+        lastTime: Date.now()
+      }
     };
     
     // 캐시 업데이트
@@ -178,22 +188,32 @@ export async function getSystemStatus(forceRefresh = false): Promise<SystemStatu
   
   // 캐시된 상태가 있으면 반환, 없으면 기본값 반환
   return cachedStatus || {
+    cpuUsage: 0,
+    memoryUsage: 0,
+    memoryUsageMB: 0,
+    totalMemoryMB: 0,
+    memoryLevel: MemoryUsageLevel.LOW,
+    processingMode: ProcessingMode.NORMAL,
+    isOptimizing: false,
+    lastOptimizationTime: 0,
+    uptime: 0,
+    
     memory: {
       percentUsed: 0,
       level: MemoryUsageLevel.LOW,
       heapUsedMB: 0,
       rssMB: 0
     },
+    
     processing: {
-      mode: 'normal',
+      mode: ProcessingMode.NORMAL,
       gpuEnabled: false
     },
+    
     optimizations: {
       count: 0,
-      lastTimestamp: 0,
-      freedMemoryMB: 0
-    },
-    timestamp: now
+      lastTime: 0
+    }
   };
 }
 

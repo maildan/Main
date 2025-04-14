@@ -87,8 +87,9 @@ export function convertNativeOptimizationResult(nativeResult: any): Optimization
     optimization_level: nativeResult.optimization_level,
     // OptimizationResult 인터페이스에 필요한 속성 추가
     optimizationLevel: nativeResult.optimization_level || nativeResult.optimizationLevel || 0,
+    // level은 이제 OptimizationResult에 추가됨
     level: nativeResult.level || nativeResult.optimization_level || 0,
-    memoryFreed: nativeResult.freedMemory || nativeResult.freed_memory || 0,
+    freedMemory: nativeResult.freedMemory || nativeResult.freed_memory || 0,
     timestamp: nativeResult.timestamp || Date.now(),
     error: nativeResult.error
   };
@@ -106,17 +107,17 @@ export function convertNativeOptimizationResult(nativeResult: any): Optimization
     result.duration = nativeResult.duration;
   }
 
-  // 메모리 정보 추가 - 타입 단언으로 타입 호환성 문제 해결
+  // 메모리 정보 추가
   if (nativeResult.memoryBefore || nativeResult.memory_before) {
     const memBefore = nativeResult.memoryBefore || nativeResult.memory_before;
-    // 타입 호환성 문제 해결을 위해 as any 사용
-    result.memory_before = memBefore ? (convertNativeMemoryInfo(memBefore) as any) : undefined;
+    // memory_before는 이제 OptimizationResult에 추가됨
+    result.memory_before = memBefore ? convertNativeMemoryInfo(memBefore) : undefined;
   }
 
   if (nativeResult.memoryAfter || nativeResult.memory_after) {
     const memAfter = nativeResult.memoryAfter || nativeResult.memory_after;
-    // 타입 호환성 문제 해결을 위해 as any 사용
-    result.memory_after = memAfter ? (convertNativeMemoryInfo(memAfter) as any) : undefined;
+    // memory_after는 이제 OptimizationResult에 추가됨
+    result.memory_after = memAfter ? convertNativeMemoryInfo(memAfter) : undefined;
   }
 
   return result;
@@ -130,16 +131,16 @@ export function convertNativeGCResult(nativeResult: any): GCResult {
   const result: GCResult = {
     success: nativeResult.success,
     freedMemory: nativeResult.freedMemory || nativeResult.freed_memory || 0,
+    // freedMB는 필수 속성이므로 항상 값을 제공
+    freedMB: nativeResult.freedMB || nativeResult.freed_mb || 0,
     timestamp: nativeResult.timestamp || Date.now(),
     error: nativeResult.error
   };
 
   // 선택적 속성 추가
-  if (nativeResult.freedMB || nativeResult.freed_mb) {
-    result.freedMB = nativeResult.freedMB || nativeResult.freed_mb;
+  if (nativeResult.duration) {
+    result.duration = nativeResult.duration;
   }
-
-  // 'duration' 속성이 GCResult 타입에 없기 때문에 제거
 
   return result;
 }

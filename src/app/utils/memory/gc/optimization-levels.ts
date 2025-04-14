@@ -5,7 +5,8 @@
 import { requestNativeMemoryOptimization } from '@/app/utils/native-memory-bridge';
 import { OptimizationLevel } from '@/types/native-module';
 import { getMemoryInfo } from '../memory-info';
-import { logMemoryUsage, MemoryEventType } from '../logger';
+import { logMemoryUsage } from '../logger';
+import { MemoryEventType } from '@/types';
 
 /**
  * 가벼운 수준의 메모리 최적화 수행

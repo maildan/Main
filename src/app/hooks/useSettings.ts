@@ -166,18 +166,30 @@ export function useSettings(electronAPI: ElectronAPI | null) {
       setWindowMode(mode); // UI 즉시 업데이트
       
       if (electronAPI && typeof electronAPI.setWindowMode === 'function') {
+        // 타임아웃 시간을 5초로 늘림
         const timeoutPromise = new Promise((_, reject) => {
-          setTimeout(() => reject(new Error('창 모드 변경 시간 초과')), 3000);
+          setTimeout(() => reject(new Error('창 모드 변경 시간 초과')), 5000);
         });
         
-        const result = await Promise.race([
-          electronAPI.setWindowMode(mode),
-          timeoutPromise
-        ]) as {success: boolean, error?: string};
-        
-        if (!result.success) {
-          console.error(`창 모드 변경 실패: ${result.error || '알 수 없는 오류'}`);
-          showToast('창 모드 변경에 실패했습니다.', 'error');
+        try {
+          const result = await Promise.race([
+            electronAPI.setWindowMode(mode),
+            timeoutPromise
+          ]) as {success: boolean, error?: string};
+          
+          if (!result.success) {
+            console.error(`창 모드 변경 실패: ${result.error || '알 수 없는 오류'}`);
+            showToast('창 모드 변경에 실패했습니다.', 'error');
+          }
+        } catch (timeoutError) {
+          // 타임아웃 발생 시 UI 상태는 유지하고 사용자에게 알림
+          console.warn('창 모드 변경 시간 초과, UI 상태는 유지됩니다.', timeoutError);
+          showToast('창 모드 변경 처리 중입니다. 잠시 후 다시 시도해주세요.', 'warning');
+          
+          // 타임아웃 발생 시에도 백그라운드에서 계속 시도
+          electronAPI.setWindowMode(mode).catch((e: Error) => {
+            console.error('백그라운드 창 모드 변경 실패:', e);
+          });
         }
       } else {
         console.warn('setWindowMode API를 사용할 수 없습니다. UI만 업데이트됩니다.');

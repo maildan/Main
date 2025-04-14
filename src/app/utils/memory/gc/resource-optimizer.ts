@@ -1,9 +1,9 @@
 /**
  * 리소스 최적화 유틸리티
- * 메모리를 많이 사용하는 리소스들을 최적화하고 해제하는 함수들을 제공합니다.
+ * 사용하지 않는 리소스를 정리하고 메모리를 최적화하는 기능을 제공합니다.
  */
 
-import { WindowWithCache } from '../types-extended';
+import { MemoryCacheWindow, hasMemoryCache } from '../types-extended';
 
 /**
  * 화면에 보이지 않는 리소스 언로드
@@ -255,29 +255,31 @@ export function optimizeDOM(): boolean {
  */
 export function revokeUnusedObjectURLs(): void {
   try {
-    const win = window as Window;
+    if (typeof window === 'undefined') return;
     
-    // 객체 URL 맵이 없으면 생성
-    if (!win.__objectUrls) {
-      win.__objectUrls = new Map<string, string>();
-      return;
-    }
-    
-    // 사용하지 않는 객체 URL 해제
-    const now = Date.now();
-    const expiryTime = 30000; // 30초
-    let revokedCount = 0;
-    
-    win.__objectUrls.forEach((creationTime: string, url: string) => {
-      if (now - parseInt(creationTime) > expiryTime) {
-        URL.revokeObjectURL(url);
-        win.__objectUrls?.delete(url);
-        revokedCount++;
+    if (hasMemoryCache(window)) {
+      // 객체 URL 맵이 없으면 생성
+      if (!window.__objectUrls) {
+        window.__objectUrls = new Map<string, string>();
+        return;
       }
-    });
-    
-    if (revokedCount > 0) {
-      console.log(`${revokedCount}개의 미사용 객체 URL 해제됨`);
+      
+      // 사용하지 않는 객체 URL 해제
+      const now = Date.now();
+      const expiryTime = 30000; // 30초
+      let revokedCount = 0;
+      
+      window.__objectUrls.forEach((creationTime: string, url: string) => {
+        if (now - parseInt(creationTime) > expiryTime) {
+          URL.revokeObjectURL(url);
+          window.__objectUrls?.delete(url);
+          revokedCount++;
+        }
+      });
+      
+      if (revokedCount > 0) {
+        console.log(`${revokedCount}개의 미사용 객체 URL 해제됨`);
+      }
     }
   } catch (error) {
     console.warn('객체 URL 정리 중 오류:', error);
@@ -290,19 +292,33 @@ export function revokeUnusedObjectURLs(): void {
  */
 export function clearWidgetCache(): void {
   try {
-    const win = window as WindowWithCache;
+    if (typeof window === 'undefined') return;
     
-    // 위젯 캐시가 없으면 건너뜀
-    if (!win.__widgetCache) {
-      win.__widgetCache = new Map<string, any>();
-      return;
-    }
-    
-    const size = win.__widgetCache.size;
-    win.__widgetCache.clear();
-    
-    if (size > 0) {
-      console.log(`위젯 캐시 정리: ${size}개 항목 제거됨`);
+    if (hasMemoryCache(window)) {
+      // 위젯 캐시가 없으면 생성
+      if (!window.__widgetCache) {
+        window.__widgetCache = new Map<string, unknown>();
+        return;
+      }
+      
+      // Map 타입인 경우
+      if (window.__widgetCache instanceof Map) {
+        const size = window.__widgetCache.size;
+        window.__widgetCache.clear();
+        
+        if (size > 0) {
+          console.log(`위젯 캐시 정리: ${size}개 항목 제거됨`);
+        }
+      }
+      // 객체 타입인 경우
+      else if (typeof window.__widgetCache === 'object') {
+        const size = Object.keys(window.__widgetCache).length;
+        window.__widgetCache = new Map<string, unknown>();
+        
+        if (size > 0) {
+          console.log(`위젯 캐시 정리: ${size}개 항목 제거됨`);
+        }
+      }
     }
   } catch (error) {
     console.warn('위젯 캐시 정리 중 오류:', error);
@@ -315,20 +331,22 @@ export function clearWidgetCache(): void {
  */
 export function clearStyleCache(): void {
   try {
-    const win = window as WindowWithCache;
+    if (typeof window === 'undefined') return;
     
-    // 스타일 캐시가 없으면 생성
-    if (!win.__styleCache) {
-      win.__styleCache = {};
-      return;
-    }
-    
-    // 캐시 항목 수가 너무 많으면 모두 정리
-    const cacheSize = Object.keys(win.__styleCache).length;
-    win.__styleCache = {};
-    
-    if (cacheSize > 0) {
-      console.log(`스타일 캐시 정리: ${cacheSize}개 항목 제거됨`);
+    if (hasMemoryCache(window)) {
+      // 스타일 캐시가 없으면 생성
+      if (!window.__styleCache) {
+        window.__styleCache = {};
+        return;
+      }
+      
+      // 캐시 항목 수가 너무 많으면 모두 정리
+      const cacheSize = Object.keys(window.__styleCache).length;
+      window.__styleCache = {};
+      
+      if (cacheSize > 0) {
+        console.log(`스타일 캐시 정리: ${cacheSize}개 항목 제거됨`);
+      }
     }
   } catch (error) {
     console.warn('스타일 캐시 정리 중 오류:', error);
@@ -336,24 +354,38 @@ export function clearStyleCache(): void {
 }
 
 /**
- * 이미지 리사이즈 캐시 정리
  * 동적으로 리사이즈된 이미지에 대한 캐시를 정리합니다.
  */
 export function clearImageResizeCache(): void {
   try {
-    const win = window as WindowWithCache;
+    if (typeof window === 'undefined') return;
     
-    // 이미지 리사이즈 캐시가 없으면 생성
-    if (!win.__imageResizeCache) {
-      win.__imageResizeCache = {};
-      return;
-    }
-    
-    const cacheSize = Object.keys(win.__imageResizeCache).length;
-    win.__imageResizeCache = {};
-    
-    if (cacheSize > 0) {
-      console.log(`이미지 리사이즈 캐시 정리: ${cacheSize}개 항목 제거됨`);
+    // 타입 가드를 통한 안전한 접근
+    if (hasMemoryCache(window)) {
+      // 이미지 리사이즈 캐시가 없으면 생성
+      if (!window.__imageResizeCache) {
+        window.__imageResizeCache = new Map<string, string>();
+        return;
+      }
+      
+      // 맵 타입인 경우
+      if (window.__imageResizeCache instanceof Map) {
+        const cacheSize = window.__imageResizeCache.size;
+        window.__imageResizeCache.clear();
+        
+        if (cacheSize > 0) {
+          console.log(`이미지 리사이즈 캐시 정리: ${cacheSize}개 항목 제거됨`);
+        }
+      } 
+      // 객체 타입인 경우 (이전 호환성 유지)
+      else if (typeof window.__imageResizeCache === 'object') {
+        const cacheSize = Object.keys(window.__imageResizeCache).length;
+        window.__imageResizeCache = new Map<string, string>();
+        
+        if (cacheSize > 0) {
+          console.log(`이미지 리사이즈 캐시 정리: ${cacheSize}개 항목 제거됨`);
+        }
+      }
     }
   } catch (error) {
     console.warn('이미지 리사이즈 캐시 정리 중 오류:', error);
@@ -374,10 +406,13 @@ export function cleanupTextureCache(): number {
     }
     
     // 이전 크기 기록
-    const cacheSize = (window as any).__textureCache.size || 0;
+    const textureCache = (window as any).__textureCache;
+    const cacheSize = textureCache instanceof Map ? textureCache.size : 0;
     
     // 캐시 초기화
-    (window as any).__textureCache.clear();
+    if (textureCache instanceof Map) {
+      textureCache.clear();
+    }
     
     return cacheSize;
   } catch (error) {
@@ -399,10 +434,13 @@ export function cleanupObjectCache(): number {
     }
     
     // 이전 크기 기록
-    const cacheSize = (window as any).__objectCache.size || 0;
+    const objectCache = (window as any).__objectCache;
+    const cacheSize = objectCache instanceof Map ? objectCache.size : 0;
     
     // 캐시 초기화
-    (window as any).__objectCache.clear();
+    if (objectCache instanceof Map) {
+      objectCache.clear();
+    }
     
     return cacheSize;
   } catch (error) {
@@ -605,51 +643,77 @@ function optimizeCSSClasses(): void {
  */
 
 /**
- * 동적 리소스 정리
- * @returns {boolean} 성공 여부
+ * 리소스를 모두 정리합니다.
  */
 export function cleanupResources(): boolean {
   try {
-    // 1. 사용하지 않는 캐시 지우기
-    clearUnusedCaches();
+    if (typeof window === 'undefined') return false;
     
-    // 2. 사용하지 않는 객체 참조 제거
-    removeUnusedObjectReferences();
-    
-    // 3. 대형 배열 및 버퍼 정리
-    cleanupLargeArrays();
+    // 각종 캐시 정리
+    if (hasMemoryCache(window)) {
+      // 객체 URL 해제
+      revokeUnusedObjectURLs();
+      
+      // 위젯 캐시 정리
+      clearWidgetCache();
+      
+      // 스타일 캐시 정리
+      clearStyleCache();
+      
+      // 이미지 리사이즈 캐시 정리
+      clearImageResizeCache();
+      
+      // 기타 캐시 정리
+      clearUnusedCaches();
+      
+      // 메모리 정리에 도움이 되도록 가비지 컬렉션 제안
+      if (window.gc) {
+        try {
+          window.gc();
+        } catch (e) {
+          // gc 호출 실패 무시
+        }
+      }
+    }
     
     return true;
   } catch (error) {
-    console.error('리소스 정리 중 오류:', error);
+    console.error('리소스 정리 중 오류 발생:', error);
     return false;
   }
 }
 
 /**
- * 사용하지 않는 캐시 정리
+ * 사용하지 않는 캐시를 정리합니다.
  */
 function clearUnusedCaches(): void {
   try {
-    // 애플리케이션 전용 캐시 정리
-    const win = window as WindowWithCache;
-    if (win.__memoryCache instanceof Map) {
-      // 일정 시간 이상 사용하지 않은 캐시 항목 제거
-      const now = Date.now();
-      const CACHE_TTL = 30 * 60 * 1000; // 30분
+    if (typeof window === 'undefined') return;
+    
+    if (hasMemoryCache(window)) {
+      // 메모리 캐시가 있으면 정리
+      if (window.__memoryCache instanceof Map) {
+        window.__memoryCache.clear();
+      }
       
-      win.__memoryCache.forEach((value, key) => {
-        if (value && typeof value === 'object' && 'lastAccess' in value) {
-          if (now - (value.lastAccess as number) > CACHE_TTL) {
-            win.__memoryCache?.delete(key);
+      // 텍스처 캐시가 있으면 정리
+      if (window.__textureCache instanceof Map) {
+        window.__textureCache.clear();
+      }
+      
+      // 객체 캐시가 있으면 정리
+      if (window.__objectCache instanceof Map) {
+        window.__objectCache.clear();
+      }
+      
+      // 버퍼 캐시가 있으면 정리
+      if (window.__bufferCache && typeof window.__bufferCache === 'object') {
+        for (const key in window.__bufferCache) {
+          if (Object.prototype.hasOwnProperty.call(window.__bufferCache, key)) {
+            delete window.__bufferCache[key];
           }
         }
-      });
-    }
-    
-    // 스타일 캐시 정리
-    if (win.__styleCache) {
-      win.__styleCache = {};
+      }
     }
   } catch (error) {
     console.warn('캐시 정리 중 오류:', error);
@@ -657,59 +721,29 @@ function clearUnusedCaches(): void {
 }
 
 /**
- * 사용하지 않는 객체 참조 제거
+ * 사용하지 않는 객체 참조를 제거합니다.
  */
 function removeUnusedObjectReferences(): void {
   try {
-    // 동적 모듈 관리자를 통한 참조 정리 (있는 경우)
-    const win = window as WindowWithCache;
-    if (win._dynamicModules instanceof Map) {
-      const modules = win._dynamicModules;
-      const now = Date.now();
-      const MODULE_UNUSED_THRESHOLD = 60 * 60 * 1000; // 1시간
-      
-      modules.forEach((module, name) => {
-        if (module && typeof module === 'object' && 'lastUsed' in module) {
-          // 오랫동안 사용하지 않은 모듈은 언로드
-          if (now - (module.lastUsed as number) > MODULE_UNUSED_THRESHOLD) {
-            // 타입 안전하게 unload 메서드 호출
-            if (module && typeof module === 'object' && 'unload' in module && 
-                typeof module.unload === 'function') {
-              try {
-                module.unload();
-              } catch (_e) {
-                console.warn(`모듈 '${name}' 언로드 중 오류:`, _e);
-              }
-            }
-            modules.delete(name);
+    if (typeof window === 'undefined') return;
+    
+    if (hasMemoryCache(window)) {
+      // 동적 모듈 참조가 있으면 정리
+      if (window._dynamicModules instanceof Map) {
+        const now = Date.now();
+        const expiryTime = 600000; // 10분
+        
+        // 일정 시간이 지난 모듈 참조 제거
+        window._dynamicModules.forEach((module: unknown, name: string) => {
+          const lastUsed = (module as any)?.lastUsed || 0;
+          if (now - lastUsed > expiryTime) {
+            window._dynamicModules?.delete(name);
           }
-        }
-      });
+        });
+      }
     }
   } catch (error) {
     console.warn('객체 참조 정리 중 오류:', error);
-  }
-}
-
-/**
- * 대형 배열 및 버퍼 정리
- */
-function cleanupLargeArrays(): void {
-  try {
-    // 버퍼 캐시 정리
-    const win = window as WindowWithCache;
-    if (win.__bufferCache) {
-      // 각 버퍼에 대해 참조 제거 여부 결정
-      Object.keys(win.__bufferCache).forEach(key => {
-        if (win.__bufferCache && key in win.__bufferCache) {
-          // 참조만 제거 (GC가 처리하도록)
-          win.__bufferCache[key] = null;
-          delete win.__bufferCache[key];
-        }
-      });
-    }
-  } catch (error) {
-    console.warn('배열 및 버퍼 정리 중 오류:', error);
   }
 }
 
@@ -718,14 +752,14 @@ function cleanupLargeArrays(): void {
 // 기존 Window 인터페이스 정의를 WindowWithResources로 이름 변경하여 충돌 방지
 interface WindowWithResources {
   __objectUrls?: Map<string, string>;
-  __widgetCache?: Record<string, any> | Map<string, any>;
-  __styleCache?: Record<string, any>;
-  __imageResizeCache?: Record<string, any>; // Map이 아닌 Record로 통일
-  __textureCache?: Map<string, string>;
-  __objectCache?: Map<string, any>;
-  __memoryCache?: Map<string, any>;
-  __bufferCache?: Record<string, any>;
-  _dynamicModules?: Map<string, any>;
+  __widgetCache?: Record<string, unknown> | Map<string, unknown>;
+  __styleCache?: Record<string, unknown>;
+  __imageResizeCache?: Map<string, unknown> | Record<string, unknown>;
+  __textureCache?: Map<string, unknown>;
+  __objectCache?: Map<string, unknown>;
+  __memoryCache?: Map<string, unknown>;
+  __bufferCache?: Record<string, unknown>;
+  _dynamicModules?: Map<string, unknown>;
   gc?: () => void;
 }
 

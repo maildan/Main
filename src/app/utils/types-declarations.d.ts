@@ -46,7 +46,7 @@ interface Window {
   // 전역 메모리 관리 상태
   __memoryOptimizer?: {
     suggestGarbageCollection: () => void;
-    requestGC: (emergency?: boolean) => Promise<GCResult | null>;
+    requestGC: (emergency?: boolean) => Promise<any>;
     clearBrowserCaches: () => Promise<boolean>;
     clearStorageCaches: () => boolean;
     checkMemoryUsage: () => Record<string, number> | null;
@@ -55,10 +55,20 @@ interface Window {
     getMemoryInfo: () => any;
     optimizeMemory: (aggressive?: boolean) => Promise<any>;
     optimizeImageResources: () => Promise<any>;
+    // 새로 추가된 필드들
+    cleanupPeriodicOptimization?: () => void;
+    setupPeriodicOptimization?: (interval?: number, threshold?: number) => () => void;
     settings?: Record<string, any>;
   };
   
-  // 이미지 캐시 저장소
+  // 텍스처 및 객체 캐시
+  __textureCache?: Map<string, unknown>;
+  __objectCache?: Map<string, unknown>;
+  
+  // 동적 모듈
+  _dynamicModules?: Map<string, unknown>;
+  
+  // 이미지 캐시 저장소 (string 타입으로 통일)
   __imageResizeCache?: Map<string, string>;
   
   // 오브젝트 URL 저장소
@@ -85,10 +95,8 @@ interface Window {
   __nativeBinding?: boolean;
   __gpuInfo?: any;
   __gpuAccelerator?: any;
-  __objectUrls?: Map<string, string>;
   __widgetCache?: Map<string, any>;
   __styleCache?: Record<string, any>;
-  __imageResizeCache?: Record<string, any>;
 }
 
 /**

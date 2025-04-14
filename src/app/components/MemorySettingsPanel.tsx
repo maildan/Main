@@ -108,15 +108,18 @@ const MemorySettingsPanel: React.FC<MemorySettingsPanelProps> = ({
   ) => {
     if (!settings) return;
     
+    // componentSpecificSettings가 없는 경우를 대비해 기본값 제공
+    const currentComponentSettings = settings.componentSpecificSettings || {};
+    
     const updatedSettings = { 
       ...settings,
       componentSpecificSettings: {
-        ...settings.componentSpecificSettings,
+        ...currentComponentSettings,
         [componentId]: {
-          ...settings.componentSpecificSettings[componentId] || {
+          ...(currentComponentSettings[componentId] || {
             optimizeOnUnmount: false,
             aggressiveCleanup: false
-          },
+          }),
           [key]: value
         }
       }
@@ -284,7 +287,7 @@ const MemorySettingsPanel: React.FC<MemorySettingsPanelProps> = ({
                   className={styles.numberInput}
                   min={10}
                   max={300}
-                  value={settings.optimizationInterval / 1000}
+                  value={(settings.optimizationInterval || 30000) / 1000}
                   onChange={(e) => handleSettingChange('optimizationInterval', Number(e.target.value) * 1000)}
                   disabled={!settings.enableAutomaticOptimization}
                 />
@@ -385,7 +388,7 @@ const MemorySettingsPanel: React.FC<MemorySettingsPanelProps> = ({
                   className={styles.numberInput}
                   min={1}
                   max={60}
-                  value={settings.fallbackRetryDelay / 60000}
+                  value={(settings.fallbackRetryDelay || 300000) / 60000}
                   onChange={(e) => handleSettingChange('fallbackRetryDelay', Number(e.target.value) * 60000)}
                   disabled={!settings.enableAutomaticFallback}
                 />
@@ -405,7 +408,7 @@ const MemorySettingsPanel: React.FC<MemorySettingsPanelProps> = ({
                   className={styles.numberInput}
                   min={1}
                   max={60}
-                  value={settings.poolCleanupInterval / 60000}
+                  value={(settings.poolCleanupInterval || 600000) / 60000}
                   onChange={(e) => handleSettingChange('poolCleanupInterval', Number(e.target.value) * 60000)}
                   disabled={!settings.useMemoryPool}
                 />
@@ -423,8 +426,8 @@ const MemorySettingsPanel: React.FC<MemorySettingsPanelProps> = ({
                 특정 컴포넌트에 대한 메모리 최적화 동작을 설정합니다.
               </p>
               
-              {Object.keys(settings.componentSpecificSettings).length > 0 ? (
-                Object.entries(settings.componentSpecificSettings).map(([id, compSettings]) => (
+              {settings.componentSpecificSettings && Object.keys(settings.componentSpecificSettings).length > 0 ? (
+                settings.componentSpecificSettings && Object.entries(settings.componentSpecificSettings).map(([id, compSettings]) => (
                   <div key={id} className={styles.componentItem}>
                     <div className={styles.componentHeader}>
                       <h4>{id}</h4>

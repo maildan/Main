@@ -24,33 +24,30 @@ export enum NativeOptimizationLevel {
 }
 
 // 최적화 레벨 설명
-export const OPTIMIZATION_LEVEL_DESCRIPTIONS: Record<OptimizationLevel, string> = {
-    [OptimizationLevel.NONE]: '없음',
-    [OptimizationLevel.LOW]: '낮음',
-    [OptimizationLevel.MEDIUM]: '중간',
-    [OptimizationLevel.HIGH]: '높음',
-    [OptimizationLevel.AGGRESSIVE]: '적극적',
-    [OptimizationLevel.NORMAL]: '없음',
-    [OptimizationLevel.CRITICAL]: '적극적',
-    [OptimizationLevel.EXTREME]: '매우 적극적'
+export const OPTIMIZATION_LEVEL_DESCRIPTIONS: Record<string, string> = {
+    [OptimizationLevel.NONE.toString()]: '없음',
+    [OptimizationLevel.LOW.toString()]: '낮음',
+    [OptimizationLevel.MEDIUM.toString()]: '중간',
+    [OptimizationLevel.HIGH.toString()]: '높음',
+    [OptimizationLevel.AGGRESSIVE.toString()]: '적극적',
+    [OptimizationLevel.EXTREME.toString()]: '매우 적극적'
 };
 
-// 최적화 레벨 매핑
-export const APP_TO_NATIVE_LEVEL_MAP: Record<OptimizationLevel, NativeOptimizationLevel> = {
-    [OptimizationLevel.NORMAL]: NativeOptimizationLevel.Normal,
-    [OptimizationLevel.LOW]: NativeOptimizationLevel.Low,
-    [OptimizationLevel.MEDIUM]: NativeOptimizationLevel.Medium,
-    [OptimizationLevel.HIGH]: NativeOptimizationLevel.High,
-    [OptimizationLevel.CRITICAL]: NativeOptimizationLevel.Critical,
-    [OptimizationLevel.NONE]: NativeOptimizationLevel.Normal,
-    [OptimizationLevel.AGGRESSIVE]: NativeOptimizationLevel.Critical,
-    [OptimizationLevel.EXTREME]: NativeOptimizationLevel.Critical
+// 최적화 레벨 매핑 - 문자열 키로 변환하여 중복 방지
+export const APP_TO_NATIVE_LEVEL_MAP: Record<string, NativeOptimizationLevel> = {
+    // 각 고유 값마다 하나의 매핑만 유지
+    [OptimizationLevel.NONE.toString()]: NativeOptimizationLevel.Normal,
+    [OptimizationLevel.LOW.toString()]: NativeOptimizationLevel.Low,
+    [OptimizationLevel.MEDIUM.toString()]: NativeOptimizationLevel.Medium,
+    [OptimizationLevel.HIGH.toString()]: NativeOptimizationLevel.High,
+    [OptimizationLevel.AGGRESSIVE.toString()]: NativeOptimizationLevel.Critical,
+    [OptimizationLevel.EXTREME.toString()]: NativeOptimizationLevel.Critical
 };
 
 export const NATIVE_TO_APP_LEVEL_MAP: Record<NativeOptimizationLevel, OptimizationLevel> = {
-    [NativeOptimizationLevel.Normal]: OptimizationLevel.NORMAL,
+    [NativeOptimizationLevel.Normal]: OptimizationLevel.NONE,
     [NativeOptimizationLevel.Low]: OptimizationLevel.LOW,
     [NativeOptimizationLevel.Medium]: OptimizationLevel.MEDIUM,
     [NativeOptimizationLevel.High]: OptimizationLevel.HIGH,
-    [NativeOptimizationLevel.Critical]: OptimizationLevel.CRITICAL
+    [NativeOptimizationLevel.Critical]: OptimizationLevel.AGGRESSIVE
 };

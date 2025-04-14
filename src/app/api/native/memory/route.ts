@@ -102,3 +102,66 @@ export async function POST(request: Request) {
     );
   }
 }
+
+/**
+ * PUT 핸들러 - 가비지 컬렉션 및 기타 메모리 작업 처리
+ */
+export async function PUT(request: Request) {
+  try {
+    const body = await request.json();
+    const { type } = body;
+
+    // 가비지 컬렉션 요청 처리
+    if (type === 'gc') {
+      // 가비지 컬렉션 수행
+      const startTime = Date.now();
+      let freedMemory = 0;
+      
+      try {
+        // 메모리 정보를 가져와 GC 전 메모리 상태 기록
+        const beforeMemory = await getMemoryUsage();
+        
+        // 글로벌 가비지 컬렉션 함수 호출 (Node.js 환경에서 --expose-gc 사용 시)
+        if (typeof global !== 'undefined' && typeof (global as any).gc === 'function') {
+          (global as any).gc();
+        }
+        
+        // GC 후 메모리 정보 가져오기
+        const afterMemory = await getMemoryUsage();
+        
+        // 메모리 정보가 있다면 확보된 메모리 계산
+        if (beforeMemory && afterMemory && beforeMemory.heapUsed && afterMemory.heapUsed) {
+          freedMemory = Math.max(0, beforeMemory.heapUsed - afterMemory.heapUsed);
+        }
+        
+        return NextResponse.json({
+          success: true,
+          timestamp: Date.now(),
+          duration: Date.now() - startTime,
+          freedMemory,
+          freedMB: freedMemory / (1024 * 1024),
+          freedFormatted: formatBytes(freedMemory)
+        });
+      } catch (gcError) {
+        console.error('가비지 컬렉션 실패:', gcError);
+        return NextResponse.json({
+          success: false,
+          error: gcError instanceof Error ? gcError.message : String(gcError),
+          timestamp: Date.now()
+        }, { status: 500 });
+      }
+    }
+    
+    // 지원하지 않는 작업 요청
+    return NextResponse.json({
+      success: false,
+      error: `지원하지 않는 작업 유형: ${type}`
+    }, { status: 400 });
+  } catch (error) {
+    console.error('메모리 작업 처리 중 오류:', error);
+    return NextResponse.json({
+      success: false,
+      error: error instanceof Error ? error.message : String(error)
+    }, { status: 500 });
+  }
+}

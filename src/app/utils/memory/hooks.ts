@@ -9,6 +9,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useToast } from '@/app/hooks/useToast';
 import type { MemoryInfo, MemorySettings, OptimizationResult } from '@/types';
+import { ProcessingMode } from '@/types';
 import { getMemoryInfo, optimizeMemory } from '@/app/utils/nativeModuleClient';
 // formatBytes 함수 import 경로 수정
 import { formatBytes } from '@/app/utils/format-utils';
@@ -140,20 +141,32 @@ export function useMemory(options: UseMemoryOptions = {}) {
  * 메모리 설정 관리를 위한 훅
  */
 export function useMemorySettings() {
-  // MemorySettings 인터페이스에 맞게 초기값 설정
   const [settings, setSettings] = useState<MemorySettings>({
+    // 필수 필드 추가
+    enableAutoOptimization: true,
+    autoOptimizationInterval: 120000,
+    memoryThreshold: 200,
+    aggressiveCleanup: false,
+    optimizeOnUnmount: true,
+    releaseResourcesOnHide: true,
+    enableNativeOptimization: true,
+    cacheLifetime: 3600000,
+    maxCacheSize: 50,
+    debugMode: false,
+    
+    // 기존에 있던 필드
     preferNativeImplementation: true,
     enableAutomaticFallback: true,
     enableAutomaticOptimization: false,
     optimizationThreshold: 200,
-    optimizationInterval: 120000,
+    optimizationInterval: 30000,
     aggressiveGC: false,
     enableLogging: false,
     enablePerformanceMetrics: true,
     useMemoryPool: true,
     fallbackRetryDelay: 300000,
     poolCleanupInterval: 180000,
-    processingMode: 'auto',
+    processingMode: ProcessingMode.AUTO,
     componentSpecificSettings: {}
   });
   

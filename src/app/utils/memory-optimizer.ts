@@ -38,27 +38,39 @@ export async function optimizeMemory(
     const afterMemory = await memoryInfo.getMemoryUsage();
 
     // 해제된 메모리 계산 (null 체크 추가)
-    const memoryFreed = beforeMemory && afterMemory &&
+    const freedMemory = beforeMemory && afterMemory &&
       beforeMemory.heapUsed !== undefined && afterMemory.heapUsed !== undefined ?
       beforeMemory.heapUsed - afterMemory.heapUsed : 0;
 
-    logger.info(`[Memory Optimizer] Memory optimization completed. Freed: ${memoryFreed} bytes`);
+    logger.info(`[Memory Optimizer] Memory optimization completed. Freed: ${freedMemory} bytes`);
 
-    return {
-      optimizationLevel: level,  // Rust와 일치시킴
-      level,                    // 이전 코드와 호환성
-      memoryFreed,
+    // 결과 객체 생성
+    const result: OptimizationResult = {
+      optimizationLevel: level,
+      level,                    // OptimizationResult에 level 속성 추가됨
+      freedMemory,              // memoryFreed 대신 freedMemory 사용
       timestamp: Date.now(),
       success: true
     };
+
+    // null이 아닌 경우에만 memory_before와 memory_after 설정
+    if (beforeMemory !== null) {
+      result.memory_before = beforeMemory;
+    }
+    
+    if (afterMemory !== null) {
+      result.memory_after = afterMemory;
+    }
+
+    return result;
   } catch (error) {
     logger.error('[Memory Optimizer] Error during memory optimization:',
       error instanceof Error ? { message: error.message, stack: error.stack } as Record<string, unknown> : {});
 
     return {
-      optimizationLevel: level,  // Rust와 일치시킴
-      level,                     // 이전 코드와 호환성
-      memoryFreed: 0,
+      optimizationLevel: level,
+      level,                    // OptimizationResult에 level 속성 추가됨
+      freedMemory: 0,           // memoryFreed 대신 freedMemory 사용
       timestamp: Date.now(),
       success: false,
       error: error instanceof Error ? error.message : String(error)

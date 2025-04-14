@@ -80,14 +80,14 @@ export async function saveLog(logEntry: Omit<LogEntry, 'id'>): Promise<LogEntry>
     logger.debug(`로그 저장 완료 (ID: ${id}, 타입: ${logEntry.type})`);
     return result.data;
   } catch (error) {
-    logger.error('로그 저장 중 오류 발생:', error);
+    logger.error('로그 저장 중 오류 발생:', error as Record<string, unknown>);
 
     // API 호출 실패시 로컬 스토리지에 임시 저장
     try {
       const storageKey = `log_${Date.now()}`;
       localStorage.setItem(storageKey, JSON.stringify(logEntry));
     } catch (storageError) {
-      logger.error('로그의 로컬 스토리지 백업 저장 실패:', storageError);
+      logger.error('로그의 로컬 스토리지 백업 저장 실패:', storageError as Record<string, unknown>);
     }
 
     throw error;
@@ -125,7 +125,12 @@ export async function searchLogs(options: LogSearchOptions = {}): Promise<LogEnt
     }
 
     // 로그 검색 API 호출
-    const response = await fetch(`/api/logs/search?${queryParams.toString()}`);
+    // 상대 경로를 기반으로 올바른 URL 구성
+    const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+    const apiUrl = new URL('/api/logs/search', baseUrl);
+    apiUrl.search = queryParams.toString();
+
+    const response = await fetch(apiUrl.toString());
 
     if (!response.ok) {
       throw new Error(`로그 검색 실패: ${response.status} ${response.statusText}`);
@@ -136,7 +141,7 @@ export async function searchLogs(options: LogSearchOptions = {}): Promise<LogEnt
     logger.debug(`로그 검색 완료 (결과 수: ${result.data.length})`);
     return result.data;
   } catch (error) {
-    logger.error('로그 검색 중 오류 발생:', error);
+    logger.error('로그 검색 중 오류 발생:', error as Record<string, unknown>);
     throw error;
   }
 }
@@ -155,7 +160,7 @@ export async function saveConversationLog(
   metadata: any = {}
 ): Promise<LogEntry> {
   const now = getCurrentTimestamp();
-  const sessionId = metadata.sessionId || localStorage.getItem('sessionId') || `session_${now}`;
+  const sessionId = metadata.sessionId || (localStorage.getItem('sessionId') ?? undefined) || `session_${now}`;
 
   // 세션 ID가 없으면 새로 생성하고 저장
   if (!localStorage.getItem('sessionId')) {
@@ -216,7 +221,7 @@ export async function saveErrorLog(
       } : undefined
     },
     tags: ['error', ...(metadata.tags || [])],
-    sessionId: metadata.sessionId || localStorage.getItem('sessionId')
+    sessionId: metadata.sessionId || (localStorage.getItem('sessionId') ?? undefined)
   };
 
   return saveLog(logEntry);
@@ -239,7 +244,7 @@ export async function saveMemoryLog(memoryInfo: any): Promise<LogEntry> {
       percentUsed: memoryInfo.percentUsed
     },
     tags: ['memory', 'performance'],
-    sessionId: localStorage.getItem('sessionId')
+    sessionId: localStorage.getItem('sessionId') ?? undefined
   };
 
   return saveLog(logEntry);
@@ -271,7 +276,7 @@ export async function savePerformanceLog(
       unit
     },
     tags: ['performance', metric, ...(metadata.tags || [])],
-    sessionId: localStorage.getItem('sessionId')
+    sessionId: localStorage.getItem('sessionId') ?? undefined
   };
 
   return saveLog(logEntry);
@@ -301,7 +306,7 @@ export async function saveSystemLog(
       } : undefined
     },
     tags: ['system', ...(metadata.tags || [])],
-    sessionId: metadata.sessionId || localStorage.getItem('sessionId')
+    sessionId: localStorage.getItem('sessionId') ?? undefined
   };
 
   return saveLog(logEntry);
@@ -334,13 +339,13 @@ export async function syncLocalLogs(): Promise<void> {
         // 성공적으로 동기화된 로그는 로컬 스토리지에서 제거
         localStorage.removeItem(key);
       } catch (error) {
-        logger.error(`로그 동기화 중 오류 (${key}):`, error);
+        logger.error(`로그 동기화 중 오류 (${key}):`, error as Record<string, unknown>);
       }
     }
 
     logger.info('로컬 로그 동기화 완료');
   } catch (error) {
-    logger.error('로그 동기화 중 오류 발생:', error);
+    logger.error('로그 동기화 중 오류 발생:', error as Record<string, unknown>);
     throw error;
   }
 }
@@ -389,78 +394,33 @@ export enum LogLevel {
 export function logDebug(message: string, data?: unknown): void {
   if (!isDebugMode()) return;
 
-  const safeData: Record<string, unknown> = data && typeof data === 'object' ?
-    { ...data as Record<string, unknown> } : { value: data };
-
-  console.debug(`[Debug] ${message}`, safeData);
-
-  addLogEntry({
-    level: LogLevel.Debug,
-    message,
-    data: safeData,
-    timestamp: Date.now(),
-    sessionId: getCurrentSessionId()
-  });
+  const entry = createLogEntry(LogLevel.Debug, message, data);
+  delete (entry as any).level; // level 속성 제거
+  addLogEntry(entry);
 }
 
 export function logInfo(message: string, data?: unknown): void {
-  const safeData: Record<string, unknown> = data && typeof data === 'object' ?
-    { ...data as Record<string, unknown> } : data !== undefined ? { value: data } : {};
-
-  console.info(`[Info] ${message}`, safeData);
-
-  addLogEntry({
-    level: LogLevel.Info,
-    message,
-    data: safeData,
-    timestamp: Date.now(),
-    sessionId: getCurrentSessionId()
-  });
+  const entry = createLogEntry(LogLevel.Info, message, data);
+  delete (entry as any).level; // level 속성 제거
+  addLogEntry(entry);
 }
 
 export function logWarn(message: string, data?: unknown): void {
-  const safeData: Record<string, unknown> = data && typeof data === 'object' ?
-    { ...data as Record<string, unknown> } : data !== undefined ? { value: data } : {};
-
-  console.warn(`[Warning] ${message}`, safeData);
-
-  addLogEntry({
-    level: LogLevel.Warn,
-    message,
-    data: safeData,
-    timestamp: Date.now(),
-    sessionId: getCurrentSessionId()
-  });
+  const entry = createLogEntry(LogLevel.Warn, message, data);
+  delete (entry as any).level; // level 속성 제거
+  addLogEntry(entry);
 }
 
 export function logError(message: string, data?: unknown): void {
-  const safeData: Record<string, unknown> = data && typeof data === 'object' ?
-    { ...data as Record<string, unknown> } : data !== undefined ? { value: data } : {};
-
-  console.error(`[Error] ${message}`, safeData);
-
-  addLogEntry({
-    level: LogLevel.Error,
-    message,
-    data: safeData,
-    timestamp: Date.now(),
-    sessionId: getCurrentSessionId()
-  });
+  const entry = createLogEntry(LogLevel.Error, message, data);
+  delete (entry as any).level; // level 속성 제거
+  addLogEntry(entry);
 }
 
 export function logCritical(message: string, data?: unknown): void {
-  const safeData: Record<string, unknown> = data && typeof data === 'object' ?
-    { ...data as Record<string, unknown> } : data !== undefined ? { value: data } : {};
-
-  console.error(`[CRITICAL] ${message}`, safeData);
-
-  addLogEntry({
-    level: LogLevel.Critical,
-    message,
-    data: safeData,
-    timestamp: Date.now(),
-    sessionId: getCurrentSessionId()
-  });
+  const entry = createLogEntry(LogLevel.Critical, message, data);
+  delete (entry as any).level; // level 속성 제거
+  addLogEntry(entry);
 }
 
 function getCurrentSessionId(): string | undefined {
@@ -471,14 +431,15 @@ function getCurrentSessionId(): string | undefined {
 }
 
 export function createLogEntry(level: LogLevel, message: string, data?: unknown): Omit<LogEntry, 'id'> {
-  const safeData: Record<string, unknown> = data && typeof data === 'object' ?
-    { ...data as Record<string, unknown> } : data !== undefined ? { value: data } : {};
-
-  return {
-    level,
-    message,
-    data: safeData,
-    timestamp: Date.now(),
-    sessionId: getCurrentSessionId(),
+  const logData = {
+    type: LogType.SYSTEM,
+    timestamp: getCurrentTimestamp(),
+    content: message,
+    metadata: data ? JSON.parse(JSON.stringify(data)) : {},
+    tags: [level.toLowerCase()],
+    sessionId: getCurrentSessionId()
   };
+  
+  // level은 내부 용도로만 사용하고 실제 LogEntry에는 포함시키지 않음
+  return logData;
 }

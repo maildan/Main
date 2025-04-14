@@ -145,13 +145,13 @@ export function registerOptimizedScrollListener(
 }
 
 /**
- * 리사이즈 이벤트 최적화
- * @param handler 리사이즈 이벤트 핸들러
+ * 최적화된 리사이즈 이벤트 리스너 등록
+ * @param handler 이벤트 핸들러
  * @param wait 디바운스 대기 시간
  * @returns 정리 함수
  */
 export function registerOptimizedResizeListener(
-  handler: (event: UIEvent) => void,
+  handler: (event: Event) => void,
   wait = 200
 ): EventCleanupHandler {
   // 디바운스된 핸들러 생성

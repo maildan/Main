@@ -29,6 +29,8 @@ export async function requestGC(_emergency: boolean = false): Promise<GCResult |
     return {
       success: false,
       timestamp: Date.now(),
+      freedMemory: 0,
+      freedMB: 0,
       error: error instanceof Error ? error.message : '알 수 없는 오류'
     };
   }

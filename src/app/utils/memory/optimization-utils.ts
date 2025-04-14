@@ -109,4 +109,27 @@ export function getAutoOptimizationSettings(): {
   };
 }
 
+/**
+ * 숫자를 적절한 최적화 레벨로 안전하게 변환합니다.
+ */
+export function safeOptimizationLevel(level: number): OptimizationLevel {
+  switch (level) {
+    case 0:
+      return OptimizationLevel.NONE;
+    case 1:
+      return OptimizationLevel.LOW;
+    case 2:
+      return OptimizationLevel.MEDIUM;
+    case 3:
+      return OptimizationLevel.HIGH;
+    case 4:
+      return OptimizationLevel.AGGRESSIVE;
+    case 5:
+      return OptimizationLevel.EXTREME;
+    default:
+      logger.warn(`[Optimization Utils] Invalid optimization level: ${level}, using default`);
+      return OptimizationLevel.MEDIUM;
+  }
+}
+
 // 메모리 최적화 수행 및 결과 저장 함수들...

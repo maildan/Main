@@ -81,6 +81,7 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/uuid": "^10.0.0",
     "@typescript-eslint/eslint-plugin": "^8.0.0",
     "@typescript-eslint/parser": "^8.0.0",
     "cargo-cp-artifact": "^0.1.8",
@@ -99,10 +100,10 @@
     "jest-environment-jsdom": "^29.7.0",
     "lint-staged": "^15.2.0",
     "next-sitemap": "^4.2.3",
+    "null-loader": "^4.0.1",
     "prettier": "^3.2.5",
     "typescript-eslint": "^8.29.0",
-    "wait-on": "^8.0.3",
-    "null-loader": "^4.0.1"
+    "wait-on": "^8.0.3"
   },
   "description": "This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).",
   "keywords": [],

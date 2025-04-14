@@ -8,16 +8,26 @@ import { MemorySettings, ProcessingMode } from '@/types';
 const DEFAULT_MEMORY_SETTINGS: MemorySettings = {
   preferNativeImplementation: true,
   enableAutomaticFallback: true,
-  enableAutomaticOptimization: true,
+  enableAutoOptimization: true,
+  enableAutomaticOptimization: true,  // 호환성을 위해 추가
   optimizationThreshold: 200, // MB
   optimizationInterval: 120000, // 2분
+  autoOptimizationInterval: 120000, // 호환성을 위해 추가
+  memoryThreshold: 200, // MB (호환성을 위해 추가)
   aggressiveGC: false,
+  aggressiveCleanup: false, // 필수 필드 추가
+  optimizeOnUnmount: true, // 필수 필드 추가
+  releaseResourcesOnHide: true, // 필수 필드 추가
   enableLogging: false,
+  debugMode: false, // 필수 필드 추가
   enablePerformanceMetrics: true,
   useMemoryPool: true,
   fallbackRetryDelay: 300000, // 5분
   poolCleanupInterval: 180000, // 3분
-  processingMode: 'auto',
+  processingMode: ProcessingMode.AUTO, // 문자열 대신 열거형 값 사용
+  enableNativeOptimization: true, // 필수 필드 추가
+  cacheLifetime: 3600000, // 필수 필드 추가
+  maxCacheSize: 50, // 필수 필드 추가
   componentSpecificSettings: {}
 };
 
@@ -101,7 +111,7 @@ export function getProcessingMode(): ProcessingMode {
  */
 export function isAggressiveGCEnabled(): boolean {
   const settings = loadMemorySettings();
-  return settings.aggressiveGC;
+  return settings.aggressiveGC === true || settings.aggressiveCleanup === true;
 }
 
 /**
@@ -109,7 +119,7 @@ export function isAggressiveGCEnabled(): boolean {
  */
 export function isAutomaticOptimizationEnabled(): boolean {
   const settings = loadMemorySettings();
-  return settings.enableAutomaticOptimization;
+  return settings.enableAutomaticOptimization === true || settings.enableAutoOptimization === true;
 }
 
 /**
@@ -117,7 +127,7 @@ export function isAutomaticOptimizationEnabled(): boolean {
  */
 export function getOptimizationThreshold(): number {
   const settings = loadMemorySettings();
-  return settings.optimizationThreshold;
+  return settings.optimizationThreshold || settings.memoryThreshold || 200;
 }
 
 /**

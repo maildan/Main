@@ -17,30 +17,34 @@ import {
  */
 export function parseOptimizationLevel(level: string | number): OptimizationLevel {
   if (typeof level === 'number') {
-    if (level >= 0 && level <= 4) {
+    if (level >= 0 && level <= 5) {
       return level as OptimizationLevel;
     }
-    return OptimizationLevel.NORMAL;
+    return OptimizationLevel.NONE;
   }
 
   switch (level.toLowerCase()) {
+    case 'none':
     case 'normal':
-      return OptimizationLevel.NORMAL;
+      return OptimizationLevel.NONE;
     case 'low':
       return OptimizationLevel.LOW;
     case 'medium':
       return OptimizationLevel.MEDIUM;
     case 'high':
       return OptimizationLevel.HIGH;
+    case 'aggressive':
     case 'critical':
-      return OptimizationLevel.CRITICAL;
+      return OptimizationLevel.AGGRESSIVE;
+    case 'extreme':
+      return OptimizationLevel.EXTREME;
     default:
       // 숫자 문자열인 경우 변환 시도
       const num = parseInt(level, 10);
-      if (!isNaN(num) && num >= 0 && num <= 4) {
+      if (!isNaN(num) && num >= 0 && num <= 5) {
         return num as OptimizationLevel;
       }
-      return OptimizationLevel.NORMAL;
+      return OptimizationLevel.NONE;
   }
 }
 
@@ -50,6 +54,7 @@ export function parseOptimizationLevel(level: string | number): OptimizationLeve
  */
 export function formatOptimizationLevel(level: OptimizationLevel): string {
   switch (level) {
+    case OptimizationLevel.NONE:
     case OptimizationLevel.NORMAL:
       return '일반';
     case OptimizationLevel.LOW:
@@ -58,8 +63,11 @@ export function formatOptimizationLevel(level: OptimizationLevel): string {
       return '중간';
     case OptimizationLevel.HIGH:
       return '높음';
+    case OptimizationLevel.AGGRESSIVE:
     case OptimizationLevel.CRITICAL:
       return '위험';
+    case OptimizationLevel.EXTREME:
+      return '매우 위험';
     default:
       return '알 수 없음';
   }
@@ -208,11 +216,18 @@ export function toAppOptimizationLevel(level: NativeOptimizationLevel): Optimiza
  */
 export function safeOptimizationLevel(level: number): OptimizationLevel {
   switch (level) {
-    case 0: return OptimizationLevel.NORMAL;
-    case 1: return OptimizationLevel.LOW;
-    case 2: return OptimizationLevel.MEDIUM;
-    case 3: return OptimizationLevel.HIGH;
-    case 4: return OptimizationLevel.CRITICAL;
+    case 0:
+      return OptimizationLevel.NONE;
+    case 1:
+      return OptimizationLevel.LOW;
+    case 2:
+      return OptimizationLevel.MEDIUM;
+    case 3:
+      return OptimizationLevel.HIGH;
+    case 4:
+      return OptimizationLevel.AGGRESSIVE;
+    case 5:
+      return OptimizationLevel.EXTREME;
     default:
       console.warn(`유효하지 않은 최적화 레벨 (${level}), 기본값 사용`);
       return OptimizationLevel.MEDIUM;
@@ -297,15 +312,27 @@ export function getOptimizationLevelFromString(level: string): OptimizationLevel
   }
 }
 
-// 인덱스 식이 'number' 형식이 아니므로 발생하는 오류 수정
+/**
+ * 인덱스 식이 'number' 형식이 아니므로 발생하는 오류 수정
+ */
 export function getOptimizationLevelName(level: OptimizationLevel): string {
-  const names: Record<OptimizationLevel, string> = {
-    [OptimizationLevel.NONE]: '없음',
-    [OptimizationLevel.LOW]: '낮음',
-    [OptimizationLevel.MEDIUM]: '중간',
-    [OptimizationLevel.HIGH]: '높음',
-    [OptimizationLevel.AGGRESSIVE]: '적극적'
-  };
-
-  return names[level] || '중간';
+  // switch 문으로 변경하여 중복 속성 문제 해결
+  switch (level) {
+    case OptimizationLevel.NONE:
+    case OptimizationLevel.NORMAL:  // NONE과 동일한 값
+      return '없음';
+    case OptimizationLevel.LOW:
+      return '낮음';
+    case OptimizationLevel.MEDIUM:
+      return '중간';
+    case OptimizationLevel.HIGH:
+      return '높음';
+    case OptimizationLevel.AGGRESSIVE:
+    case OptimizationLevel.CRITICAL:  // AGGRESSIVE와 동일한 값
+      return '적극적';
+    case OptimizationLevel.EXTREME:
+      return '매우 적극적';
+    default:
+      return '중간';
+  }
 }

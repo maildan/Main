@@ -36,6 +36,15 @@ export {
     suggestGarbageCollection
 } from './gc-utils';
 
+// 최적화 유틸리티 내보내기
+export { configureAutoOptimization } from './optimization-utils';
+
+// 직접 구현된 최적화 기능들 내보내기
+export { cleanupCache } from './cache-optimizer';
+export { optimizeEvents } from './event-optimizer';
+export { optimizeResources } from './resource-optimizer';
+export { emergencyRecovery } from './emergency-recovery';
+
 // 타입 내보내기 - 명시적으로 이름 변경하여 모호성 해결
 export { OptimizationLevel as MemoryOptimizationLevel } from '@/types';
 export type { ExtendedGCResult as EnhancedGCResult } from './types-extended';

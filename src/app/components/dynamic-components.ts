@@ -1,6 +1,7 @@
 import dynamic from 'next/dynamic';
 
-import { MemoryUsageMonitor } from './MemoryUsageMonitor';
+// default export를 import하도록 수정
+import MemoryUsageMonitor from './MemoryUsageMonitor';
 
 // 클라이언트 측에서만 렌더링되는 메모리 사용량 모니터 컴포넌트
 export const DynamicMemoryUsageMonitor = dynamic(
@@ -15,3 +16,4 @@ export const DynamicNativeModuleStatus = dynamic(
 );
 
 // 기타 브라우저 API에 의존하는 컴포넌트들...
+
