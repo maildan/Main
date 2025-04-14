@@ -14,14 +14,14 @@ function setupTray() {
 
   try {
     // 트레이 아이콘 생성 - 더 큰 크기로 설정
-    const iconPath = path.join(__dirname, '../../public/tray-icon.png');
+    const iconPath = path.join(__dirname, '../../public/app_icon.png');
     let iconImage = nativeImage.createFromPath(iconPath);
     
     // 아이콘 크기 확인 - 너무 작으면 더 큰 아이콘 파일 있는지 체크
     const hdpiIconPath = path.join(__dirname, '../../public/tray-icon@2x.png');
     if (iconImage.isEmpty() || !iconImage.toBitmap().length) {
       // 기본 아이콘이 없거나 불러오기에 실패한 경우 앱 아이콘으로 대체
-      const appIconPath = path.join(__dirname, '../../public/app-icon.png');
+      const appIconPath = path.join(__dirname, '../../public/app_icon.png');
       iconImage = nativeImage.createFromPath(appIconPath);
       
       // 여전히 실패하면 기본 아이콘 사용

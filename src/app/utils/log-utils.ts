@@ -125,21 +125,40 @@ export async function searchLogs(options: LogSearchOptions = {}): Promise<LogEnt
     }
 
     // 로그 검색 API 호출
-    // 상대 경로를 기반으로 올바른 URL 구성
-    const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
-    const apiUrl = new URL('/api/logs/search', baseUrl);
-    apiUrl.search = queryParams.toString();
+    try {
+      let requestUrl = '';
+      
+      // 브라우저 환경인지 서버 환경인지 확인
+      if (typeof window === 'undefined') {
+        // 서버 환경에서는 상대 경로 사용
+        requestUrl = `/api/logs/search?${queryParams.toString()}`;
+      } else {
+        // 브라우저 환경에서는 전체 URL 구성
+        const baseUrl = window.location.origin;
+        try {
+          const apiUrl = new URL('/api/logs/search', baseUrl);
+          apiUrl.search = queryParams.toString();
+          requestUrl = apiUrl.toString();
+        } catch (urlError) {
+          logger.warn('URL 생성 오류, 상대 경로로 폴백:', urlError as Record<string, unknown>);
+          requestUrl = `/api/logs/search?${queryParams.toString()}`;
+        }
+      }
 
-    const response = await fetch(apiUrl.toString());
+      const response = await fetch(requestUrl);
 
-    if (!response.ok) {
-      throw new Error(`로그 검색 실패: ${response.status} ${response.statusText}`);
+      if (!response.ok) {
+        throw new Error(`로그 검색 실패: ${response.status} ${response.statusText}`);
+      }
+
+      const result = await response.json();
+
+      logger.debug(`로그 검색 완료 (결과 수: ${result.data.length})`);
+      return result.data;
+    } catch (error) {
+      logger.error('로그 검색 중 오류 발생:', error as Record<string, unknown>);
+      throw error;
     }
-
-    const result = await response.json();
-
-    logger.debug(`로그 검색 완료 (결과 수: ${result.data.length})`);
-    return result.data;
   } catch (error) {
     logger.error('로그 검색 중 오류 발생:', error as Record<string, unknown>);
     throw error;

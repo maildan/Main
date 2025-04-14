@@ -18,10 +18,20 @@ interface TypingData {
 
 // ClientSideControlsProps 정의
 interface ClientSideControlsProps {
-  // 필요한 props가 있으면 여기에 추가
+  darkMode: boolean;
+  onDarkModeChange: (enabled: boolean) => void;
+  windowMode: 'windowed' | 'fullscreen' | 'fullscreen-auto-hide';
+  onWindowModeChange: (mode: 'windowed' | 'fullscreen' | 'fullscreen-auto-hide') => void;
+  children: React.ReactNode;
 }
 
-export default function ClientSideControls(_props: ClientSideControlsProps) {
+export default function ClientSideControls({
+  darkMode,
+  onDarkModeChange,
+  windowMode,
+  onWindowModeChange,
+  children
+}: ClientSideControlsProps) {
   const [typingStats, setTypingStats] = useState<TypingData | null>(null);
   const [isTracking, setIsTracking] = useState(false);
 
@@ -93,6 +103,8 @@ export default function ClientSideControls(_props: ClientSideControlsProps) {
           </div>
         </div>
       )}
+
+      <div className="client-controls-wrapper">{children}</div>
     </div>
   );
 }

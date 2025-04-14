@@ -135,7 +135,7 @@ export const CustomHeader = memo(function CustomHeader({
           <div className={styles.leftSection}>
             <div className={styles.iconOnly}>
               <Image 
-                src="/loop-icon.svg" 
+                src="/app_icon.webp" 
                 alt="Loop 아이콘"
                 width={24}
                 height={24}

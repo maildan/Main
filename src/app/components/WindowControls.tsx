@@ -59,15 +59,45 @@ export function WindowControls({ api }: WindowControlsProps) {
   );
 }
 
-// 아이콘 컴포넌트들
+// 노션 스타일 아이콘 컴포넌트들
 function MinimizeIcon() {
-  return <span className={styles.minimizeIcon}>&#8211;</span>;
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path 
+        d="M3 8H13" 
+        stroke="currentColor" 
+        strokeWidth="1.2" 
+        strokeLinecap="round" 
+      />
+    </svg>
+  );
 }
 
 function MaximizeIcon() {
-  return <span className={styles.maximizeIcon}>&#x25A1;</span>;
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect 
+        x="3.5" 
+        y="3.5" 
+        width="9" 
+        height="9" 
+        rx="1" 
+        stroke="currentColor" 
+        strokeWidth="1.2" 
+      />
+    </svg>
+  );
 }
 
 function CloseIcon() {
-  return <span className={styles.closeIcon}>&#x2715;</span>;
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path 
+        d="M4 4L12 12M4 12L12 4" 
+        stroke="currentColor" 
+        strokeWidth="1.2" 
+        strokeLinecap="round" 
+      />
+    </svg>
+  );
 }

@@ -39,6 +39,34 @@ export function TypingAnalyzer({ stats, _isTracking }: {
   const [result, setResult] = useState<TypingAnalysisResult | null>(null);
   const [useGpuAcceleration, setUseGpuAcceleration] = useState<boolean>(false);
 
+  // 설정에서 GPU 가속 여부 가져오기
+  useEffect(() => {
+    const loadGpuSetting = async () => {
+      try {
+        const response = await fetch('/api/settings/get');
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success && data.settings) {
+            // 새로운 API 구조에 맞게 설정 접근
+            const useGpuAcceleration = data.settings.useTypingAnalysisGpuAcceleration;
+            setUseGpuAcceleration(!!useGpuAcceleration);
+            
+            // 설정이 활성화되어 있고 GPU 모듈은 아직 활성화되지 않았다면 GPU 모듈 활성화
+            if (useGpuAcceleration && available && !enabled) {
+              await toggleGpuAcceleration(true);
+            }
+          }
+        } else {
+          console.warn('GPU 가속 설정을 불러오는데 실패했습니다. 기본값으로 설정합니다.');
+        }
+      } catch (error) {
+        console.error('GPU 설정을 불러오는 중 오류 발생:', error);
+      }
+    };
+    
+    loadGpuSetting();
+  }, [available, enabled, toggleGpuAcceleration]);
+
   // 타이핑 통계 분석 수행
   const analyzeTyping = useCallback(async () => {
     if (!safeStats.keyCount || !safeStats.typingTime) {
@@ -67,16 +95,6 @@ export function TypingAnalyzer({ stats, _isTracking }: {
     }
   }, [safeStats, useGpuAcceleration, enabled, computeWithGpu]);
 
-  // GPU 가속 활성화/비활성화 처리
-  const handleToggleGpu = useCallback(async () => {
-    const newState = !useGpuAcceleration;
-    setUseGpuAcceleration(newState);
-    
-    if (newState && available && !enabled) {
-      await toggleGpuAcceleration(true);
-    }
-  }, [useGpuAcceleration, available, enabled, toggleGpuAcceleration]);
-
   // 데이터 변경 시 재분석
   useEffect(() => {
     if (safeStats.keyCount > 0 && safeStats.typingTime > 0) {
@@ -88,19 +106,6 @@ export function TypingAnalyzer({ stats, _isTracking }: {
     <div className={styles.container}>
       <div className={styles.header}>
         <h2 className={styles.title}>타이핑 분석</h2>
-        {available && (
-          <div className={styles.gpuToggle}>
-            <label>
-              <input
-                type="checkbox"
-                checked={useGpuAcceleration}
-                onChange={handleToggleGpu}
-                disabled={loading}
-              />
-              GPU 가속 사용
-            </label>
-          </div>
-        )}
       </div>
 
       {loading && <div className={styles.loading}>분석 중...</div>}

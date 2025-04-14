@@ -57,3 +57,60 @@ VS Code에서 ESLint를 최대한 활용하려면:
 },
 "eslint.experimental.useFlatConfig": true
 ```
+
+## 일반적인 ESLint 문제 해결 방법
+
+### 1. 구성 파일 문제
+
+오류: `Error: No ESLint configuration found`
+
+해결방법:
+```bash
+npm run fix:eslint-config
+```
+
+### 2. TypeScript와 관련된 ESLint 오류
+
+오류: `Parsing error: "parserOptions.project" has been set`
+
+해결방법: `tsconfig.json` 파일이 올바른 위치에 있는지 확인하고, ESLint 구성에 다음을 추가:
+
+```javascript
+parserOptions: {
+  tsconfigRootDir: __dirname,
+  project: ['./tsconfig.json']
+}
+```
+
+### 3. 커스텀 규칙 적용
+
+특정 파일이나 폴더에 다른 규칙을 적용하려면:
+
+```javascript
+export default [
+  // 기본 설정
+  { ... },
+  
+  // 특정 파일에만 적용
+  {
+    files: ["src/legacy/**/*.ts"],
+    rules: {
+      "no-explicit-any": "off" // 해당 폴더에서만 any 허용
+    }
+  }
+];
+```
+
+## 진단 및 문제 해결 도구
+
+문제가 지속되는 경우:
+
+```bash
+# ESLint 디버그 모드
+npx eslint --debug src/problematic-file.tsx
+
+# ESLint 규칙 충돌 확인
+npm run lint -- --print-config src/file.tsx
+```
+
+위 도구를 사용하여 ESLint 구성 문제를 효과적으로 진단하고 해결할 수 있습니다.

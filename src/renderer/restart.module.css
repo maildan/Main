@@ -3,19 +3,19 @@
 :root {
   /* 라이트 모드 기본 변수 */
   --bg-color: #f8f9fa;
-  --header-bg: #4d7cfe;
-  --header-text: #ffffff;
+  --header-bg: #f0f0f0;
+  --header-text: #333333;
   --text-color: #333333;
   --text-secondary: #555555;
   --border-color: #e0e0e0;
-  --button-primary-bg: #4d7cfe;
+  --button-primary-bg: #0078d7;
   --button-primary-text: #ffffff;
-  --button-primary-hover: #3a6de9;
-  --button-secondary-bg: #f0f0f0;
+  --button-primary-hover: #106ebe;
+  --button-secondary-bg: #e1e1e1;
   --button-secondary-text: #333333;
-  --button-secondary-hover: #e0e0e0;
+  --button-secondary-hover: #d1d1d1;
   --shadow-color: rgba(0, 0, 0, 0.1);
-  --spinner-color: #4d7cfe;
+  --spinner-color: #0078d7;
   color-scheme: light;
 }
 
@@ -35,47 +35,54 @@
 
 /* 다크 모드 변수 */
 .dark-mode {
-  --bg-color: #1e1e1e;
-  --header-bg: #2d5bd3;
-  --header-text: #ffffff;
+  --bg-color: #202020;
+  --header-bg: #323232;
+  --header-text: #f0f0f0;
   --text-color: #e0e0e0;
   --text-secondary: #b0b0b0;
   --border-color: #444444;
-  --button-primary-bg: #3968e0;
+  --button-primary-bg: #0078d7;
   --button-primary-text: #ffffff;
-  --button-primary-hover: #2d5bd3;
-  --button-secondary-bg: #333333;
+  --button-primary-hover: #106ebe;
+  --button-secondary-bg: #3b3b3b;
   --button-secondary-text: #e0e0e0;
-  --button-secondary-hover: #444444;
+  --button-secondary-hover: #4a4a4a;
   --shadow-color: rgba(0, 0, 0, 0.3);
-  --spinner-color: #5e8efe;
+  --spinner-color: #0078d7;
   color-scheme: dark;
 }
 
-/* 헤더 영역 */
-.header {
-  height: 40px;
+/* 시스템 창 스타일 */
+.system-window {
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  box-shadow: 0 4px 12px var(--shadow-color);
+}
+
+/* 타이틀바 영역 */
+.titlebar {
+  height: 32px;
   background-color: var(--header-bg);
   color: var(--header-text);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 15px;
+  padding: 0 12px;
   -webkit-app-region: drag;
-  box-shadow: 0 2px 4px var(--shadow-color);
+  border-bottom: 1px solid var(--border-color);
 }
 
-.header h1 {
-  font-size: 16px;
+.titlebar h1 {
+  font-size: 14px;
   font-weight: 500;
   margin: 0;
 }
 
-.closeButton {
+.close-button {
   background: none;
   border: none;
   color: var(--header-text);
-  font-size: 22px;
+  font-size: 16px;
   font-weight: bold;
   cursor: pointer;
   -webkit-app-region: no-drag;
@@ -88,11 +95,12 @@
   transition: background-color 0.2s;
 }
 
-.closeButton:hover {
-  background-color: rgba(255, 255, 255, 0.2);
+.close-button:hover {
+  background-color: rgba(255, 0, 0, 0.7);
+  color: white;
 }
 
-.closeButton:disabled {
+.close-button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
@@ -108,7 +116,7 @@
   text-align: center;
 }
 
-.restartingState, .promptState {
+.restarting-state, .prompt-state {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -126,7 +134,7 @@
 /* 메시지 */
 .message {
   margin-bottom: 25px;
-  font-size: 16px;
+  font-size: 14px;
   line-height: 1.6;
   color: var(--text-color);
   max-width: 320px;
@@ -139,15 +147,14 @@
 }
 
 .button {
-  padding: 10px 20px;
-  border-radius: 6px;
+  padding: 8px 16px;
+  border-radius: 4px;
   cursor: pointer;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 500;
   transition: all 0.2s;
-  border: none;
+  border: 1px solid var(--border-color);
   outline: none;
-  box-shadow: 0 2px 4px var(--shadow-color);
 }
 
 .button:disabled {
@@ -160,12 +167,11 @@
 .primary {
   background-color: var(--button-primary-bg);
   color: var(--button-primary-text);
+  border-color: transparent;
 }
 
 .primary:hover:not(:disabled) {
   background-color: var(--button-primary-hover);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 8px var(--shadow-color);
 }
 
 .secondary {
@@ -175,25 +181,23 @@
 
 .secondary:hover:not(:disabled) {
   background-color: var(--button-secondary-hover);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 8px var(--shadow-color);
 }
 
 /* 로딩 아이콘 */
-.loadingIcon {
-  width: 50px;
-  height: 50px;
+.loading-spinner {
+  width: 36px;
+  height: 36px;
   margin-bottom: 20px;
 }
 
-.spinner {
+.loading-spinner svg {
   animation: rotate 2s linear infinite;
   z-index: 2;
-  width: 50px;
-  height: 50px;
+  width: 100%;
+  height: 100%;
 }
 
-.spinner .path {
+.loading-spinner svg circle {
   stroke: var(--spinner-color);
   stroke-linecap: round;
   animation: dash 1.5s ease-in-out infinite;
@@ -227,7 +231,7 @@
     opacity: 1;
   }
   50% {
-    transform: scale(1.1);
+    transform: scale(1.05);
     opacity: 0.8;
   }
   100% {

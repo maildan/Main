@@ -1,72 +1,118 @@
 'use client';
 
-import React, { memo, useRef, ReactNode } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AppHeader } from './AppHeader';
-import { AppFooter } from './AppFooter';
-import styles from '../page.module.css';
-
-// Define the ElectronAPI interface
-interface ElectronAPI {
-  // Add properties that your electron API needs
-  // For example: minimize: () => void;
-}
+import ClientSideControls from './ClientSideControls';
+import { ToastProvider } from './ToastContext';
+import { ThemeProvider } from './ThemeProvider';
 
 interface MainLayoutProps {
-  children: ReactNode;
-  darkMode?: boolean;
-  windowMode?: string;
-  electronAPI?: ElectronAPI | null;
-  isHeaderVisible?: boolean;
+  children: React.ReactNode;
+  darkMode: boolean;
+  windowMode: 'windowed' | 'fullscreen' | 'fullscreen-auto-hide';
+  electronAPI: any;
+  isHeaderVisible: boolean;
 }
 
-export const MainLayout = memo(function MainLayout({
-  children,
-  darkMode = false,
-  windowMode = 'normal',
-  electronAPI = null,
-  isHeaderVisible = true
+export function MainLayout({ 
+  children, 
+  darkMode, 
+  windowMode, 
+  electronAPI, 
+  isHeaderVisible 
 }: MainLayoutProps) {
-  const headerDetectionRef = useRef<HTMLDivElement>(null);
+  // 다크모드 설정
+  const [isDarkMode, setIsDarkMode] = useState(false);
+  // 윈도우 모드 설정
+  const [currentWindowMode, setCurrentWindowMode] = useState<'windowed' | 'fullscreen' | 'fullscreen-auto-hide'>('windowed');
 
+  // 초기 설정 로드
+  useEffect(() => {
+    // 로컬 스토리지에서 설정 로드
+    try {
+      const savedSettings = localStorage.getItem('app_settings');
+      if (savedSettings) {
+        const parsedSettings = JSON.parse(savedSettings);
+        setIsDarkMode(parsedSettings.darkMode || false);
+        setCurrentWindowMode(parsedSettings.windowMode || 'windowed');
+        
+        // 다크모드 클래스 적용
+        if (parsedSettings.darkMode) {
+          document.documentElement.classList.add('dark-mode');
+        } else {
+          document.documentElement.classList.remove('dark-mode');
+        }
+        
+        // 전체화면 모드 설정 적용
+        if (window.electronAPI && typeof window.electronAPI.setWindowMode === 'function') {
+          window.electronAPI.setWindowMode(parsedSettings.windowMode || 'windowed');
+        }
+      }
+    } catch (error) {
+      console.error('설정 로드 중 오류:', error);
+    }
+  }, []);
+  
+  // 다크모드 변경 핸들러
+  const handleDarkModeChange = (enabled: boolean) => {
+    setIsDarkMode(enabled);
+    
+    if (enabled) {
+      document.documentElement.classList.add('dark-mode');
+    } else {
+      document.documentElement.classList.remove('dark-mode');
+    }
+    
+    // Electron API를 통해 네이티브 테마 설정 전달
+    if (window.electronAPI && typeof window.electronAPI.setDarkMode === 'function') {
+      window.electronAPI.setDarkMode(enabled);
+    }
+  };
+  
+  // 윈도우 모드 변경 핸들러
+  const handleWindowModeChange = (mode: 'windowed' | 'fullscreen' | 'fullscreen-auto-hide') => {
+    setCurrentWindowMode(mode);
+    
+    // Electron API를 통해 창 모드 설정
+    if (window.electronAPI && typeof window.electronAPI.setWindowMode === 'function') {
+      window.electronAPI.setWindowMode(mode);
+    }
+  };
+  
   return (
-    <div
-      className={`${styles.container} ${darkMode ? 'dark-mode' : ''} ${windowMode === 'fullscreen-auto-hide' ? styles.zenMode : ''}`}
-      style={{ position: 'relative', zIndex: 1 }}
-    >
-      {/* AppHeader 컴포넌트 추가 */}
-      {isHeaderVisible && <AppHeader api={electronAPI} />}
-
-      {/* 네비게이션 링크 추가 */}
-      {isHeaderVisible && (
-        <nav className={styles.navLinks}>
-          <ul>
-            <li>
-              <a href="/" className={styles.navLink}>홈</a>
-            </li>
-            <li>
-              <a href="/pages/analysis" className={styles.navLink}>로그 분석</a>
-            </li>
-          </ul>
-        </nav>
-      )}
-
-      {/* 자동 숨김 모드일 때 감지 영역 추가 */}
-      {windowMode === 'fullscreen-auto-hide' && (
-        <div
-          ref={headerDetectionRef}
-          className={styles.headerDetectionArea}
-          aria-hidden="true"
-          style={{ pointerEvents: 'auto' }}
-        />
-      )}
-
-      <main className={styles.mainContent}>
-        {children}
-      </main>
-
-      <AppFooter />
-    </div>
+    <ThemeProvider>
+      <ToastProvider>
+        <div 
+          className={`app-layout ${isDarkMode ? 'dark-theme' : 'light-theme'}`}
+          data-window-mode={currentWindowMode}
+        >
+          {/* OS 네이티브 도구모음을 사용하도록 커스텀 헤더는 조건부 렌더링 */}
+          {windowMode === 'fullscreen-auto-hide' && (
+            <AppHeader 
+              api={electronAPI}
+              isVisible={isHeaderVisible}
+              autoHide={true}
+            />
+          )}
+          
+          <main className="content-area" style={{ 
+            paddingTop: windowMode === 'fullscreen-auto-hide' ? '0' : '10px', // 네이티브 타이틀바 사용 시 패딩 조정 
+            height: '100%',
+            overflow: 'auto'
+          }}>
+            <ClientSideControls
+              darkMode={isDarkMode}
+              onDarkModeChange={handleDarkModeChange}
+              windowMode={currentWindowMode}
+              onWindowModeChange={handleWindowModeChange}
+            >
+              {children}
+            </ClientSideControls>
+          </main>
+        </div>
+      </ToastProvider>
+    </ThemeProvider>
   );
-});
+}
 
 export default MainLayout;

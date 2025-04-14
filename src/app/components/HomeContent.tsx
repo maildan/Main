@@ -216,13 +216,21 @@ export const HomeContent = React.memo(function HomeContent() {
       case 'settings':
         return (
           <div className="settings-tab-wrapper" style={{
-            maxWidth: '800px',
+            maxWidth: '100%', // 800px에서 100%로 변경하여 너비 확장
             margin: '0 auto',
             width: '100%'
           }}>
             <Settings
               onSave={handleSaveSettings}
-              initialSettings={settings}
+              initialSettings={{
+                ...settings,
+                useTypingAnalysisGpuAcceleration: false,
+                showKeyCountInHeader: true, // 필요한 누락된 속성 추가
+                showRealtimeWPM: true,      // 필요한 누락된 속성 추가
+                enableSoundEffects: false,  // 필요한 누락된 속성 추가
+                enableAnimations: true,     // 필요한 누락된 속성 추가
+                useCompactUI: false         // 필요한 누락된 속성 추가
+              }}
               darkMode={darkMode}
               onDarkModeChange={handleDarkModeChange}
               onWindowModeChange={handleWindowModeChange}

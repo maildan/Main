@@ -40,8 +40,8 @@ async function createWindow() {
       },
       show: false, // 준비될 때까지 숨김
       backgroundColor: appState.settings?.darkMode ? '#121212' : '#f9f9f9',
-      titleBarStyle: 'hidden',
-      frame: false,
+      frame: true, // OS 기본 프레임 사용 (false에서 true로 변경)
+      titleBarStyle: 'default', // 기본 타이틀바 스타일 사용 (hidden에서 default로 변경)
       icon: path.join(__dirname, '../../public/app_icon.webp'), // 아이콘 추가
       // GPU 가속 관련 설정 추가
       webPreferences: {

@@ -1,8 +1,9 @@
 .windowControls {
   display: flex;
   align-items: center;
-  gap: 6px; /* 간격 증가 (4px → 6px) */
+  gap: 8px; /* 노션 스타일 간격 */
   -webkit-app-region: no-drag;
+  margin-right: 4px;
 }
 
 .windowButton {
@@ -10,21 +11,22 @@
   display: flex;
   justify-content: center;
   align-items: center;
-  width: 36px; /* 32px에서 36px로 증가하여 더 넓은 클릭 영역 확보 */
-  height: 36px; /* 32px에서 36px로 증가하여 더 넓은 클릭 영역 확보 */
+  width: 28px; /* 노션 스타일 크기 */
+  height: 28px;
   border: none;
   background: transparent;
   cursor: pointer;
-  transition: background-color 0.2s;
+  transition: background-color 0.1s ease;
   user-select: none;
-  border-radius: 4px; /* 3px에서 4px로 증가 */
+  border-radius: 3px;
   -webkit-app-region: no-drag;
-  overflow: visible; /* 이벤트가 넘치지 않도록 설정 */
-  padding: 0; /* 패딩 제거하여 버튼 영역 정확히 설정 */
+  overflow: visible;
+  padding: 0;
   margin: 0;
+  color: rgba(55, 53, 47, 0.85); /* 노션 스타일 색상 */
 }
 
-/* 버튼 내부 컨텐츠 스타일링 */ 
+/* 버튼 내부 컨텐츠 스타일링 */
 .buttonContent {
   position: absolute;
   top: 0;
@@ -36,62 +38,50 @@
   align-items: center;
   width: 100%;
   height: 100%;
-  font-size: 20px;
-  line-height: 1;
   -webkit-app-region: no-drag;
 }
 
 .minimizeButton {
-  color: #555;
+  color: rgba(55, 53, 47, 0.85);
 }
 
 .maximizeButton {
-  color: #555;
+  color: rgba(55, 53, 47, 0.85);
 }
 
 .closeButton {
-  color: #555;
+  color: rgba(55, 53, 47, 0.85);
 }
 
-.minimizeButton:hover {
-  background-color: rgba(0, 0, 0, 0.08);
-}
-
+.minimizeButton:hover,
 .maximizeButton:hover {
-  background-color: rgba(0, 0, 0, 0.08);
+  background-color: rgba(55, 53, 47, 0.08); /* 노션 스타일 호버 효과 */
 }
 
 .closeButton:hover {
-  background-color: #e81123;
-  color: white;
+  background-color: rgba(235, 87, 87, 0.1); /* 노션 스타일 빨간색 배경 */
+  color: rgb(235, 87, 87); /* 노션 스타일 빨간색 */
 }
 
-.minimizeIcon, .maximizeIcon {
-  font-size: 16px; /* 14px에서 16px로 증가 */
-  line-height: 1;
-}
-
-.closeIcon {
-  font-size: 20px; /* 18px에서 20px로 증가 */
-}
-
-/* 다크 모드 - 더 강력하게 스타일 적용 */
+/* 다크 모드 */
 :global(body.dark-mode) .minimizeButton,
 :global(body.dark-mode) .maximizeButton,
 :global(body.dark-mode) .closeButton,
 :global(.dark-mode) .minimizeButton,
 :global(.dark-mode) .maximizeButton,
 :global(.dark-mode) .closeButton {
-  color: #E0E0E0; /* 가이드의 기본 텍스트 */
+  color: rgba(255, 255, 255, 0.81); /* 노션 다크모드 텍스트 색상 */
 }
 
-:global(body.dark-mode) .windowButton:hover,
-:global(.dark-mode) .windowButton:hover {
-  background-color: rgba(255, 255, 255, 0.1);
+:global(body.dark-mode) .minimizeButton:hover,
+:global(body.dark-mode) .maximizeButton:hover,
+:global(.dark-mode) .minimizeButton:hover,
+:global(.dark-mode) .maximizeButton:hover {
+  background-color: rgba(255, 255, 255, 0.055); /* 노션 다크모드 호버 배경 */
 }
 
 :global(body.dark-mode) .closeButton:hover,
 :global(.dark-mode) .closeButton:hover {
-  background-color: #CF6679; /* 가이드의 에러 색상 */
-  color: #121212; /* 어두운 배경에 맞는 텍스트 색상 */
+  background-color: rgba(235, 87, 87, 0.1);
+  color: rgb(235, 87, 87);
 }

@@ -17,11 +17,31 @@ const OPTIMIZATION_LEVEL = {
 
 type OptimizationLevelType = typeof OPTIMIZATION_LEVEL[keyof typeof OPTIMIZATION_LEVEL];
 
+// 메모리 요청 타임아웃 설정
+const MEMORY_REQUEST_TIMEOUT = 3000; // 3초
+let lastRequestTime = 0;
+
 /**
  * GET 핸들러 - 메모리 사용량 정보 조회
  */
 export async function GET() {
   try {
+    const currentTime = Date.now();
+    
+    // 이전 요청으로부터 최소 시간이 경과했는지 확인
+    if (currentTime - lastRequestTime < MEMORY_REQUEST_TIMEOUT) {
+      // 타임아웃 미충족 시 이전에 저장된 메모리 정보 반환 또는 요청 제한 메시지
+      return NextResponse.json({
+        success: true,
+        cached: true,
+        message: '요청이 너무 빈번합니다. 잠시 후 다시 시도해주세요.',
+        timeRemaining: MEMORY_REQUEST_TIMEOUT - (currentTime - lastRequestTime)
+      });
+    }
+    
+    // 요청 시간 업데이트
+    lastRequestTime = currentTime;
+
     const memoryInfo = await getMemoryUsage();
     
     // memoryInfo가 null인 경우 처리

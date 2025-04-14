@@ -73,6 +73,17 @@ const RestartPrompt: React.FC<RestartPromptProps> = ({
     }
     
     fetchTheme();
+    
+    // 시스템 테마 변경 감지
+    const darkModeMediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    const handleThemeChange = (e: MediaQueryListEvent) => {
+      if (!window.restartAPI?.getDarkMode && !window.electronAPI?.getDarkMode) {
+        setIsDarkMode(e.matches);
+      }
+    };
+    
+    darkModeMediaQuery.addEventListener('change', handleThemeChange);
+    return () => darkModeMediaQuery.removeEventListener('change', handleThemeChange);
   }, []);
   
   // 앱 재시작 함수
@@ -139,11 +150,11 @@ const RestartPrompt: React.FC<RestartPromptProps> = ({
   };
   
   return (
-    <div className={`container ${isDarkMode ? 'dark-mode' : 'light-mode'}`}>
-      <div className="header">
+    <div className={`container system-window ${isDarkMode ? 'dark-mode' : 'light-mode'}`}>
+      <div className="titlebar">
         <h1>앱 재시작</h1>
         <button 
-          className="closeButton" 
+          className="close-button" 
           onClick={handleClose}
           disabled={isRestarting}
           aria-label="닫기"
@@ -154,10 +165,10 @@ const RestartPrompt: React.FC<RestartPromptProps> = ({
       
       <div className="content">
         {isRestarting ? (
-          <div className="restartingState">
-            <div className="loadingIcon">
-              <svg className="spinner" viewBox="0 0 50 50">
-                <circle className="path" cx="25" cy="25" r="20" fill="none" strokeWidth="5"></circle>
+          <div className="restarting-state">
+            <div className="loading-spinner">
+              <svg viewBox="0 0 50 50">
+                <circle cx="25" cy="25" r="20" fill="none" strokeWidth="5"></circle>
               </svg>
             </div>
             <p className="message">
@@ -166,7 +177,7 @@ const RestartPrompt: React.FC<RestartPromptProps> = ({
             </p>
           </div>
         ) : (
-          <div className="promptState">
+          <div className="prompt-state">
             <div className="icon">🔄</div>
             <p className="message">
               {reason}<br />

@@ -3,13 +3,19 @@
   background: #ffffff;
   border-radius: 10px;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
-  max-width: 100%;
+  width: 90%; /* 더 넓게 수정 */
+  max-width: 1200px; /* 최대 너비 설정 */
+  margin: 0 auto; /* 가운데 정렬 */
+  height: 100%;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .darkMode {
-  background: #1E1E1E;
+  background: #121212; /* 더 어둡고 세련된 검은색 */
   color: #E0E0E0;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3); /* 그림자 강화 */
 }
 
 .settingsContainer h2 {
@@ -26,21 +32,97 @@
   border-bottom-color: #303030;
 }
 
+/* 레이아웃 개선 */
+.settingsLayout {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  gap: 20px;
+}
+
+/* 가로 방향 탭 레이아웃 스타일 */
+.settingsTabs {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 180px;
+  flex-shrink: 0;
+  border-right: 1px solid #eaeaea;
+  padding-right: 15px;
+  padding-top: 10px;
+}
+
+.darkMode .settingsTabs {
+  border-right-color: #303030;
+}
+
+.settingsContent {
+  flex: 1;
+  overflow-y: auto;
+  padding-right: 10px;
+}
+
+.tabContent {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.tabButton {
+  padding: 12px 16px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: #666;
+  width: 100%;
+}
+
+.tabButton:hover {
+  background-color: rgba(77, 124, 254, 0.1);
+  color: #4d7cfe;
+}
+
+.activeTab {
+  background-color: rgba(77, 124, 254, 0.15);
+  color: #4d7cfe;
+  font-weight: 600;
+}
+
+.darkMode .tabButton {
+  color: #aaa;
+}
+
+.darkMode .tabButton:hover {
+  background-color: rgba(94, 142, 254, 0.2);
+  color: #5e8efe;
+}
+
+.darkMode .activeTab {
+  background-color: rgba(94, 142, 254, 0.25);
+  color: #5e8efe;
+}
+
 .settingSection {
-  margin-bottom: 2rem; /* 섹션 간 간격 증가 */
-  padding: 1.25rem; /* 패딩 추가 */
-  background-color: #f9f9f9; /* 배경색 추가로 구분감 향상 */
+  margin-bottom: 1.5rem;
+  padding: 1.25rem;
+  background-color: #f9f9f9;
   border-radius: 8px;
-  border-left: 4px solid #4d7cfe; /* 왼쪽 경계선으로 시각적 계층 표현 */
+  border-left: 4px solid #4d7cfe;
 }
 
 .darkMode .settingSection {
-  background-color: #252525;
+  background-color: #1a1a1a; /* 더 진한 배경색으로 개선 */
   border-left-color: #5e8efe;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.2); /* 다크 모드에 그림자 추가 */
 }
 
 .settingSection h3 {
-  font-size: 1.2rem;
+  font-size: 1.1rem;
   margin-top: 0;
   margin-bottom: 1.25rem;
   color: #333;
@@ -51,19 +133,34 @@
   color: #E0E0E0;
 }
 
+/* 설정 그리드 레이아웃 */
+.settingGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 15px;
+  margin-bottom: 15px;
+}
+
+.toggleGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 10px;
+  width: 100%;
+}
+
 .categoryToggles {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 15px;
+  width: 100%;
 }
 
 .toggleItem {
   display: flex;
   align-items: center;
-  margin-bottom: 0.75rem;
-  padding: 0.5rem 0.75rem; /* 패딩 추가 */
-  border-radius: 6px; /* 각 항목에 경계 추가 */
-  background-color: rgba(255, 255, 255, 0.5); /* 배경색 추가 */
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  background-color: rgba(255, 255, 255, 0.5);
   transition: background-color 0.2s;
 }
 
@@ -72,11 +169,11 @@
 }
 
 .darkMode .toggleItem {
-  background-color: rgba(40, 40, 40, 0.5);
+  background-color: rgba(30, 30, 30, 0.7); /* 더 어둡고 세련된 배경색 */
 }
 
 .darkMode .toggleItem:hover {
-  background-color: rgba(50, 50, 50, 0.8);
+  background-color: rgba(40, 40, 40, 0.9); /* 호버 시 더 진한 배경색 */
 }
 
 .toggleItem label {
@@ -89,7 +186,7 @@
 
 .toggleItem input[type="checkbox"] {
   margin-right: 12px;
-  width: 20px; /* 체크박스 크기 증가 */
+  width: 20px;
   height: 20px;
   accent-color: #4d7cfe;
   cursor: pointer;
@@ -100,29 +197,42 @@
 }
 
 .toggleLabel {
-  font-size: 1rem; /* 글자 크기 증가 */
-  font-weight: 500; /* 글자 가중치 증가 */
+  font-size: 0.95rem;
+  font-weight: 500;
 }
 
 .darkMode .toggleLabel {
   color: #d0d0d0;
 }
 
+.settingGroup {
+  margin-bottom: 1rem;
+}
+
+.settingRow {
+  display: flex;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
 .radioGroup {
   display: flex;
-  flex-wrap: wrap; /* 화면 크기에 따라 줄바꿈 지원 */
-  gap: 1.5rem;
-  margin-top: 1rem;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-top: 0.5rem;
+  margin-bottom: 1rem;
 }
 
 .radioLabel {
   display: flex;
   align-items: center;
   cursor: pointer;
-  padding: 0.5rem 1rem; /* 패딩 추가 */
-  border-radius: 6px; /* 경계 추가 */
-  background-color: rgba(255, 255, 255, 0.5); /* 배경색 추가 */
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  background-color: rgba(255, 255, 255, 0.5);
   transition: background-color 0.2s;
+  flex: 1;
+  min-width: 140px;
 }
 
 .radioLabel:hover {
@@ -130,16 +240,16 @@
 }
 
 .darkMode .radioLabel {
-  background-color: rgba(40, 40, 40, 0.5);
+  background-color: rgba(30, 30, 30, 0.7); /* 라디오 버튼 배경색 어둡게 */
 }
 
 .darkMode .radioLabel:hover {
-  background-color: rgba(50, 50, 50, 0.8);
+  background-color: rgba(40, 40, 40, 0.9); /* 호버 시 더 진한 배경색 */
 }
 
 .radioLabel input[type="radio"] {
   margin-right: 10px;
-  width: 18px; /* 라디오 버튼 크기 증가 */
+  width: 18px;
   height: 18px;
   accent-color: #4d7cfe;
 }
@@ -150,7 +260,7 @@
 
 .radioText {
   font-size: 0.95rem;
-  font-weight: 500; /* 글자 가중치 증가 */
+  font-weight: 500;
 }
 
 .darkMode .radioText {
@@ -159,8 +269,10 @@
 
 .selectLabel {
   display: block;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0;
+  margin-right: 10px;
   font-weight: 500;
+  min-width: 120px;
 }
 
 .darkMode .selectLabel {
@@ -199,17 +311,23 @@
 }
 
 .buttonRow {
-  margin-top: 2rem;
+  margin-top: 1.5rem;
   display: flex;
   justify-content: flex-end;
+  border-top: 1px solid #eaeaea;
+  padding-top: 1rem;
+}
+
+.darkMode .buttonRow {
+  border-top-color: #303030;
 }
 
 .saveButton {
   padding: 0.75rem 1.5rem;
-  background: #4d7cfe;
+  background: #0078d7;
   color: white;
   border: none;
-  border-radius: 6px;
+  border-radius: 4px;
   font-size: 1rem;
   font-weight: 600;
   cursor: pointer;
@@ -217,18 +335,16 @@
 }
 
 .saveButton:hover {
-  background: #4169e1;
-  transform: translateY(-2px);
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+  background: #106ebe;
 }
 
 .darkMode .saveButton {
-  background: #5e8efe;
+  background: #0078d7;
   color: #fff;
 }
 
 .darkMode .saveButton:hover {
-  background: #4b7bfb;
+  background: #106ebe;
 }
 
 .disabledNote {
@@ -236,7 +352,7 @@
   color: #777;
   margin-left: 0.5rem;
   font-style: italic;
-  opacity: 0.8; /* 투명도 추가 */
+  opacity: 0.8;
 }
 
 .darkMode .disabledNote {
@@ -246,8 +362,8 @@
 .settingDescription {
   font-size: 0.9rem;
   color: #666;
-  margin-top: 1rem;
-  padding: 1rem;
+  margin-top: 0.75rem;
+  padding: 0.75rem;
   background-color: #f5f5f5;
   border-left: 3px solid #ddd;
   border-radius: 4px;
@@ -256,7 +372,7 @@
 
 .darkMode .settingDescription {
   color: #b0b0b0;
-  background-color: #2c2c2c;
+  background-color: #1e1e1e; /* 더 세련된 어두운 색상 */
   border-left-color: #444;
 }
 
@@ -292,7 +408,7 @@
 
 .darkMode .highlightedSetting {
   border-left-color: #03DAC6;
-  background-color: rgba(3, 218, 198, 0.05);
+  background-color: rgba(3, 218, 198, 0.08); /* 약간 더 진한 색상으로 개선 */
 }
 
 /* 재시작 필요 알림 스타일 */
@@ -318,8 +434,8 @@
 /* 재시작 버튼 스타일 */
 .restartButton {
   padding: 0.5rem 1rem;
-  background-color: #ffc107;
-  color: #212529;
+  background-color: #0078d7;
+  color: white;
   border: none;
   border-radius: 4px;
   font-size: 0.9rem;
@@ -327,36 +443,21 @@
   cursor: pointer;
   align-self: flex-start;
   transition: all 0.2s ease;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 .restartButton:hover {
-  background-color: #e0a800;
-  transform: translateY(-1px);
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+  background-color: #106ebe;
 }
 
 .darkMode .restartButton {
-  background-color: #ffd600;
-  color: #212529;
+  background-color: #0078d7;
 }
 
 .darkMode .restartButton:hover {
-  background-color: #ffeb3b;
+  background-color: #106ebe;
 }
 
-/* 모니터링 자동 시작 섹션 강조 스타일 */
-.monitoringAutoStart {
-  border-left-color: #28a745;
-  background-color: rgba(40, 167, 69, 0.05);
-}
-
-.darkMode .monitoringAutoStart {
-  border-left-color: #00e676;
-  background-color: rgba(0, 230, 118, 0.05);
-}
-
-/* 디버그 버튼과 정보 표시 영역 스타일 */
+/* 버튼 그룹과 디버그 정보 스타일 */
 .buttonGroup {
   display: flex;
   gap: 10px;
@@ -364,7 +465,7 @@
 }
 
 .debugButton {
-  background-color: #7b68ee;
+  background-color: #6c757d;
   color: white;
   border: none;
   border-radius: 4px;
@@ -375,7 +476,7 @@
 }
 
 .debugButton:hover {
-  background-color: #6a5acd;
+  background-color: #5a6268;
 }
 
 .debugInfo {
@@ -389,8 +490,9 @@
 }
 
 .darkMode .debugInfo {
-  background-color: #2a2a2a;
-  border-color: #444;
+  background-color: #1a1a1a; /* 더 진한 배경색으로 개선 */
+  border-color: #333;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2); /* 그림자 추가 */
 }
 
 .debugInfo h4 {

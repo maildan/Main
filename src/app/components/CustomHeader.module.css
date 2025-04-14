@@ -4,74 +4,75 @@
   left: 0;
   right: 0;
   z-index: 1000;
-  padding: 0 20px; /* 패딩 증가 (16px → 20px) */
-  height: 52px; /* 높이 증가 (48px → 52px) */
-  background-color: rgba(255, 255, 255, 0.95); /* 더 진하게 만들어 가시성 향상 */
+  padding: 0 16px; 
+  height: 45px; /* 노션 스타일에 맞게 조정 */
+  background-color: #ffffff; /* 노션은 완전 불투명 배경 */
   display: flex;
   align-items: center;
   justify-content: space-between;
-  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.2); /* 그림자 강화 */
-  transition: transform 0.3s ease-in-out, opacity 0.3s ease; /* 애니메이션 시간 늘림 */
-  -webkit-app-region: drag; /* 전체 헤더를 드래그 영역으로 설정 */
-  backdrop-filter: blur(10px);
+  box-shadow: rgb(0 0 0 / 8%) 0px 1px 0px; /* 노션 스타일 그림자 */
+  transition: all 0.2s ease; /* 노션은 빠른 전환 효과 사용 */
+  -webkit-app-region: drag;
+  backdrop-filter: none; /* 노션은 블러 효과 사용 안함 */
 }
 
 .dragArea {
   display: flex;
   flex: 1;
   height: 100%;
-  -webkit-app-region: drag; /* 드래그 영역으로 명시적 지정 */
+  -webkit-app-region: drag;
 }
 
 .leftSection {
   display: flex;
   align-items: center;
-  gap: 8px; /* 아이콘과 제목 사이 간격 축소 (12px → 8px) */
-  -webkit-app-region: drag; /* 왼쪽 영역도 드래그 영역으로 지정 */
+  gap: 6px; /* 노션 스타일 */
+  -webkit-app-region: drag;
 }
 
 .appTitle {
-  font-size: 16px; /* 텍스트 크기 증가 (14px → 16px) */
-  font-weight: 600; /* 더 두껍게 변경 (500 → 600) */
-  color: #333;
+  font-size: 14px; /* 노션 스타일 */
+  font-weight: 500;
+  color: rgb(55, 53, 47); /* 노션 텍스트 색상 */
   margin: 0;
-  display: block; /* 제목 표시 */
+  display: block;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  max-width: 180px; /* 제목 최대 너비 설정 */
+  max-width: 180px;
   -webkit-app-region: drag;
 }
 
 .rightSection {
   display: flex;
   align-items: center;
-  -webkit-app-region: no-drag !important; /* 중요도를 높여 확실히 드래그 영역에서 제외 */
-  z-index: 10; /* z-index를 높여 다른 요소보다 앞에 오도록 설정 */
+  -webkit-app-region: no-drag !important;
+  z-index: 10;
 }
 
 .iconOnly {
-  width: 36px; /* 32px에서 키움 */
-  height: 36px; /* 32px에서 키움 */
+  width: 22px; /* 노션 아이콘 크기 */
+  height: 22px;
   display: flex;
   align-items: center;
   justify-content: center;
   -webkit-app-region: drag;
+  margin-right: 4px;
 }
 
-/* 다크모드 - 가시성 크게 향상 */
+/* 다크모드 */
 .darkMode {
-  background-color: rgba(24, 24, 24, 0.98); /* 가이드에 맞춰 #181818 사용 */
-  color: #e0e0e0; /* 가이드의 기본 텍스트 색상 */
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5); /* 그림자 강화 */
+  background-color: rgb(25, 25, 25); /* 노션 다크모드 색상 */
+  color: rgba(255, 255, 255, 0.9);
+  box-shadow: rgb(255 255 255 / 5%) 0px 1px 0px; /* 노션 다크모드 그림자 */
 }
 
 .darkMode:hover {
-  background-color: rgba(30, 30, 30, 1); /* 호버 시 약간 밝게 */
+  background-color: rgb(32, 32, 32);
 }
 
 .darkMode .appTitle {
-  color: #e0e0e0;
+  color: rgba(255, 255, 255, 0.9); /* 노션 다크모드 텍스트 색상 */
 }
 
 .visible {

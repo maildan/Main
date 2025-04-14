@@ -127,8 +127,32 @@ VS Code에서 ESLint를 활용하는 최적의 방법:
    ```json
    "editor.codeActionsOnSave": {
      "source.fixAll.eslint": "explicit"
-   }
+   },
+   "eslint.options": {
+     "overrideConfigFile": "eslint.config.mjs"
+   },
+   "eslint.experimental.useFlatConfig": true,
+   "editor.formatOnSave": true,
+   "editor.defaultFormatter": "esbenp.prettier-vscode"
    ```
+
+3. `eslint.config.mjs` 파일이 프로젝트 루트에 있는지 확인
+
+## 자동 수정과 코드 품질 관리
+
+코드 품질을 효과적으로 관리하기 위해:
+
+1. 커밋 전 자동 검사:
+   ```bash
+   npm run lint:strict
+   ```
+
+2. 코드 품질 문제 자동 수정:
+   ```bash
+   npm run lint:fix-all
+   ```
+
+3. CI/CD 파이프라인에서 린트 확인 설정
 
 ## 문제 해결
 
@@ -144,3 +168,10 @@ npm run lint -- --no-cache
 # 의존성 재설치
 npm ci --legacy-peer-deps
 ```
+
+## 최신 ESLint 활용 모범 사례
+
+1. **커스텀 규칙 생성**: 팀 표준에 맞는 규칙 설정
+2. **규칙 우선순위 이해**: 충돌하는 규칙 해결 방법 숙지
+3. **플러그인 효율적 사용**: TypeScript, React 등 관련 플러그인 활용
+4. **IDE 통합**: 실시간 피드백을 통해 문제 즉시 해결
