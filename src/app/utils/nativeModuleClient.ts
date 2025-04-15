@@ -178,8 +178,8 @@ export async function getGpuInfo() {
     
     try {
       const response = await enhancedFetch('/api/native/gpu');
-      
-      if (!response.ok) {
+    
+    if (!response.ok) {
         console.warn(`GPU 정보 요청 실패: ${response.status}. 폴백 GPU 정보 반환`);
         return createFallbackGpuInfo(`API 응답 오류: ${response.status}`);
       }
@@ -244,8 +244,8 @@ function createFallbackGpuInfo(reason: string) {
       driverVersion: '폴백 구현',
       fallbackReason: reason
     },
-    timestamp: Date.now()
-  };
+      timestamp: Date.now()
+    };
 }
 
 /**

@@ -152,16 +152,16 @@ export function formatMemoryInfo(info: MemoryInfo): Record<string, string> {
   const heapUsedMB = info.heapUsedMB !== undefined 
     ? info.heapUsedMB 
     : info.heap_used_mb || 0;
-  
+
   // heapTotalMB 대신 heapTotal 사용
   const heapTotalMB = info.heapTotal !== undefined
     ? info.heapTotal / (1024 * 1024)  // 바이트에서 MB로 변환
     : info.heap_total / (1024 * 1024) || 0;
-  
+
   const percentUsed = info.percentUsed !== undefined
     ? info.percentUsed
     : info.percent_used || 0;
-  
+
   const rssMB = info.rssMB !== undefined
     ? info.rssMB
     : info.rss_mb || 0;

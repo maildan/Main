@@ -1,146 +1,206 @@
 .container {
-  --background-color: #FFFFFF;
-  --text-color: #333333;
-  --primary-color: #4d7cfe;
-  --secondary-color: #f0f0f0;
-  --border-color: #e0e0e0;
-  --shadow-color: rgba(0, 0, 0, 0.1);
-
-  background-color: var(--background-color);
-  color: var(--text-color);
+  width: 480px;
+  min-height: 280px;
+  background-color: #fff;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
   display: flex;
   flex-direction: column;
-  height: 100vh;
-  overflow: hidden;
-  user-select: none;
-  transition: all 0.2s ease;
+  font-family: 'Segoe UI', 'Roboto', sans-serif;
+  transition: background-color 0.3s, color 0.3s;
 }
 
-.container.darkMode {
-  --background-color: #1E1E1E;
-  --text-color: #E0E0E0;
-  --primary-color: #5e8efe;
-  --secondary-color: #333333;
-  --border-color: #444444;
-  --shadow-color: rgba(0, 0, 0, 0.3);
+.darkMode {
+  background-color: #222;
+  color: #f0f0f0;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
 }
 
 .header {
-  height: 30px;
-  background-color: var(--primary-color);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 10px;
+  padding: 16px 20px;
+  border-bottom: 1px solid #eee;
+  background-color: #f8f8f8;
+  transition: background-color 0.3s, border-color 0.3s;
+}
+
+.darkMode .header {
+  background-color: #333;
+  border-bottom-color: #444;
 }
 
 .header h1 {
-  color: white;
-  font-size: 14px;
-  font-weight: 500;
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
 }
 
 .closeButton {
-  background: none;
+  background: transparent;
   border: none;
-  color: white;
-  font-size: 18px;
+  font-size: 22px;
   cursor: pointer;
+  width: 32px;
+  height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
-  border-radius: 4px;
-  transition: background-color 0.2s;
+  border-radius: 50%;
+  color: #666;
+  transition: background-color 0.2s, color 0.2s;
 }
 
 .closeButton:hover {
-  background-color: rgba(255, 255, 255, 0.2);
+  background-color: rgba(0, 0, 0, 0.05);
+  color: #333;
+}
+
+.closeButton:focus {
+  outline: 2px solid #0078d7;
+  color: #333;
+}
+
+.darkMode .closeButton {
+  color: #aaa;
+}
+
+.darkMode .closeButton:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.darkMode .closeButton:focus {
+  outline: 2px solid #4cc2ff;
+  color: #fff;
 }
 
 .content {
   flex: 1;
-  padding: 20px;
+  padding: 24px;
+  text-align: center;
   display: flex;
   flex-direction: column;
-  justify-content: center;
   align-items: center;
-  text-align: center;
+  justify-content: center;
 }
 
 .icon {
-  font-size: 32px;
-  margin-bottom: 15px;
-  color: var(--primary-color);
+  font-size: 48px;
+  margin-bottom: 16px;
+  animation: pulse 2s infinite;
 }
 
 .loadingIcon {
-  font-size: 32px;
-  margin-bottom: 15px;
-  color: var(--primary-color);
-  animation: spin 2s linear infinite;
-}
-
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+  font-size: 48px;
+  margin-bottom: 16px;
+  animation: spin 1.5s linear infinite;
 }
 
 .message {
-  margin-bottom: 20px;
+  margin: 16px 0;
   font-size: 16px;
   line-height: 1.5;
+  color: #555;
+  transition: color 0.3s;
+}
+
+.darkMode .message {
+  color: #ddd;
 }
 
 .buttons {
   display: flex;
-  gap: 10px;
+  gap: 12px;
+  margin-top: 24px;
+  justify-content: center;
 }
 
 .button {
   padding: 10px 20px;
   border-radius: 4px;
-  cursor: pointer;
   font-size: 14px;
   font-weight: 500;
+  cursor: pointer;
   transition: all 0.2s;
   border: none;
+  outline: none;
+}
+
+.button:focus {
+  outline: 2px solid #0078d7;
+}
+
+.darkMode .button:focus {
+  outline: 2px solid #4cc2ff;
+}
+
+.primary {
+  background-color: #0078d7;
+  color: white;
+}
+
+.primary:hover {
+  background-color: #0063b1;
+}
+
+.primary:active {
+  background-color: #004e8c;
+}
+
+.secondary {
+  background-color: #f0f0f0;
+  color: #333;
+}
+
+.secondary:hover {
+  background-color: #e0e0e0;
+}
+
+.secondary:active {
+  background-color: #d0d0d0;
+}
+
+.darkMode .secondary {
+  background-color: #424242;
+  color: #f0f0f0;
+}
+
+.darkMode .secondary:hover {
+  background-color: #505050;
+}
+
+.darkMode .secondary:active {
+  background-color: #606060;
 }
 
 .button:disabled {
   opacity: 0.6;
   cursor: not-allowed;
-  transform: none;
 }
 
-.primary {
-  background-color: var(--primary-color);
-  color: white;
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.05);
+    opacity: 0.8;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
 }
 
-.primary:hover {
-  background-color: #4169e1;
-  transform: translateY(-2px);
-}
-
-.secondary {
-  background-color: var(--secondary-color);
-  color: var(--text-color);
-  border: 1px solid var(--border-color);
-}
-
-.secondary:hover {
-  background-color: #e8e8e8;
-  transform: translateY(-2px);
-}
-
-.darkMode .secondary {
-  background-color: #383838;
-  color: #d0d0d0;
-  border-color: #555;
-}
-
-.darkMode .secondary:hover {
-  background-color: #444;
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }

@@ -318,6 +318,38 @@ const MemorySettingsPanel: React.FC<MemorySettingsPanelProps> = ({
               </div>
             </div>
             
+            {/* 처리 모드 선택 UI 추가 */}
+            <div className={styles.settingItem}>
+              <div className={styles.settingLabel}>
+                <div className={styles.settingTitle}>처리 모드</div>
+                <div className={styles.settingDescription}>
+                  계산 작업에 사용할 자원 할당 방식을 선택합니다
+                </div>
+              </div>
+              <div className={styles.settingControl}>
+                <select
+                  className={styles.selectInput}
+                  value={settings.processingMode || 'auto'}
+                  onChange={(e) => handleSettingChange('processingMode', e.target.value as any)}
+                >
+                  <option value="auto">자동 감지 (권장)</option>
+                  <option value="normal">일반 모드</option>
+                  <option value="cpu-intensive">CPU 집약적 모드</option>
+                  <option value="gpu-intensive">GPU 집약적 모드 (하드웨어 가속)</option>
+                </select>
+                <div className={styles.modeDescription}>
+                  {settings.processingMode === 'auto' && 
+                    '시스템 상태에 따라 최적의 처리 모드를 자동으로 선택합니다.'}
+                  {settings.processingMode === 'normal' && 
+                    '기본 처리 모드로 일반적인 워크로드에 적합합니다.'}
+                  {settings.processingMode === 'cpu-intensive' && 
+                    'CPU를 더 많이 사용하여 처리 속도를 향상시킵니다.'}
+                  {settings.processingMode === 'gpu-intensive' && 
+                    '가능한 경우 GPU를 활용하여 계산 속도를 가속화합니다.'}
+                </div>
+              </div>
+            </div>
+            
             <div className={styles.settingItem}>
               <div className={styles.settingLabel}>
                 <div className={styles.settingTitle}>상세 로깅 활성화</div>

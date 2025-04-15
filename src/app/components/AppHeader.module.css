@@ -1,20 +1,20 @@
 .appHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  height: 30px;
+  padding: 0 4px;
+  width: 100%;
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
-  z-index: 9999; /* 1999에서 9999로 크게 증가 */
-  padding: 0 16px;
-  height: 45px;
-  background-color: rgba(255, 255, 255, 0.97); /* 배경 더 진하게 설정 */
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15); /* 그림자 추가로 가시성 개선 */
-  transition: transform 0.3s ease, opacity 0.3s ease, background-color 0.2s ease;
+  z-index: 1000;
+  background-color: rgba(255, 255, 255, 0.9);
   -webkit-app-region: drag;
-  backdrop-filter: blur(10px);
-  pointer-events: auto !important; /* 포인터 이벤트 강제 활성화 */
+  transition: transform 0.3s ease-out, opacity 0.3s ease-out;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+  backdrop-filter: blur(5px);
 }
 
 .appHeader:hover {
@@ -98,12 +98,40 @@
   -webkit-app-region: no-drag;
 }
 
+/* 다크 모드 스타일 */
 .darkMode {
-  background-color: transparent;
+  background-color: rgba(30, 30, 30, 0.95) !important;
+  color: #e0e0e0 !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
 }
 
 .darkMode:hover {
   background-color: rgba(25, 25, 25, 0.8);
+}
+
+.darkMode .menuLabel {
+  color: #e0e0e0 !important;
+}
+
+.darkMode .menuLabel:hover {
+  background-color: rgba(60, 60, 60, 0.7) !important;
+}
+
+.darkMode .menuDropdown {
+  background-color: #252525 !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+
+.darkMode .menuDropdownItem {
+  color: #e0e0e0 !important;
+}
+
+.darkMode .menuDropdownItem:hover {
+  background-color: #3a3a3a !important;
+}
+
+.darkMode .menuSeparator {
+  background-color: rgba(255, 255, 255, 0.1) !important;
 }
 
 .visible {
@@ -128,8 +156,164 @@
   top: -30px; /* -20px에서 -30px로 더 넓게 */
   left: 0;
   right: 0;
-  height: 40px; /* 25px에서 40px로 증가 */
-  z-index: 10000; /* 2000에서 10000으로 증가하여 다른 모든 요소보다 우선 */
+  height: 30px;
+  z-index: 999;
   -webkit-app-region: drag;
   pointer-events: auto !important; /* 포인터 이벤트 강제 활성화 */
+}
+
+/* 좌측 컨트롤 영역 */
+.leftControls {
+  display: flex;
+  align-items: center;
+  -webkit-app-region: no-drag;
+  padding-left: 5px;
+}
+
+/* 메뉴바 스타일 */
+.menuBar {
+  display: flex;
+  align-items: center;
+  height: 100%;
+}
+
+.menuItem {
+  position: relative;
+  height: 100%;
+  -webkit-app-region: no-drag;
+}
+
+.menuLabel {
+  padding: 0 8px;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  font-size: 13px;
+  color: #333;
+  -webkit-app-region: no-drag;
+  user-select: none;
+}
+
+.menuLabel:hover {
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+.activeMenu {
+  background-color: rgba(0, 0, 0, 0.1);
+}
+
+.menuDropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  min-width: 180px;
+  background-color: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 4px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  z-index: 1050;
+  overflow: hidden;
+}
+
+.menuDropdownItem {
+  padding: 8px 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  font-size: 13px;
+  color: #333;
+}
+
+.menuDropdownItem:hover {
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+.menuDropdownItem.disabled {
+  color: #999;
+  cursor: default;
+}
+
+.shortcut {
+  color: #777;
+  font-size: 12px;
+  margin-left: 20px;
+}
+
+.menuSeparator {
+  height: 1px;
+  background-color: rgba(0, 0, 0, 0.1);
+  margin: 4px 0;
+}
+
+/* 가운데 타이틀 영역 */
+.titleBar {
+  flex: 1;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  overflow: hidden;
+}
+
+.title {
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px;
+  text-align: center;
+}
+
+/* 우측 컨트롤 영역 */
+.rightControls {
+  display: flex;
+  align-items: center;
+  -webkit-app-region: no-drag;
+  padding-right: 5px;
+}
+
+.appLogo {
+  width: 16px;
+  height: 16px;
+  margin-right: 8px;
+}
+
+/* 윈도우 컨트롤 버튼 */
+.windowControls {
+  display: flex;
+  align-items: center;
+}
+
+.controlButton {
+  width: 32px;
+  height: 28px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  -webkit-app-region: no-drag;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.controlButton:hover {
+  background-color: rgba(0, 0, 0, 0.1);
+}
+
+.closeButton:hover {
+  background-color: rgba(232, 17, 35, 0.9);
+  color: white;
+}
+
+.darkMode .controlButton:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.darkMode .closeButton:hover {
+  background-color: rgba(232, 17, 35, 0.9);
 }

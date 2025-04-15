@@ -21,13 +21,38 @@
   flex: 1;
   height: 100%;
   -webkit-app-region: drag;
+  justify-content: space-between; /* 아이콘 툴바를 좌우로 배치 */
 }
 
 .leftSection {
   display: flex;
   align-items: center;
-  gap: 6px; /* 노션 스타일 */
+  gap: 10px; /* 노션 스타일 아이콘 간격 */
   -webkit-app-region: drag;
+}
+
+.iconBar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: 8px;
+}
+
+.toolbarIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 3px;
+  color: rgba(55, 53, 47, 0.85);
+  cursor: pointer;
+  transition: background-color 0.1s ease;
+  -webkit-app-region: no-drag;
+}
+
+.toolbarIcon:hover {
+  background-color: rgba(55, 53, 47, 0.08);
 }
 
 .appTitle {
@@ -48,6 +73,7 @@
   align-items: center;
   -webkit-app-region: no-drag !important;
   z-index: 10;
+  gap: 4px; /* 우측 아이콘 간격 */
 }
 
 .iconOnly {
@@ -57,7 +83,6 @@
   align-items: center;
   justify-content: center;
   -webkit-app-region: drag;
-  margin-right: 4px;
 }
 
 /* 다크모드 */
@@ -75,6 +100,14 @@
   color: rgba(255, 255, 255, 0.9); /* 노션 다크모드 텍스트 색상 */
 }
 
+.darkMode .toolbarIcon {
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.darkMode .toolbarIcon:hover {
+  background-color: rgba(255, 255, 255, 0.055);
+}
+
 .visible {
   transform: translateY(0);
   opacity: 1;
@@ -83,17 +116,18 @@
 .hidden {
   transform: translateY(-100%);
   opacity: 0;
-  pointer-events: none;
 }
 
-/* 상단에 마우스를 가져다 대면 헤더가 나타나도록 감지 영역 추가 */
+/* 헤더 감지 영역 크게 증가 */
 .headerDetectionArea {
-  position: fixed;
-  top: 0;
+  position: absolute;
+  top: -30px; /* -20px에서 -30px로 더 넓게 */
   left: 0;
   right: 0;
-  height: 8px;
-  z-index: 999;
+  height: 40px; /* 25px에서 40px로 증가 */
+  z-index: 10000; /* 2000에서 10000으로 증가하여 다른 모든 요소보다 우선 */
+  -webkit-app-region: drag;
+  pointer-events: auto !important; /* 포인터 이벤트 강제 활성화 */
 }
 
 /* 드래그 기능이 적용되지 않을 영역에 대한 명시적 설정 */

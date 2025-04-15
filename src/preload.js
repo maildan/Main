@@ -28,6 +28,15 @@ const electronAPI = {
   },
 
   /**
+   * 현재 타이핑 통계 가져오기
+   * @returns {Promise<any>} - 현재 타이핑 통계 객체
+   */
+  getTypingStats: () => {
+    console.log('현재 타이핑 통계 요청');
+    return ipcRenderer.invoke('get-typing-stats');
+  },
+
+  /**
    * 타이핑 모니터링 시작
    */
   startTracking: () => {

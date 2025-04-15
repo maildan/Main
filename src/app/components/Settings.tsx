@@ -1,6 +1,7 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import styles from './Settings.module.css';
 import { useToast } from './ToastContext';
+import { useTheme } from './ThemeProvider';
 import SaveConfirmDialog from './dialogs/SaveConfirmDialog';
 
 interface EnabledCategories {
@@ -41,6 +42,35 @@ interface SettingsProps {
   onWindowModeChange: (mode: WindowModeType) => void;
 }
 
+const InfoTooltip = ({ text }: { text: string }) => {
+  const [showTooltip, setShowTooltip] = useState(false);
+  const tooltipRef = useRef<HTMLDivElement>(null);
+
+  const handleMouseEnter = () => {
+    setShowTooltip(true);
+  };
+
+  const handleMouseLeave = () => {
+    setShowTooltip(false);
+  };
+
+  return (
+    <div 
+      className={styles.infoIcon}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+    >
+      i
+      {showTooltip && (
+        <div className={`${styles.tooltip} ${styles.show}`} ref={tooltipRef}>
+          <div className={styles.tooltipArrow}></div>
+          {text}
+        </div>
+      )}
+    </div>
+  );
+};
+
 export function Settings({ 
   onSave, 
   initialSettings, 
@@ -48,6 +78,7 @@ export function Settings({
   onDarkModeChange, 
   onWindowModeChange 
 }: SettingsProps) {
+  const { isDarkMode, setDarkMode } = useTheme();
   const [settings, setSettings] = useState<SettingsState>({
     enabledCategories: {
       docs: true,
@@ -56,7 +87,7 @@ export function Settings({
       sns: true
     },
     autoStartMonitoring: true,
-    darkMode: false,
+    darkMode: isDarkMode,
     windowMode: 'windowed',
     minimizeToTray: true,
     showTrayNotifications: true,
@@ -85,6 +116,7 @@ export function Settings({
       setSettings(prevSettings => ({
         ...prevSettings,
         ...initialSettings,
+        darkMode: isDarkMode,
         showKeyCountInHeader: initialSettings.showKeyCountInHeader ?? prevSettings.showKeyCountInHeader,
         showRealtimeWPM: initialSettings.showRealtimeWPM ?? prevSettings.showRealtimeWPM,
         enableSoundEffects: initialSettings.enableSoundEffects ?? prevSettings.enableSoundEffects,
@@ -92,18 +124,57 @@ export function Settings({
         useCompactUI: initialSettings.useCompactUI ?? prevSettings.useCompactUI,
       }));
     }
-  }, [initialSettings]);
+  }, [initialSettings, isDarkMode]);
+
+  useEffect(() => {
+    setSettings(prev => ({
+      ...prev,
+      darkMode: isDarkMode
+    }));
+  }, [isDarkMode]);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const isDarkMode = settings.darkMode;
-      if (isDarkMode) {
+      const isBodyDarkMode = isDarkMode;
+      if (isBodyDarkMode) {
         document.documentElement.classList.add('dark-mode');
+        document.body.classList.add('dark-mode');
+        
+        if (settings.useCompactUI) {
+          document.documentElement.classList.add('compact-ui');
+          document.body.classList.add('compact-ui');
+        } else {
+          document.documentElement.classList.remove('compact-ui');
+          document.body.classList.remove('compact-ui');
+        }
       } else {
         document.documentElement.classList.remove('dark-mode');
+        document.body.classList.remove('dark-mode');
+        
+        if (settings.useCompactUI) {
+          document.documentElement.classList.add('compact-ui');
+          document.body.classList.add('compact-ui');
+        } else {
+          document.documentElement.classList.remove('compact-ui');
+          document.body.classList.remove('compact-ui');
+        }
       }
     }
-  }, [settings.darkMode]);
+  }, [isDarkMode, settings.useCompactUI]);
+
+  useEffect(() => {
+    if (settings.enableSoundEffects) {
+      document.documentElement.classList.add('sound-effects');
+    } else {
+      document.documentElement.classList.remove('sound-effects');
+    }
+    
+    if (settings.enableAnimations) {
+      document.documentElement.classList.add('enable-animations');
+    } else {
+      document.documentElement.classList.remove('enable-animations');
+    }
+  }, [settings.enableSoundEffects, settings.enableAnimations]);
 
   const handleCategoryToggle = (category: keyof typeof settings.enabledCategories) => {
     setSettings(prev => ({
@@ -128,6 +199,7 @@ export function Settings({
       ...prev,
       darkMode: newDarkMode
     }));
+    setDarkMode(newDarkMode);
     onDarkModeChange(newDarkMode);
   };
 
@@ -175,10 +247,40 @@ export function Settings({
   };
 
   const handleToggleSetting = (key: keyof SettingsState) => {
-    setSettings(prev => ({
-      ...prev,
-      [key]: !prev[key]
-    }));
+    setSettings(prev => {
+      const newValue = !prev[key];
+      
+      if (key === 'useCompactUI') {
+        if (newValue) {
+          document.documentElement.classList.add('compact-ui');
+          document.body.classList.add('compact-ui');
+        } else {
+          document.documentElement.classList.remove('compact-ui');
+          document.body.classList.remove('compact-ui');
+        }
+      }
+      
+      if (key === 'enableSoundEffects') {
+        if (newValue) {
+          document.documentElement.classList.add('sound-effects');
+        } else {
+          document.documentElement.classList.remove('sound-effects');
+        }
+      }
+      
+      if (key === 'enableAnimations') {
+        if (newValue) {
+          document.documentElement.classList.add('enable-animations');
+        } else {
+          document.documentElement.classList.remove('enable-animations');
+        }
+      }
+      
+      return {
+        ...prev,
+        [key]: newValue
+      };
+    });
   };
 
   const handleHardwareAccelerationToggle = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -213,25 +315,47 @@ export function Settings({
   
   const confirmSaveSettings = () => {
     setShowSaveConfirm(false);
-    onSave(settings);
-    if (needsRestart) {
-      showToast('GPU 가속 설정이 변경되었습니다. 변경 사항을 적용하려면 앱을 재시작하세요.', 'info');
-      if (window.electronAPI) {
-        if (typeof window.electronAPI.showRestartPrompt === 'function') {
-          window.electronAPI.showRestartPrompt();
-        } else {
-          if (window.confirm('GPU 가속 설정이 변경되었습니다. 지금 앱을 재시작하시겠습니까?')) {
-            if (typeof window.electronAPI.restartApp === 'function') {
-              window.electronAPI.restartApp();
-            } else {
-              console.error('restartApp 함수를 찾을 수 없습니다.');
-              showToast('앱을 수동으로 재시작해 주세요.', 'warning');
+    
+    const hasSettingChanges = 
+      JSON.stringify({...settings, darkMode: isDarkMode}) !== 
+      JSON.stringify({...initialSettings, darkMode: isDarkMode});
+    
+    if (hasSettingChanges) {
+      if (settings.darkMode !== isDarkMode) {
+        setDarkMode(settings.darkMode);
+      }
+      
+      onSave({...settings, darkMode: settings.darkMode});
+      
+      if (settings.darkMode) {
+        document.documentElement.classList.add('dark-mode');
+        document.body.classList.add('dark-mode');
+      } else {
+        document.documentElement.classList.remove('dark-mode');
+        document.body.classList.remove('dark-mode');
+      }
+      
+      if (needsRestart) {
+        showToast('GPU 가속 설정이 변경되었습니다. 변경 사항을 적용하려면 앱을 재시작하세요.', 'info');
+        if (window.electronAPI) {
+          if (typeof window.electronAPI.showRestartPrompt === 'function') {
+            window.electronAPI.showRestartPrompt();
+          } else {
+            if (window.confirm('GPU 가속 설정이 변경되었습니다. 지금 앱을 재시작하시겠습니까?')) {
+              if (typeof window.electronAPI.restartApp === 'function') {
+                window.electronAPI.restartApp();
+              } else {
+                console.error('restartApp 함수를 찾을 수 없습니다.');
+                showToast('앱을 수동으로 재시작해 주세요.', 'warning');
+              }
             }
           }
         }
+      } else {
+        showToast('설정이 저장되었습니다.', 'success');
       }
     } else {
-      showToast('설정이 저장되었습니다.', 'success');
+      showToast('변경된 설정이 없습니다.', 'info');
     }
   };
   
@@ -288,7 +412,7 @@ export function Settings({
   };
 
   return (
-    <div className={`${styles.settingsContainer} ${darkMode ? styles.darkMode : ''}`}>
+    <div className={`${styles.settingsContainer} ${isDarkMode ? styles.darkMode : ''} ${settings.useCompactUI ? styles.compactUI : ''}`}>
       <h2>설정</h2>
 
       <div className={styles.settingsLayout}>
@@ -579,142 +703,145 @@ export function Settings({
           {activeTab === 'advanced' && (
             <div className={styles.tabContent}>
               <div className={styles.settingSection}>
-                <h3>시스템 트레이 설정</h3>
-                <div className={styles.toggleItem}>
-                  <label>
-                    <input 
-                      type="checkbox" 
-                      checked={settings.minimizeToTray} 
-                      onChange={handleMinimizeToTrayToggle}
-                    />
-                    <span className={styles.toggleLabel}>창 닫기 시 트레이로 최소화 (백그라운드 실행)</span>
-                  </label>
-                </div>
-                
+                <h3>성능 설정</h3>
                 <div className={styles.settingGrid}>
-                  <div className={styles.toggleItem}>
-                    <label>
-                      <input 
-                        type="checkbox" 
-                        checked={settings.showTrayNotifications} 
-                        onChange={handleShowTrayNotificationsToggle}
-                        disabled={!settings.minimizeToTray}
-                      />
-                      <span className={styles.toggleLabel}>
-                        트레이 알림 표시
-                        {!settings.minimizeToTray && (
-                          <small className={styles.disabledNote}> (트레이로 최소화 옵션이 활성화되어야 함)</small>
-                        )}
-                      </span>
-                    </label>
+                  <div className={styles.settingItem}>
+                    <div className={styles.settingLabel}>
+                      <label>
+                        <input 
+                          type="checkbox" 
+                          checked={settings.useHardwareAcceleration}
+                          onChange={handleHardwareAccelerationToggle}
+                        />
+                        <span className={styles.toggleLabel}>GPU 하드웨어 가속 사용 (재시작 필요)</span>
+                      </label>
+                      <InfoTooltip text="GPU 하드웨어 가속을 활성화하면 그래픽 렌더링과 일부 계산이 더 빨라질 수 있지만, 일부 시스템에서는 불안정할 수 있습니다. 변경 후 앱 재시작이 필요합니다." />
+                    </div>
                   </div>
-                  
-                  <div className={styles.toggleItem}>
-                    <label>
-                      <input 
-                        type="checkbox" 
-                        checked={settings.reduceMemoryInBackground} 
-                        onChange={handleReduceMemoryToggle}
-                        disabled={!settings.minimizeToTray}
-                      />
-                      <span className={styles.toggleLabel}>
-                        백그라운드에서 메모리 사용 최적화
-                        {!settings.minimizeToTray && (
-                          <small className={styles.disabledNote}> (트레이로 최소화 옵션이 활성화되어야 함)</small>
-                        )}
-                      </span>
-                    </label>
+
+                  <div className={styles.settingItem}>
+                    <div className={styles.settingLabel}>
+                      <label>
+                        <input 
+                          type="checkbox" 
+                          checked={settings.useTypingAnalysisGpuAcceleration}
+                          onChange={handleTypingAnalysisGpuToggle}
+                          disabled={!settings.useHardwareAcceleration}
+                        />
+                        <span className={styles.toggleLabel}>GPU 기반 타이핑 분석 (베타)</span>
+                      </label>
+                      <InfoTooltip text="타이핑 분석에 GPU 가속을 사용합니다. 하드웨어 가속이 활성화된 경우에만 사용 가능합니다. 복잡한 분석이 많은 경우 성능이 향상될 수 있습니다." />
+                    </div>
+                    {!settings.useHardwareAcceleration && (
+                      <div className={styles.disabledMessage}>
+                        GPU 기반 타이핑 분석을 사용하려면 먼저 GPU 하드웨어 가속을 활성화하세요.
+                      </div>
+                    )}
                   </div>
                 </div>
-                
-                <p className={styles.settingDescription}>
-                  트레이로 최소화 기능을 사용하면 창을 닫아도 앱이 백그라운드에서 계속 실행되어 타이핑을 모니터링합니다.
-                  메모리 사용 최적화 옵션은 백그라운드 실행 시 RAM 사용량을 줄여줍니다.
-                </p>
               </div>
 
               <div className={styles.settingSection}>
-                <h3>성능 설정</h3>
-                
-                <div className={styles.toggleItem}>
-                  <label>
-                    <input 
-                      type="checkbox" 
-                      checked={settings.useHardwareAcceleration} 
-                      onChange={handleHardwareAccelerationToggle}
-                    />
-                    <span className={styles.toggleLabel}>
-                      GPU 하드웨어 가속 사용 (재시작 필요)
-                    </span>
-                  </label>
-                  <p className={styles.settingDescription}>
-                    GPU 하드웨어 가속을 활성화하면 그래픽 렌더링과 일부 계산이 더 빨라질 수 있지만,
-                    일부 시스템에서는 불안정할 수 있습니다. 변경 후 앱 재시작이 필요합니다.
-                  </p>
-                  {needsRestart && (
-                    <div className={styles.restartNotice}>
-                      <p>GPU 가속 설정이 변경되었습니다. 변경 사항을 적용하려면 앱을 재시작해야 합니다.</p>
-                      <div className={styles.buttonGroup}>
-                        <button 
-                          className={styles.restartButton}
-                          onClick={handleRestartClick}
-                        >
-                          지금 재시작
-                        </button>
-                        <button 
-                          className={styles.debugButton}
-                          onClick={toggleDebugInfo}
-                        >
-                          API 디버그 정보
-                        </button>
-                      </div>
-                      
-                      {showDebugInfo && (
-                        <div className={styles.debugInfo}>
-                          <h4>API 디버그 정보</h4>
-                          <pre>{apiDebugInfo || '정보 없음'}</pre>
-                        </div>
-                      )}
+                <h3>메모리 설정</h3>
+                <div className={styles.settingGrid}>
+                  <div className={styles.settingItem}>
+                    <div className={styles.settingLabel}>
+                      <label>
+                        <input 
+                          type="checkbox" 
+                          checked={settings.reduceMemoryInBackground} 
+                          onChange={handleReduceMemoryToggle}
+                        />
+                        <span className={styles.toggleLabel}>백그라운드에서 메모리 사용 최적화</span>
+                      </label>
+                      <InfoTooltip text="앱이 백그라운드에 있을 때 메모리 사용량을 줄이기 위해 일부 기능을 비활성화합니다. 배터리 수명과 시스템 성능을 향상시킵니다." />
                     </div>
-                  )}
-                </div>
-                
-                <div className={styles.settingGroup}>
-                  <div className={styles.settingRow}>
-                    <label className={styles.selectLabel}>처리 모드:</label>
-                    <select 
-                      className={styles.selectControl}
-                      value={settings.processingMode} 
-                      onChange={(e) => handleSettingChange('processingMode', e.target.value as any)}
-                    >
-                      <option value="auto">자동 (리소스에 따라 결정)</option>
-                      <option value="normal">일반 모드</option>
-                      <option value="cpu-intensive">CPU 집약적 모드 (메모리 최적화)</option>
-                      <option value="gpu-intensive">GPU 가속 모드 (실험적)</option>
-                    </select>
                   </div>
-                  <p className={styles.settingDescription}>
-                    처리 모드에 따라 타이핑 통계 계산 방식이 달라집니다. 자동 모드는 시스템 리소스에 따라
-                    최적의 모드를 선택합니다.
-                  </p>
+                  
+                  <div className={styles.rangeItem}>
+                    <div className={styles.settingLabel}>
+                      <label htmlFor="memoryThreshold">
+                        <span className={styles.rangeLabel}>최대 메모리 사용량 임계값: {settings.maxMemoryThreshold}MB</span>
+                      </label>
+                      <InfoTooltip text="앱의 메모리 사용량이 이 임계값을 초과하면 자동으로 메모리 정리를 수행합니다." />
+                    </div>
+                    <input
+                      type="range"
+                      id="memoryThreshold"
+                      min="50"
+                      max="500"
+                      step="10"
+                      value={settings.maxMemoryThreshold}
+                      onChange={(e) => handleSettingChange('maxMemoryThreshold', parseInt(e.target.value, 10))}
+                      className={styles.rangeSlider}
+                      disabled={!settings.reduceMemoryInBackground}
+                    />
+                  </div>
                 </div>
-                
-                <div className={styles.settingRow}>
-                  <label className={styles.selectLabel}>메모리 임계치 (MB):</label>
-                  <input 
-                    type="number" 
-                    className={styles.numberInput}
-                    value={settings.maxMemoryThreshold} 
-                    onChange={(e) => handleSettingChange('maxMemoryThreshold', parseInt(e.target.value))}
-                    min={50}
-                    max={500}
-                  />
-                </div>
-                <p className={styles.settingDescription}>
-                  메모리 사용량이 이 임계치를 초과하면 메모리 최적화 모드로 전환됩니다.
-                  너무 낮게 설정하면 잦은 최적화로 성능이 저하될 수 있습니다.
-                </p>
               </div>
+              
+              <div className={styles.settingSection}>
+                <h3>처리 모드</h3>
+                <div className={styles.settingLabel} style={{ marginBottom: '10px' }}>
+                  <span>처리 모드 선택</span>
+                  <InfoTooltip text="처리 모드에 따라 앱의 성능과 리소스 사용량이 조정됩니다. 자동 모드는 시스템 환경에 따라 최적의 설정을 선택합니다." />
+                </div>
+                <div className={styles.radioGroup}>
+                  <label>
+                    <input
+                      type="radio"
+                      name="processingMode"
+                      value="auto"
+                      checked={settings.processingMode === 'auto'}
+                      onChange={() => handleSettingChange('processingMode', 'auto')}
+                    />
+                    <span className={styles.radioLabel}>자동</span>
+                  </label>
+                  <label>
+                    <input
+                      type="radio"
+                      name="processingMode"
+                      value="normal"
+                      checked={settings.processingMode === 'normal'}
+                      onChange={() => handleSettingChange('processingMode', 'normal')}
+                    />
+                    <span className={styles.radioLabel}>일반</span>
+                  </label>
+                  <label>
+                    <input
+                      type="radio"
+                      name="processingMode"
+                      value="cpu-intensive"
+                      checked={settings.processingMode === 'cpu-intensive'}
+                      onChange={() => handleSettingChange('processingMode', 'cpu-intensive')}
+                    />
+                    <span className={styles.radioLabel}>CPU 집중</span>
+                  </label>
+                  <label>
+                    <input
+                      type="radio"
+                      name="processingMode"
+                      value="gpu-intensive"
+                      checked={settings.processingMode === 'gpu-intensive'}
+                      onChange={() => handleSettingChange('processingMode', 'gpu-intensive')}
+                      disabled={!settings.useHardwareAcceleration}
+                    />
+                    <span className={styles.radioLabel}>GPU 집중 (하드웨어 가속 필요)</span>
+                  </label>
+                </div>
+              </div>
+              
+              {needsRestart && (
+                <div className={styles.restartNotice}>
+                  <p>GPU 가속 설정이 변경되었습니다. 변경 사항을 적용하려면 앱을 재시작해야 합니다.</p>
+                  <button 
+                    className={styles.restartButton}
+                    onClick={handleRestartClick}
+                  >
+                    지금 재시작
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -733,7 +860,7 @@ export function Settings({
         isOpen={showSaveConfirm}
         onConfirm={confirmSaveSettings}
         onCancel={cancelSaveSettings}
-        isDarkMode={darkMode}
+        isDarkMode={isDarkMode}
       />
     </div>
   );

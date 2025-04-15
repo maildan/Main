@@ -17,8 +17,31 @@
   --color-foreground: var(--foreground);
   --font-sans: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Oxygen, Ubuntu, Cantarell, Fira Sans, Droid Sans, Helvetica Neue, sans-serif;
   --font-mono: monospace;
+  
+  /* 애니메이션 변수 */
+  --transition-speed: 0.3s;
+  --button-hover-scale: 1.05;
+  --click-sound-volume: 0.5;
+  --animation-speed: 0.3s;
+  
+  /* 압축 UI 변수 */
+  --button-padding: 0.75rem 1.5rem;
+  --input-padding: 0.75rem;
+  --border-radius: 8px;
+  --font-size-base: 16px;
+  --element-spacing: 1rem;
 }
 
+/* 압축 UI 변수 */
+html.compact-ui, body.compact-ui {
+  --button-padding: 0.5rem 1rem;
+  --input-padding: 0.5rem;
+  --border-radius: 4px;
+  --font-size-base: 14px;
+  --element-spacing: 0.5rem;
+}
+
+/* 다크 모드 설정 */
 @media (prefers-color-scheme: dark) {
   :root {
     --background: #0a0a0a;
@@ -49,6 +72,83 @@ body {
   background-color: var(--background-color);
   color: var(--foreground-color);
   transition: background-color 0.3s ease, color 0.3s ease;
+  font-size: var(--font-size-base);
+}
+
+/* 압축 UI 버튼 스타일 */
+html.compact-ui button, body.compact-ui button {
+  padding: var(--button-padding) !important;
+  font-size: var(--font-size-base) !important;
+  border-radius: var(--border-radius) !important;
+}
+
+/* 압축 UI 입력 필드 스타일 */
+html.compact-ui input, body.compact-ui input,
+html.compact-ui select, body.compact-ui select,
+html.compact-ui textarea, body.compact-ui textarea {
+  padding: var(--input-padding) !important;
+  font-size: var(--font-size-base) !important;
+  border-radius: var(--border-radius) !important;
+}
+
+/* 압축 UI 요소 간격 스타일 */
+html.compact-ui .settingGrid, body.compact-ui .settingGrid,
+html.compact-ui .toggleGrid, body.compact-ui .toggleGrid {
+  gap: var(--element-spacing) !important;
+}
+
+/* 소리 효과 활성화 스타일 */
+html.sound-effects button, body.sound-effects button {
+  position: relative;
+  overflow: hidden;
+}
+
+/* 클릭 소리 효과 */
+html.sound-effects button::after, body.sound-effects button::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  opacity: 0;
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 100%;
+  transform: translate(-50%, -50%);
+  transition: width 0.3s, height 0.3s, opacity 0.3s;
+}
+
+html.sound-effects button:active::after, body.sound-effects button:active::after {
+  width: 150px;
+  height: 150px;
+  opacity: 1;
+  transition: 0s;
+}
+
+/* 애니메이션 활성화 */
+html.enable-animations button, body.enable-animations button {
+  transition: transform var(--transition-speed), 
+              background-color var(--transition-speed), 
+              box-shadow var(--transition-speed);
+}
+
+html.enable-animations button:hover, body.enable-animations button:hover {
+  transform: scale(var(--button-hover-scale));
+}
+
+/* 다른 애니메이션 요소들 */
+html.enable-animations .menuDropdown, body.enable-animations .menuDropdown {
+  animation: fadeIn var(--animation-speed) ease-in-out;
+}
+
+/* 애니메이션 키프레임 */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes ripple {
+  to { transform: scale(2); opacity: 0; }
 }
 
 /* 메인 컨텐츠 영역 패딩 조정 */

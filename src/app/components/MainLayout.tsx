@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { AppHeader } from './AppHeader';
+import { CustomHeader } from './CustomHeader';
 import ClientSideControls from './ClientSideControls';
 import { ToastProvider } from './ToastContext';
 import { ThemeProvider } from './ThemeProvider';
@@ -86,17 +87,15 @@ export function MainLayout({
           className={`app-layout ${isDarkMode ? 'dark-theme' : 'light-theme'}`}
           data-window-mode={currentWindowMode}
         >
-          {/* OS 네이티브 도구모음을 사용하도록 커스텀 헤더는 조건부 렌더링 */}
-          {windowMode === 'fullscreen-auto-hide' && (
-            <AppHeader 
-              api={electronAPI}
-              isVisible={isHeaderVisible}
-              autoHide={true}
-            />
-          )}
+          {/* 항상 CustomHeader를 표시하도록 수정 */}
+          <CustomHeader 
+            api={electronAPI}
+            isVisible={true}
+            autoHide={false}
+          />
           
           <main className="content-area" style={{ 
-            paddingTop: windowMode === 'fullscreen-auto-hide' ? '0' : '10px', // 네이티브 타이틀바 사용 시 패딩 조정 
+            paddingTop: '45px', // 항상 헤더 높이만큼 패딩 추가
             height: '100%',
             overflow: 'auto'
           }}>

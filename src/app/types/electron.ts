@@ -11,7 +11,11 @@ export interface ElectronAPI {
   maximizeWindow?: () => void;
   closeWindow?: () => void;
   
+  // 시스템 정보 관련
+  getPlatform?: () => Promise<string>;
+  
   // 타이핑 통계 관련
+  getTypingStats?: () => Promise<any> | any;
   onTypingStatsUpdate?: (callback: (data: any) => void) => () => void;
   onStatsSaved?: (callback: (data: any) => void) => () => void;
   startTracking?: () => Promise<void> | void;

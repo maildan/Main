@@ -2,9 +2,9 @@
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  max-width: 1200px;
+  max-width: 100%; /* 1200px에서 100%로 변경: 화면 전체 너비 사용 */
   margin: 0 auto;
-  padding: 0 1rem;
+  padding: 0; /* 1rem에서 0으로 변경하여 좌우 여백 제거 */
   background-color: #f9f9f9;
 }
 
@@ -14,12 +14,21 @@
   display: flex;
   flex-direction: column;
   width: 100%;
-  padding: 1rem 0;
+  padding: 0; /* 좌우 패딩 제거 */
   margin-bottom: 150px; /* 디버그 패널 공간 확보 */
-  padding-top: 55px; /* 45px에서 55px로 증가하여 헤더 아래 여백 추가 */
+  padding-top: 55px; /* 헤더 아래 여백 */
   position: relative;
   z-index: 50;
   pointer-events: auto !important; /* 포인터 이벤트 강제 활성화 */
+}
+
+/* 노션 스타일 여백 설정 */
+.appContent {
+  width: 100%;
+  max-width: 100%;
+  padding-left: 16px; /* 노션 스타일 최소 여백 */
+  padding-right: 16px;
+  box-sizing: border-box;
 }
 
 .appTabs {

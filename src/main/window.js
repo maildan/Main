@@ -37,26 +37,27 @@ async function createWindow() {
         nodeIntegration: false,
         contextIsolation: true,
         sandbox: false,
+        // GPU 가속 관련 설정
+        enableWebSQL: false, // 더 이상 사용되지 않는 기능 비활성화
+        enableBlinkFeatures: 'CSSColorSchemeUARendering',
+        // GPU 가속 관련 설정 추가
+        accelerator: appState.settings?.useHardwareAcceleration ? 'gpu' : 'cpu',
+        // 하드웨어 가속 설정에 따른 옵션
+        offscreen: false,
+        disableHardwareAcceleration: !appState.settings?.useHardwareAcceleration,
+        webgl: appState.settings?.useHardwareAcceleration !== false,
+        // 성능 최적화 설정
+        backgroundThrottling: true,
+        safeDialogs: true,
+        spellcheck: false
       },
       show: false, // 준비될 때까지 숨김
       backgroundColor: appState.settings?.darkMode ? '#121212' : '#f9f9f9',
-      frame: true, // OS 기본 프레임 사용 (false에서 true로 변경)
-      titleBarStyle: 'default', // 기본 타이틀바 스타일 사용 (hidden에서 default로 변경)
+      frame: false, // 노션 스타일의 프레임리스 창으로 변경
+      titleBarStyle: 'hidden', // 타이틀바 숨김
+      titleBarOverlay: false, // 오버레이 비활성화
+      autoHideMenuBar: true, // 메뉴 바 자동 숨김 활성화
       icon: path.join(__dirname, '../../public/app_icon.webp'), // 아이콘 추가
-      // GPU 가속 관련 설정 추가
-      webPreferences: {
-        preload: path.join(__dirname, '../../preload.js'),
-        nodeIntegration: false,
-        contextIsolation: true,
-        sandbox: false,
-        // Chrome 스타일의 GPU 가속 설정
-        enableWebSQL: false, // 더 이상 사용되지 않는 기능 비활성화
-        enableBlinkFeatures: 'CSSColorSchemeUARendering',
-        // GPU 가속 관련 설정 추가 - Chrome 스타일
-        accelerator: appState.settings?.useHardwareAcceleration ? 'gpu' : 'cpu',
-        // 하드웨어 가속 설정에 따른 옵션 
-        offscreen: false,
-      }
     };
 
     // 메인 윈도우 생성
@@ -70,6 +71,7 @@ async function createWindow() {
       mainWindow.setFullScreen(true);
     } else if (appState.settings?.windowMode === 'fullscreen-auto-hide') {
       mainWindow.setFullScreen(true);
+      // 자동 숨김 경우 커스텀 CSS 삽입 (app-lifecycle.js 참조)
       appState.autoHideToolbar = true;
     }
 

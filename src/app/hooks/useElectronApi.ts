@@ -64,11 +64,32 @@ const createDummyElectronAPI = (): ElectronAPI => ({
   restartApp: () => console.log('개발용 restartApp 호출'),
   showRestartPrompt: () => console.log('개발용 showRestartPrompt 호출'),
   closeWindow: () => console.log('개발용 closeWindow 호출'),
-  getDarkMode: () => Promise.resolve(false)
+  getDarkMode: () => Promise.resolve(false),
+  getTypingStats: () => Promise.resolve({
+    keyCount: 0,
+    typingTime: 0,
+    accuracy: 100
+  }),
+  getPlatform: () => Promise.resolve(
+    typeof navigator !== 'undefined' && navigator.platform 
+      ? navigator.platform.indexOf('Win') > -1 
+        ? 'win32' 
+        : navigator.platform.indexOf('Mac') > -1 
+          ? 'darwin' 
+          : 'linux'
+      : 'unknown'
+  )
 });
 
-export function useElectronApi() {
-  const [api, setApi] = useState<ElectronAPI | null>(null);
+// useElectronApi 훅의 반환 타입 정의
+interface ElectronApiHookResult {
+  electronAPI: ElectronAPI;
+  api: ElectronAPI;
+  isElectron: boolean;
+}
+
+export function useElectronApi(): ElectronApiHookResult {
+  const [api, setApi] = useState<ElectronAPI>(createDummyElectronAPI());
 
   useEffect(() => {
     // 브라우저 환경 확인

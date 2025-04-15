@@ -1,24 +1,25 @@
 {
   "enabledCategories": {
     "docs": true,
-    "office": false,
-    "coding": false,
-    "sns": false
+    "office": true,
+    "coding": true,
+    "sns": true
   },
   "autoStartMonitoring": true,
-  "resumeAfterIdle": true,
-  "idleTimeout": 300,
-  "darkMode": true,
-  "windowMode": "windowed",
+  "darkMode": false,
+  "windowMode": "normal",
   "minimizeToTray": true,
   "showTrayNotifications": true,
   "reduceMemoryInBackground": true,
   "enableMiniView": true,
-  "useHardwareAcceleration": true,
-  "processingMode": "gpu-intensive",
-  "garbageCollectionInterval": 60000,
-  "maxMemoryThreshold": null,
-  "autoCleanupLogs": true,
-  "maxHistoryItems": 500,
-  "logRetentionDays": 30
+  "useHardwareAcceleration": false,
+  "useTypingAnalysisGpuAcceleration": false,
+  "processingMode": "auto",
+  "maxMemoryThreshold": 100,
+  "resumeAfterIdle": true,
+  "showKeyCountInHeader": true,
+  "showRealtimeWPM": true,
+  "enableSoundEffects": false,
+  "enableAnimations": true,
+  "useCompactUI": false
 }

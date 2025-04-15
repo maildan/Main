@@ -4,7 +4,9 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import MemoryMonitor from '../components/MemoryMonitor';
 import TypingStats from '../components/TypingStats';
+import { TypingAnalyzer } from '../components/TypingAnalyzer';
 import { useAutoMemoryOptimization as useMemoryOptimizer } from '../utils/memory/hooks';
+import { useElectronApi } from '../hooks/useElectronApi'; // Electron API 훅 추가
 import { detectGpuCapabilities } from '../utils/gpu-detection';
 import styles from './page.module.css';
 
@@ -13,6 +15,8 @@ export default function DashboardPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [stats, setStats] = useState<any>(null);
   const [gpuInfo, setGpuInfo] = useState<any>(null);
+  const [electronStats, setElectronStats] = useState<any>(null); // Electron 통계 상태 추가
+  const { api: electronApi, isElectron } = useElectronApi(); // electronApi와 isElectron을 추출
   
   // 메모리 최적화 기능 사용 - lastOptimization 앞에 _ 추가하거나 사용할 경우 _ 제거
   const { isOptimizing, optimizeMemory } = useMemoryOptimizer({
@@ -22,8 +26,57 @@ export default function DashboardPage() {
     showNotifications: true
   });
   
-  // 통계 데이터 가져오기
+  // Electron 환경에서 통계 데이터 가져오기
   useEffect(() => {
+    if (isElectron && electronApi) {
+      const getElectronStats = async () => {
+        try {
+          if (electronApi.getTypingStats) {
+            const typingStats = await electronApi.getTypingStats();
+            setElectronStats(typingStats);
+            
+            // 로딩 상태 업데이트
+            if (isLoading) {
+              setIsLoading(false);
+            }
+          }
+        } catch (error) {
+          console.error('Electron 타이핑 통계 가져오기 오류:', error);
+        }
+      };
+      
+      // 초기 로드
+      getElectronStats();
+      
+      // 주기적 업데이트 설정
+      const intervalId = setInterval(getElectronStats, 5000);
+      
+      // 이벤트 리스너 설정 (실시간 업데이트)
+      let unsubscribe: (() => void) | undefined;
+      if (electronApi.onTypingStatsUpdate) {
+        unsubscribe = electronApi.onTypingStatsUpdate((data) => {
+          if (data) {
+            setElectronStats(data);
+          }
+        });
+      }
+      
+      return () => {
+        clearInterval(intervalId);
+        if (unsubscribe) {
+          unsubscribe();
+        }
+      };
+    }
+  }, [isElectron, electronApi, isLoading]);
+  
+  // 웹 환경에서 통계 데이터 가져오기 (기존 코드)
+  useEffect(() => {
+    // Electron 환경이면 웹 API 호출 생략
+    if (isElectron) {
+      return;
+    }
+    
     const fetchStats = async () => {
       try {
         // 서버에서 통계 데이터 가져오기
@@ -39,7 +92,18 @@ export default function DashboardPage() {
       }
     };
     
-    // GPU 정보 감지
+    fetchStats();
+    
+    // 주기적 데이터 업데이트 (60초마다)
+    const intervalId = setInterval(fetchStats, 60000);
+    
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, [isElectron]);
+  
+  // GPU 정보 감지 (모든 환경)
+  useEffect(() => {
     const detectGpu = async () => {
       try {
         const capabilities = await detectGpuCapabilities();
@@ -49,15 +113,7 @@ export default function DashboardPage() {
       }
     };
     
-    fetchStats();
     detectGpu();
-    
-    // 주기적 데이터 업데이트 (60초마다)
-    const intervalId = setInterval(fetchStats, 60000);
-    
-    return () => {
-      clearInterval(intervalId);
-    };
   }, []);
   
   // 새 세션 시작 처리
@@ -91,7 +147,18 @@ export default function DashboardPage() {
           {isLoading ? (
             <div className={styles.loading}>데이터 로딩 중...</div>
           ) : (
-            <TypingStats data={stats} />
+            <>
+              {/* Electron 또는 웹 환경에 따라 적절한 데이터 전달 */}
+              <TypingStats data={isElectron ? electronStats : stats} />
+              <div className={styles.analysisSection}>
+                {/* Electron 또는 웹 환경에 따라 적절한 데이터 전달 */}
+                <TypingAnalyzer stats={isElectron ? {
+                  keyCount: electronStats?.keyCount || 0,
+                  typingTime: (electronStats?.typingTime || 0) * 1000, // 초 -> 밀리초 변환
+                  accuracy: electronStats?.accuracy || 100
+                } : stats?.current} />
+              </div>
+            </>
           )}
         </section>
         

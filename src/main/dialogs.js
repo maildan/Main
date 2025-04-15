@@ -68,12 +68,13 @@ function showHtmlRestartPrompt() {
       ipcMain.removeAllListeners('close-restart-window-from-dialog');
       
       const restartWindow = new BrowserWindow({
-        width: 400,
-        height: 250,
+        width: 480,
+        height: 300,
         frame: false,
         resizable: false,
         show: false,
         center: true,
+        backgroundColor: appState.settings?.darkMode ? '#222222' : '#ffffff',
         webPreferences: {
           nodeIntegration: false,
           contextIsolation: true,
@@ -122,10 +123,16 @@ function showHtmlRestartPrompt() {
         appState.restartWindow = null;
       });
       
-      if (process.env.NODE_ENV === 'development') {
+      // Next.js 기반의 restart 페이지 로드
+      const { isDev } = require('./constants');
+      if (isDev) {
+        debugLog('개발 환경에서 Next.js 재시작 페이지 로드: http://localhost:3000/restart');
         restartWindow.loadURL('http://localhost:3000/restart');
       } else {
-        restartWindow.loadFile(path.join(__dirname, '../renderer/restart.html'));
+        // 프로덕션 환경에서는 빌드된 HTML 파일을 로드
+        const restartPath = path.join(__dirname, '../../dist/restart/index.html');
+        debugLog(`프로덕션 환경에서 재시작 페이지 로드: ${restartPath}`);
+        restartWindow.loadFile(restartPath);
       }
       
       restartWindow.once('ready-to-show', () => {

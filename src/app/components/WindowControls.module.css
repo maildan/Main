@@ -26,7 +26,7 @@
   color: rgba(55, 53, 47, 0.85); /* 노션 스타일 색상 */
 }
 
-/* 버튼 내부 컨텐츠 스타일링 */
+/* 버튼 내부 컨텐츠 스타일링 */ 
 .buttonContent {
   position: absolute;
   top: 0;

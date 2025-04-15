@@ -86,14 +86,17 @@ function setupIpcHandlers() {
     try {
       debugLog('IPC: 설정 저장 요청 수신');
       
+      // 이전 설정 값 저장
+      const prevSettings = { ...appState.settings };
+      
       // 자동 모니터링 설정 변경 시 처리
       const autoMonitoringChanged = 
-        appState.settings?.autoStartMonitoring !== newSettings.autoStartMonitoring;
+        prevSettings?.autoStartMonitoring !== newSettings.autoStartMonitoring;
       
       // GPU 가속 또는 처리 모드 설정 변경 확인
       const gpuSettingsChanged = 
-        appState.settings?.useHardwareAcceleration !== newSettings.useHardwareAcceleration ||
-        appState.settings?.processingMode !== newSettings.processingMode;
+        prevSettings?.useHardwareAcceleration !== newSettings.useHardwareAcceleration ||
+        prevSettings?.processingMode !== newSettings.processingMode;
       
       // 설정 저장
       const saved = await saveSettings(newSettings);
@@ -112,6 +115,12 @@ function setupIpcHandlers() {
         }
       }
       
+      // 창 모드 설정 변경 시 적용
+      if (newSettings.windowMode !== prevSettings?.windowMode) {
+        const { setWindowMode } = require('./window');
+        setWindowMode(newSettings.windowMode);
+      }
+      
       // 설정 결과 응답
       event.reply('settings-saved', { 
         success: true, 
@@ -122,6 +131,7 @@ function setupIpcHandlers() {
       // GPU 설정 변경 시 재시작 필요 안내
       if (gpuSettingsChanged) {
         debugLog('GPU 관련 설정 변경됨, 재시작 필요');
+        const { showRestartPrompt } = require('./dialogs');
         showRestartPrompt();
       }
     } catch (error) {
@@ -198,42 +208,6 @@ function setupIpcHandlers() {
     });
   });
 
-  // 설정 저장 요청
-  ipcMain.on('save-settings', async (event, newSettings) => {
-    try {
-      // 이전 설정 값 저장
-      const prevSettings = { ...appState.settings };
-      
-      // 새 설정 저장
-      await saveSettings(newSettings);
-      
-      // 설정 변경 시 필요한 업데이트 적용
-      if (newSettings.darkMode !== prevSettings.darkMode) {
-        appState.mainWindow.webContents.send('dark-mode-changed', { 
-          success: true, 
-          darkMode: newSettings.darkMode 
-        });
-      }
-      
-      // 창 모드 설정 변경 시 적용
-      if (newSettings.windowMode !== prevSettings.windowMode) {
-        const { setWindowMode } = require('./window');
-        setWindowMode(newSettings.windowMode);
-      }
-      
-      // 설정 저장 결과 전송
-      event.reply('settings-saved', { success: true, settings: newSettings });
-      
-      // GPU 가속화 설정 변경 감지 (로깅만 추가)
-      if (newSettings.useHardwareAcceleration !== prevSettings.useHardwareAcceleration) {
-        debugLog('GPU 가속화 설정이 변경되었습니다. 재시작 시 적용됩니다.');
-      }
-    } catch (error) {
-      console.error('설정 저장 중 오류:', error);
-      event.reply('settings-saved', { success: false, error: error.message });
-    }
-  });
-  
   // 앱 재시작 핸들러 - 명확하게 재정의
   ipcMain.on('restart-app', () => {
     debugLog('앱 재시작 요청 수신');
@@ -781,6 +755,34 @@ function setupIpcHandlers() {
     }
   });
 
+  // 타이핑 통계 가져오기 핸들러 추가
+  ipcMain.handle('get-typing-stats', () => {
+    debugLog('타이핑 통계 요청 수신');
+    try {
+      // 앱 상태에서 현재 통계 정보만 추출
+      const stats = {
+        keyCount: appState.currentStats.keyCount || 0,
+        typingTime: appState.currentStats.typingTime || 0,
+        windowTitle: appState.currentStats.currentWindow || '',
+        browserName: appState.currentStats.currentBrowser || '',
+        totalChars: appState.currentStats.totalChars || 0,
+        totalWords: appState.currentStats.totalWords || 0,
+        pages: appState.currentStats.pages || 0,
+        accuracy: appState.currentStats.accuracy || 100,
+        isTracking: appState.isTracking
+      };
+      return stats;
+    } catch (error) {
+      console.error('타이핑 통계 요청 처리 중 오류:', error);
+      return {
+        error: String(error),
+        keyCount: 0,
+        typingTime: 0,
+        isTracking: appState.isTracking || false
+      };
+    }
+  });
+
   // 다크 모드 설정 가져오기 핸들러 추가
   ipcMain.handle('get-dark-mode', () => {
     debugLog('다크 모드 설정 요청 수신');
@@ -794,7 +796,7 @@ function setupIpcHandlers() {
  * 앱 재시작 공통 함수
  * 중복 코드를 방지하기 위해 별도 함수로 분리
  */
-function restartApplication() {WW;
+function restartApplication() {
   try {
     // Track that we're already restarting to prevent multiple restarts
     if (appState.isRestarting) {

@@ -191,6 +191,13 @@
   cursor: not-allowed;
 }
 
+/* 타이핑 분석 섹션 스타일 */
+.analysisSection {
+  margin-top: 20px;
+  border-top: 1px solid #eee;
+  padding-top: 20px;
+}
+
 /* 다크 모드 지원 */
 :global(.dark-theme) .statsSection,
 :global(.dark-theme) .monitoringSection,
@@ -210,6 +217,10 @@
 :global(.dark-theme) .infoLabel,
 :global(.dark-theme) .statusLabel {
   color: #a0aec0;
+}
+
+:global(.dark-theme) .analysisSection {
+  border-top: 1px solid #4a5568;
 }
 
 :global(.dark-theme) .gpuInfo {

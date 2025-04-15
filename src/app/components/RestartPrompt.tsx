@@ -15,29 +15,39 @@ export default function RestartPrompt() {
   useEffect(() => {
     async function applyTheme() {
       try {
-        // 1. restartAPI 시도
-        if (window.restartAPI?.getDarkMode) {
-          console.log('restartAPI.getDarkMode 사용');
-          const darkMode = await window.restartAPI.getDarkMode();
-          setIsDarkMode(darkMode);
-          return;
-        }
+        // OS 기본 테마 감지
+        const prefersDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches;
         
-        // 2. electronAPI 시도 (ElectronAPI 타입에 getDarkMode가 추가됨)
+        // 우선순위: 1. OS 기본값 사용 (선호됨)
+        // 2. 앱 설정 확인 (필요한 경우)
+        console.log('OS 기본 테마 사용:', prefersDarkMode ? 'dark' : 'light');
+        setIsDarkMode(prefersDarkMode);
+        
+        // 앱 설정 확인이 필요한 경우에만 사용
         if (window.electronAPI?.getDarkMode) {
-          console.log('electronAPI.getDarkMode 사용');
-          const darkMode = await window.electronAPI.getDarkMode();
-          setIsDarkMode(darkMode);
-          return;
+          const appDarkMode = await window.electronAPI.getDarkMode();
+          if (appDarkMode !== prefersDarkMode) {
+            console.log('앱 설정 테마 사용:', appDarkMode ? 'dark' : 'light');
+            setIsDarkMode(appDarkMode);
+          }
         }
-        
-        console.warn('다크 모드 정보를 가져올 수 없습니다. 기본값 사용');
       } catch (error) {
         console.error('테마 적용 중 오류:', error);
+        // 오류 발생 시 OS 기본값 사용
+        setIsDarkMode(window.matchMedia('(prefers-color-scheme: dark)').matches);
       }
     }
     
     applyTheme();
+    
+    // 시스템 테마 변경 감지 및 자동 적용
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    const handleThemeChange = (e: MediaQueryListEvent) => {
+      setIsDarkMode(e.matches);
+    };
+    
+    mediaQuery.addEventListener('change', handleThemeChange);
+    return () => mediaQuery.removeEventListener('change', handleThemeChange);
   }, []);
   
   // 앱 재시작 함수
@@ -47,23 +57,23 @@ export default function RestartPrompt() {
     
     setTimeout(() => {
       try {
-        // 1. restartAPI 시도
-        if (window.restartAPI?.restartApp) {
-          console.log('restartAPI.restartApp 사용');
-          window.restartAPI.restartApp();
-          return;
-        }
-        
-        // 2. electronAPI 시도 (ElectronAPI 타입에 restartApp이 추가됨)
+        // API 호출 순서: 1. electronAPI, 2. restartAPI
         if (window.electronAPI?.restartApp) {
           console.log('electronAPI.restartApp 사용');
           window.electronAPI.restartApp();
           return;
         }
         
+        if (window.restartAPI?.restartApp) {
+          console.log('restartAPI.restartApp 사용');
+          window.restartAPI.restartApp();
+          return;
+        }
+        
         console.error('재시작 API를 찾을 수 없습니다');
       } catch (error) {
         console.error('재시작 실행 중 오류:', error);
+        setIsRestarting(false); // 오류 발생 시 재시작 상태 복원
       }
     }, 500);
   }, []);
@@ -72,17 +82,16 @@ export default function RestartPrompt() {
   const closeWindow = useCallback(() => {
     console.log('창 닫기 시도');
     try {
-      // 1. restartAPI 시도
-      if (window.restartAPI?.closeWindow) {
-        console.log('restartAPI.closeWindow 사용');
-        window.restartAPI.closeWindow();
-        return;
-      }
-      
-      // 2. electronAPI 시도 (ElectronAPI 타입에 closeWindow가 추가됨)
+      // API 호출 순서: 1. electronAPI, 2. restartAPI
       if (window.electronAPI?.closeWindow) {
         console.log('electronAPI.closeWindow 사용');
         window.electronAPI.closeWindow();
+        return;
+      }
+      
+      if (window.restartAPI?.closeWindow) {
+        console.log('restartAPI.closeWindow 사용');
+        window.restartAPI.closeWindow();
         return;
       }
       
@@ -92,12 +101,20 @@ export default function RestartPrompt() {
     }
   }, []);
 
-  // UI 부분은 변경 없음
   return (
     <div className={`${styles.container} ${isDarkMode ? styles.darkMode : ''}`}>
       <div className={styles.header}>
         <h1>앱 재시작</h1>
-        <button className={styles.closeButton} onClick={closeWindow} disabled={isRestarting}>×</button>
+        <button 
+          className={styles.closeButton} 
+          onClick={closeWindow} 
+          disabled={isRestarting}
+          aria-label="닫기"
+          tabIndex={0}
+          onKeyDown={(e) => e.key === 'Enter' && closeWindow()}
+        >
+          ×
+        </button>
       </div>
       
       <div className={styles.content}>
@@ -121,6 +138,9 @@ export default function RestartPrompt() {
                 className={`${styles.button} ${styles.primary}`}
                 onClick={restartApp}
                 disabled={isRestarting}
+                tabIndex={0}
+                onKeyDown={(e) => e.key === 'Enter' && restartApp()}
+                aria-label="지금 재시작"
               >
                 지금 재시작
               </button>
@@ -128,6 +148,9 @@ export default function RestartPrompt() {
                 className={`${styles.button} ${styles.secondary}`}
                 onClick={closeWindow}
                 disabled={isRestarting}
+                tabIndex={0}
+                onKeyDown={(e) => e.key === 'Enter' && closeWindow()}
+                aria-label="나중에 하기"
               >
                 나중에 하기
               </button>
