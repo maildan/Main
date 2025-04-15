@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "typing-app",
+  "productName": "Loop",
   "version": "0.1.0",
   "identifier": "com.typing-app.app",
   "build": {
