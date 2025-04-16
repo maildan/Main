@@ -6,6 +6,7 @@ function App() {
   const [currentLine, setCurrentLine] = useState("");
   const [isComposing, setIsComposing] = useState(false);
   const [activeSection, setActiveSection] = useState("Monitoring");
+  const [isNavOpen, setIsNavOpen] = useState(true);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -50,41 +51,65 @@ function App() {
 
   const sections = ["Monitoring", "History", "Statistics", "Settings"];
 
+  // 토글 내비게이션 바
+  const toggleNavbar = () => {
+    setIsNavOpen(!isNavOpen);
+  };
+
+  // 간소화된 섹션 렌더링 함수
+  const renderSectionContent = (section: string) => (
+    <div className="section-panel">
+      <div className="section-header">{section}</div>
+      <div className="empty-content">
+        {section} 섹션 - 준비 중입니다
+      </div>
+    </div>
+  );
+
   return (
-    <div className="app-container">
-      <h1 className="app-title">Loop</h1>
-      
-      <div className="navigation">
-        {sections.map(section => (
-          <button 
-            key={section}
-            className={`nav-button ${activeSection === section ? 'active' : ''}`}
-            onClick={() => setActiveSection(section)}
-          >
-            {section}
-          </button>
-        ))}
+    <div className={`app-layout ${isNavOpen ? 'nav-open' : 'nav-closed'}`}>
+      <div className="app-header">
+        <button className="hamburger-menu" onClick={toggleNavbar}>
+          <div className="hamburger-icon"></div>
+        </button>
+        <h1 className="app-title">Loop</h1>
       </div>
       
-      {/* 숨겨진 입력 필드 - UI에는 보이지 않지만 키보드 이벤트를 캡처 */}
-      <input
-        ref={inputRef}
-        type="text"
-        value={currentLine}
-        onChange={handleInputChange}
-        onKeyDown={handleKeyDown}
-        onCompositionStart={handleCompositionStart}
-        onCompositionEnd={handleCompositionEnd}
-        autoFocus
-        className="hidden-input"
-      />
+      <div className="app-sidebar">
+        <nav className="navigation">
+          {sections.map(section => (
+            <button 
+              key={section}
+              className={`nav-button ${activeSection === section ? 'active' : ''}`}
+              onClick={() => {
+                setActiveSection(section);
+                setIsNavOpen(false); // 네비게이션 바 아이템 클릭 시 메뉴 자동 닫기
+              }}
+            >
+              {section}
+            </button>
+          ))}
+        </nav>
+      </div>
       
-      {/* 각 섹션별 내용 */}
-      <div className="section-content">
-        {activeSection === "Monitoring" && <div>모니터링 내용</div>}
-        {activeSection === "History" && <div>히스토리 내용</div>}
-        {activeSection === "Statistics" && <div>통계 내용</div>}
-        {activeSection === "Settings" && <div>설정 내용</div>}
+      <div className="app-content">
+        {/* 숨겨진 입력 필드 - UI에는 보이지 않지만 키보드 이벤트를 캡처 */}
+        <input
+          ref={inputRef}
+          type="text"
+          value={currentLine}
+          onChange={handleInputChange}
+          onKeyDown={handleKeyDown}
+          onCompositionStart={handleCompositionStart}
+          onCompositionEnd={handleCompositionEnd}
+          autoFocus
+          className="hidden-input"
+        />
+        
+        {/* 각 섹션별 내용 */}
+        <div className="section-content">
+          {renderSectionContent(activeSection)}
+        </div>
       </div>
     </div>
   );
