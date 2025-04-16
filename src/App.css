@@ -3,7 +3,8 @@ html, body {
   padding: 0;
   width: 100vw;
   height: 100vh;
-  background: #18181b;
+  background: var(--bg-color);
+  color: var(--text-color);
 }
 
 .logo.vite:hover {
@@ -26,6 +27,12 @@ html, body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   -webkit-text-size-adjust: 100%;
+  --bg-color: #f9fafb;
+  --text-color: #1f2937;
+  --header-bg: #f3f4f6;
+  --sidebar-bg: #f3f4f6;
+  --card-bg: #ffffff;
+  --border-color: #e5e7eb;
 }
 
 .container {
@@ -265,7 +272,7 @@ button {
   display: flex;
   align-items: center;
   padding: 0.5rem 1rem;
-  background: #18181b;
+  background: var(--header-bg);
   z-index: 10;
   position: relative;
 }
@@ -350,12 +357,12 @@ button {
   font-size: 1.5rem;
   font-weight: 700;
   text-align: center;
-  color: #fff;
+  color: var(--text-color);
 }
 
 .app-sidebar {
   grid-area: sidebar;
-  background-color: #18181b;
+  background-color: var(--sidebar-bg);
   padding: 0.5rem;
   width: 180px;
   overflow: hidden;
@@ -363,7 +370,6 @@ button {
 }
 
 .nav-closed .app-sidebar {
-  width: 0;
   padding: 0;
 }
 
@@ -463,6 +469,187 @@ button {
   background: #18181b;
   padding: 0;
   margin: 0;
+}
+
+/* 개선된 테마 스위처 스타일 */
+.theme-switcher-card {
+  background: linear-gradient(to right, #f9f9f9, #f0f0f0);
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  margin-bottom: 20px;
+  transition: all 0.3s ease;
+  border: 1px solid #e0e0e0;
+}
+
+.theme-header {
+  margin-bottom: 20px;
+}
+
+.theme-header h3 {
+  font-size: 1.3rem;
+  font-weight: 600;
+  color: #333;
+  margin: 0 0 10px 0;
+}
+
+.theme-description {
+  color: #666;
+  font-size: 0.95rem;
+}
+
+.theme-control {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.theme-icons {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+}
+
+.theme-icon {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.theme-icon .icon {
+  font-size: 1.5rem;
+}
+
+.theme-icon .label {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #555;
+}
+
+.theme-toggle {
+  position: relative;
+  cursor: pointer;
+  width: 70px;
+  height: 36px;
+}
+
+.theme-toggle input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggle-track {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: #e0e0e0;
+  border-radius: 40px;
+  transition: background 0.3s ease;
+}
+
+.toggle-track:before {
+  content: '';
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  border-radius: 40px;
+  background: linear-gradient(145deg, rgba(255,255,255,0.2), rgba(0,0,0,0.1));
+  opacity: 0.7;
+}
+
+.toggle-indicator {
+  position: absolute;
+  height: 28px;
+  width: 28px;
+  left: 4px;
+  bottom: 4px;
+  background: #fff;
+  border-radius: 50%;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  transition: transform 0.3s ease;
+}
+
+input:checked + .toggle-track {
+  background-color: #4f46e5;
+}
+
+input:checked + .toggle-track .toggle-indicator {
+  transform: translateX(34px);
+}
+
+.theme-status {
+  text-align: center;
+  font-size: 0.95rem;
+  color: #666;
+}
+
+.theme-current {
+  font-weight: 600;
+  color: #4f46e5;
+}
+
+/* 다크 모드에서의 테마 스위처 스타일 */
+[data-theme="dark"] .theme-switcher-card {
+  background: linear-gradient(to right, #252530, #1e1e24);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+  border-color: #333340;
+}
+
+[data-theme="dark"] .theme-header h3 {
+  color: #f0f0f0;
+}
+
+[data-theme="dark"] .theme-description,
+[data-theme="dark"] .theme-status {
+  color: #aaa;
+}
+
+[data-theme="dark"] .theme-icon .label {
+  color: #bbb;
+}
+
+[data-theme="dark"] .toggle-track {
+  background: #444;
+}
+
+[data-theme="dark"] .toggle-indicator {
+  background: #f0f0f0;
+}
+
+[data-theme="dark"] .theme-current {
+  color: #6366f1;
+}
+
+/* 다크/라이트 모드 전역 스타일 */
+[data-theme="light"] {
+  --background-color: #f9fafb;
+  --text-color: #1f2937;
+  --card-bg: #ffffff;
+  --border-color: #e5e7eb;
+}
+
+[data-theme="dark"] {
+  --background-color: #18181b;
+  --text-color: #f6f6f6;
+  --card-bg: #27272a;
+  --border-color: #3f3f46;
+}
+
+.theme-light .app-header,
+.theme-light .app-sidebar,
+.theme-light .app-content {
+  background: var(--background-color);
+}
+
+.theme-dark .app-header,
+.theme-dark .app-sidebar,
+.theme-dark .app-content {
+  background: var(--background-color);
 }
 
 @media (prefers-color-scheme: light) {
@@ -614,5 +801,49 @@ button {
   .section-header {
     color: #333;
     border-bottom-color: #eaeaea;
+  }
+}
+
+/* 오류 메시지 스타일 */
+.error-message {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  background-color: #f44336;
+  color: white;
+  padding: 15px;
+  border-radius: 8px;
+  z-index: 1000;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  max-width: 300px;
+  animation: slideIn 0.3s ease;
+}
+
+.error-message p {
+  margin: 0 0 10px 0;
+}
+
+.error-message button {
+  background-color: white;
+  color: #f44336;
+  border: none;
+  border-radius: 4px;
+  padding: 5px 10px;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.error-message button:hover {
+  background-color: #f9f9f9;
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
   }
 }
