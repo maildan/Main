@@ -1,0 +1,48 @@
+
+              <!DOCTYPE html>
+              <html>
+              <head>
+                <title>연결 오류</title>
+                <meta charset="UTF-8">
+                <style>
+                  body { font-family: Arial; padding: 20px; color: #333; background: #f0f0f0; }
+                  .container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+                  h1 { color: #2196F3; }
+                  pre { background: #f5f5f5; padding: 10px; border-radius: 4px; overflow: auto; }
+                  .error { color: #e53935; }
+                  .solution { margin-top: 20px; border-top: 1px solid #eee; padding-top: 20px; }
+                  button { padding: 10px 15px; background: #2196F3; color: white; border: none; border-radius: 4px; cursor: pointer; }
+                  button:hover { background: #1976D2; }
+                </style>
+              </head>
+              <body>
+                <div class="container">
+                  <h1>Next.js 서버 연결 오류</h1>
+                  <p>Next.js 서버에 연결할 수 없습니다.</p>
+                  <p class="error">오류: Next.js 서버가 실행 중인지 확인하세요.</p>
+                  <div class="solution">
+                    <h3>해결 방법:</h3>
+                    <p>터미널에서 아래 명령어 실행 후 앱을 다시 시작하세요:</p>
+                    <ol>
+                      <li>개발 모드: <code>npm run dev</code></li>
+                      <li>또는 프로덕션 모드: <code>npm run build</code> 후 <code>npm run start</code></li>
+                    </ol>
+                    <button onclick="window.location.reload()">새로고침</button>
+                    <button onclick="window.api.restartApp()">앱 재시작</button>
+                  </div>
+                </div>
+                <script>
+                  // 5초마다 자동으로 연결 재시도
+                  setInterval(() => {
+                    fetch('http://localhost:3000')
+                      .then(response => {
+                        if (response.status === 200) {
+                          window.location.reload();
+                        }
+                      })
+                      .catch(e => console.log('서버 확인 중...'));
+                  }, 5000);
+                </script>
+              </body>
+              </html>
+            

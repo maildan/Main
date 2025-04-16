@@ -1,3 +1,162 @@
+.toolbarContainer {
+  position: relative;
+  z-index: 100;
+  width: 100%;
+  background-color: var(--card-bg);
+  border-bottom: 1px solid var(--border-color);
+  padding: 0;
+  margin: 0;
+  display: flex;
+  justify-content: flex-start;
+  height: 40px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.innerToolbar {
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  height: 100%;
+  position: relative;
+  width: 100%;
+  justify-content: space-between;
+}
+
+.iconBar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 100%;
+}
+
+/* 윈도우 컨트롤 컨테이너 */
+.windowControlsContainer {
+  display: flex;
+  align-items: center;
+  height: 100%;
+  margin-left: auto;
+}
+
+/* 앱 아이콘 버튼 스타일 */
+.appIconButton {
+  margin-right: 8px;
+  background-color: transparent;
+  transition: background-color 0.2s ease;
+}
+
+.appIconButton:hover {
+  background-color: var(--button-hover-bg);
+}
+
+.appMenu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  width: 200px;
+  background-color: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  z-index: 101;
+  margin-top: 4px;
+  overflow: hidden;
+}
+
+.darkMode .appMenu {
+  background-color: #222;
+  border-color: rgba(255, 255, 255, 0.1);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
+}
+
+.appMenuHeader {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.darkMode .appMenuHeader {
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.appMenuTitle {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-color);
+}
+
+.appMenuItem {
+  padding: 8px 12px;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+  color: var(--text-color);
+  font-size: 13px;
+}
+
+.appMenuItem:hover {
+  background-color: var(--button-hover-bg);
+}
+
+.darkMode .appMenuItem:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.appMenuSeparator {
+  height: 1px;
+  background-color: var(--border-color);
+  margin: 4px 0;
+}
+
+.darkMode .appMenuSeparator {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.toolbarIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 4px;
+  color: var(--text-color);
+  cursor: pointer;
+  transition: background-color 0.1s ease, color 0.1s ease;
+  background: transparent;
+  border: none;
+  outline: none;
+  padding: 0;
+  margin: 0 2px;
+}
+
+.toolbarIcon:hover {
+  background-color: var(--button-hover-bg);
+}
+
+/* 활성화된 아이콘 스타일 */
+.toolbarIcon.active {
+  background-color: var(--button-hover-bg);
+  color: var(--primary-color);
+  font-weight: 600;
+}
+
+/* 다크모드 스타일 */
+.darkMode {
+  background-color: var(--card-bg);
+  color: var(--text-color);
+  border-color: var(--border-color);
+}
+
+.darkMode .toolbarIcon {
+  color: var(--text-color);
+}
+
+.darkMode .toolbarIcon:hover {
+  background-color: var(--button-hover-bg);
+}
+
+.darkMode .toolbarIcon.active {
+  color: var(--primary-color);
+  background-color: var(--button-hover-bg);
+}
+
 .customHeader {
   position: fixed;
   top: 0;
@@ -31,30 +190,6 @@
   -webkit-app-region: drag;
 }
 
-.iconBar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-left: 8px;
-}
-
-.toolbarIcon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 3px;
-  color: rgba(55, 53, 47, 0.85);
-  cursor: pointer;
-  transition: background-color 0.1s ease;
-  -webkit-app-region: no-drag;
-}
-
-.toolbarIcon:hover {
-  background-color: rgba(55, 53, 47, 0.08);
-}
-
 .appTitle {
   font-size: 14px; /* 노션 스타일 */
   font-weight: 500;
@@ -83,29 +218,6 @@
   align-items: center;
   justify-content: center;
   -webkit-app-region: drag;
-}
-
-/* 다크모드 */
-.darkMode {
-  background-color: rgb(25, 25, 25); /* 노션 다크모드 색상 */
-  color: rgba(255, 255, 255, 0.9);
-  box-shadow: rgb(255 255 255 / 5%) 0px 1px 0px; /* 노션 다크모드 그림자 */
-}
-
-.darkMode:hover {
-  background-color: rgb(32, 32, 32);
-}
-
-.darkMode .appTitle {
-  color: rgba(255, 255, 255, 0.9); /* 노션 다크모드 텍스트 색상 */
-}
-
-.darkMode .toolbarIcon {
-  color: rgba(255, 255, 255, 0.75);
-}
-
-.darkMode .toolbarIcon:hover {
-  background-color: rgba(255, 255, 255, 0.055);
 }
 
 .visible {

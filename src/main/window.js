@@ -53,10 +53,10 @@ async function createWindow() {
       },
       show: false, // 준비될 때까지 숨김
       backgroundColor: appState.settings?.darkMode ? '#121212' : '#f9f9f9',
-      frame: false, // 노션 스타일의 프레임리스 창으로 변경
-      titleBarStyle: 'hidden', // 타이틀바 숨김
+      frame: true, // OS 기본 타이틀바 사용
+      titleBarStyle: 'default', // 기본 타이틀바 스타일 사용
       titleBarOverlay: false, // 오버레이 비활성화
-      autoHideMenuBar: true, // 메뉴 바 자동 숨김 활성화
+      autoHideMenuBar: true, // 메뉴 바 완전히 숨김
       icon: path.join(__dirname, '../../public/app_icon.webp'), // 아이콘 추가
     };
 
@@ -65,6 +65,55 @@ async function createWindow() {
 
     // 앱 상태에 저장
     appState.mainWindow = mainWindow;
+
+    // 테마 설정 유지를 위한 이벤트 리스너 설정
+    mainWindow.webContents.on('did-finish-load', () => {
+      // 설정된 다크 모드 상태를 로컬 스토리지에 저장하는 스크립트 실행
+      const script = `
+        try {
+          const isDarkMode = document.documentElement.classList.contains('dark-mode');
+          const settings = JSON.parse(localStorage.getItem('app-settings') || '{}');
+          settings.darkMode = isDarkMode;
+          localStorage.setItem('app-settings', JSON.stringify(settings));
+          
+          // 세션 스토리지에도 저장 (새로고침 시 유지용)
+          sessionStorage.setItem('theme-refresh-state', isDarkMode ? 'dark' : 'light');
+        } catch (e) {
+          console.error('테마 설정 저장 오류:', e);
+        }
+      `;
+      
+      mainWindow.webContents.executeJavaScript(script)
+        .catch(err => console.error('테마 설정 저장 스크립트 실행 오류:', err));
+    });
+
+    // 다크 모드 설정 변경 이벤트 리스너
+    mainWindow.webContents.on('ipc-message', (event, channel, ...args) => {
+      if (channel === 'set-dark-mode') {
+        const isDarkMode = args[0];
+        
+        // 앱 상태에 저장
+        appState.settings.darkMode = isDarkMode;
+        
+        // CSS 클래스 적용
+        mainWindow.webContents.executeJavaScript(`
+          document.documentElement.classList.${isDarkMode ? 'add' : 'remove'}('dark-mode');
+          document.body.classList.${isDarkMode ? 'add' : 'remove'}('dark-mode');
+          
+          // 설정 저장
+          try {
+            const settings = JSON.parse(localStorage.getItem('app-settings') || '{}');
+            settings.darkMode = ${isDarkMode};
+            localStorage.setItem('app-settings', JSON.stringify(settings));
+          } catch (e) {
+            console.error('테마 설정 저장 오류:', e);
+          }
+        `).catch(err => console.error('다크 모드 전환 스크립트 오류:', err));
+        
+        // 배경색 변경
+        mainWindow.setBackgroundColor(isDarkMode ? '#121212' : '#f9f9f9');
+      }
+    });
 
     // 윈도우 모드 설정 적용
     if (appState.settings?.windowMode === 'fullscreen') {
@@ -78,8 +127,23 @@ async function createWindow() {
     // 다크 모드 설정 적용
     if (appState.settings?.darkMode) {
       mainWindow.webContents.executeJavaScript(
-        'document.documentElement.classList.add("dark-mode");'
-      );
+        'document.documentElement.classList.add("dark-mode"); document.body.classList.add("dark-mode");'
+      ).catch(err => {
+        console.error('다크 모드 CSS 적용 오류:', err);
+      });
+      
+      // 배경색도 같이 변경
+      mainWindow.setBackgroundColor('#121212');
+    } else {
+      // 라이트 모드 명시적 적용
+      mainWindow.webContents.executeJavaScript(
+        'document.documentElement.classList.remove("dark-mode"); document.body.classList.remove("dark-mode");'
+      ).catch(err => {
+        console.error('라이트 모드 CSS 적용 오류:', err);
+      });
+      
+      // 배경색 설정
+      mainWindow.setBackgroundColor('#f9f9f9');
     }
 
     // 로드 URL 결정
@@ -641,6 +705,33 @@ function getMainWindow() {
   return appState.mainWindow;
 }
 
+/**
+ * 창 모드 설정 함수 - applyWindowMode를 호출하는 편의 함수
+ * @param {string} mode - 'windowed', 'fullscreen', 'fullscreen-auto-hide' 중 하나
+ */
+function setWindowMode(mode) {
+  if (!mode || typeof mode !== 'string') {
+    debugLog(`유효하지 않은 창 모드: ${mode}`);
+    return false;
+  }
+  
+  // 유효한 모드 확인
+  const validModes = ['windowed', 'fullscreen', 'fullscreen-auto-hide'];
+  if (!validModes.includes(mode)) {
+    debugLog(`지원되지 않는 창 모드: ${mode}`);
+    return false;
+  }
+
+  try {
+    debugLog(`창 모드 설정: ${mode}`);
+    applyWindowMode(mode);
+    return true;
+  } catch (error) {
+    console.error('창 모드 설정 중 오류:', error);
+    return false;
+  }
+}
+
 module.exports = {
   createWindow,
   optimizeForBackground,
@@ -649,5 +740,6 @@ module.exports = {
   toggleMiniView,
   createRestartPromptWindow,
   createRestartWindow,
-  getMainWindow  // 이 함수 추가
+  getMainWindow,
+  setWindowMode
 };

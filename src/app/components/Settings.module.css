@@ -212,7 +212,91 @@
 .settingRow {
   display: flex;
   align-items: center;
-  margin-bottom: 0.75rem;
+  margin-bottom: 12px;
+  gap: 16px;
+}
+
+.settingLabel {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 14px;
+}
+
+.selectInput {
+  padding: 6px 10px;
+  border-radius: 4px;
+  border: 1px solid var(--border-color);
+  background-color: var(--input-bg);
+  color: var(--text-color);
+  min-width: 120px;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.selectInput:hover {
+  border-color: var(--primary-color);
+}
+
+.selectInput:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.themePreview {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.previewSwatch {
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  border: 1px solid var(--border-color);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+/* 테마 컬러 스키마 스와치 */
+.swatch-default {
+  background-color: #1976d2;
+}
+
+.swatch-blue {
+  background-color: #2962ff;
+}
+
+.swatch-green {
+  background-color: #43a047;
+}
+
+.swatch-purple {
+  background-color: #6a1b9a;
+}
+
+.swatch-high-contrast {
+  background-color: #000000;
+}
+
+/* 다크 모드 스와치 */
+.darkSwatch.swatch-default {
+  background-color: #90caf9;
+}
+
+.darkSwatch.swatch-blue {
+  background-color: #82b1ff;
+}
+
+.darkSwatch.swatch-green {
+  background-color: #81c784;
+}
+
+.darkSwatch.swatch-purple {
+  background-color: #b39ddb;
+}
+
+.darkSwatch.swatch-high-contrast {
+  background-color: #ffffff;
 }
 
 .radioGroup {
@@ -614,13 +698,6 @@
   background-color: rgba(40, 40, 40, 0.9);
 }
 
-.settingLabel {
-  display: flex;
-  align-items: center;
-  font-weight: 500;
-  font-size: 0.95rem;
-}
-
 .settingControl {
   display: flex;
   align-items: center;
@@ -709,4 +786,90 @@
 .darkMode .disabledMessage {
   color: #ff8a8a;
   background-color: rgba(255, 107, 107, 0.15);
+}
+
+/* 타이핑 분석 통계 스타일 */
+.analysisStats {
+  margin-top: 15px;
+  padding: 15px;
+  background-color: rgba(0, 0, 0, 0.03);
+  border-radius: 8px;
+}
+
+.darkMode .analysisStats {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+.analysisStats h4 {
+  margin-top: 0;
+  margin-bottom: 10px;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.statsDescription {
+  font-size: 14px;
+  line-height: 1.5;
+  margin-bottom: 15px;
+  color: rgba(0, 0, 0, 0.6);
+}
+
+.darkMode .statsDescription {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.statItems {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 10px;
+}
+
+.statItem {
+  display: flex;
+  flex-direction: column;
+  padding: 8px;
+  background-color: rgba(0, 0, 0, 0.02);
+  border-radius: 6px;
+  border-left: 3px solid var(--primary-color, #1976d2);
+}
+
+.darkMode .statItem {
+  background-color: rgba(255, 255, 255, 0.03);
+}
+
+.statLabel {
+  font-weight: 600;
+  font-size: 14px;
+  margin-bottom: 4px;
+}
+
+.statValue {
+  font-size: 13px;
+  color: rgba(0, 0, 0, 0.7);
+}
+
+.darkMode .statValue {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+/* 컴팩트 모드에서의 스타일 조정 */
+.compactUI .analysisStats {
+  padding: 10px;
+}
+
+.compactUI .statItems {
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 8px;
+}
+
+.compactUI .statItem {
+  padding: 6px;
+}
+
+.compactUI .statLabel {
+  font-size: 13px;
+}
+
+.compactUI .statValue {
+  font-size: 12px;
 }

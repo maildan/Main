@@ -34,6 +34,8 @@ interface LogType {
   typing_time: number;
   timestamp: string;
   created_at: string;
+  total_words?: number;
+  total_chars?: number;
 }
 
 interface TypingChartProps {
@@ -117,7 +119,7 @@ export const TypingChart = React.memo(function TypingChart({ logs }: TypingChart
     };
   }, []);
 
-  // 필터링된 로그 데이터 메모이제이션 (최소 데이터만 사용)
+  // 필터링된 로그 데이터 메모이제이션
   const filteredLogs = useMemo(() => {
     try {
       // 데이터 검증 추가
@@ -131,6 +133,15 @@ export const TypingChart = React.memo(function TypingChart({ logs }: TypingChart
       return [];
     }
   }, [logs]);
+
+  // 데이터가 없을 경우 표시할 메시지
+  const renderPlaceholder = () => (
+    <div className={styles.placeholderContainer}>
+      <h2>타이핑 분석</h2>
+      <p>타이핑 데이터가 충분하지 않습니다.</p>
+      <p>키보드 입력이 감지되면 분석이 시작됩니다.</p>
+    </div>
+  );
 
   // 차트 옵션 - 다크 모드에 따라 변경되는 옵션들
   const getChartOptions = useCallback((title: string) => {
@@ -251,48 +262,51 @@ export const TypingChart = React.memo(function TypingChart({ logs }: TypingChart
         
         if (!dataMap.has(date)) {
           dataMap.set(date, {
-            totalKeyCount: 0,
-            totalTime: 0,
-            totalChars: 0,
+            keyCount: 0,
+            time: 0,
+            // Ensure all properties are initialized, even if optional
             totalWords: 0,
+            totalChars: 0,
+            logsCount: 0 // Add logsCount to track entries per date
           });
         }
 
-        const data = dataMap.get(date);
-        data.totalKeyCount += log.key_count || 0;
-        data.totalTime += log.typing_time || 0;
-        
-        // 콘텐츠 길이 기반 계산 (간소화)
-        const contentLength = log.content?.length || 0;
-        data.totalChars += contentLength;
-        data.totalWords += Math.ceil(contentLength / 5);
+        const entry = dataMap.get(date);
+        entry.keyCount += log.key_count || 0;
+        entry.time += log.typing_time || 0;
+        // Use optional chaining and nullish coalescing for safer access
+        entry.totalWords += log.total_words ?? 0;
+        entry.totalChars += log.total_chars ?? 0;
+        entry.logsCount += 1;
       }
 
-      // 배열로 변환 (Object.entries 사용)
-      const sortedDates = Array.from(dataMap.keys()).sort((a, b) => 
-        new Date(a).getTime() - new Date(b).getTime()
-      );
-      
+      const labels = Array.from(dataMap.keys()).sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
+      const keyCountData: number[] = [];
+      const timeData: number[] = [];
+      const speedData: number[] = [];
+      const wordData: number[] = [];
+      const charData: number[] = [];
+
+      labels.forEach(label => {
+        const data = dataMap.get(label);
+        keyCountData.push(data.keyCount);
+        timeData.push(Math.round(data.time / 60)); // 분 단위로 변환
+        const speed = data.time > 0 ? Math.round((data.keyCount / data.time) * 60) : 0;
+        speedData.push(speed);
+        wordData.push(data.totalWords);
+        charData.push(data.totalChars);
+      });
+
       return {
-        // 날짜 레이블 간략화 (월/일만 표시)
-        labels: sortedDates.map(date => {
-          const parts = date.split('/');
-          return parts.length >= 2 ? `${parts[0]}/${parts[1]}` : date;
-        }),
-        keyCountData: sortedDates.map(date => dataMap.get(date).totalKeyCount),
-        // 분 단위로 변환하고 정수로 반올림
-        timeData: sortedDates.map(date => Math.round(dataMap.get(date).totalTime / 60)),
-        // 속도 계산도 간소화
-        speedData: sortedDates.map(date => {
-          const d = dataMap.get(date);
-          return d.totalTime > 0 ? Math.round((d.totalKeyCount / d.totalTime) * 60) : 0;
-        }),
-        wordData: sortedDates.map(date => dataMap.get(date).totalWords),
-        charData: sortedDates.map(date => dataMap.get(date).totalChars),
+        labels,
+        keyCountData,
+        timeData,
+        speedData,
+        wordData,
+        charData
       };
     } catch (error) {
-      console.error('차트 데이터 생성 중 오류:', error);
-      // 오류 발생 시 빈 데이터 반환
+      console.error('차트 데이터 처리 중 오류:', error);
       return {
         labels: [],
         keyCountData: [],
@@ -364,73 +378,131 @@ export const TypingChart = React.memo(function TypingChart({ logs }: TypingChart
     }
   }, []);
 
+  // 라인 차트 데이터 (타수, 시간)
+  const lineChartData = {
+    labels: chartData.labels,
+    datasets: [
+      {
+        label: '타수',
+        data: chartData.keyCountData,
+        borderColor: 'rgb(75, 192, 192)',
+        backgroundColor: 'rgba(75, 192, 192, 0.5)',
+        yAxisID: 'y',
+      },
+      {
+        label: '타이핑 시간 (분)',
+        data: chartData.timeData,
+        borderColor: 'rgb(255, 99, 132)',
+        backgroundColor: 'rgba(255, 99, 132, 0.5)',
+        yAxisID: 'y1',
+      },
+    ],
+  };
+
+  // 바 차트 데이터 (평균 속도)
+  const barChartData = {
+    labels: chartData.labels,
+    datasets: [
+      {
+        label: '평균 속도 (타/분)',
+        data: chartData.speedData,
+        backgroundColor: 'rgba(54, 162, 235, 0.6)',
+      },
+    ],
+  };
+
+  // 추가 차트 데이터 (단어 수, 글자 수)
+  const wordCharChartData = {
+    labels: chartData.labels,
+    datasets: [
+      {
+        label: '단어 수',
+        data: chartData.wordData,
+        borderColor: 'rgb(255, 159, 64)',
+        backgroundColor: 'rgba(255, 159, 64, 0.5)',
+        yAxisID: 'y',
+      },
+      {
+        label: '글자 수',
+        data: chartData.charData,
+        borderColor: 'rgb(153, 102, 255)',
+        backgroundColor: 'rgba(153, 102, 255, 0.5)',
+        yAxisID: 'y1',
+      },
+    ],
+  };
+
+  // 렌더링 로직
+  if (filteredLogs.length === 0) {
+    return renderPlaceholder();
+  }
+
   return (
-    <div className={styles.chartContainer}>
-      <h2>타이핑 통계 차트</h2>
-      
-      {filteredLogs.length > 0 ? (
-        <div className={styles.charts}>
-          {/* 차트 렌더링에 지연 로딩 및 조건부 렌더링 적용 */}
-          {shouldRenderCharts && chartData.labels.length > 0 && (
-            <div className={styles.chartItem}>
-              <h3>일별 평균 타이핑 속도</h3>
-              <div className={styles.chartWrapper}>
-                <Line 
-                  data={speedChartData} 
-                  options={getChartOptions('일별 평균 속도 (타/분)')}
-                  redraw={false}
-                  ref={setChartRef}
-                />
-              </div>
-            </div>
-          )}
-          
-          {/* 다른 차트들은 사용자가 탭을 전환할 때만 렌더링하도록 지연 로딩 처리 */}
-          {shouldRenderCharts && (
-            <>
-              <div className={styles.chartItem}>
-                <h3>일별 총 타자 수</h3>
-                <div className={styles.chartWrapper}>
-                  <Bar 
-                    data={{
-                      labels: chartData.labels,
-                      datasets: [{
-                        label: '총 타자 수',
-                        data: chartData.keyCountData,
-                        backgroundColor: isDarkMode ? 'rgba(30, 136, 229, 0.7)' : 'rgba(54, 162, 235, 0.5)',
-                      }]
-                    }}
-                    options={getChartOptions('일별 총 타자 수')}
-                    redraw={false}
-                    ref={setChartRef}
-                  />
-                </div>
-              </div>
-              
-              <div className={styles.chartItem}>
-                <h3>일별 총 타이핑 시간</h3>
-                <div className={styles.chartWrapper}>
-                  <Bar 
-                    data={{
-                      labels: chartData.labels,
-                      datasets: [{
-                        label: '총 타이핑 시간 (분)',
-                        data: chartData.timeData,
-                        backgroundColor: isDarkMode ? 'rgba(207, 102, 121, 0.7)' : 'rgba(255, 99, 132, 0.5)',
-                      }]
-                    }}
-                    options={getChartOptions('일별 총 타이핑 시간 (분)')}
-                    redraw={false}
-                    ref={setChartRef}
-                  />
-                </div>
-              </div>
-            </>
-          )}
-        </div>
-      ) : (
-        <p className={styles.noData}>저장된 타이핑 데이터가 없습니다.</p>
-      )}
+    <div className={`${styles.chartContainer} ${isDarkMode ? styles.darkMode : ''}`}>
+      <div className={styles.chartWrapper}>
+        <Line
+          key={`line-chart-${isDarkMode}`}
+          ref={(el) => { if(el) chartRefs.current[0] = el; }}
+          options={{
+            ...getChartOptions('일별 타수 및 타이핑 시간'),
+            scales: {
+              ...getChartOptions('').scales, // 기본 스케일 가져오기
+              y: { // 타수 축
+                ...getChartOptions('').scales?.y,
+                type: 'linear' as const,
+                display: true,
+                position: 'left' as const,
+                title: { display: true, text: '타수' },
+              },
+              y1: { // 시간 축
+                ...getChartOptions('').scales?.y,
+                type: 'linear' as const,
+                display: true,
+                position: 'right' as const,
+                title: { display: true, text: '시간(분)' },
+                grid: { drawOnChartArea: false }, // 시간 축 그리드 숨김
+              },
+            }
+          }}
+          data={lineChartData}
+        />
+      </div>
+      <div className={styles.chartWrapper}>
+        <Bar
+          key={`bar-chart-${isDarkMode}`}
+          ref={(el) => { if(el) chartRefs.current[1] = el; }}
+          options={getChartOptions('일별 평균 타이핑 속도')}
+          data={barChartData}
+        />
+      </div>
+      <div className={styles.chartWrapper}>
+        <Line
+          key={`word-char-chart-${isDarkMode}`}
+          ref={(el) => { if(el) chartRefs.current[2] = el; }}
+          options={{
+            ...getChartOptions('일별 단어 및 글자 수'),
+            scales: {
+                ...getChartOptions('').scales, // 기본 스케일 가져오기
+                y: { // 단어 수 축
+                  ...getChartOptions('').scales?.y,
+                  type: 'linear' as const,
+                  display: true,
+                  position: 'left' as const,
+                  title: { display: true, text: '단어 수' },
+                },
+                y1: { // 글자 수 축
+                  ...getChartOptions('').scales?.y,
+                  type: 'linear' as const,
+                  display: true,
+                  position: 'right' as const,
+                  title: { display: true, text: '글자 수' },
+                  grid: { drawOnChartArea: false }, // 글자 수 축 그리드 숨김
+                },
+              }
+          }}
+          data={wordCharChartData}
+        />
+      </div>
     </div>
   );
 });

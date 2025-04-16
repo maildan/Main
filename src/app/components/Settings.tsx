@@ -17,6 +17,8 @@ export interface SettingsState {
   enabledCategories: EnabledCategories;
   autoStartMonitoring: boolean;
   darkMode: boolean;
+  colorScheme: 'default' | 'blue' | 'green' | 'purple' | 'high-contrast';
+  useSystemTheme: boolean;
   windowMode: WindowModeType;
   minimizeToTray: boolean;
   showTrayNotifications: boolean;
@@ -78,7 +80,7 @@ export function Settings({
   onDarkModeChange, 
   onWindowModeChange 
 }: SettingsProps) {
-  const { isDarkMode, setDarkMode } = useTheme();
+  const { isDarkMode, setDarkMode, colorScheme, setColorScheme, isSystemTheme, setSystemTheme } = useTheme();
   const [settings, setSettings] = useState<SettingsState>({
     enabledCategories: {
       docs: true,
@@ -88,6 +90,8 @@ export function Settings({
     },
     autoStartMonitoring: true,
     darkMode: isDarkMode,
+    colorScheme: colorScheme || 'default',
+    useSystemTheme: isSystemTheme || false,
     windowMode: 'windowed',
     minimizeToTray: true,
     showTrayNotifications: true,
@@ -194,13 +198,17 @@ export function Settings({
   };
 
   const handleDarkModeToggle = () => {
-    const newDarkMode = !settings.darkMode;
+    const newValue = !settings.darkMode;
     setSettings(prev => ({
       ...prev,
-      darkMode: newDarkMode
+      darkMode: newValue
     }));
-    setDarkMode(newDarkMode);
-    onDarkModeChange(newDarkMode);
+    
+    if (onDarkModeChange) {
+      onDarkModeChange(newValue);
+    }
+    
+    setDarkMode(newValue);
   };
 
   const handleWindowModeChange = (mode: WindowModeType) => {
@@ -208,7 +216,24 @@ export function Settings({
       ...prev,
       windowMode: mode
     }));
+    
+    // Electron API를 사용하여 창 모드 변경
+    if (window.electronAPI && window.electronAPI.setWindowMode) {
+      try {
+        window.electronAPI.setWindowMode(mode)
+          .catch((error: any) => {
+            console.error('창 모드 변경 중 오류:', error);
+            showToast('창 모드 변경 중 오류가 발생했습니다.', 'error');
+          });
+      } catch (error) {
+        console.error('창 모드 변경 함수 호출 중 오류:', error);
+        showToast('창 모드 변경 기능을 사용할 수 없습니다.', 'error');
+      }
+    }
+    
+    if (onWindowModeChange) {
     onWindowModeChange(mode);
+    }
   };
 
   const handleMinimizeToTrayToggle = () => {
@@ -302,7 +327,7 @@ export function Settings({
     }));
     console.log('타이핑 분석 GPU 가속 설정 변경:', newValue);
   };
-  
+
   const handleSaveSettings = () => {
     const hasChanges = JSON.stringify(settings) !== JSON.stringify(initialSettings);
     if (hasChanges) {
@@ -323,6 +348,21 @@ export function Settings({
     if (hasSettingChanges) {
       if (settings.darkMode !== isDarkMode) {
         setDarkMode(settings.darkMode);
+        
+        const root = document.documentElement;
+        if (settings.darkMode) {
+          root.style.setProperty('--card-bg', '#222222');
+          root.style.setProperty('--text-color', 'rgba(255, 255, 255, 0.87)');
+          root.style.setProperty('--border-color', 'rgba(255, 255, 255, 0.12)');
+          root.style.setProperty('--button-hover-bg', 'rgba(255, 255, 255, 0.08)');
+          root.style.setProperty('--primary-color', '#90caf9');
+        } else {
+          root.style.setProperty('--card-bg', '#ffffff');
+          root.style.setProperty('--text-color', 'rgba(0, 0, 0, 0.87)');
+          root.style.setProperty('--border-color', 'rgba(0, 0, 0, 0.12)');
+          root.style.setProperty('--button-hover-bg', 'rgba(0, 0, 0, 0.05)');
+          root.style.setProperty('--primary-color', '#1976d2');
+        }
       }
       
       onSave({...settings, darkMode: settings.darkMode});
@@ -337,22 +377,22 @@ export function Settings({
       
       if (needsRestart) {
         showToast('GPU 가속 설정이 변경되었습니다. 변경 사항을 적용하려면 앱을 재시작하세요.', 'info');
-        if (window.electronAPI) {
-          if (typeof window.electronAPI.showRestartPrompt === 'function') {
-            window.electronAPI.showRestartPrompt();
-          } else {
-            if (window.confirm('GPU 가속 설정이 변경되었습니다. 지금 앱을 재시작하시겠습니까?')) {
-              if (typeof window.electronAPI.restartApp === 'function') {
-                window.electronAPI.restartApp();
-              } else {
-                console.error('restartApp 함수를 찾을 수 없습니다.');
-                showToast('앱을 수동으로 재시작해 주세요.', 'warning');
-              }
+      if (window.electronAPI) {
+        if (typeof window.electronAPI.showRestartPrompt === 'function') {
+          window.electronAPI.showRestartPrompt();
+        } else {
+          if (window.confirm('GPU 가속 설정이 변경되었습니다. 지금 앱을 재시작하시겠습니까?')) {
+            if (typeof window.electronAPI.restartApp === 'function') {
+              window.electronAPI.restartApp();
+            } else {
+              console.error('restartApp 함수를 찾을 수 없습니다.');
+              showToast('앱을 수동으로 재시작해 주세요.', 'warning');
             }
           }
         }
-      } else {
-        showToast('설정이 저장되었습니다.', 'success');
+      }
+    } else {
+      showToast('설정이 저장되었습니다.', 'success');
       }
     } else {
       showToast('변경된 설정이 없습니다.', 'info');
@@ -411,10 +451,30 @@ export function Settings({
     setShowDebugInfo(!showDebugInfo);
   };
 
+  // 여기에 컬러 스키마 변경 핸들러 추가
+  const handleColorSchemeChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
+    const newScheme = event.target.value as 'default' | 'blue' | 'green' | 'purple' | 'high-contrast';
+    setSettings(prev => ({
+      ...prev,
+      colorScheme: newScheme
+    }));
+    setColorScheme(newScheme);
+  };
+
+  // 시스템 테마 사용 토글 핸들러 추가
+  const handleSystemThemeToggle = () => {
+    const newValue = !settings.useSystemTheme;
+    setSettings(prev => ({
+      ...prev,
+      useSystemTheme: newValue
+    }));
+    setSystemTheme(newValue);
+  };
+
   return (
     <div className={`${styles.settingsContainer} ${isDarkMode ? styles.darkMode : ''} ${settings.useCompactUI ? styles.compactUI : ''}`}>
       <h2>설정</h2>
-
+      
       <div className={styles.settingsLayout}>
         <div className={styles.settingsTabs}>
           <button 
@@ -440,52 +500,94 @@ export function Settings({
         <div className={styles.settingsContent}>
           {activeTab === 'general' && (
             <div className={styles.tabContent}>
-              <div className={`${styles.settingSection} ${styles.highlightedSetting}`}>
-                <h3>모니터링 자동 시작</h3>
+      <div className={`${styles.settingSection} ${styles.highlightedSetting}`}>
+        <h3>모니터링 자동 시작</h3>
                 <div className={styles.settingGrid}>
-                  <div className={styles.toggleItem}>
-                    <label>
-                      <input 
-                        type="checkbox" 
-                        checked={settings.autoStartMonitoring} 
-                        onChange={handleAutoStartToggle}
-                      />
-                      <span className={styles.toggleLabel}>앱 시작 시 자동으로 모니터링 시작</span>
-                    </label>
+        <div className={styles.toggleItem}>
+          <label>
+            <input 
+              type="checkbox" 
+              checked={settings.autoStartMonitoring} 
+              onChange={handleAutoStartToggle}
+            />
+            <span className={styles.toggleLabel}>앱 시작 시 자동으로 모니터링 시작</span>
+          </label>
+        </div>
+        
+        <div className={styles.toggleItem}>
+          <label>
+            <input 
+              type="checkbox" 
+              checked={settings.resumeAfterIdle || false} 
+              onChange={(e) => handleSettingChange('resumeAfterIdle', e.target.checked)}
+            />
+            <span className={styles.toggleLabel}>일정 시간 사용하지 않다가 돌아왔을 때 자동 재시작</span>
+          </label>
                   </div>
-                  
-                  <div className={styles.toggleItem}>
-                    <label>
-                      <input 
-                        type="checkbox" 
-                        checked={settings.resumeAfterIdle || false} 
-                        onChange={(e) => handleSettingChange('resumeAfterIdle', e.target.checked)}
-                      />
-                      <span className={styles.toggleLabel}>일정 시간 사용하지 않다가 돌아왔을 때 자동 재시작</span>
-                    </label>
-                  </div>
-                </div>
-                
-                <div className={styles.settingDescription}>
-                  자동 모니터링 설정을 통해 앱 시작 시 또는 일정 시간 사용하지 않다가 돌아왔을 때 
-                  자동으로 타이핑 모니터링을 시작할 수 있습니다.
-                </div>
-              </div>
-              
+        </div>
+        
+        <div className={styles.settingDescription}>
+          자동 모니터링 설정을 통해 앱 시작 시 또는 일정 시간 사용하지 않다가 돌아왔을 때 
+          자동으로 타이핑 모니터링을 시작할 수 있습니다.
+        </div>
+      </div>
+      
               <div className={styles.settingSection}>
-                <h3>일반 설정</h3>
+                <h3>테마 설정</h3>
                 <div className={styles.settingGrid}>
-                  <div className={styles.toggleItem}>
-                    <label>
-                      <input 
-                        type="checkbox" 
-                        checked={settings.darkMode} 
-                        onChange={handleDarkModeToggle}
-                      />
-                      <span className={styles.toggleLabel}>다크 모드</span>
-                    </label>
+        <div className={styles.toggleItem}>
+          <label>
+            <input 
+              type="checkbox" 
+              checked={settings.darkMode} 
+              onChange={handleDarkModeToggle}
+            />
+            <span className={styles.toggleLabel}>다크 모드</span>
+          </label>
                   </div>
 
+                  <div className={styles.toggleItem}>
+                    <label>
+                      <input 
+                        type="checkbox" 
+                        checked={settings.useSystemTheme} 
+                        onChange={handleSystemThemeToggle}
+                      />
+                      <span className={styles.toggleLabel}>시스템 테마 사용</span>
+                    </label>
+                  </div>
+                </div>
+
+                <div className={styles.settingRow}>
+                  <label className={styles.settingLabel}>
+                    <span>색상 스키마:</span>
+                    <select 
+                      value={settings.colorScheme} 
+                      onChange={handleColorSchemeChange}
+                      className={styles.selectInput}
+                      disabled={settings.useSystemTheme}
+                    >
+                      <option value="default">기본</option>
+                      <option value="blue">블루</option>
+                      <option value="green">그린</option>
+                      <option value="purple">퍼플</option>
+                      <option value="high-contrast">고대비</option>
+                    </select>
+                  </label>
+                  <div className={styles.themePreview}>
+                    <div className={`${styles.previewSwatch} ${styles[`swatch-${settings.colorScheme}`]} ${settings.darkMode ? styles.darkSwatch : ''}`}></div>
+                  </div>
+                </div>
+
+                <div className={styles.settingDescription}>
+                  테마 설정을 통해 사용자 인터페이스의 색상과 스타일을 조정할 수 있습니다.
+                  시스템 테마 사용 시 운영체제의 다크/라이트 모드 설정을 따릅니다.
+                </div>
+              </div>
+
+              <div className={styles.settingSection}>
+                <h3>UI 설정</h3>
+                <div className={styles.settingGrid}>
                   <div className={styles.toggleItem}>
                     <label>
                       <input 
@@ -496,9 +598,7 @@ export function Settings({
                       <span className={styles.toggleLabel}>소리 효과 활성화</span>
                     </label>
                   </div>
-                </div>
 
-                <div className={styles.settingGrid}>
                   <div className={styles.toggleItem}>
                     <label>
                       <input 
@@ -509,7 +609,9 @@ export function Settings({
                       <span className={styles.toggleLabel}>애니메이션 효과 활성화</span>
                     </label>
                   </div>
+                </div>
 
+                <div className={styles.settingGrid}>
                   <div className={styles.toggleItem}>
                     <label>
                       <input 
@@ -520,99 +622,99 @@ export function Settings({
                       <span className={styles.toggleLabel}>압축 UI 사용 (작은 버튼 및 요소)</span>
                     </label>
                   </div>
-                </div>
-              </div>
+        </div>
+      </div>
 
-              <div className={styles.settingSection}>
-                <h3>화면 모드</h3>
-                <div className={styles.radioGroup}>
-                  <label className={styles.radioLabel}>
-                    <input 
-                      type="radio" 
-                      name="windowMode" 
-                      checked={settings.windowMode === 'windowed'} 
-                      onChange={() => handleWindowModeChange('windowed')}
-                    />
-                    <span className={styles.radioText}>창 모드</span>
-                  </label>
-                  
-                  <label className={styles.radioLabel}>
-                    <input 
-                      type="radio" 
-                      name="windowMode" 
-                      checked={settings.windowMode === 'fullscreen'} 
-                      onChange={() => handleWindowModeChange('fullscreen')}
-                    />
-                    <span className={styles.radioText}>전체화면 모드</span>
-                  </label>
+      <div className={styles.settingSection}>
+        <h3>화면 모드</h3>
+        <div className={styles.radioGroup}>
+          <label className={styles.radioLabel}>
+            <input 
+              type="radio" 
+              name="windowMode" 
+              checked={settings.windowMode === 'windowed'} 
+              onChange={() => handleWindowModeChange('windowed')}
+            />
+            <span className={styles.radioText}>창 모드</span>
+          </label>
+          
+          <label className={styles.radioLabel}>
+            <input 
+              type="radio" 
+              name="windowMode" 
+              checked={settings.windowMode === 'fullscreen'} 
+              onChange={() => handleWindowModeChange('fullscreen')}
+            />
+            <span className={styles.radioText}>전체화면 모드</span>
+          </label>
 
-                  <label className={styles.radioLabel}>
-                    <input
-                      type="radio"
-                      name="windowMode"
-                      checked={settings.windowMode === 'fullscreen-auto-hide'}
-                      onChange={() => handleWindowModeChange('fullscreen-auto-hide')}
-                    />
-                    <span className={styles.radioText}>자동 숨김 모드</span>
-                  </label>
-                </div>
-                
-                <p className={styles.settingDescription}>
-                  자동 숨김 모드에서는 마우스를 화면 상단에 가져가면 도구모음이 자동으로 표시됩니다.
-                </p>
-              </div>
-              
-              <div className={styles.settingSection}>
-                <h3>모니터링 대상 카테고리</h3>
-                <div className={styles.categoryToggles}>
+          <label className={styles.radioLabel}>
+            <input
+              type="radio"
+              name="windowMode"
+              checked={settings.windowMode === 'fullscreen-auto-hide'}
+              onChange={() => handleWindowModeChange('fullscreen-auto-hide')}
+            />
+            <span className={styles.radioText}>자동 숨김 모드</span>
+          </label>
+        </div>
+        
+        <p className={styles.settingDescription}>
+          자동 숨김 모드에서는 마우스를 화면 상단에 가져가면 도구모음이 자동으로 표시됩니다.
+        </p>
+      </div>
+      
+      <div className={styles.settingSection}>
+        <h3>모니터링 대상 카테고리</h3>
+        <div className={styles.categoryToggles}>
                   <div className={styles.toggleGrid}>
-                    <div className={styles.toggleItem}>
-                      <label>
-                        <input 
-                          type="checkbox" 
-                          checked={settings.enabledCategories.docs} 
-                          onChange={() => handleCategoryToggle('docs')}
-                        />
-                        <span className={styles.toggleLabel}>문서 작업 (Notion, Google Docs 등)</span>
-                      </label>
-                    </div>
+          <div className={styles.toggleItem}>
+            <label>
+              <input 
+                type="checkbox" 
+                checked={settings.enabledCategories.docs} 
+                onChange={() => handleCategoryToggle('docs')}
+              />
+              <span className={styles.toggleLabel}>문서 작업 (Notion, Google Docs 등)</span>
+            </label>
+          </div>
 
-                    <div className={styles.toggleItem}>
-                      <label>
-                        <input 
-                          type="checkbox" 
-                          checked={settings.enabledCategories.office} 
-                          onChange={() => handleCategoryToggle('office')}
-                        />
-                        <span className={styles.toggleLabel}>오피스 웹앱 (Microsoft Office, 한컴오피스 등)</span>
-                      </label>
+          <div className={styles.toggleItem}>
+            <label>
+              <input 
+                type="checkbox" 
+                checked={settings.enabledCategories.office} 
+                onChange={() => handleCategoryToggle('office')}
+              />
+              <span className={styles.toggleLabel}>오피스 웹앱 (Microsoft Office, 한컴오피스 등)</span>
+            </label>
                     </div>
-                  </div>
+          </div>
 
                   <div className={styles.toggleGrid}>
-                    <div className={styles.toggleItem}>
-                      <label>
-                        <input 
-                          type="checkbox" 
-                          checked={settings.enabledCategories.coding} 
-                          onChange={() => handleCategoryToggle('coding')}
-                        />
-                        <span className={styles.toggleLabel}>코딩 관련 (GitHub, GitLab 등)</span>
-                      </label>
-                    </div>
+          <div className={styles.toggleItem}>
+            <label>
+              <input 
+                type="checkbox" 
+                checked={settings.enabledCategories.coding} 
+                onChange={() => handleCategoryToggle('coding')}
+              />
+              <span className={styles.toggleLabel}>코딩 관련 (GitHub, GitLab 등)</span>
+            </label>
+          </div>
 
-                    <div className={styles.toggleItem}>
-                      <label>
-                        <input 
-                          type="checkbox" 
-                          checked={settings.enabledCategories.sns} 
-                          onChange={() => handleCategoryToggle('sns')}
-                        />
-                        <span className={styles.toggleLabel}>SNS/메신저 (Discord, Slack 등)</span>
-                      </label>
-                    </div>
-                  </div>
-                </div>
+          <div className={styles.toggleItem}>
+            <label>
+              <input 
+                type="checkbox" 
+                checked={settings.enabledCategories.sns} 
+                onChange={() => handleCategoryToggle('sns')}
+              />
+              <span className={styles.toggleLabel}>SNS/메신저 (Discord, Slack 등)</span>
+            </label>
+          </div>
+        </div>
+      </div>
 
                 <div className={styles.settingDescription}>
                   선택한 카테고리에 해당하는 애플리케이션 및 웹사이트에서의 타이핑만 모니터링합니다.
@@ -623,29 +725,29 @@ export function Settings({
 
           {activeTab === 'display' && (
             <div className={styles.tabContent}>
-              <div className={styles.settingSection}>
+      <div className={styles.settingSection}>
                 <h3>통계 표시 설정</h3>
                 <div className={styles.settingGrid}>
-                  <div className={styles.toggleItem}>
-                    <label>
-                      <input 
-                        type="checkbox" 
+        <div className={styles.toggleItem}>
+          <label>
+            <input 
+              type="checkbox" 
                         checked={settings.showKeyCountInHeader} 
                         onChange={() => handleToggleSetting('showKeyCountInHeader')}
-                      />
+            />
                       <span className={styles.toggleLabel}>헤더에 키 카운트 표시</span>
-                    </label>
-                  </div>
-                  
-                  <div className={styles.toggleItem}>
-                    <label>
-                      <input 
-                        type="checkbox" 
+          </label>
+        </div>
+        
+        <div className={styles.toggleItem}>
+          <label>
+            <input 
+              type="checkbox" 
                         checked={settings.showRealtimeWPM} 
                         onChange={() => handleToggleSetting('showRealtimeWPM')}
                       />
                       <span className={styles.toggleLabel}>실시간 WPM(분당 단어 수) 표시</span>
-                    </label>
+          </label>
                   </div>
                 </div>
 
@@ -653,66 +755,93 @@ export function Settings({
                   통계 표시 설정을 통해 앱이 표시하는 정보의 종류와 위치를 조정할 수 있습니다.
                   실시간 데이터를 표시하면 더 정확한 타이핑 분석이 가능하지만 시스템 자원을 더 사용합니다.
                 </div>
-              </div>
-
+        </div>
+        
               <div className={styles.settingSection}>
                 <h3>타이핑 분석 설정</h3>
-                <div className={styles.toggleItem}>
-                  <label>
-                    <input 
-                      type="checkbox" 
+        <div className={styles.toggleItem}>
+          <label>
+            <input 
+              type="checkbox" 
                       checked={settings.useTypingAnalysisGpuAcceleration} 
                       onChange={handleTypingAnalysisGpuToggle}
                     />
                     <span className={styles.toggleLabel}>타이핑 분석 GPU 가속 사용</span>
-                  </label>
+          </label>
                   <p className={styles.settingDescription}>
                     GPU 가속을 활성화하면 타이핑 분석 계산이 더 빨라질 수 있습니다.
                     시스템에 호환되는 GPU가 있는 경우에만 작동합니다.
                   </p>
                 </div>
-              </div>
-
+                
+                {/* 타이핑 분석 통계 섹션 추가 */}
+                <div className={styles.analysisStats}>
+                  <h4>타이핑 분석 통계</h4>
+                  <div className={styles.statsDescription}>
+                    타이핑 분석은 입력 속도, 정확도, 일관성 등을 추적하여 입력 패턴을 분석합니다.
+                    이 기능을 통해 타이핑 습관을 개선하고 효율성을 높일 수 있습니다.
+                  </div>
+                  <div className={styles.statItems}>
+                    <div className={styles.statItem}>
+                      <span className={styles.statLabel}>WPM</span>
+                      <span className={styles.statValue}>분당 단어 수 측정</span>
+                    </div>
+                    <div className={styles.statItem}>
+                      <span className={styles.statLabel}>정확도</span>
+                      <span className={styles.statValue}>오타율 및 정확도 분석</span>
+                    </div>
+                    <div className={styles.statItem}>
+                      <span className={styles.statLabel}>일관성</span>
+                      <span className={styles.statValue}>타이핑 리듬 및 일관성 측정</span>
+                    </div>
+                    <div className={styles.statItem}>
+                      <span className={styles.statLabel}>피로도</span>
+                      <span className={styles.statValue}>타이핑 피로도 추적 및 휴식 추천</span>
+                    </div>
+                  </div>
+                </div>
+        </div>
+        
               <div className={styles.settingSection}>
                 <h3>미니뷰 설정</h3>
-                <div className={styles.toggleItem}>
-                  <label>
-                    <input 
-                      type="checkbox" 
-                      checked={settings.enableMiniView} 
-                      onChange={handleMiniViewToggle}
-                      disabled={!settings.minimizeToTray}
-                    />
-                    <span className={styles.toggleLabel}>
-                      트레이 아이콘 클릭 시 미니뷰(PiP) 표시
-                      {!settings.minimizeToTray && (
-                        <small className={styles.disabledNote}> (트레이로 최소화 옵션이 활성화되어야 함)</small>
-                      )}
-                    </span>
-                  </label>
-                </div>
-                
-                <p className={styles.settingDescription}>
-                  미니뷰를 활성화하면 트레이 아이콘을 클릭할 때 화면 상단에 작은 통계 창이 표시됩니다.
-                  이를 통해 앱을 최소화한 상태에서도 중요한 타이핑 통계를 확인할 수 있습니다.
-                </p>
-              </div>
+        <div className={styles.toggleItem}>
+          <label>
+            <input 
+              type="checkbox" 
+              checked={settings.enableMiniView} 
+              onChange={handleMiniViewToggle}
+              disabled={!settings.minimizeToTray}
+            />
+            <span className={styles.toggleLabel}>
+              트레이 아이콘 클릭 시 미니뷰(PiP) 표시
+              {!settings.minimizeToTray && (
+                <small className={styles.disabledNote}> (트레이로 최소화 옵션이 활성화되어야 함)</small>
+              )}
+            </span>
+          </label>
+        </div>
+        
+        <p className={styles.settingDescription}>
+          미니뷰를 활성화하면 트레이 아이콘을 클릭할 때 화면 상단에 작은 통계 창이 표시됩니다.
+          이를 통해 앱을 최소화한 상태에서도 중요한 타이핑 통계를 확인할 수 있습니다.
+        </p>
+      </div>
             </div>
           )}
 
           {activeTab === 'advanced' && (
             <div className={styles.tabContent}>
-              <div className={styles.settingSection}>
-                <h3>성능 설정</h3>
+      <div className={styles.settingSection}>
+        <h3>성능 설정</h3>
                 <div className={styles.settingGrid}>
                   <div className={styles.settingItem}>
                     <div className={styles.settingLabel}>
-                      <label>
-                        <input 
-                          type="checkbox" 
-                          checked={settings.useHardwareAcceleration}
-                          onChange={handleHardwareAccelerationToggle}
-                        />
+          <label>
+            <input 
+              type="checkbox" 
+              checked={settings.useHardwareAcceleration} 
+              onChange={handleHardwareAccelerationToggle}
+            />
                         <span className={styles.toggleLabel}>GPU 하드웨어 가속 사용 (재시작 필요)</span>
                       </label>
                       <InfoTooltip text="GPU 하드웨어 가속을 활성화하면 그래픽 렌더링과 일부 계산이 더 빨라질 수 있지만, 일부 시스템에서는 불안정할 수 있습니다. 변경 후 앱 재시작이 필요합니다." />
@@ -827,19 +956,19 @@ export function Settings({
                       disabled={!settings.useHardwareAcceleration}
                     />
                     <span className={styles.radioLabel}>GPU 집중 (하드웨어 가속 필요)</span>
-                  </label>
+          </label>
                 </div>
               </div>
               
-              {needsRestart && (
-                <div className={styles.restartNotice}>
-                  <p>GPU 가속 설정이 변경되었습니다. 변경 사항을 적용하려면 앱을 재시작해야 합니다.</p>
-                  <button 
-                    className={styles.restartButton}
-                    onClick={handleRestartClick}
-                  >
-                    지금 재시작
-                  </button>
+          {needsRestart && (
+            <div className={styles.restartNotice}>
+              <p>GPU 가속 설정이 변경되었습니다. 변경 사항을 적용하려면 앱을 재시작해야 합니다.</p>
+                <button 
+                  className={styles.restartButton}
+                  onClick={handleRestartClick}
+                >
+                  지금 재시작
+                </button>
                 </div>
               )}
             </div>

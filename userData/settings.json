@@ -6,7 +6,9 @@
     "sns": true
   },
   "autoStartMonitoring": true,
-  "darkMode": false,
+  "darkMode": true,
+  "colorScheme": "green",
+  "useSystemTheme": false,
   "windowMode": "normal",
   "minimizeToTray": true,
   "showTrayNotifications": true,
@@ -19,7 +21,7 @@
   "resumeAfterIdle": true,
   "showKeyCountInHeader": true,
   "showRealtimeWPM": true,
-  "enableSoundEffects": false,
+  "enableSoundEffects": true,
   "enableAnimations": true,
   "useCompactUI": false
 }

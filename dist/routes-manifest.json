@@ -28,6 +28,12 @@
       "namedRegex": "^/_not\\-found(?:/)?$"
     },
     {
+      "page": "/dashboard",
+      "regex": "^/dashboard(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/dashboard(?:/)?$"
+    },
+    {
       "page": "/favicon.ico",
       "regex": "^/favicon\\.ico(?:/)?$",
       "routeKeys": {},
@@ -38,6 +44,12 @@
       "regex": "^/mini\\-view(?:/)?$",
       "routeKeys": {},
       "namedRegex": "^/mini\\-view(?:/)?$"
+    },
+    {
+      "page": "/pages/analysis",
+      "regex": "^/pages/analysis(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/pages/analysis(?:/)?$"
     },
     {
       "page": "/restart",

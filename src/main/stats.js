@@ -37,11 +37,36 @@ function initializeWorker() {
       debugLog(`사용자 지정 처리 모드 사용: ${processingMode}`);
     }
     
+    // 메모리 정보 확인
+    let memoryInfo = {
+      heapUsed: 0,
+      heapTotal: 0,
+      rss: 0
+    };
+    
+    // 메모리 정보 가져오기 시도
+    try {
+      // memory-manager 모듈 함수 사용 시도
+      const memoryManager = require('./memory-manager');
+      
+      if (memoryManager && typeof memoryManager.getMemoryInfo === 'function') {
+        memoryInfo = memoryManager.getMemoryInfo();
+      } else {
+        // 직접 process.memoryUsage 사용
+        memoryInfo = process.memoryUsage();
+      }
+    } catch (memError) {
+      console.error('메모리 정보 가져오기 오류:', memError);
+      // 오류 발생 시 process.memoryUsage() 직접 사용
+      try {
+        memoryInfo = process.memoryUsage();
+      } catch (processError) {
+        console.error('프로세스 메모리 정보 가져오기 오류:', processError);
+      }
+    }
+    
     // 자동 모드인 경우 시스템 상태에 따라 초기 모드 결정
     if (preferredMode === 'auto') {
-      const { getMemoryInfo } = require('./memory-manager');
-      const memoryInfo = getMemoryInfo();
-      
       // 메모리 상태에 따른 모드 선택 (임계값 조정)
       const memoryThreshold = appState.settings?.maxMemoryThreshold 
         ? appState.settings.maxMemoryThreshold * 1024 * 1024  // MB를 바이트로 변환

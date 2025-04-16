@@ -1,0 +1,137 @@
+:root {
+  /* 기본 라이트 모드 */
+  --card-bg: #ffffff;
+  --text-color: rgba(0, 0, 0, 0.87);
+  --text-color-secondary: rgba(0, 0, 0, 0.6);
+  --border-color: rgba(0, 0, 0, 0.12);
+  --button-hover-bg: rgba(0, 0, 0, 0.05);
+  --primary-color: #1976d2;
+  --primary-light: #4791db;
+  --primary-dark: #115293;
+  --secondary-color: #dc004e;
+  --background-color: #f5f5f5;
+  --surface-color: #ffffff;
+  --error-color: #f44336;
+  --warning-color: #ff9800;
+  --info-color: #2196f3;
+  --success-color: #4caf50;
+  --divider-color: rgba(0, 0, 0, 0.12);
+  
+  /* 그림자 효과 */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  
+  /* 전환 효과 */
+  --transition-speed: 0.2s;
+  --transition-fn: ease-in-out;
+}
+
+/* 다크 모드 */
+:root.dark-mode {
+  --card-bg: #1e1e1e;
+  --text-color: rgba(255, 255, 255, 0.87);
+  --text-color-secondary: rgba(255, 255, 255, 0.6);
+  --border-color: rgba(255, 255, 255, 0.12);
+  --button-hover-bg: rgba(255, 255, 255, 0.08);
+  --primary-color: #90caf9;
+  --primary-light: #a6d4fa;
+  --primary-dark: #648dae;
+  --secondary-color: #f48fb1;
+  --background-color: #121212;
+  --surface-color: #1e1e1e;
+  --error-color: #f44336;
+  --warning-color: #ff9800;
+  --info-color: #29b6f6;
+  --success-color: #66bb6a;
+  --divider-color: rgba(255, 255, 255, 0.12);
+  
+  /* 다크 모드 그림자 */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.24);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.3), 0 4px 6px -2px rgba(0, 0, 0, 0.22);
+}
+
+/* 블루 테마 */
+:root.theme-blue {
+  --primary-color: #2962ff;
+  --primary-light: #768fff;
+  --primary-dark: #0039cb;
+  --secondary-color: #00bcd4;
+}
+
+:root.dark-mode.theme-blue {
+  --primary-color: #82b1ff;
+  --primary-light: #b6e3ff;
+  --primary-dark: #4d82cb;
+  --secondary-color: #80deea;
+}
+
+/* 그린 테마 */
+:root.theme-green {
+  --primary-color: #43a047;
+  --primary-light: #76d275;
+  --primary-dark: #00701a;
+  --secondary-color: #ff5722;
+}
+
+:root.dark-mode.theme-green {
+  --primary-color: #81c784;
+  --primary-light: #b2fab4;
+  --primary-dark: #519657;
+  --secondary-color: #ff8a65;
+}
+
+/* 퍼플 테마 */
+:root.theme-purple {
+  --primary-color: #6a1b9a;
+  --primary-light: #9c4dcc;
+  --primary-dark: #38006b;
+  --secondary-color: #ffa000;
+}
+
+:root.dark-mode.theme-purple {
+  --primary-color: #b39ddb;
+  --primary-light: #e6ceff;
+  --primary-dark: #836fa9;
+  --secondary-color: #ffcc80;
+}
+
+/* 고대비 테마 */
+:root.theme-high-contrast {
+  --card-bg: #ffffff;
+  --text-color: #000000;
+  --text-color-secondary: #292929;
+  --border-color: #000000;
+  --button-hover-bg: rgba(0, 0, 0, 0.1);
+  --primary-color: #000000;
+  --primary-light: #333333;
+  --primary-dark: #000000;
+  --secondary-color: #c80000;
+  --background-color: #ffffff;
+  --surface-color: #ffffff;
+  --error-color: #c80000;
+  --warning-color: #e65100;
+  --info-color: #01579b;
+  --success-color: #1b5e20;
+  --divider-color: #000000;
+}
+
+:root.dark-mode.theme-high-contrast {
+  --card-bg: #000000;
+  --text-color: #ffffff;
+  --text-color-secondary: #e0e0e0;
+  --border-color: #ffffff;
+  --button-hover-bg: rgba(255, 255, 255, 0.2);
+  --primary-color: #ffffff;
+  --primary-light: #e0e0e0;
+  --primary-dark: #ffffff;
+  --secondary-color: #ff6b6b;
+  --background-color: #000000;
+  --surface-color: #000000;
+  --error-color: #ff5252;
+  --warning-color: #ffab40;
+  --info-color: #40c4ff;
+  --success-color: #69f0ae;
+  --divider-color: #ffffff;
+} 

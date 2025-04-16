@@ -449,11 +449,13 @@ function performJsGarbageCollection(emergency) {
 }
 
 /**
- * 현재 메모리 사용량 가져오기
- * @returns {Promise<Object>} 메모리 정보
+ * 현재 메모리 사용량 정보 가져오기
+ * @param {boolean} updateState 상태 업데이트 여부
+ * @returns {Object} 메모리 사용량 정보
  */
-async function getCurrentMemoryUsage() {
+function getMemoryInfo(updateState = false) {
   try {
+    // 현재 메모리 사용량 가져오기
     const memoryUsage = process.memoryUsage();
     const heapUsed = memoryUsage.heapUsed;
     const heapTotal = memoryUsage.heapTotal;
@@ -464,35 +466,35 @@ async function getCurrentMemoryUsage() {
     const heapTotalMB = Math.round(heapTotal / (1024 * 1024) * 100) / 100;
     const rssMB = Math.round(rss / (1024 * 1024) * 100) / 100;
 
-    // 네이티브 모듈에서 추가 정보 가져오기
-    let additionalInfo = {};
-    if (await isNativeModuleAvailable() && typeof nativeModule.get_memory_info === 'function') {
-      try {
-        const jsonResult = nativeModule.get_memory_info();
-        const nativeInfo = typeof jsonResult === 'string' ? JSON.parse(jsonResult) : jsonResult;
-        additionalInfo = {
-          percent_used: nativeInfo.percent_used,
-          heap_limit: nativeInfo.heap_limit
-        };
-      } catch (nativeError) {
-        debugLog(`네이티브 메모리 정보 가져오기 실패: ${nativeError.message}`);
-      }
+    const memoryInfo = {
+      lastCheck: Date.now(),
+      heapUsed,
+      heapTotal,
+      rss,
+      heapUsedMB,
+      heapTotalMB,
+      rssMB,
+      percentUsed: Math.round((heapUsed / heapTotal) * 100)
+    };
+
+    // 상태 업데이트가 요청된 경우
+    if (updateState) {
+      appState.memoryUsage = memoryInfo;
     }
 
-    return {
-      timestamp: Date.now(),
-      heap_used: heapUsed,
-      heap_total: heapTotal,
-      rss: rss,
-      heap_used_mb: heapUsedMB,
-      heap_total_mb: heapTotalMB,
-      rss_mb: rssMB,
-      percent_used: additionalInfo.percent_used || Math.round((heapUsed / heapTotal) * 100),
-      heap_limit: additionalInfo.heap_limit || null
-    };
+    return memoryInfo;
   } catch (error) {
-    debugLog(`메모리 정보 가져오기 오류: ${error.message}`);
-    return null;
+    debugLog(`메모리 정보 획득 중 오류: ${error.message}`);
+    return {
+      heapUsed: 0,
+      heapTotal: 0,
+      rss: 0,
+      heapUsedMB: 0,
+      heapTotalMB: 0,
+      rssMB: 0,
+      percentUsed: 0,
+      error: error.message
+    };
   }
 }
 
@@ -521,6 +523,7 @@ if (typeof module !== 'undefined' && module.exports) {
     freeUpMemoryResources,
     forceMemoryOptimization,
     stopMemoryMonitoring,
+    getMemoryInfo,
     // 추가 필요한 함수들 여기에 포함
   };
 }

@@ -1,4 +1,4 @@
-const { ipcMain, app } = require('electron');
+const { ipcMain, app, globalShortcut } = require('electron');
 const activeWin = require('active-win');
 const { appState, HIGH_MEMORY_THRESHOLD } = require('./constants');
 const { detectBrowserName, isGoogleDocsWindow } = require('./browser');
@@ -15,11 +15,51 @@ const {
   getMemoryManagerStats 
 } = require('./memory-manager');
 
+// 전역 단축키 등록 함수
+function registerShortcuts() {
+  try {
+    // CTRL+R 단축키 (새로고침) 재정의
+    globalShortcut.register('CommandOrControl+R', () => {
+      const mainWindow = appState.mainWindow;
+      if (!mainWindow || mainWindow.isDestroyed()) return;
+      
+      debugLog('CTRL+R 단축키 감지, 설정 유지하며 새로고침 실행');
+      
+      // 새로고침 전에 현재 설정을 임시 저장
+      const currentSettings = { ...appState.settings };
+      
+      // 창 새로고침
+      mainWindow.reload();
+      
+      // 설정을 즉시 다시 적용 (설정 유지)
+      setTimeout(() => {
+        if (currentSettings.darkMode !== undefined) {
+          mainWindow.webContents.executeJavaScript(`
+            if (${currentSettings.darkMode}) {
+              document.documentElement.classList.add('dark-mode');
+              document.body.classList.add('dark-mode');
+            } else {
+              document.documentElement.classList.remove('dark-mode');
+              document.body.classList.remove('dark-mode');
+            }
+          `).catch(err => {
+            console.error('다크 모드 설정 유지 중 오류:', err);
+          });
+        }
+      }, 500);
+    });
+    
+    debugLog('전역 단축키 등록 완료');
+  } catch (error) {
+    console.error('단축키 등록 중 오류:', error);
+  }
+}
+
 /**
  * IPC 핸들러 설정
  */
 function setupIpcHandlers() {
-  // 자동 모니터링 시작 처리 - 수정된 부분
+  // 자동 모니터링 시작 처리
   if (appState.settings?.autoStartMonitoring) {
     debugLog('자동 모니터링 시작 설정 감지됨');
     
@@ -49,6 +89,18 @@ function setupIpcHandlers() {
       setTimeout(startAutoMonitoring, 2000);
     }
   }
+
+  // 앱이 준비되면 단축키 등록
+  if (app.isReady()) {
+    registerShortcuts();
+  } else {
+    app.on('ready', registerShortcuts);
+  }
+
+  // 앱 종료 시 단축키 해제
+  app.on('will-quit', () => {
+    globalShortcut.unregisterAll();
+  });
 
   // 모니터링 시작 요청 처리
   ipcMain.on('start-tracking', () => {
@@ -173,6 +225,164 @@ function setupIpcHandlers() {
       };
     }
   });
+  
+  // 다크 모드 설정 요청 처리
+  ipcMain.on('set-dark-mode', async (event, enabled) => {
+    try {
+      debugLog(`IPC: 다크 모드 ${enabled ? '활성화' : '비활성화'} 요청 수신`);
+      
+      // 이전 설정 값 저장
+      const prevSettings = { ...appState.settings };
+      
+      // 설정 업데이트
+      const newSettings = {
+        ...prevSettings,
+        darkMode: !!enabled
+      };
+      
+      // 설정 저장
+      const saved = await saveSettings(newSettings);
+      
+      // 앱 상태의 설정도 업데이트
+      appState.settings = newSettings;
+      
+      // 메인 윈도우에 다크 모드 CSS 적용
+      if (appState.mainWindow && !appState.mainWindow.isDestroyed()) {
+        try {
+          const darkModeScript = `
+            document.documentElement.classList.${enabled ? 'add' : 'remove'}('dark-mode');
+            document.body.classList.${enabled ? 'add' : 'remove'}('dark-mode');
+          `;
+          
+          await appState.mainWindow.webContents.executeJavaScript(darkModeScript);
+          debugLog(`다크 모드 CSS ${enabled ? '추가' : '제거'} 완료`);
+          
+          // 배경색 변경
+          appState.mainWindow.setBackgroundColor(enabled ? '#121212' : '#f9f9f9');
+        } catch (cssError) {
+          console.error('다크 모드 CSS 적용 오류:', cssError);
+        }
+      }
+      
+      // 설정 결과 응답
+      event.reply('dark-mode-updated', { 
+        success: true, 
+        darkMode: enabled
+      });
+    } catch (error) {
+      console.error('다크 모드 설정 오류:', error);
+      event.reply('dark-mode-updated', { 
+        success: false, 
+        error: error.message 
+      });
+    }
+  });
+  
+  // 다크 모드 상태 요청 처리
+  ipcMain.handle('get-dark-mode', () => {
+    try {
+      debugLog('IPC: 다크 모드 상태 요청 수신');
+      return appState.settings?.darkMode || false;
+    } catch (error) {
+      console.error('다크 모드 상태 조회 오류:', error);
+      return false;
+    }
+  });
+
+  // 테마 설정 저장 핸들러
+  ipcMain.handle('set-theme', async (event, themeSettings) => {
+    try {
+      debugLog(`IPC: 테마 설정 저장 요청 수신: ${JSON.stringify(themeSettings)}`);
+      
+      // 이전 설정 값 저장
+      const prevSettings = { ...appState.settings };
+      
+      // 설정 업데이트
+      const newSettings = {
+        ...prevSettings,
+        darkMode: themeSettings.theme === 'dark',
+        colorScheme: themeSettings.colorScheme || 'default',
+        useSystemTheme: themeSettings.useSystemTheme || false
+      };
+      
+      // 설정 저장
+      const saved = await saveSettings(newSettings);
+      
+      // 앱 상태의 설정도 업데이트
+      appState.settings = newSettings;
+      
+      // 메인 윈도우에 테마 CSS 적용
+      if (appState.mainWindow && !appState.mainWindow.isDestroyed()) {
+        try {
+          const isDarkMode = themeSettings.theme === 'dark';
+          const colorScheme = themeSettings.colorScheme || 'default';
+          
+          const themeScript = `
+            // 다크 모드 클래스 적용
+            document.documentElement.classList.${isDarkMode ? 'add' : 'remove'}('dark-mode');
+            document.body.classList.${isDarkMode ? 'add' : 'remove'}('dark-mode');
+            
+            // 컬러 스키마 클래스 적용
+            document.documentElement.classList.remove(
+              'theme-default', 
+              'theme-blue', 
+              'theme-green', 
+              'theme-purple', 
+              'theme-high-contrast'
+            );
+            document.documentElement.classList.add('theme-${colorScheme}');
+            
+            // 데이터 속성 설정
+            document.documentElement.setAttribute('data-theme', '${isDarkMode ? 'dark' : 'light'}');
+            document.documentElement.setAttribute('data-color-scheme', '${colorScheme}');
+          `;
+          
+          await appState.mainWindow.webContents.executeJavaScript(themeScript);
+          debugLog(`테마 CSS 적용 완료 (다크모드: ${isDarkMode}, 컬러스키마: ${colorScheme})`);
+          
+          // 배경색 변경
+          appState.mainWindow.setBackgroundColor(isDarkMode ? '#121212' : '#f9f9f9');
+        } catch (cssError) {
+          console.error('테마 CSS 적용 오류:', cssError);
+        }
+      }
+      
+      return { success: true, settings: newSettings };
+    } catch (error) {
+      console.error('테마 설정 저장 오류:', error);
+      return { success: false, error: error.message };
+    }
+  });
+  
+  // 테마 설정 가져오기 핸들러
+  ipcMain.handle('get-theme', () => {
+    try {
+      debugLog('IPC: 테마 설정 요청 수신');
+      
+      // 기본 설정이 없는 경우 기본값 반환
+      if (!appState.settings) {
+        return {
+          theme: 'light',
+          colorScheme: 'default',
+          useSystemTheme: false
+        };
+      }
+      
+      return {
+        theme: appState.settings.darkMode ? 'dark' : 'light',
+        colorScheme: appState.settings.colorScheme || 'default',
+        useSystemTheme: appState.settings.useSystemTheme || false
+      };
+    } catch (error) {
+      console.error('테마 설정 조회 오류:', error);
+      return {
+        theme: 'light',
+        colorScheme: 'default',
+        useSystemTheme: false,
+        error: error.message
+      };
+    }
+  });
 
   // 브라우저 정보 요청
   ipcMain.on('get-current-browser-info', async (event) => {
@@ -211,7 +421,13 @@ function setupIpcHandlers() {
   // 앱 재시작 핸들러 - 명확하게 재정의
   ipcMain.on('restart-app', () => {
     debugLog('앱 재시작 요청 수신');
-    restartApplication();
+    try {
+      restartApplication();
+      return { success: true };
+    } catch (error) {
+      console.error('앱 재시작 중 오류:', error);
+      return { success: false, error: String(error) };
+    }
   });
 
   // 재시작 창에서 재시작 요청 핸들러 - 명확하게 재정의
@@ -353,23 +569,6 @@ function setupIpcHandlers() {
     } catch (error) {
       console.error('윈도우 모드 변경 중 오류:', error);
       event.reply('window-mode-changed', { success: false, error: String(error) });
-    }
-  });
-
-  // 다크 모드 설정 처리
-  ipcMain.on('set-dark-mode', (event, enabled) => {
-    debugLog('다크 모드 설정 요청 받음:', enabled);
-    
-    try {
-      appState.settings.darkMode = enabled;
-      
-      // 설정 저장 
-      event.reply('dark-mode-changed', { success: true, enabled });
-      
-      debugLog('다크 모드 설정 완료:', enabled);
-    } catch (error) {
-      console.error('다크 모드 설정 중 오류:', error);
-      event.reply('dark-mode-changed', { success: false, error: String(error) });
     }
   });
 
@@ -781,12 +980,6 @@ function setupIpcHandlers() {
         isTracking: appState.isTracking || false
       };
     }
-  });
-
-  // 다크 모드 설정 가져오기 핸들러 추가
-  ipcMain.handle('get-dark-mode', () => {
-    debugLog('다크 모드 설정 요청 수신');
-    return appState.settings?.darkMode || false;
   });
 
   debugLog('IPC 핸들러 설정 완료');

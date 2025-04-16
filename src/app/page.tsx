@@ -5,6 +5,7 @@ import dynamic from 'next/dynamic';
 import HomeContent from './components/HomeContent';
 import styles from './page.module.css';
 import TypingAnalyzerWrapper from './components/TypingAnalyzerWrapper';
+import { MainLayout } from './components/MainLayout';
 
 // 네이티브 모듈 테스트 컴포넌트 동적 임포트
 const NativeModuleTest = dynamic(
@@ -28,20 +29,19 @@ export default function Home() {
   }
 
   return (
-    <main className={styles.main}>
-      <div className={styles.container}>
-        <h1 className={styles.title}>Loop</h1>
-        <p className={styles.description}>
-          Next.js와 Rust 네이티브 모듈 통합 테스트
-        </p>
+    <MainLayout>
+      <main className={styles.main}>
+        <div className={styles.container}>
+          <h1 className={styles.title}>Loop</h1>
+          <p className={styles.description}>
+            Next.js, React, TypeScript를 활용한 크로스 플랫폼 데스크톱 애플리케이션
+          </p>
 
-        {/* 네이티브 모듈 테스트 컴포넌트 */}
-        <NativeModuleTest />
-
-        {/* 기존 내용 유지 */}
-        <HomeContent />
-        <TypingAnalyzerWrapper />
-      </div>
-    </main>
+          {/* 기존 내용 유지 */}
+          <HomeContent />
+          <TypingAnalyzerWrapper />
+        </div>
+      </main>
+    </MainLayout>
   );
 }

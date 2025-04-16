@@ -2,11 +2,12 @@ const fs = require('fs');
 const path = require('path');
 const { settingsPath, appState } = require('./constants');
 const { debugLog } = require('./utils');
-const { app } = require('electron');
+const { app, nativeTheme } = require('electron');
+const { ensureDirectoryExists } = require('./utils/filesystem');
 
 /**
  * 설정 파일에서 설정 로드
- * @returns {boolean} 설정 로드 성공 여부
+ * @returns {Object} 로드된 설정 객체
  */
 async function loadSettings() {
   try {
@@ -21,21 +22,22 @@ async function loadSettings() {
       };
       
       debugLog('설정 파일 로드됨:', settingsPath);
-      return true;
+      return appState.settings;
     }
   } catch (err) {
     console.error('설정 로드 중 오류:', err);
   }
   
   debugLog('설정 파일이 없거나 손상되었음. 기본값 사용');
-  return false;
+  return appState.settings || defaultSettings;
 }
 
 /**
  * 현재 설정을 파일에 저장
- * @returns {boolean} 저장 성공 여부
+ * @param {Object} newSettings - 저장할 새 설정 객체
+ * @returns {Object} 저장된 설정 객체
  */
-function saveSettings(newSettings = null) {
+async function saveSettings(newSettings = null) {
   try {
     // 새 설정이 제공된 경우 현재 설정과 병합
     if (newSettings) {
@@ -53,10 +55,57 @@ function saveSettings(newSettings = null) {
     
     fs.writeFileSync(settingsPath, JSON.stringify(appState.settings, null, 2), 'utf8');
     debugLog('설정 저장됨:', settingsPath);
-    return true;
+    return appState.settings;
   } catch (err) {
     console.error('설정 저장 중 오류:', err);
-    return false;
+    return appState.settings || defaultSettings;
+  }
+}
+
+/**
+ * 다크 모드 설정 적용
+ * @param {boolean} isDarkMode - 다크 모드 활성화 여부
+ * @param {BrowserWindow} mainWindow - 적용할 메인 윈도우 인스턴스
+ */
+async function applyDarkMode(isDarkMode, mainWindow) {
+  try {
+    debugLog(`다크 모드 ${isDarkMode ? '활성화' : '비활성화'} 중...`);
+    
+    // 현재 설정 로드
+    const settings = await loadSettings();
+    
+    // 설정 업데이트
+    settings.darkMode = isDarkMode;
+    
+    // electron의 nativeTheme 설정
+    nativeTheme.themeSource = isDarkMode ? 'dark' : 'light';
+    
+    // 설정 저장
+    await saveSettings(settings);
+    
+    // 메인 윈도우가 있는 경우 렌더러에 테마 변경 이벤트 전송
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('theme-changed', isDarkMode ? 'dark' : 'light');
+      
+      // CSS 클래스 설정을 위한 스크립트 실행
+      const script = `
+        try {
+          document.documentElement.classList.${isDarkMode ? 'add' : 'remove'}('dark');
+          document.body.classList.${isDarkMode ? 'add' : 'remove'}('dark-mode');
+        } catch(e) {
+          console.error('테마 적용 중 오류:', e);
+        }
+      `;
+      
+      mainWindow.webContents.executeJavaScript(script)
+        .then(() => debugLog('테마 CSS 클래스 적용 완료'))
+        .catch(err => console.error('테마 CSS 클래스 적용 중 오류:', err));
+    }
+    
+    return isDarkMode;
+  } catch (error) {
+    console.error('다크 모드 적용 중 오류:', error);
+    return isDarkMode;
   }
 }
 
@@ -189,6 +238,20 @@ function applyWindowMode(mode) {
 // 기본 설정값
 const defaultSettings = {
   windowMode: 'windowed',
+  darkMode: false, // 기본값은 라이트 모드
+  minimizeToTray: true,
+  startMinimized: false,
+  autoLaunch: false,
+  alwaysOnTop: false,
+  notifications: true,
+  updates: {
+    checkAutomatically: true,
+    installAutomatically: false
+  },
+  windowBounds: {
+    width: 1200,
+    height: 800
+  },
   // 필요한 다른 설정들 추가
 };
 
@@ -204,6 +267,11 @@ function initSettings() {
     } else {
       currentSettings = { ...defaultSettings };
     }
+    
+    // 설정된 다크 모드 값을 시스템에 적용
+    if (currentSettings.darkMode !== undefined) {
+      nativeTheme.themeSource = currentSettings.darkMode ? 'dark' : 'light';
+    }
   } catch (error) {
     console.error('설정 초기화 중 오류:', error);
     currentSettings = { ...defaultSettings };
@@ -214,10 +282,22 @@ function initSettings() {
 // 설정 초기화 실행
 currentSettings = initSettings();
 
+/**
+ * 다크 모드 상태 가져오기
+ * @returns {boolean} 다크 모드 활성화 여부
+ */
+function getDarkMode() {
+  // 설정에서 다크 모드 값을 가져오고, 없으면 OS 기본값 사용
+  const settings = getSettings();
+  return settings.darkMode !== undefined ? settings.darkMode : nativeTheme.shouldUseDarkColors;
+}
+
 module.exports = {
   getSettings: () => currentSettings,
   getSetting: (key) => currentSettings[key],
   saveSettings,
   loadSettings,
-  applyWindowMode
+  applyWindowMode,
+  applyDarkMode,
+  getDarkMode
 };

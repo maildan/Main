@@ -148,6 +148,25 @@ const electronAPI = {
   },
 
   /**
+   * 테마 설정 저장 (다크 모드, 컬러 스키마 등)
+   * @param {Object} themeSettings - 테마 관련 설정 객체
+   * @returns {Promise<Object>} - 설정 저장 결과
+   */
+  setTheme: (themeSettings) => {
+    console.log('테마 설정 저장 요청:', themeSettings);
+    return ipcRenderer.invoke('set-theme', themeSettings);
+  },
+
+  /**
+   * 테마 설정 가져오기
+   * @returns {Promise<Object>} - 저장된 테마 설정
+   */
+  getTheme: () => {
+    console.log('테마 설정 요청');
+    return ipcRenderer.invoke('get-theme');
+  },
+
+  /**
    * 윈도우 컨트롤 함수
    * @param {string} command - 창 제어 명령 (minimize, maximize, close)
    */
@@ -464,6 +483,10 @@ contextBridge.exposeInMainWorld('restartAPI', {
   getDarkMode: () => {
     console.log('다크 모드 설정 요청');
     return ipcRenderer.invoke('get-dark-mode');
+  },
+  getTheme: () => {
+    console.log('테마 설정 요청 (재시작 창)');
+    return ipcRenderer.invoke('get-theme');
   }
 });
 

@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "./styles/theme-variables.css";
 
 :root {
   --background: #ffffff;
@@ -11,6 +12,19 @@
   --card-bg: #ffffff;
   --header-bg: #ffffff;
   --footer-bg: #f0f0f0;
+  --button-bg: #f5f5f5;
+  --button-hover-bg: #e0e0e0;
+  --button-text: #333;
+  --input-bg: #ffffff;
+  --input-border: #e0e0e0;
+  --input-text: #333;
+  --link-color: #0070f3;
+  --link-hover: #0056b3;
+  --shadow-color: rgba(0, 0, 0, 0.1);
+  --success-color: #00c853;
+  --error-color: #ff3d00;
+  --warning-color: #ffab00;
+  --info-color: #2196f3;
   
   /* @theme inline 대체 */
   --color-background: var(--background);
@@ -41,22 +55,34 @@ html.compact-ui, body.compact-ui {
   --element-spacing: 0.5rem;
 }
 
-/* 다크 모드 설정 */
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
-[data-theme='dark'] {
-  --foreground-color: #e0e0e0;
+/* 다크 모드 CSS 변수 */
+.dark-mode, html.dark-mode, body.dark-mode {
+  --background: #0a0a0a;
+  --foreground: #ededed;
+  --primary-color: #5e8efe;
   --background-color: #121212;
-  --card-background: #1e1e1e;
+  --text-color: #e0e0e0;
+  --text-secondary: #a0a0a0;
   --border-color: #333;
-  --accent-color: #5e8efe;
-  --hover-color: #4b7bfb;
-  --shadow-color: rgba(0, 0, 0, 0.2);
+  --card-bg: #1e1e1e;
+  --header-bg: #1a1a1a;
+  --footer-bg: #1a1a1a;
+  --button-bg: #2a2a2a;
+  --button-hover-bg: #3a3a3a;
+  --button-text: #e0e0e0;
+  --input-bg: #2a2a2a;
+  --input-border: #444;
+  --input-text: #e0e0e0;
+  --link-color: #5e8efe;
+  --link-hover: #4b7bfb;
+  --shadow-color: rgba(0, 0, 0, 0.3);
+  --success-color: #00c853;
+  --error-color: #ff5252;
+  --warning-color: #ffab00;
+  --info-color: #64b5f6;
+  
+  /* 시스템 색상 변경 */
+  color-scheme: dark;
 }
 
 body {
@@ -69,10 +95,45 @@ body {
   background-color: var(--background-color);
   color: var(--text-color);
   line-height: 1.6;
-  background-color: var(--background-color);
-  color: var(--foreground-color);
   transition: background-color 0.3s ease, color 0.3s ease;
   font-size: var(--font-size-base);
+}
+
+/* 전역 색상 변수 적용 */
+a {
+  color: var(--link-color);
+  text-decoration: none;
+  transition: color 0.3s ease;
+}
+
+a:hover {
+  color: var(--link-hover);
+  text-decoration: underline;
+}
+
+button, 
+.button {
+  background-color: var(--button-bg);
+  color: var(--button-text);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  padding: var(--button-padding);
+  transition: all 0.3s ease;
+}
+
+button:hover, 
+.button:hover {
+  background-color: var(--button-hover-bg);
+}
+
+input, 
+select, 
+textarea {
+  background-color: var(--input-bg);
+  color: var(--input-text);
+  border: 1px solid var(--input-border);
+  border-radius: var(--border-radius);
+  padding: var(--input-padding);
 }
 
 /* 압축 UI 버튼 스타일 */
@@ -175,13 +236,6 @@ body.fullscreen-auto-hide .appTabs {
   pointer-events: auto !important; /* 전역적으로 클릭 가능하게 함 */
 }
 
-/* 다크 모드 글로벌 스타일 */
-body.dark-mode,
-html.dark-mode {
-  background-color: #121212;
-  color: #e0e0e0;
-}
-
 /* 앱 컨테이너 패딩 조정 - 기본 윈도우 헤더가 표시되도록 */
 .appContainer {
   padding-top: 20px; /* 기본 윈도우 헤더 아래에 적절한 공간 확보 */
@@ -190,13 +244,6 @@ html.dark-mode {
 /* 자동 숨김 모드일 때 조정 */
 body.fullscreen-auto-hide .appContainer {
   padding-top: 0;
-}
-
-/* 다크 모드 글로벌 스타일 */
-body.dark-mode,
-html.dark-mode {
-  background-color: #121212;
-  color: #e0e0e0;
 }
 
 /* 다크 모드 전역 컨테이너 스타일 적용 */
@@ -536,4 +583,93 @@ h2 {
   .editor {
     min-height: 150px;
   }
+}
+
+/* 색상 테마 스키마 적용 */
+/* 블루 테마 - 라이트 모드 */
+:root.theme-blue {
+  --primary-color: var(--primary-color);
+  --link-color: var(--primary-color);
+  --link-hover: var(--primary-dark);
+}
+
+/* 블루 테마 - 다크 모드 */
+.dark-mode.theme-blue {
+  --primary-color: var(--primary-color);
+  --link-color: var(--primary-color);
+  --link-hover: var(--primary-light);
+}
+
+/* 그린 테마 - 라이트 모드 */
+:root.theme-green {
+  --primary-color: var(--primary-color);
+  --link-color: var(--primary-color);
+  --link-hover: var(--primary-dark);
+}
+
+/* 그린 테마 - 다크 모드 */
+.dark-mode.theme-green {
+  --primary-color: var(--primary-color);
+  --link-color: var(--primary-color);
+  --link-hover: var(--primary-light);
+}
+
+/* 퍼플 테마 - 라이트 모드 */
+:root.theme-purple {
+  --primary-color: var(--primary-color);
+  --link-color: var(--primary-color);
+  --link-hover: var(--primary-dark);
+}
+
+/* 퍼플 테마 - 다크 모드 */
+.dark-mode.theme-purple {
+  --primary-color: var(--primary-color);
+  --link-color: var(--primary-color);
+  --link-hover: var(--primary-light);
+}
+
+/* 고대비 테마 - 라이트 모드 */
+:root.theme-high-contrast {
+  --background: #ffffff;
+  --foreground: #000000;
+  --primary-color: var(--primary-color);
+  --background-color: #ffffff;
+  --text-color: #000000;
+  --text-secondary: #292929;
+  --border-color: #000000;
+  --card-bg: #ffffff;
+  --header-bg: #ffffff;
+  --footer-bg: #f0f0f0;
+  --button-bg: #e0e0e0;
+  --button-hover-bg: #cccccc;
+  --button-text: #000000;
+  --input-bg: #ffffff;
+  --input-border: #000000;
+  --input-text: #000000;
+  --link-color: var(--primary-color);
+  --link-hover: var(--primary-dark);
+  --shadow-color: rgba(0, 0, 0, 0.5);
+}
+
+/* 고대비 테마 - 다크 모드 */
+.dark-mode.theme-high-contrast {
+  --background: #000000;
+  --foreground: #ffffff;
+  --primary-color: var(--primary-color);
+  --background-color: #000000;
+  --text-color: #ffffff;
+  --text-secondary: #e0e0e0;
+  --border-color: #ffffff;
+  --card-bg: #000000;
+  --header-bg: #000000;
+  --footer-bg: #000000;
+  --button-bg: #333333;
+  --button-hover-bg: #444444;
+  --button-text: #ffffff;
+  --input-bg: #333333;
+  --input-border: #ffffff;
+  --input-text: #ffffff;
+  --link-color: var(--primary-color);
+  --link-hover: var(--primary-light);
+  --shadow-color: rgba(255, 255, 255, 0.5);
 }

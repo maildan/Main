@@ -5,6 +5,14 @@ const { debugLog } = require('./utils');
 const { createWindow, getMainWindow } = require('./window');
 const fs = require('fs');
 const http = require('http');
+const { Menu } = require('electron');
+
+// 메뉴바 제거
+function removeMenuBar() {
+  // 앱의 기본 메뉴바를 null로 설정하여 제거
+  Menu.setApplicationMenu(null);
+  debugLog('메뉴바가 제거되었습니다.');
+}
 
 // Next.js 서버가 준비되었는지 확인하는 함수
 function checkIfNextServerReady() {
@@ -101,6 +109,9 @@ if (!gotSingleInstanceLock) {
   app.on('ready', async () => {
     try {
       debugLog('앱 준비됨, Next.js 서버 확인 중...');
+      
+      // 메뉴바 제거 호출
+      removeMenuBar();
       
       // 개발 모드에서는 Next.js 서버 준비 상태 확인
       if (process.env.NODE_ENV === 'development') {

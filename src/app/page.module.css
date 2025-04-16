@@ -264,3 +264,38 @@
 .dark-mode .navLink:hover {
   background-color: #3a3a3a;
 }
+
+/* 테마 섹션 컨테이너 스타일 */
+.sectionContainer {
+  width: 100%;
+  margin: 2rem 0;
+  display: flex;
+  justify-content: center;
+}
+
+.themeSection {
+  max-width: 600px;
+  width: 100%;
+  margin: 0 auto;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
+}
+
+.dark-mode .themeSection {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.themeSection:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+}
+
+.dark-mode .themeSection:hover {
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+@media (max-width: 768px) {
+  .themeSection {
+    max-width: 90%;
+  }
+}

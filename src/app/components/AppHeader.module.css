@@ -276,6 +276,36 @@
   padding-right: 5px;
 }
 
+/* 테마 토글 버튼 스타일 */
+.themeToggleWrapper {
+  margin-right: 10px;
+  -webkit-app-region: no-drag;
+}
+
+.themeToggleButton {
+  width: 24px !important;
+  height: 24px !important;
+  min-width: 24px !important;
+  min-height: 24px !important;
+  padding: 2px !important;
+  -webkit-app-region: no-drag;
+}
+
+.darkMode .themeToggleButton svg {
+  color: #ffcc33;
+}
+
+.themeToggleButton:hover {
+  opacity: 0.8;
+}
+
+/* 윈도우 컨트롤 버튼 스타일 */
+.windowControls {
+  display: flex;
+  align-items: center;
+  -webkit-app-region: no-drag;
+}
+
 .appLogo {
   width: 16px;
   height: 16px;
@@ -283,11 +313,6 @@
 }
 
 /* 윈도우 컨트롤 버튼 */
-.windowControls {
-  display: flex;
-  align-items: center;
-}
-
 .controlButton {
   width: 32px;
   height: 28px;

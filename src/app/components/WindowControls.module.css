@@ -1,87 +1,82 @@
 .windowControls {
   display: flex;
   align-items: center;
-  gap: 8px; /* 노션 스타일 간격 */
+  gap: 6px;
   -webkit-app-region: no-drag;
   margin-right: 4px;
 }
 
-.windowButton {
-  position: relative;
+.controlButton {
   display: flex;
   justify-content: center;
   align-items: center;
-  width: 28px; /* 노션 스타일 크기 */
+  width: 28px;
   height: 28px;
   border: none;
   background: transparent;
   cursor: pointer;
-  transition: background-color 0.1s ease;
+  transition: all 0.15s ease;
   user-select: none;
-  border-radius: 3px;
+  border-radius: 4px;
   -webkit-app-region: no-drag;
-  overflow: visible;
   padding: 0;
   margin: 0;
-  color: rgba(55, 53, 47, 0.85); /* 노션 스타일 색상 */
+  color: var(--text-color-secondary, rgba(55, 53, 47, 0.85));
+  outline: none;
 }
 
-/* 버튼 내부 컨텐츠 스타일링 */ 
-.buttonContent {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  width: 100%;
-  height: 100%;
-  -webkit-app-region: no-drag;
-}
-
-.minimizeButton {
-  color: rgba(55, 53, 47, 0.85);
-}
-
-.maximizeButton {
-  color: rgba(55, 53, 47, 0.85);
-}
-
-.closeButton {
-  color: rgba(55, 53, 47, 0.85);
-}
-
-.minimizeButton:hover,
-.maximizeButton:hover {
-  background-color: rgba(55, 53, 47, 0.08); /* 노션 스타일 호버 효과 */
+.controlButton:hover {
+  background-color: var(--button-hover-bg, rgba(55, 53, 47, 0.08));
 }
 
 .closeButton:hover {
-  background-color: rgba(235, 87, 87, 0.1); /* 노션 스타일 빨간색 배경 */
-  color: rgb(235, 87, 87); /* 노션 스타일 빨간색 */
-}
-
-/* 다크 모드 */
-:global(body.dark-mode) .minimizeButton,
-:global(body.dark-mode) .maximizeButton,
-:global(body.dark-mode) .closeButton,
-:global(.dark-mode) .minimizeButton,
-:global(.dark-mode) .maximizeButton,
-:global(.dark-mode) .closeButton {
-  color: rgba(255, 255, 255, 0.81); /* 노션 다크모드 텍스트 색상 */
-}
-
-:global(body.dark-mode) .minimizeButton:hover,
-:global(body.dark-mode) .maximizeButton:hover,
-:global(.dark-mode) .minimizeButton:hover,
-:global(.dark-mode) .maximizeButton:hover {
-  background-color: rgba(255, 255, 255, 0.055); /* 노션 다크모드 호버 배경 */
-}
-
-:global(body.dark-mode) .closeButton:hover,
-:global(.dark-mode) .closeButton:hover {
-  background-color: rgba(235, 87, 87, 0.1);
+  background-color: rgba(235, 87, 87, 0.1); 
   color: rgb(235, 87, 87);
+}
+
+/* 다크 모드 스타일 */
+.darkMode {
+  color: var(--text-color, rgba(255, 255, 255, 0.9));
+}
+
+.darkMode .controlButton {
+  color: var(--text-color, rgba(255, 255, 255, 0.85));
+}
+
+.darkMode .controlButton:hover {
+  background-color: var(--button-hover-bg, rgba(255, 255, 255, 0.1));
+}
+
+.darkMode .closeButton:hover {
+  background-color: rgba(235, 87, 87, 0.2);
+  color: rgb(255, 97, 97);
+}
+
+/* 테마별 스타일 */
+:global(.theme-blue) .closeButton:hover {
+  background-color: rgba(66, 135, 245, 0.2);
+  color: rgb(82, 150, 255);
+}
+
+:global(.theme-green) .closeButton:hover {
+  background-color: rgba(67, 160, 71, 0.2);
+  color: rgb(76, 175, 80);
+}
+
+:global(.theme-purple) .closeButton:hover {
+  background-color: rgba(106, 27, 154, 0.2);
+  color: rgb(156, 39, 176);
+}
+
+:global(.theme-high-contrast) .controlButton {
+  color: var(--text-color);
+}
+
+:global(.theme-high-contrast) .controlButton:hover {
+  background-color: var(--button-hover-bg);
+}
+
+:global(.theme-high-contrast) .closeButton:hover {
+  background-color: #ff0000;
+  color: #ffffff;
 }

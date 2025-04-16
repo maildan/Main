@@ -266,6 +266,45 @@ contextBridge.exposeInMainWorld('electronAPI', {
    */
   toggleMiniView: () => {
     ipcRenderer.send('toggle-mini-view');
+  },
+
+  /**
+   * 앱 재시작 기능
+   * @returns {Promise<void>}
+   */
+  restartApp: () => {
+    console.log('앱 재시작 요청');
+    return new Promise((resolve, reject) => {
+      try {
+        ipcRenderer.once('restart-app-result', (_event, result) => {
+          if (result.success) {
+            resolve(result);
+          } else {
+            reject(new Error(result.error || '알 수 없는 오류로 재시작할 수 없습니다.'));
+          }
+        });
+        
+        ipcRenderer.send('restart-app');
+      } catch (error) {
+        console.error('재시작 요청 중 오류:', error);
+        reject(error);
+      }
+    });
+  },
+  
+  /**
+   * 재시작 프롬프트 표시
+   * @returns {Promise<boolean>}
+   */
+  showRestartPrompt: () => {
+    console.log('재시작 프롬프트 표시 요청');
+    return new Promise((resolve) => {
+      ipcRenderer.once('restart-prompt-result', (_event, result) => {
+        resolve(result);
+      });
+      
+      ipcRenderer.send('show-restart-prompt');
+    });
   }
 });
 

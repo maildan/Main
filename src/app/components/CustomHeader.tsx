@@ -2,7 +2,36 @@
 
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import styles from './CustomHeader.module.css';
-import { WindowControls } from './WindowControls';
+import { useTheme } from './ThemeProvider';
+
+// 앱 아이콘 컴포넌트
+function AppIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path 
+        d="M12 2L2 7L12 12L22 7L12 2Z" 
+        stroke="currentColor" 
+        strokeWidth="1.5" 
+        strokeLinecap="round" 
+        strokeLinejoin="round"
+      />
+      <path 
+        d="M2 17L12 22L22 17" 
+        stroke="currentColor" 
+        strokeWidth="1.5" 
+        strokeLinecap="round" 
+        strokeLinejoin="round"
+      />
+      <path 
+        d="M2 12L12 17L22 12" 
+        stroke="currentColor" 
+        strokeWidth="1.5" 
+        strokeLinecap="round" 
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
 
 // 아이콘 컴포넌트들
 function HomeIcon() {
@@ -14,24 +43,24 @@ function HomeIcon() {
   );
 }
 
-function CalendarIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <rect x="2" y="3.5" width="12" height="10" rx="1" stroke="currentColor" strokeWidth="1.2" />
-      <path d="M2 6.5H14" stroke="currentColor" strokeWidth="1.2" />
-      <path d="M5 2V5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-      <path d="M11 2V5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function StatsIcon() {
+function StatisticsIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
       <path d="M2 13.5H14" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
       <path d="M4 13.5V5.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
       <path d="M8 13.5V2.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
       <path d="M12 13.5V8.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function HistoryIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect x="2" y="3.5" width="12" height="10" rx="1" stroke="currentColor" strokeWidth="1.2" />
+      <path d="M2 6.5H14" stroke="currentColor" strokeWidth="1.2" />
+      <path d="M5 2V5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+      <path d="M11 2V5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
     </svg>
   );
 }
@@ -49,20 +78,33 @@ function SettingsIcon() {
   );
 }
 
+// Rust 테스트 아이콘
+function TestIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M3 8.5H13" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+      <path d="M3 4.5H13" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+      <path d="M3 12.5H13" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+      <circle cx="5.5" cy="4.5" r="1" fill="currentColor" />
+      <circle cx="8.5" cy="8.5" r="1" fill="currentColor" />
+      <circle cx="7.5" cy="12.5" r="1" fill="currentColor" />
+    </svg>
+  );
+}
+
 interface CustomHeaderProps {
   api: any;
-  isVisible: boolean;
-  autoHide: boolean;
+  isVisible?: boolean;
+  autoHide?: boolean;
   onVisibilityChange?: (isVisible: boolean) => void;
 }
 
-export function CustomHeader({ api, isVisible, autoHide, onVisibilityChange }: CustomHeaderProps) {
+export function CustomHeader({ api, isVisible = true, autoHide = false, onVisibilityChange }: CustomHeaderProps) {
   const headerRef = useRef<HTMLDivElement>(null);
-  const detectionAreaRef = useRef<HTMLDivElement>(null);
-  const mouseInsideHeader = useRef(false);
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const { isDarkMode } = useTheme();
   
   const [activeTab, setActiveTab] = useState('monitor'); // 기본값은 'monitor' 탭
+  const [showAppMenu, setShowAppMenu] = useState(false);
   
   // 탭 변경 핸들러
   const handleTabChange = (tab: string) => {
@@ -72,121 +114,126 @@ export function CustomHeader({ api, isVisible, autoHide, onVisibilityChange }: C
     }
   };
 
-  // 마우스 감지 영역 이벤트 핸들러를 메모이제이션
-  const handleDetectionAreaEnter = useCallback(() => {
-    if (autoHide) {
-      onVisibilityChange && onVisibilityChange(true);
-    }
-  }, [autoHide, onVisibilityChange]);
-  
-  // 헤더 마우스 이벤트 핸들러를 메모이제이션
-  const handleMouseEnter = useCallback(() => {
-    mouseInsideHeader.current = true;
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-      timeoutRef.current = null;
-    }
-    onVisibilityChange && onVisibilityChange(true);
-  }, [onVisibilityChange]);
-  
-  const handleMouseLeave = useCallback(() => {
-    mouseInsideHeader.current = false;
-    // 마우스가 헤더를 떠나면 타이머 설정
-    if (autoHide && !timeoutRef.current) {
-      timeoutRef.current = setTimeout(() => {
-        if (!mouseInsideHeader.current) {
-          onVisibilityChange && onVisibilityChange(false);
-        }
-        timeoutRef.current = null;
-      }, 600);
-    }
-  }, [autoHide, onVisibilityChange]);
+  // 앱 아이콘 클릭 핸들러
+  const handleAppIconClick = useCallback(() => {
+    setShowAppMenu(!showAppMenu);
+  }, [showAppMenu]);
 
-  // 컴포넌트 마운트 시 이벤트 리스너 설정
+  // 외부 클릭 시 앱 메뉴 닫기
   useEffect(() => {
-    if (detectionAreaRef.current) {
-      detectionAreaRef.current.addEventListener('mouseenter', handleDetectionAreaEnter);
-    }
-    
-    if (headerRef.current) {
-      headerRef.current.addEventListener('mouseenter', handleMouseEnter);
-      headerRef.current.addEventListener('mouseleave', handleMouseLeave);
-    }
-    
-    return () => {
-      if (detectionAreaRef.current) {
-        detectionAreaRef.current.removeEventListener('mouseenter', handleDetectionAreaEnter);
-      }
-      
-      if (headerRef.current) {
-        headerRef.current.removeEventListener('mouseenter', handleMouseEnter);
-        headerRef.current.removeEventListener('mouseleave', handleMouseLeave);
-      }
-      
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
+    const handleClickOutside = (e: MouseEvent) => {
+      if (showAppMenu && headerRef.current && !headerRef.current.contains(e.target as Node)) {
+        setShowAppMenu(false);
       }
     };
-  }, [handleDetectionAreaEnter, handleMouseEnter, handleMouseLeave]);
+
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, [showAppMenu]);
+
+  // Rust 네이티브 모듈 테스트 핸들러
+  const handleOpenRustTest = useCallback(() => {
+    if (api && api.onSwitchTab) {
+      api.onSwitchTab('rustTest');
+      setShowAppMenu(false);
+    }
+  }, [api, setShowAppMenu]);
 
   return (
-    <>
-      {autoHide && (
-        <div 
-          ref={detectionAreaRef}
-          className={styles.headerDetectionArea}
-          data-testid="header-detection-area"
-        />
-      )}
-      
-      <header
+    <div 
+      className={`${styles.toolbarContainer} ${isDarkMode ? styles.darkMode : ''}`}
+      data-testid="custom-toolbar"
         ref={headerRef}
-        className={`${styles.customHeader} ${!isVisible ? styles.hidden : ''}`}
-        data-testid="custom-header"
-      >
-        <div className={styles.dragArea}>
-          <div className={styles.leftSection}>
-            <div className={styles.iconBar}>
-              <button 
-                className={`${styles.toolbarIcon} ${activeTab === 'monitor' ? styles.active : ''}`}
-                onClick={() => handleTabChange('monitor')}
-                title="모니터링"
-                data-no-drag="true"
-              >
-                <HomeIcon />
-              </button>
-              <button 
-                className={`${styles.toolbarIcon} ${activeTab === 'stats' ? styles.active : ''}`}
-                onClick={() => handleTabChange('stats')}
-                title="통계"
-                data-no-drag="true"
-              >
-                <StatsIcon />
-              </button>
-              <button 
-                className={`${styles.toolbarIcon} ${activeTab === 'history' ? styles.active : ''}`}
-                onClick={() => handleTabChange('history')}
-                title="히스토리"
-                data-no-drag="true"
-              >
-                <CalendarIcon />
-              </button>
-              <button 
-                className={`${styles.toolbarIcon} ${activeTab === 'settings' ? styles.active : ''}`}
-                onClick={() => handleTabChange('settings')}
-                title="설정"
-                data-no-drag="true"
-              >
-                <SettingsIcon />
-              </button>
+    >
+      <div className={styles.innerToolbar}>
+        <div className={styles.iconBar}>
+          {/* 앱 아이콘 버튼 추가 */}
+          <button 
+            className={`${styles.toolbarIcon} ${styles.appIconButton}`}
+            onClick={handleAppIconClick}
+            title="앱 메뉴"
+            data-no-drag="true"
+            aria-label="앱 메뉴"
+          >
+            <AppIcon />
+          </button>
+          
+          <button 
+            className={`${styles.toolbarIcon} ${activeTab === 'monitor' ? styles.active : ''}`}
+            onClick={() => handleTabChange('monitor')}
+            title="홈"
+            data-no-drag="true"
+          >
+            <HomeIcon />
+          </button>
+          <button 
+            className={`${styles.toolbarIcon} ${activeTab === 'stats' ? styles.active : ''}`}
+            onClick={() => handleTabChange('stats')}
+            title="분석"
+            data-no-drag="true"
+          >
+            <StatisticsIcon />
+          </button>
+          <button 
+            className={`${styles.toolbarIcon} ${activeTab === 'history' ? styles.active : ''}`}
+            onClick={() => handleTabChange('history')}
+            title="차트"
+            data-no-drag="true"
+          >
+            <HistoryIcon />
+          </button>
+          <button 
+            className={`${styles.toolbarIcon} ${activeTab === 'rustTest' ? styles.active : ''}`}
+            onClick={() => handleTabChange('rustTest')}
+            title="Rust 테스트"
+            data-no-drag="true"
+          >
+            <TestIcon />
+          </button>
+          <button 
+            className={`${styles.toolbarIcon} ${activeTab === 'settings' ? styles.active : ''}`}
+            onClick={() => handleTabChange('settings')}
+            title="설정"
+            data-no-drag="true"
+          >
+            <SettingsIcon />
+          </button>
+        </div>
+        
+        {/* 앱 메뉴 팝업 */}
+        {showAppMenu && (
+          <div className={styles.appMenu}>
+            <div className={styles.appMenuHeader}>
+              <span className={styles.appMenuTitle}></span>
+            </div>
+            <div className={styles.appMenuItem} onClick={() => {
+              if (api && api.onSwitchTab) {
+                api.onSwitchTab('settings');
+                setShowAppMenu(false);
+              }
+            }}>
+              <span>설정</span>
+            </div>
+            <div className={styles.appMenuItem} onClick={handleOpenRustTest}>
+              <span>테스트</span>
+            </div>
+            <div className={styles.appMenuItem} onClick={() => {
+              if (api && api.restartApp) {
+                api.restartApp();
+              }
+            }}>
+              <span>앱 재시작</span>
+            </div>
+            <div className={styles.appMenuSeparator} />
+            <div className={styles.appMenuItem} onClick={() => {
+              alert('앱을 종료하려면 창의 닫기 버튼을 사용하세요.');
+              setShowAppMenu(false);
+            }}>
+              <span>종료</span>
             </div>
           </div>
-          
-          <div className={styles.rightSection}>
-            <WindowControls api={api} />
-          </div>
-        </div>
-      </header>
-    </>
+        )}
+      </div>
+    </div>
   );
 }

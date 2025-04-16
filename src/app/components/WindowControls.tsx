@@ -2,64 +2,16 @@
 
 import React from 'react';
 import styles from './WindowControls.module.css';
+import { useTheme } from './ThemeProvider';
 
 interface WindowControlsProps {
-  api: any; // api prop 타입 정의 추가
+  onMinimize?: () => void;
+  onMaximize?: () => void;
+  onClose?: () => void;
+  electronAPI?: any;
+  className?: string;
 }
 
-export function WindowControls({ api }: WindowControlsProps) {
-  const handleMinimize = () => {
-    if (api && typeof api.windowControl === 'function') {
-      api.windowControl('minimize');
-    }
-  };
-
-  const handleMaximize = () => {
-    if (api && typeof api.windowControl === 'function') {
-      api.windowControl('maximize');
-    }
-  };
-
-  const handleClose = () => {
-    if (api && typeof api.windowControl === 'function') {
-      api.windowControl('close');
-    }
-  };
-
-  return (
-    <div className={styles.windowControls}>
-      <button 
-        className={`${styles.windowButton} ${styles.minimizeButton}`} 
-        onClick={handleMinimize}
-        aria-label="최소화"
-      >
-        <div className={styles.buttonContent}>
-          <MinimizeIcon />
-        </div>
-      </button>
-      <button 
-        className={`${styles.windowButton} ${styles.maximizeButton}`} 
-        onClick={handleMaximize}
-        aria-label="최대화"
-      >
-        <div className={styles.buttonContent}>
-          <MaximizeIcon />
-        </div>
-      </button>
-      <button 
-        className={`${styles.windowButton} ${styles.closeButton}`} 
-        onClick={handleClose}
-        aria-label="닫기"
-      >
-        <div className={styles.buttonContent}>
-          <CloseIcon />
-        </div>
-      </button>
-    </div>
-  );
-}
-
-// 노션 스타일 아이콘 컴포넌트들
 function MinimizeIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -99,5 +51,70 @@ function CloseIcon() {
         strokeLinecap="round" 
       />
     </svg>
+  );
+}
+
+export default function WindowControls({ 
+  onMinimize, 
+  onMaximize, 
+  onClose, 
+  electronAPI,
+  className = '' 
+}: WindowControlsProps) {
+  const { isDarkMode } = useTheme();
+
+  const handleMinimize = () => {
+    if (electronAPI && electronAPI.windowControl) {
+      electronAPI.windowControl('minimize');
+    } else if (onMinimize) {
+      onMinimize();
+    }
+  };
+
+  const handleMaximize = () => {
+    if (electronAPI && electronAPI.windowControl) {
+      electronAPI.windowControl('maximize');
+    } else if (onMaximize) {
+      onMaximize();
+    }
+  };
+
+  const handleClose = () => {
+    if (electronAPI && electronAPI.windowControl) {
+      electronAPI.windowControl('close');
+    } else if (onClose) {
+      onClose();
+    }
+  };
+
+  return (
+    <div className={`${styles.windowControls} ${isDarkMode ? styles.darkMode : ''} ${className}`}>
+      <button 
+        className={styles.controlButton} 
+        onClick={handleMinimize}
+        aria-label="최소화"
+        title="최소화"
+      >
+        <MinimizeIcon />
+      </button>
+      
+      <button 
+        className={styles.controlButton}
+        onClick={handleMaximize}
+        aria-label="최대화"
+        title="최대화"
+      >
+        <MaximizeIcon />
+      </button>
+      
+      <button 
+        className={`${styles.controlButton} ${styles.closeButton}`}
+        onClick={handleClose}
+        aria-label="닫기"
+        title="닫기"
+      >
+        <CloseIcon />
+      </button>
+    </div>
   );
 }

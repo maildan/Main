@@ -15,7 +15,7 @@ interface AppHeaderProps {
 }
 
 export function AppHeader({
-  title = '타이핑 통계',
+  title = 'loop',
   isVisible = true,
   autoHide = false,
   electronAPI,
@@ -268,8 +268,8 @@ export function AppHeader({
         </div>
 
         {/* 우측: 윈도우 컨트롤 버튼 - 윈도우 OS에서는 네이티브 컨트롤 사용하지 않음 */}
-        {!isOSWindows && (
-          <div className={styles.rightControls}>
+        <div className={styles.rightControls}>
+          {!isOSWindows && (
             <div className={styles.windowControls}>
               <button 
                 className={styles.controlButton} 
@@ -293,8 +293,8 @@ export function AppHeader({
                 &#x2715;
               </button>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </header>
     </>
   );

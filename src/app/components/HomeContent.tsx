@@ -15,6 +15,8 @@ import { useTabNavigation } from '../hooks/useTabNavigation';
 import { useMemoryManagement } from '../hooks/useMemoryManagement';
 import { useAutoHideHeader } from '../hooks/useAutoHideHeader';
 import { optimizeImageResources } from '../utils/memory/image-optimizer';
+import { useTheme } from './ThemeProvider';
+import styles from './HomeContent.module.css';
 
 // LogEntry 타입 정의 추가
 interface LogEntry {
@@ -193,6 +195,8 @@ export const HomeContent = React.memo(function HomeContent() {
     };
   }, [electronAPI]);
 
+  const { isDarkMode } = useTheme();
+
   const renderContent = useCallback(() => {
     switch (activeTab) {
       case 'monitor':
@@ -225,11 +229,13 @@ export const HomeContent = React.memo(function HomeContent() {
               initialSettings={{
                 ...settings,
                 useTypingAnalysisGpuAcceleration: false,
-                showKeyCountInHeader: true, // 필요한 누락된 속성 추가
-                showRealtimeWPM: true,      // 필요한 누락된 속성 추가
-                enableSoundEffects: false,  // 필요한 누락된 속성 추가
-                enableAnimations: true,     // 필요한 누락된 속성 추가
-                useCompactUI: false         // 필요한 누락된 속성 추가
+                showKeyCountInHeader: true,
+                showRealtimeWPM: true,
+                enableSoundEffects: false,
+                enableAnimations: true,
+                useCompactUI: false,
+                colorScheme: 'default',
+                useSystemTheme: false
               }}
               darkMode={darkMode}
               onDarkModeChange={handleDarkModeChange}
@@ -274,7 +280,9 @@ export const HomeContent = React.memo(function HomeContent() {
         debugMode={debugMode}
       />
       
-      {renderContent()}
+      <div className={`${styles.homeContent} ${isDarkMode ? styles.darkMode : ''}`}>
+        {renderContent()}
+      </div>
       
       <DebugPanel
         isVisible={debugMode}
