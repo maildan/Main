@@ -5,6 +5,7 @@ html, body {
   height: 100vh;
   background: var(--bg-color);
   color: var(--text-color);
+  transition: background 0.7s ease, color 0.7s ease;
 }
 
 .logo.vite:hover {
@@ -257,7 +258,7 @@ button {
   height: 100vh;
   width: 100vw;
   overflow: hidden;
-  transition: grid-template-columns 0.3s ease;
+  transition: all 0.3s ease;
 }
 
 .app-layout.nav-closed {
@@ -275,6 +276,7 @@ button {
   background: var(--header-bg);
   z-index: 10;
   position: relative;
+  transition: all 0.7s ease;
 }
 
 .hamburger-menu {
@@ -366,21 +368,32 @@ button {
   padding: 0.5rem;
   width: 180px;
   overflow: hidden;
-  transition: width 0.3s ease;
+  transition: all 0.1s ease; /* 0.3s ease-in-out에서 0.1s ease로 변경 */
+  transform-origin: left center;
+  transition: all 0.7s ease;
 }
 
 .nav-closed .app-sidebar {
+  width: 0;
   padding: 0;
+  opacity: 0;
+  transform: translateX(-20px);
+}
+
+.nav-open .app-sidebar {
+  width: 180px;
+  opacity: 1;
+  transform: translateX(0);
 }
 
 .app-content {
   grid-area: content;
-  background-color: #18181b;
+  background-color: var(--background-color);
   overflow: auto;
   padding: 1rem;
   display: flex;
   flex-direction: column;
-  transition: padding 0.3s ease;
+  transition: all 0.7s ease;
 }
 
 .navigation {
@@ -388,6 +401,18 @@ button {
   flex-direction: column;
   gap: 0.5rem;
   width: 180px;
+  opacity: 1;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.nav-closed .navigation {
+  opacity: 0;
+  transform: translateX(-20px);
+}
+
+.nav-open .navigation {
+  opacity: 1;
+  transform: translateX(0);
 }
 
 .nav-button {
@@ -397,7 +422,7 @@ button {
   color: #fff;
   border: 1px solid #3f3f46;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.7s ease;
   font-size: 0.9rem;
   text-align: left;
   width: 100%;
@@ -422,8 +447,8 @@ button {
 }
 
 .section-panel {
-  background-color: #fff;
-  color: #333;
+  background-color: var(--panel-bg);
+  color: var(--panel-text);
   border-radius: 10px;
   padding: 20px;
   width: 100%;
@@ -432,14 +457,15 @@ button {
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
   display: flex;
   flex-direction: column;
+  transition: all 0.7s ease;
 }
 
 .section-header {
   font-size: 1.5rem;
   font-weight: 600;
   margin-bottom: 20px;
-  color: #333;
-  border-bottom: 1px solid #eaeaea;
+  color: var(--panel-text);
+  border-bottom: 1px solid var(--border-color);
   padding-bottom: 10px;
 }
 
@@ -448,7 +474,8 @@ button {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #999;
+  color: var(--panel-text);
+  opacity: 0.6;
   font-size: 1.2rem;
 }
 
@@ -625,12 +652,16 @@ input:checked + .toggle-track .toggle-indicator {
   color: #6366f1;
 }
 
-/* 다크/라이트 모드 전역 스타일 */
+/* 테마 관련 글로벌 변수 */
 [data-theme="light"] {
   --background-color: #f9fafb;
   --text-color: #1f2937;
   --card-bg: #ffffff;
   --border-color: #e5e7eb;
+  --panel-bg: #ffffff;
+  --panel-text: #333333;
+  --header-bg: #f3f4f6;
+  --sidebar-bg: #f3f4f6;
 }
 
 [data-theme="dark"] {
@@ -638,18 +669,47 @@ input:checked + .toggle-track .toggle-indicator {
   --text-color: #f6f6f6;
   --card-bg: #27272a;
   --border-color: #3f3f46;
+  --panel-bg: #27272a;
+  --panel-text: #ffffff;
+  --header-bg: #27272a;
+  --sidebar-bg: #27272a;
 }
 
-.theme-light .app-header,
-.theme-light .app-sidebar,
-.theme-light .app-content {
-  background: var(--background-color);
+[data-theme="dark"] .nav-button {
+  background-color: #27272a;
+  color: #f6f6f6;
+  border-color: #3f3f46;
 }
 
-.theme-dark .app-header,
-.theme-dark .app-sidebar,
-.theme-dark .app-content {
-  background: var(--background-color);
+[data-theme="light"] .nav-button {
+  background-color: #f3f4f6;
+  color: #1f2937;
+  border-color: #d1d5db;
+}
+
+[data-theme="dark"] .nav-button.active {
+  background-color: #4f46e5;
+  color: #fff;
+  border-color: #6366f1;
+}
+
+[data-theme="dark"] .nav-button:hover:not(.active) {
+  background-color: #3f3f46;
+}
+
+/* 테마 전환 애니메이션 클래스 */
+.theme-transition {
+  transition: color 0.7s ease, 
+              background-color 0.7s ease,
+              border-color 0.7s ease,
+              box-shadow 0.7s ease;
+}
+
+.theme-transition * {
+  transition: color 0.7s ease, 
+              background-color 0.7s ease,
+              border-color 0.7s ease,
+              box-shadow 0.7s ease !important;
 }
 
 @media (prefers-color-scheme: light) {
@@ -794,13 +854,13 @@ input:checked + .toggle-track .toggle-indicator {
   }
   
   .section-panel {
-    background-color: #fff;
-    color: #333;
+    background-color: var(--panel-bg);
+    color: var(--panel-text);
   }
   
   .section-header {
-    color: #333;
-    border-bottom-color: #eaeaea;
+    color: var(--panel-text);
+    border-bottom-color: var(--border-color);
   }
 }
 
@@ -814,11 +874,6 @@ input:checked + .toggle-track .toggle-indicator {
   padding: 15px;
   border-radius: 8px;
   z-index: 1000;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-  max-width: 300px;
-  animation: slideIn 0.3s ease;
-}
-
 .error-message p {
   margin: 0 0 10px 0;
 }
@@ -846,4 +901,5 @@ input:checked + .toggle-track .toggle-indicator {
     transform: translateX(0);
     opacity: 1;
   }
+}
 }

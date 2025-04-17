@@ -9,7 +9,6 @@ pub fn render_error_message(app: &tauri::AppHandle, error_state: Arc<Mutex<Optio
     };
 
     if let Some(message) = error_message {
-        // emit_all 대신 emit 사용
         app.emit("show_error", message).unwrap();
     }
 }

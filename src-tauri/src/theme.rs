@@ -2,6 +2,7 @@ use crate::types::{Theme, ThemeState};
 use std::sync::{Arc, Mutex};
 
 /// 테마 상태를 관리하는 구조체
+#[allow(dead_code)]
 #[derive(Debug, Default)]
 pub struct ThemeManager {
     state: Arc<Mutex<ThemeState>>,
@@ -16,12 +17,14 @@ impl ThemeManager {
     }
 
     /// 현재 테마를 가져옵니다.
+    #[allow(dead_code)]
     pub fn get_theme(&self) -> Theme {
         let state = self.state.lock().unwrap();
         state.theme
     }
 
     /// 테마를 전환합니다.
+    #[allow(dead_code)]
     pub fn toggle_theme(&self) {
         let mut state = self.state.lock().unwrap();
         state.toggle_theme();
