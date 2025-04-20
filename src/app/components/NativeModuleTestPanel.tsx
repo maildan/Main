@@ -1,126 +1,133 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { 
-  getMemoryInfo, 
-  optimizeMemory, 
-  forceGarbageCollection, 
-  getGpuInfo 
-} from '../utils/nativeModuleClient';
 import styles from './NativeModuleTestPanel.module.css';
 import NativeModuleStatus from './NativeModuleStatus';
+import { MemoryInfo } from '@/types';
+import { GpuInfo } from '@/types';
+import { OptimizationLevel } from '@/types/optimization-level';
 
-export default function NativeModuleTestPanel() {
-  const [memoryInfo, setMemoryInfo] = useState<any>(null);
-  const [gpuInfo, setGpuInfo] = useState<any>(null);
+interface NativeModuleTestPanelProps {
+  // props 정의
+}
+
+const NativeModuleTestPanel: React.FC<NativeModuleTestPanelProps> = (): React.ReactNode => {
+  const [memoryInfo, setMemoryInfo] = useState<MemoryInfo | null>(null);
+  const [gpuInfo, setGpuInfo] = useState<any | null>(null);
   const [optimizationResult, setOptimizationResult] = useState<any>(null);
   const [gcResult, setGcResult] = useState<any>(null);
-  const [loading, setLoading] = useState<{ [key: string]: boolean }>({});
-  const [error, setError] = useState<string | null>(null);
-  
-  // 로딩 상태 설정 헬퍼 함수
+  const [loadingStates, setLoadingStates] = useState<Record<string, boolean>>({});
+  const [errorStates, setErrorStates] = useState<Record<string, string | null>>({});
+
   const setLoadingState = (key: string, isLoading: boolean) => {
-    setLoading(prev => ({ ...prev, [key]: isLoading }));
+    setLoadingStates(prev => ({ ...prev, [key]: isLoading }));
+    if (isLoading) setErrorStates(prev => ({ ...prev, [key]: null }));
   };
-  
-  // 메모리 정보 가져오기
+
   const fetchMemoryInfo = async () => {
+    setLoadingState('memory', true);
     try {
-      setLoadingState('memory', true);
-      setError(null);
-      
-      const response = await getMemoryInfo();
-      setMemoryInfo(response.memoryInfo);
-    } catch (err) {
-      console.error('메모리 정보 가져오기 오류:', err);
-      setError(err instanceof Error ? err.message : '메모리 정보를 가져오는 중 오류가 발생했습니다');
+      const response = await fetch('/api/native/memory');
+      if (!response.ok) throw new Error(`API Error: ${response.statusText}`);
+      const data = await response.json();
+      if (data.success && data.data) {
+        setMemoryInfo(data.data);
+      } else {
+        throw new Error(data.error || 'Failed to fetch memory info');
+      }
+    } catch (err: any) {
+      setErrorStates(prev => ({ ...prev, memory: err.message }));
     } finally {
       setLoadingState('memory', false);
     }
   };
-  
-  // GPU 정보 가져오기
+
   const fetchGpuInfo = async () => {
+    setLoadingState('gpu', true);
     try {
-      setLoadingState('gpu', true);
-      setError(null);
-      
-      const response = await getGpuInfo();
-      setGpuInfo(response);
-    } catch (err) {
-      console.error('GPU 정보 가져오기 오류:', err);
-      setError(err instanceof Error ? err.message : 'GPU 정보를 가져오는 중 오류가 발생했습니다');
+      const response = await fetch('/api/native/gpu');
+      if (!response.ok) throw new Error(`API Error: ${response.statusText}`);
+      const data = await response.json();
+      setGpuInfo(data);
+      if (!data.success) {
+        console.warn('GPU Info API did not return success, might be fallback info:', data);
+      }
+    } catch (err: any) {
+      setErrorStates(prev => ({ ...prev, gpu: err.message }));
     } finally {
       setLoadingState('gpu', false);
     }
   };
-  
-  // 메모리 최적화 수행
-  const performMemoryOptimization = async (level: number = 2) => {
+
+  const performMemoryOptimization = async (level: OptimizationLevel = OptimizationLevel.MEDIUM) => {
+    setLoadingState('optimize', true);
+    setOptimizationResult(null);
     try {
-      setLoadingState('optimize', true);
-      setError(null);
-      
-      const response = await optimizeMemory(level, level === 4);
-      setOptimizationResult(response.result);
-    } catch (err) {
-      console.error('메모리 최적화 오류:', err);
-      setError(err instanceof Error ? err.message : '메모리 최적화 중 오류가 발생했습니다');
+      const response = await fetch('/api/native/memory/optimize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ level }),
+      });
+      if (!response.ok) throw new Error(`API Error: ${response.statusText}`);
+      const data = await response.json();
+      setOptimizationResult(data);
+      fetchMemoryInfo();
+    } catch (err: any) {
+      setErrorStates(prev => ({ ...prev, optimize: err.message }));
     } finally {
       setLoadingState('optimize', false);
     }
   };
-  
-  // 가비지 컬렉션 수행
+
   const performGarbageCollection = async () => {
+    setLoadingState('gc', true);
+    setGcResult(null);
     try {
-      setLoadingState('gc', true);
-      setError(null);
-      
-      const response = await forceGarbageCollection();
-      setGcResult(response.result);
-    } catch (err) {
-      console.error('가비지 컬렉션 오류:', err);
-      setError(err instanceof Error ? err.message : '가비지 컬렉션 중 오류가 발생했습니다');
+      const response = await fetch('/api/native/memory', { method: 'DELETE' });
+      if (!response.ok) throw new Error(`API Error: ${response.statusText}`);
+      const data = await response.json();
+      setGcResult(data);
+      fetchMemoryInfo();
+    } catch (err: any) {
+      setErrorStates(prev => ({ ...prev, gc: err.message }));
     } finally {
       setLoadingState('gc', false);
     }
   };
-  
-  // 컴포넌트 마운트 시 초기 데이터 로드
+
   useEffect(() => {
     fetchMemoryInfo();
     fetchGpuInfo();
   }, []);
-  
+
   return (
     <div className={styles.container}>
       <h2 className={styles.title}>네이티브 모듈 테스트 패널</h2>
-      
+
       {/* 네이티브 모듈 상태 */}
       <div className={styles.section}>
         <h3 className={styles.sectionTitle}>네이티브 모듈 상태</h3>
         <NativeModuleStatus />
       </div>
-      
+
       {/* 오류 표시 */}
-      {error && (
+      {errorStates.memory && (
         <div className={styles.error}>
-          <p>오류: {error}</p>
+          <p>오류: {errorStates.memory}</p>
         </div>
       )}
-      
+
       {/* 메모리 정보 */}
       <div className={styles.section}>
         <h3 className={styles.sectionTitle}>메모리 정보</h3>
-        <button 
+        <button
           className={styles.button}
           onClick={fetchMemoryInfo}
-          disabled={loading.memory}
+          disabled={loadingStates.memory}
         >
-          {loading.memory ? '로딩 중...' : '메모리 정보 가져오기'}
+          {loadingStates.memory ? '로딩 중...' : '메모리 정보 가져오기'}
         </button>
-        
+
         {memoryInfo && (
           <div className={styles.infoContainer}>
             <p>힙 사용량: {Math.round(memoryInfo.heap_used_mb * 10) / 10} MB</p>
@@ -131,97 +138,88 @@ export default function NativeModuleTestPanel() {
           </div>
         )}
       </div>
-      
+
       {/* 메모리 최적화 */}
       <div className={styles.section}>
         <h3 className={styles.sectionTitle}>메모리 최적화</h3>
         <div className={styles.buttonGroup}>
-          <button 
+          <button
             className={`${styles.button} ${styles.levelLow}`}
-            onClick={() => performMemoryOptimization(1)}
-            disabled={loading.optimize}
+            onClick={() => performMemoryOptimization(OptimizationLevel.LOW)}
+            disabled={loadingStates.optimize || loadingStates.gc}
           >
-            가벼운 최적화
+            Optimize (Low)
           </button>
-          <button 
+          <button
             className={`${styles.button} ${styles.levelMedium}`}
-            onClick={() => performMemoryOptimization(2)}
-            disabled={loading.optimize}
+            onClick={() => performMemoryOptimization(OptimizationLevel.MEDIUM)}
+            disabled={loadingStates.optimize || loadingStates.gc}
           >
-            중간 최적화
+            Optimize (Medium)
           </button>
-          <button 
+          <button
             className={`${styles.button} ${styles.levelHigh}`}
-            onClick={() => performMemoryOptimization(3)}
-            disabled={loading.optimize}
+            onClick={() => performMemoryOptimization(OptimizationLevel.HIGH)}
+            disabled={loadingStates.optimize || loadingStates.gc}
           >
-            높은 최적화
+            Optimize (High)
           </button>
-          <button 
+          <button
             className={`${styles.button} ${styles.levelCritical}`}
-            onClick={() => performMemoryOptimization(4)}
-            disabled={loading.optimize}
+            onClick={() => performMemoryOptimization(OptimizationLevel.AGGRESSIVE)}
+            disabled={loadingStates.optimize || loadingStates.gc}
           >
-            긴급 최적화
+            Optimize (Aggressive)
           </button>
         </div>
-        
-        {loading.optimize && <p className={styles.loading}>최적화 진행 중...</p>}
-        
+
+        {loadingStates.optimize && <p className={styles.loading}>Optimizing...</p>}
+        {errorStates.optimize && <p className={styles.error}>Optimize Error: {errorStates.optimize}</p>}
         {optimizationResult && (
-          <div className={styles.infoContainer}>
-            <p>최적화 레벨: {optimizationResult.optimization_level}</p>
-            <p>해제된 메모리: {optimizationResult.freed_mb} MB</p>
-            <p>소요 시간: {optimizationResult.duration} ms</p>
-            <p>성공 여부: {optimizationResult.success ? '성공' : '실패'}</p>
-            {optimizationResult.error && <p>오류: {optimizationResult.error}</p>}
-          </div>
+          <pre className={styles.resultBox}>Optimize Result: {JSON.stringify(optimizationResult, null, 2)}</pre>
         )}
       </div>
-      
+
       {/* 가비지 컬렉션 */}
       <div className={styles.section}>
         <h3 className={styles.sectionTitle}>가비지 컬렉션</h3>
-        <button 
+        <button
           className={styles.button}
           onClick={performGarbageCollection}
-          disabled={loading.gc}
+          disabled={loadingStates.optimize || loadingStates.gc}
         >
-          {loading.gc ? 'GC 수행 중...' : '가비지 컬렉션 수행'}
+          {loadingStates.gc ? 'Running GC...' : 'Force GC'}
         </button>
-        
+
+        {loadingStates.gc && <p>Running GC...</p>}
+        {errorStates.gc && <p className={styles.error}>GC Error: {errorStates.gc}</p>}
         {gcResult && (
-          <div className={styles.infoContainer}>
-            <p>해제된 메모리: {gcResult.freed_mb} MB</p>
-            <p>소요 시간: {gcResult.duration} ms</p>
-            <p>성공 여부: {gcResult.success ? '성공' : '실패'}</p>
-            {gcResult.error && <p>오류: {gcResult.error}</p>}
-          </div>
+          <pre className={styles.resultBox}>GC Result: {JSON.stringify(gcResult, null, 2)}</pre>
         )}
       </div>
-      
+
       {/* GPU 정보 */}
       <div className={styles.section}>
         <h3 className={styles.sectionTitle}>GPU 정보</h3>
-        <button 
+        <button
           className={styles.button}
           onClick={fetchGpuInfo}
-          disabled={loading.gpu}
+          disabled={loadingStates.gpu}
         >
-          {loading.gpu ? '로딩 중...' : 'GPU 정보 가져오기'}
+          {loadingStates.gpu ? '로딩 중...' : 'GPU 정보 가져오기'}
         </button>
-        
+
         {gpuInfo && (
           <div className={styles.infoContainer}>
-            <p>가용성: {gpuInfo.available ? '사용 가능' : '사용 불가'}</p>
-            <p>이름: {gpuInfo.gpuInfo?.name || 'N/A'}</p>
-            <p>벤더: {gpuInfo.gpuInfo?.vendor || 'N/A'}</p>
-            <p>드라이버: {gpuInfo.gpuInfo?.driver_info || 'N/A'}</p>
-            <p>디바이스 타입: {gpuInfo.gpuInfo?.device_type || 'N/A'}</p>
-            <p>백엔드: {gpuInfo.gpuInfo?.backend || 'N/A'}</p>
+            <p>GPU 이름: {gpuInfo.gpuInfo?.name || gpuInfo.name || 'N/A'}</p>
+            <p>제조사: {gpuInfo.gpuInfo?.vendor || gpuInfo.vendor || 'N/A'}</p>
+            <p>사용 가능: {gpuInfo.gpuInfo?.available !== undefined ? (gpuInfo.gpuInfo.available ? '예' : '아니오') : (gpuInfo.available ? '예' : '아니오')}</p>
+            <p>가속 활성화: {gpuInfo.gpuInfo?.acceleration_enabled !== undefined ? (gpuInfo.gpuInfo.acceleration_enabled ? '예' : '아니오') : (gpuInfo.acceleration_enabled ? '예' : '아니오')}</p>
           </div>
         )}
       </div>
     </div>
   );
-}
+};
+
+export default NativeModuleTestPanel;

@@ -2,39 +2,31 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import styles from './TypingMonitor.module.css';
+import { TypingStatsState } from '../hooks/useTypingStats';
 
-interface TypingMonitorProps {
-  stats: {
-    keyCount: number;
-    typingTime: number;
-    windowTitle: string;
-    browserName?: string;
-    totalChars?: number;
-    totalCharsNoSpace?: number;
-    totalWords?: number;
-    pages?: number;
-    accuracy?: number;
-  };
+// Props 인터페이스 정의 및 export
+export interface TypingMonitorProps {
+  stats: TypingStatsState | null;
   isTracking: boolean;
   onStartTracking: () => void;
   onStopTracking: () => void;
-  onSaveStats: (content: string) => void;
+  onSaveStats: () => void;
 }
 
 // 포맷 함수를 컴포넌트 외부로 이동하여 렌더링마다 재생성되지 않도록 함
 const formatTime = (seconds: number): string => {
   if (seconds < 60) return `${seconds}초`;
-  
+
   const minutes = Math.floor(seconds / 60);
   const remainingSeconds = seconds % 60;
-  
+
   if (minutes < 60) {
     return `${minutes}분 ${remainingSeconds}초`;
   }
-  
+
   const hours = Math.floor(minutes / 60);
   const remainingMinutes = minutes % 60;
-  
+
   return `${hours}시간 ${remainingMinutes}분 ${remainingSeconds}초`;
 };
 
@@ -44,18 +36,18 @@ const getAverageSpeed = (keyCount: number, time: number): string => {
   return `${Math.round((keyCount / time) * 60)} 타/분`;
 };
 
-export const TypingMonitor = React.memo(function TypingMonitor({ 
-  stats, 
-  isTracking, 
-  onStartTracking, 
+export const TypingMonitor = React.memo<TypingMonitorProps>(function TypingMonitor({
+  stats,
+  isTracking,
+  onStartTracking,
   onStopTracking,
-  onSaveStats
+  onSaveStats,
 }: TypingMonitorProps) {
   const [description, setDescription] = useState('');
   const [lastAction, setLastAction] = useState<string>('');
   const [activeWebsiteTab, setActiveWebsiteTab] = useState<string>('docs');
-  const [activeStatsTab, setActiveStatsTab] = useState<string>('typing'); 
-  
+  const [activeStatsTab, setActiveStatsTab] = useState<string>('typing');
+
   // 브라우저 체크 결과를 ref로 변경하여 리렌더링 방지
   const browserCheckResultRef = React.useRef<{
     name: string | null;
@@ -80,7 +72,7 @@ export const TypingMonitor = React.memo(function TypingMonitor({
     if (isTracking) {
       // 초기 확인
       checkBrowserInfo();
-      
+
       // 더 긴 간격(30초)으로 업데이트하여 리소스 사용 감소
       const interval = setInterval(checkBrowserInfo, 30000);
       return () => clearInterval(interval);
@@ -93,10 +85,10 @@ export const TypingMonitor = React.memo(function TypingMonitor({
   }, []);
 
   const handleSave = useCallback(() => {
-    onSaveStats(description);
+    onSaveStats();
     setDescription('');
     setLastAction('저장됨');
-    
+
     // 2초 후 메시지 제거
     setTimeout(() => {
       setLastAction('');
@@ -203,17 +195,17 @@ export const TypingMonitor = React.memo(function TypingMonitor({
           <div className={styles.statsGroup}>
             <div className={styles.statCard}>
               <div className={styles.statLabel}>타자 수</div>
-              <div className={styles.statValue}>{stats.keyCount.toLocaleString()}</div>
+              <div className={styles.statValue}>{stats?.keyCount.toLocaleString() || '0'}</div>
             </div>
-            
+
             <div className={styles.statCard}>
               <div className={styles.statLabel}>타이핑 시간</div>
-              <div className={styles.statValue}>{formatTime(stats.typingTime)}</div>
+              <div className={styles.statValue}>{formatTime(stats?.typingTime || 0)}</div>
             </div>
-            
+
             <div className={styles.statCard}>
               <div className={styles.statLabel}>평균 속도</div>
-              <div className={styles.statValue}>{getAverageSpeed(stats.keyCount, stats.typingTime)}</div>
+              <div className={styles.statValue}>{getAverageSpeed(stats?.keyCount || 0, stats?.typingTime || 0)}</div>
             </div>
           </div>
         );
@@ -222,17 +214,17 @@ export const TypingMonitor = React.memo(function TypingMonitor({
           <div className={styles.statsGroup}>
             <div className={styles.statCard}>
               <div className={styles.statLabel}>페이지 수</div>
-              <div className={styles.statValue}>{stats.pages?.toFixed(1) || '0.0'}</div>
+              <div className={styles.statValue}>{stats?.pages?.toFixed(1) || '0.0'}</div>
             </div>
-            
+
             <div className={styles.statCard}>
               <div className={styles.statLabel}>단어 수</div>
-              <div className={styles.statValue}>{stats.totalWords?.toLocaleString() || '0'}</div>
+              <div className={styles.statValue}>{stats?.totalWords?.toLocaleString() || '0'}</div>
             </div>
-            
+
             <div className={styles.statCard}>
               <div className={styles.statLabel}>글자 수</div>
-              <div className={styles.statValue}>{stats.totalChars?.toLocaleString() || '0'}</div>
+              <div className={styles.statValue}>{stats?.totalChars?.toLocaleString() || '0'}</div>
             </div>
           </div>
         );
@@ -241,12 +233,12 @@ export const TypingMonitor = React.memo(function TypingMonitor({
           <div className={styles.statsGroup}>
             <div className={styles.statCard}>
               <div className={styles.statLabel}>글자 수 (공백 제외)</div>
-              <div className={styles.statValue}>{stats.totalCharsNoSpace?.toLocaleString() || '0'}</div>
+              <div className={styles.statValue}>{stats?.totalCharsNoSpace?.toLocaleString() || '0'}</div>
             </div>
-            
+
             <div className={styles.statCard}>
               <div className={styles.statLabel}>정확도</div>
-              <div className={styles.statValue}>{stats.accuracy || 100}%</div>
+              <div className={styles.statValue}>{stats?.accuracy?.toFixed(2) || '100.00'}%</div>
             </div>
           </div>
         );
@@ -259,7 +251,7 @@ export const TypingMonitor = React.memo(function TypingMonitor({
     <div className={styles.container}>
       <div className={styles.monitorHeader}>
         <h2>타이핑 모니터링</h2>
-        <button 
+        <button
           className={`${styles.trackingButton} ${isTracking ? styles.trackingActive : ''}`}
           onClick={handleToggleTracking}
         >
@@ -270,12 +262,12 @@ export const TypingMonitor = React.memo(function TypingMonitor({
       <div className={styles.statusIndicator}>
         <div className={`${styles.indicator} ${isTracking ? styles.active : ''}`}></div>
         <span>모니터링 상태: <strong>{isTracking ? '활성화' : '비활성화'}</strong></span>
-        
+
         {lastAction && (
           <div className={styles.actionFeedback}>{lastAction}</div>
         )}
       </div>
-      
+
       <div className={styles.contentWrapper}>
         <div className={styles.leftPanel}>
           <div className={styles.browserStatus}>
@@ -284,10 +276,10 @@ export const TypingMonitor = React.memo(function TypingMonitor({
               <div className={styles.browserRow}>
                 <span>감지된 브라우저:</span>
                 <span className={styles.browserValue}>
-                  {stats.browserName || browserCheckResultRef.current?.name || '없음'}
+                  {stats?.browserName || browserCheckResultRef.current?.name || '없음'}
                 </span>
               </div>
-              
+
               <div className={styles.browserRow}>
                 <span>구글 문서 감지:</span>
                 <span className={styles.browserValue}>
@@ -298,51 +290,51 @@ export const TypingMonitor = React.memo(function TypingMonitor({
                   )}
                 </span>
               </div>
-              
+
               <div className={styles.browserRow}>
                 <span>현재 창:</span>
-                <span className={styles.browserValue} title={stats.windowTitle || browserCheckResultRef.current?.title || ''}>
-                  {(stats.windowTitle || browserCheckResultRef.current?.title || '없음').substring(0, 60)}
-                  {(stats.windowTitle || browserCheckResultRef.current?.title || '').length > 60 ? '...' : ''}
+                <span className={styles.browserValue} title={stats?.windowTitle || browserCheckResultRef.current?.title || ''}>
+                  {(stats?.windowTitle || browserCheckResultRef.current?.title || '없음').substring(0, 60)}
+                  {(stats?.windowTitle || browserCheckResultRef.current?.title || '').length > 60 ? '...' : ''}
                 </span>
               </div>
             </div>
           </div>
-          
+
           <div className={styles.websiteTabs}>
             <div className={styles.websiteTabHeader}>
-              <button 
+              <button
                 className={`${styles.websiteTabButton} ${activeWebsiteTab === 'docs' ? styles.activeWebsiteTab : ''}`}
                 onClick={() => handleWebsiteTabChange('docs')}
               >
                 구글 문서
               </button>
-              <button 
+              <button
                 className={`${styles.websiteTabButton} ${activeWebsiteTab === 'office' ? styles.activeWebsiteTab : ''}`}
                 onClick={() => handleWebsiteTabChange('office')}
               >
                 오피스
               </button>
-              <button 
+              <button
                 className={`${styles.websiteTabButton} ${activeWebsiteTab === 'coding' ? styles.activeWebsiteTab : ''}`}
                 onClick={() => handleWebsiteTabChange('coding')}
               >
                 코딩
               </button>
-              <button 
+              <button
                 className={`${styles.websiteTabButton} ${activeWebsiteTab === 'sns' ? styles.activeWebsiteTab : ''}`}
                 onClick={() => handleWebsiteTabChange('sns')}
               >
                 SNS/메신저
               </button>
             </div>
-            
+
             <div className={styles.websiteTabContent}>
               {websiteTabContent}
             </div>
           </div>
         </div>
-        
+
         <div className={styles.rightPanel}>
           {/* 통계 패널을 탭 형식으로 변경 */}
           <div className={styles.statsTabs}>
@@ -365,11 +357,11 @@ export const TypingMonitor = React.memo(function TypingMonitor({
               정확도 & 속도
             </button>
           </div>
-          
+
           <div className={styles.statsTabContent}>
             {statsTabContent}
           </div>
-          
+
           <div className={styles.saveSection}>
             <h3>세션 저장</h3>
             <p>작업한 내용에 대한 설명을 입력하세요</p>
@@ -380,10 +372,10 @@ export const TypingMonitor = React.memo(function TypingMonitor({
               placeholder="작업 내용 (예: 보고서 작성, 논문 작성 등)"
               rows={4}
             />
-            <button 
-              className={styles.saveButton} 
+            <button
+              className={styles.saveButton}
               onClick={handleSave}
-              disabled={stats.keyCount === 0 || !description.trim()}
+              disabled={!stats || stats.keyCount === 0 || !description.trim()}
             >
               통계 저장
             </button>

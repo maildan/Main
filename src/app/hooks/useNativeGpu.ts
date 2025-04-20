@@ -1,110 +1,133 @@
 import { useState, useEffect, useCallback } from 'react';
-import { 
-  getGpuInfo, 
-  setGpuAcceleration,
-  performGpuComputation
-} from '../utils/nativeModuleClient';
-import type { GpuInfo, GpuComputationResult } from '@/types/native-module';
+import { nativeModuleClient } from '../utils/nativeModuleClient';
+import {
+  GpuInfo,
+  GpuComputationResult,
+  GpuTaskType
+} from '@/types';
 
 /**
  * 네이티브 GPU 가속 훅
  * 네이티브 모듈을 사용한 GPU 가속 기능을 제공합니다.
  */
-export function useNativeGpu() {
+
+// GpuAccelerationStatus 인터페이스 임시 정의 (필요시 @/types/index.ts 로 이동)
+interface GpuAccelerationStatus {
+  available: boolean;
+  enabled: boolean;
+  info?: GpuInfo;
+  error?: string;
+  timestamp?: number;
+}
+
+// 인터페이스 정의 추가
+interface UseNativeGpuOptions {
+  autoFetch?: boolean;
+  interval?: number;
+}
+
+interface UseNativeGpuResult {
+  gpuInfo: GpuInfo | null;
+  accelerationStatus: GpuAccelerationStatus | null;
+  loading: {
+    info: boolean;
+    acceleration: boolean;
+    computation: boolean;
+  };
+  error: string | null;
+  fetchGpuInfo: () => Promise<void>;
+  updateGpuAcceleration: (enable: boolean) => Promise<boolean>;
+  executeGpuTask: <T>(taskType: GpuTaskType, data: any) => Promise<GpuComputationResult | null>;
+}
+
+export function useNativeGpu(options: UseNativeGpuOptions = {}): UseNativeGpuResult {
+  const { autoFetch = true, interval = 30000 } = options; // 기본값 설정
+
   const [gpuInfo, setGpuInfo] = useState<GpuInfo | null>(null);
-  const [available, setAvailable] = useState<boolean>(false);
-  const [enabled, setEnabled] = useState<boolean>(false);
-  const [loading, setLoading] = useState<boolean>(false);
+  const [accelerationStatus, setAccelerationStatus] = useState<GpuAccelerationStatus | null>(null);
+  // loading 상태를 객체로 변경
+  const [loading, setLoading] = useState({
+    info: false,
+    acceleration: false,
+    computation: false,
+  });
   const [error, setError] = useState<string | null>(null);
-  const [lastComputationResult, setLastComputationResult] = useState<GpuComputationResult | null>(null);
 
   // GPU 정보 가져오기
   const fetchGpuInfo = useCallback(async () => {
-    setLoading(true);
+    setLoading(prev => ({ ...prev, info: true }));
     setError(null);
-    
     try {
-      const response = await getGpuInfo();
-      
-      if (response.success) {
-        setGpuInfo(response.gpuInfo || null);
-        setAvailable(response.available);
-        setEnabled(response.gpuInfo?.acceleration_enabled || false);
-      } else {
-        setError('GPU 정보를 가져오는데 실패했습니다.');
+      const info: GpuInfo = await nativeModuleClient.getGpuInfo();
+      setGpuInfo(info);
+      if (info) {
+        setAccelerationStatus((prev: GpuAccelerationStatus | null) => ({
+          ...(prev || { available: false, enabled: false }),
+          available: true,
+          enabled: info.isHardwareAccelerated,
+          info: info,
+        }));
       }
-    } catch (err) {
-      console.error('GPU 정보 가져오기 오류:', err);
-      setError(err instanceof Error ? err.message : '알 수 없는 오류');
+    } catch (err: any) {
+      setError(err.message || 'GPU 정보 로드 실패');
+      setAccelerationStatus({ available: false, enabled: false, error: err.message });
     } finally {
-      setLoading(false);
+      setLoading(prev => ({ ...prev, info: false }));
     }
   }, []);
 
-  // GPU 가속 활성화/비활성화
-  const toggleGpuAcceleration = useCallback(async (enable: boolean) => {
-    setLoading(true);
+  // GPU 가속 설정
+  const updateGpuAcceleration = useCallback(async (enable: boolean) => {
+    setLoading(prev => ({ ...prev, acceleration: true }));
     setError(null);
-    
     try {
-      const response = await setGpuAcceleration(enable);
-      
-      if (response.success) {
-        setEnabled(response.enabled);
-        // GPU 정보 업데이트
+      const result = await nativeModuleClient.setGpuAcceleration(enable);
+      if (result.success) {
         await fetchGpuInfo();
-        return response.result;
+        setAccelerationStatus(prev => ({ ...(prev || { available: false, enabled: false }), enabled: enable }));
+        return true;
       } else {
-        setError(response.error || 'GPU 가속 설정 변경 실패');
-        return false;
+        throw new Error(result.error || 'GPU acceleration setting failed');
       }
-    } catch (err) {
-      console.error('GPU 가속 변경 오류:', err);
-      setError(err instanceof Error ? err.message : '알 수 없는 오류');
+    } catch (err: any) {
+      setError(err.message || 'GPU 가속 설정 실패');
       return false;
     } finally {
-      setLoading(false);
+      setLoading(prev => ({ ...prev, acceleration: false }));
     }
   }, [fetchGpuInfo]);
 
-  // GPU 계산 수행
-  const computeWithGpu = useCallback(async <T = any>(data: any, computationType: string) => {
-    setLoading(true);
+  // GPU 계산 실행
+  const executeGpuTask = useCallback(async <T>(taskType: GpuTaskType, data: any): Promise<GpuComputationResult | null> => {
+    setLoading(prev => ({ ...prev, computation: true }));
     setError(null);
-    
     try {
-      const response = await performGpuComputation<T>(data, computationType);
-      
-      if (response.success && response.result) {
-        setLastComputationResult(response.result);
-        return response.result;
-      } else {
-        setError(response.error || 'GPU 계산 실패');
-        return null;
-      }
-    } catch (err) {
-      console.error('GPU 계산 오류:', err);
-      setError(err instanceof Error ? err.message : '알 수 없는 오류');
+      const result = await nativeModuleClient.performGpuComputation(data, taskType);
+      return result;
+    } catch (err: any) {
+      setError(err.message || 'GPU 계산 실패');
       return null;
     } finally {
-      setLoading(false);
+      setLoading(prev => ({ ...prev, computation: false }));
     }
   }, []);
 
-  // 초기 로드 시 GPU 정보 가져오기
+  // 초기 로드 및 주기적 업데이트
   useEffect(() => {
-    fetchGpuInfo();
-  }, [fetchGpuInfo]);
+    if (autoFetch) {
+      fetchGpuInfo();
+      const intervalId = setInterval(fetchGpuInfo, interval);
+      return () => clearInterval(intervalId);
+    }
+  }, [autoFetch, interval, fetchGpuInfo]);
 
   return {
     gpuInfo,
-    available,
-    enabled,
+    accelerationStatus,
     loading,
     error,
-    lastComputationResult,
     fetchGpuInfo,
-    toggleGpuAcceleration,
-    computeWithGpu,
+    updateGpuAcceleration,
+    executeGpuTask,
   };
 }

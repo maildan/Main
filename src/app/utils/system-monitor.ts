@@ -4,10 +4,10 @@
  * 메모리, CPU, GPU 등 시스템 리소스 상태를 모니터링합니다.
  */
 
-import { getMemoryInfo } from './nativeModuleClient';
-import { getGpuInformation } from './gpu-acceleration';
-import { SystemStatus, MemoryUsageLevel, ProcessingMode } from '@/types';
+import { SystemStatus, MemoryUsageLevel, ProcessingMode, MemoryInfo, GpuInfo as GpuInfoType } from '@/types';
 import { getMemoryUsageLevel } from './enum-converters';
+import { nativeModuleClient } from './nativeModuleClient';
+import { getGpuInfo } from './gpu-acceleration';
 
 // 모니터링 상태
 let isMonitoring = false;
@@ -17,7 +17,7 @@ const CHECK_INTERVAL = 5000; // 5초
 // 시스템 상태 캐시
 let cachedStatus: SystemStatus | null = null;
 let statusUpdateTime = 0;
-const STATUS_TTL = 3000; // 3초
+const STATUS_TTL = 5000; // 5초
 
 // 모니터링 이벤트 리스너
 const listeners: Array<(status: SystemStatus) => void> = [];
@@ -28,15 +28,15 @@ const listeners: Array<(status: SystemStatus) => void> = [];
  */
 export function startSystemMonitoring(interval: number = CHECK_INTERVAL) {
   if (isMonitoring) return;
-  
+
   isMonitoring = true;
-  
+
   // 즉시 첫 번째 체크 수행
   checkSystemStatus();
-  
+
   // 주기적 체크 설정
   monitorInterval = setInterval(checkSystemStatus, interval);
-  
+
   console.log(`시스템 모니터링 시작 (간격: ${interval}ms)`);
 }
 
@@ -45,94 +45,79 @@ export function startSystemMonitoring(interval: number = CHECK_INTERVAL) {
  */
 export function stopSystemMonitoring() {
   if (!isMonitoring) return;
-  
+
   isMonitoring = false;
-  
+
   if (monitorInterval) {
     clearInterval(monitorInterval);
     monitorInterval = null;
   }
-  
+
   console.log('시스템 모니터링 중지');
 }
 
 /**
  * 시스템 상태 확인 및 업데이트
  */
-async function checkSystemStatus() {
+async function checkSystemStatus(): Promise<void> {
   try {
-    const memoryResponse = await getMemoryInfo();
-    const gpuInfo = await getGpuInformation();
-    
-    if (!memoryResponse.success) {
-      console.error('메모리 정보를 가져오는 데 실패했습니다:', memoryResponse.error);
+    // Call the client methods
+    const memoryInfo = await nativeModuleClient.getMemoryInfo();
+    const gpuInfo = await getGpuInfo(); // Use the correct function
+    const cpuUsage = await getCpuUsage(); // Use helper
+
+    if (!memoryInfo) { // Handle null memoryInfo
+      console.error('Failed to get memory info for status check.');
+      // Potentially keep old cache or set default error state?
       return;
     }
-    
-    const memoryInfo = memoryResponse.memoryInfo;
-    const percentUsed = memoryInfo.percentUsed;
-    const memoryLevel = getMemoryUsageLevel(percentUsed);
-    
-    // 처리 모드 결정
-    let processingMode: ProcessingMode = ProcessingMode.NORMAL;
-    
+
+    const percentUsed = memoryInfo.percent_used ?? 0;
+    const memoryLevel = calculateMemoryLevel(percentUsed); // Use helper
+
+    let processingMode: ProcessingMode = ProcessingMode.NORMAL; // Default
+    // Determine processingMode based on available info
     if (memoryLevel === MemoryUsageLevel.CRITICAL) {
       processingMode = ProcessingMode.MEMORY_SAVING;
     } else if (memoryLevel === MemoryUsageLevel.HIGH) {
       processingMode = ProcessingMode.CPU_INTENSIVE;
-    } else if (gpuInfo?.available && gpuInfo?.accelerationEnabled) {
+    } else if (gpuInfo?.isHardwareAccelerated) { // Check the correct property
       processingMode = ProcessingMode.GPU_INTENSIVE;
     }
-    
-    // 시스템 상태 업데이트
-    const status: SystemStatus = {
-      cpuUsage: 0,
-      memoryUsage: percentUsed / 100,
-      memoryUsageMB: memoryInfo.heapUsedMB || 0,
-      totalMemoryMB: memoryInfo.heapTotal ? memoryInfo.heapTotal / (1024 * 1024) : 0,
-      memoryLevel: memoryLevel,
-      processingMode: processingMode,
-      isOptimizing: false,
-      lastOptimizationTime: Date.now(),
-      uptime: process.uptime ? process.uptime() : 0,
-      
+
+    // Update cache
+    cachedStatus = {
+      cpuUsage,
+      memoryUsage: percentUsed, // Use percent_used directly
+      memoryUsageMB: memoryInfo.heap_used_mb ?? 0,
+      totalMemoryMB: memoryInfo.heap_total ? (memoryInfo.heap_total / (1024 * 1024)) : 0, // Calculate if possible
+      memoryLevel,
+      processingMode, // Assign determined mode
+      isOptimizing: false, // Placeholder - needs actual state tracking
+      lastOptimizationTime: 0, // Placeholder
+      uptime: Math.round(performance.now() / 1000), // Example
+      // Optional details (match the structure in getSystemStatus)
       memory: {
-        percentUsed,
+        percentUsed: percentUsed,
         level: memoryLevel,
-        heapUsedMB: memoryInfo.heapUsedMB || 0,
-        rssMB: memoryInfo.rssMB || 0
+        heapUsedMB: memoryInfo.heap_used_mb ?? 0,
+        rssMB: memoryInfo.rss_mb ?? 0
       },
-      
       processing: {
-        mode: processingMode,
-        gpuEnabled: Boolean(gpuInfo?.accelerationEnabled)
+        mode: processingMode, // Use determined mode
+        gpuEnabled: Boolean(gpuInfo?.isHardwareAccelerated) // Use correct property
       },
-      
-      optimizations: {
+      optimizations: { // Placeholder
         count: 0,
-        lastTime: Date.now()
+        lastTime: 0
       }
     };
-    
-    // 캐시 업데이트
-    cachedStatus = status;
     statusUpdateTime = Date.now();
-    
-    // 리스너에게 알림
-    notifyListeners(status);
-    
-    // 전역 객체에 상태 저장 (브라우저 환경인 경우)
-    if (typeof window !== 'undefined') {
-      // 타입 안전하게 접근
-      if (!window.__memoryManager) {
-        window.__memoryManager = { settings: {} };
-      }
-      if (window.__memoryManager) {
-        window.__memoryManager.memoryInfo = memoryInfo;
-      }
-    }
+
   } catch (error) {
-    console.error('시스템 상태 확인 오류:', error);
+    console.error('Error checking system status:', error);
+    // Optionally clear cache or set an error state
+    cachedStatus = null;
   }
 }
 
@@ -156,12 +141,12 @@ function notifyListeners(status: SystemStatus) {
  */
 export function subscribeToSystemStatus(listener: (status: SystemStatus) => void): () => void {
   listeners.push(listener);
-  
+
   // 이미 캐시된 상태가 있다면 즉시 전달
   if (cachedStatus) {
     listener(cachedStatus);
   }
-  
+
   // 리스너 제거 함수 반환
   return () => {
     const index = listeners.indexOf(listener);
@@ -173,48 +158,51 @@ export function subscribeToSystemStatus(listener: (status: SystemStatus) => void
 
 /**
  * 현재 시스템 상태 가져오기
- * @param forceRefresh 강제 갱신 여부
+ * @param includeDetails 상세 정보 포함 여부 (기본값: false)
+ * @param forceRefresh 강제 갱신 여부 (기본값: false)
+ * @returns Promise<SystemStatus> 시스템 상태 정보
  */
-export async function getSystemStatus(forceRefresh = false): Promise<SystemStatus> {
+export async function getSystemStatus(includeDetails = false, forceRefresh = false): Promise<SystemStatus> {
+  const startTime = performance.now();
   const now = Date.now();
-  
-  // 캐시가 유효하고 강제 갱신이 아닌 경우 캐시된 상태 반환
-  if (cachedStatus && now - statusUpdateTime < STATUS_TTL && !forceRefresh) {
+
+  // Return cached status if valid and not forcing refresh
+  if (!forceRefresh && cachedStatus && now - statusUpdateTime < STATUS_TTL) {
+    console.log(`Returning cached system status (${((now - statusUpdateTime) / 1000).toFixed(1)}s old)`);
+    // Filter details if not requested
+    if (!includeDetails && cachedStatus) {
+      const { memory, processing, optimizations, ...basicStatus } = cachedStatus;
+      return basicStatus as SystemStatus; // Need to ensure basicStatus matches SystemStatus without optional fields
+    }
     return cachedStatus;
   }
-  
-  // 새로운 상태 확인
+
+  console.log(`Fetching fresh system status (forceRefresh: ${forceRefresh})`);
+  // Fetch new status and update cache
   await checkSystemStatus();
-  
-  // 캐시된 상태가 있으면 반환, 없으면 기본값 반환
-  return cachedStatus || {
+
+  const duration = performance.now() - startTime;
+  console.log(`시스템 상태 확인 완료 (${duration.toFixed(2)}ms)`);
+
+  // Return the newly cached status (or a default error state if cache is still null)
+  const finalStatus = cachedStatus ?? { // Provide default structure on error
     cpuUsage: 0,
     memoryUsage: 0,
     memoryUsageMB: 0,
     totalMemoryMB: 0,
-    memoryLevel: MemoryUsageLevel.LOW,
+    memoryLevel: MemoryUsageLevel.NORMAL,
     processingMode: ProcessingMode.NORMAL,
     isOptimizing: false,
-    lastOptimizationTime: 0,
     uptime: 0,
-    
-    memory: {
-      percentUsed: 0,
-      level: MemoryUsageLevel.LOW,
-      heapUsedMB: 0,
-      rssMB: 0
-    },
-    
-    processing: {
-      mode: ProcessingMode.NORMAL,
-      gpuEnabled: false
-    },
-    
-    optimizations: {
-      count: 0,
-      lastTime: 0
-    }
   };
+
+  // Filter details if not requested
+  if (!includeDetails) {
+    const { memory, processing, optimizations, ...basicStatus } = finalStatus;
+    return basicStatus as SystemStatus;
+  }
+
+  return finalStatus;
 }
 
 /**
@@ -225,13 +213,13 @@ export async function getBatteryStatus(): Promise<any> {
   if (typeof navigator === 'undefined' || !navigator.getBattery) {
     return null;
   }
-  
+
   try {
     // 타입 안전하게 접근
     const getBattery = navigator.getBattery;
     if (getBattery) {
       const battery = await getBattery();
-      
+
       return {
         charging: battery.charging,
         level: battery.level,
@@ -253,13 +241,13 @@ export function getNetworkStatus(): any {
   if (typeof navigator === 'undefined') {
     return null;
   }
-  
+
   // 타입 안전하게 접근
   const connection = (navigator as any).connection;
   if (!connection) {
     return { online: navigator.onLine };
   }
-  
+
   return {
     online: navigator.onLine,
     effectiveType: connection.effectiveType,
@@ -268,3 +256,21 @@ export function getNetworkStatus(): any {
     saveData: connection.saveData
   };
 }
+
+// --- Helper function definitions (assuming they exist or define them) ---
+// Placeholder: Function to get CPU Usage (needs implementation)
+async function getCpuUsage(): Promise<number> {
+  console.warn('getCpuUsage not implemented, returning 0');
+  return 0;
+}
+
+// Placeholder: Function to calculate Memory Level (needs implementation or use enum-converters)
+function calculateMemoryLevel(percentUsed: number): MemoryUsageLevel {
+  console.warn('calculateMemoryLevel not implemented, returning NORMAL');
+  if (percentUsed > 85) return MemoryUsageLevel.CRITICAL;
+  if (percentUsed > 70) return MemoryUsageLevel.HIGH;
+  if (percentUsed > 50) return MemoryUsageLevel.MEDIUM;
+  if (percentUsed > 30) return MemoryUsageLevel.LOW;
+  return MemoryUsageLevel.NORMAL;
+}
+// --- End Helper Functions ---

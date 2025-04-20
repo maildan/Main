@@ -1,7 +1,11 @@
 import nativeModule from '@/server/native';
 import { NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 
-export async function GET() {
+/**
+ * 메모리 최적화 실행 API
+ */
+export async function POST(_request: NextRequest): Promise<NextResponse> {
   try {
     let result;
     let usedNativeFn = false;

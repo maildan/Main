@@ -1,26 +1,26 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import styles from './RestartLoading.module.css';
 
 interface RestartLoadingProps {
   message?: string;
   isVisible: boolean;
-  onClose?: () => void;
+  _onClose: () => void;
 }
 
-export default function RestartLoading({ 
+const RestartLoading: React.FC<RestartLoadingProps> = ({
   message = '앱을 재시작하는 중입니다...',
   isVisible,
-  onClose
-}: RestartLoadingProps) {
+  _onClose
+}): React.ReactNode => {
   const [dots, setDots] = useState('');
   const [progress, setProgress] = useState(0);
 
   // 로딩 애니메이션 효과
   useEffect(() => {
     if (!isVisible) return;
-    
+
     // 진행 점 애니메이션
     const dotsInterval = setInterval(() => {
       setDots(prev => {
@@ -28,7 +28,7 @@ export default function RestartLoading({
         return prev + '.';
       });
     }, 500);
-    
+
     // 진행 표시줄 애니메이션
     const progressInterval = setInterval(() => {
       setProgress(prev => {
@@ -36,7 +36,7 @@ export default function RestartLoading({
         return prev + 5;
       });
     }, 100);
-    
+
     return () => {
       clearInterval(dotsInterval);
       clearInterval(progressInterval);
@@ -50,16 +50,18 @@ export default function RestartLoading({
       <div className={styles.loadingContainer}>
         <div className={styles.spinner}></div>
         <h3 className={styles.title}>{message}{dots}</h3>
-        
+
         <div className={styles.progressContainer}>
-          <div 
+          <div
             className={styles.progressBar}
             style={{ width: `${progress}%` }}
           ></div>
         </div>
-        
+
         <p className={styles.note}>앱이 곧 다시 시작됩니다.</p>
       </div>
     </div>
   );
-}
+};
+
+export default RestartLoading;

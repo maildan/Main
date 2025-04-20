@@ -4,7 +4,9 @@ import { useState, useEffect } from 'react';
 import { useTheme } from './ThemeProvider';
 import styles from './DarkModeVisualizer.module.css';
 
-export default function DarkModeVisualizer() {
+interface DarkModeVisualizerProps { }
+
+const DarkModeVisualizer: React.FC<DarkModeVisualizerProps> = (): React.ReactNode => {
   const { theme, toggleTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
   const [colors, setColors] = useState<Record<string, string>>({});
@@ -12,7 +14,7 @@ export default function DarkModeVisualizer() {
   // 컴포넌트가 마운트된 후에만 렌더링 (하이드레이션 불일치 방지)
   useEffect(() => {
     setMounted(true);
-    
+
     // 현재 테마의 CSS 변수 값 가져오기
     if (typeof window !== 'undefined') {
       const computedStyle = getComputedStyle(document.documentElement);
@@ -33,28 +35,28 @@ export default function DarkModeVisualizer() {
   return (
     <div className={styles.container}>
       <h2 className={styles.title}>다크 모드 설정</h2>
-      
+
       <div className={styles.themePreview}>
         <div className={styles.currentTheme}>
           <span className={styles.themeLabel}>현재 테마: </span>
           <span className={styles.themeValue}>{theme === 'dark' ? '다크 모드' : '라이트 모드'}</span>
         </div>
-        
-        <button 
-          onClick={toggleTheme} 
+
+        <button
+          onClick={toggleTheme}
           className={`${styles.toggleButton} ${theme === 'dark' ? styles.darkButton : styles.lightButton}`}
         >
           {theme === 'dark' ? '라이트 모드로 전환' : '다크 모드로 전환'}
         </button>
       </div>
-      
+
       <div className={styles.colorPalette}>
         <h3 className={styles.subtitle}>현재 테마 색상</h3>
         <div className={styles.colors}>
           {Object.entries(colors).map(([name, value]) => (
             <div key={name} className={styles.colorItem}>
-              <div 
-                className={styles.colorSwatch} 
+              <div
+                className={styles.colorSwatch}
                 style={{ backgroundColor: value || 'transparent' }}
               />
               <div className={styles.colorInfo}>
@@ -65,7 +67,7 @@ export default function DarkModeVisualizer() {
           ))}
         </div>
       </div>
-      
+
       <div className={styles.demoElements}>
         <h3 className={styles.subtitle}>UI 요소 미리보기</h3>
         <div className={styles.elementGrid}>
@@ -83,4 +85,6 @@ export default function DarkModeVisualizer() {
       </div>
     </div>
   );
-}
+};
+
+export default DarkModeVisualizer;

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import styles from '../page.module.css';
+import NativeModuleTestPanel from '@/app/components/NativeModuleTestPanel';
 
 interface DebugInfo {
   isTracking: boolean;
@@ -24,7 +25,7 @@ interface BrowserInfo {
   title: string | null;
 }
 
-export default function DebugPage() {
+const DebugPage: React.FC = (): React.ReactNode => {
   const [debugInfo, setDebugInfo] = useState<DebugInfo | null>(null);
   const [browserInfo, setBrowserInfo] = useState<BrowserInfo | null>(null);
   const [isElectron, setIsElectron] = useState(false);
@@ -34,29 +35,29 @@ export default function DebugPage() {
     const checkElectronAPI = () => {
       const hasApi = typeof window !== 'undefined' && !!window.electronAPI;
       setIsElectron(hasApi);
-      
+
       if (hasApi && window.electronAPI) {
         setApiMethods(Object.keys(window.electronAPI));
-        
+
         // 디버그 정보 로드
         window.electronAPI.getDebugInfo()
           .then((info: DebugInfo) => setDebugInfo(info))
           .catch(console.error);
-          
+
         // 브라우저 정보 로드
         window.electronAPI.getCurrentBrowserInfo()
           .then((info: BrowserInfo) => setBrowserInfo(info))
           .catch(console.error);
       }
     };
-    
+
     checkElectronAPI();
   }, []);
 
   return (
     <div className={styles.container}>
       <h1>디버그 페이지</h1>
-      
+
       <section>
         <h2>환경 정보</h2>
         <div className={styles.debugPanel}>
@@ -70,7 +71,7 @@ export default function DebugPage() {
           )}
         </div>
       </section>
-      
+
       <section>
         <h2>ElectronAPI 메서드</h2>
         <div className={styles.debugPanel}>
@@ -85,7 +86,7 @@ export default function DebugPage() {
           )}
         </div>
       </section>
-      
+
       <section>
         <h2>현재 브라우저 정보</h2>
         <div className={styles.debugPanel}>
@@ -100,7 +101,7 @@ export default function DebugPage() {
           )}
         </div>
       </section>
-      
+
       <section>
         <h2>추적 상태</h2>
         <div className={styles.debugPanel}>
@@ -121,4 +122,6 @@ export default function DebugPage() {
       </section>
     </div>
   );
-}
+};
+
+export default DebugPage;

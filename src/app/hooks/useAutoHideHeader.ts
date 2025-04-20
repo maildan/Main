@@ -1,19 +1,26 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { ElectronAPI } from '../types/electron';
+import { WindowModeType } from '../components/Settings';
 
 export interface AutoHideHeaderOptions {
-  windowMode: string; 
+  windowMode: WindowModeType | undefined;
   electronAPI: ElectronAPI | null;
 }
 
-export function useAutoHideHeader({ windowMode, electronAPI }: AutoHideHeaderOptions) {
+interface AutoHideHeaderState {
+  isHeaderVisible: boolean;
+  setHeaderVisibility: (isVisible: boolean) => void;
+}
+
+export function useAutoHideHeader({ windowMode, electronAPI }: AutoHideHeaderOptions): AutoHideHeaderState {
   const [isHeaderVisible, setIsHeaderVisible] = useState(true);
   const autoHideTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  
+  const currentWindowMode = windowMode || 'windowed';
+
   // 자동 숨김 기능 처리 (윈도우 기본 헤더용)
   useEffect(() => {
-    const isAutoHideMode = windowMode === 'fullscreen-auto-hide';
-    
+    const isAutoHideMode = currentWindowMode === 'fullscreen-auto-hide';
+
     if (!isAutoHideMode) {
       // 자동 숨김이 아닌 경우 항상 표시
       if (electronAPI?.windowControl) {
@@ -21,17 +28,17 @@ export function useAutoHideHeader({ windowMode, electronAPI }: AutoHideHeaderOpt
       }
       return;
     }
-    
+
     const handleMouseMove = (e: MouseEvent) => {
       const { clientY } = e;
-      
+
       // 마우스가 화면 상단 100px 이내에 있을 때 헤더 표시
       if (clientY < 100) {
         setIsHeaderVisible(true);
         if (electronAPI?.windowControl) {
           electronAPI.windowControl('showHeader');
         }
-        
+
         if (autoHideTimeoutRef.current) {
           clearTimeout(autoHideTimeoutRef.current);
           autoHideTimeoutRef.current = null;
@@ -49,21 +56,21 @@ export function useAutoHideHeader({ windowMode, electronAPI }: AutoHideHeaderOpt
         }
       }
     };
-    
+
     // 캡처 옵션과 우선순위 높임
-    window.addEventListener('mousemove', handleMouseMove, { 
-      passive: true, 
-      capture: true 
+    window.addEventListener('mousemove', handleMouseMove, {
+      passive: true,
+      capture: true
     });
-    
+
     return () => {
       window.removeEventListener('mousemove', handleMouseMove, { capture: true });
       if (autoHideTimeoutRef.current) {
         clearTimeout(autoHideTimeoutRef.current);
       }
     };
-  }, [windowMode, isHeaderVisible, electronAPI]);
-  
+  }, [currentWindowMode, isHeaderVisible, electronAPI]);
+
   // 헤더 표시/숨김 설정을 위한 함수
   const setHeaderVisibility = useCallback((isVisible: boolean) => {
     setIsHeaderVisible(isVisible);
@@ -72,8 +79,5 @@ export function useAutoHideHeader({ windowMode, electronAPI }: AutoHideHeaderOpt
     }
   }, [electronAPI]);
 
-  return {
-    isHeaderVisible,
-    setHeaderVisibility
-  };
+  return { isHeaderVisible, setHeaderVisibility };
 }

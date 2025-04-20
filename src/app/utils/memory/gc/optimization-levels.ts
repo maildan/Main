@@ -60,13 +60,13 @@ export async function aggressiveOptimization(): Promise<void> {
  * 메모리 최적화 레벨 관리 및 보고
  */
 
-// 최적화 레벨 설명
-export const OPTIMIZATION_LEVEL_DESCRIPTIONS = {
-  0: '최적화 없음 - 기본 상태 유지',
-  1: '낮은 수준 최적화 - 비필수 캐시 정리',
-  2: '중간 수준 최적화 - 사용하지 않는 리소스 정리',
-  3: '높은 수준 최적화 - 적극적인 메모리 회수',
-  4: '긴급 최적화 - 모든 비필수 리소스 해제'
+// 최적화 레벨 설명 (타입 수정)
+export const OPTIMIZATION_LEVEL_DESCRIPTIONS: Record<OptimizationLevel, string> = {
+  [OptimizationLevel.Normal]: '일반',
+  [OptimizationLevel.Low]: '낮음',
+  [OptimizationLevel.Medium]: '중간',
+  [OptimizationLevel.High]: '높음',
+  [OptimizationLevel.Critical]: '치명적',
 };
 
 // 레벨별 임계값 (메모리 사용률 %)
@@ -91,13 +91,13 @@ const optimizationHistory: Array<{
  */
 export async function recommendOptimizationLevel(): Promise<number> {
   const memoryInfo = await getMemoryInfo();
-  
+
   if (!memoryInfo) {
     return 0; // 정보를 얻을 수 없는 경우 기본값
   }
-  
+
   const memoryUsagePercent = memoryInfo.percentUsed || 0;
-  
+
   if (memoryUsagePercent > OPTIMIZATION_THRESHOLDS.LEVEL_4) {
     return 4;
   } else if (memoryUsagePercent > OPTIMIZATION_THRESHOLDS.LEVEL_3) {
@@ -107,7 +107,7 @@ export async function recommendOptimizationLevel(): Promise<number> {
   } else if (memoryUsagePercent > OPTIMIZATION_THRESHOLDS.LEVEL_1) {
     return 1;
   }
-  
+
   return 0;
 }
 
@@ -117,25 +117,25 @@ export async function recommendOptimizationLevel(): Promise<number> {
 export async function reportMemoryUsage(level: number): Promise<void> {
   try {
     const memoryInfo = await getMemoryInfo();
-    
+
     if (!memoryInfo) {
       return;
     }
-    
+
     const heapUsedMB = memoryInfo.heapUsedMB || 0;
     const percentUsed = memoryInfo.percentUsed || 0;
-    
+
     const message = `메모리 최적화 (레벨 ${level}) 완료: ${heapUsedMB.toFixed(2)}MB (${percentUsed.toFixed(1)}%)`;
-    
+
     // 로그 기록
     await logMemoryUsage(
       MemoryEventType.OPTIMIZATION,
       message
     );
-    
+
     // 콘솔 로깅
     console.log(message);
-    
+
     // 내역 저장
     recordOptimization(level, heapUsedMB);
   } catch (error) {
@@ -148,14 +148,14 @@ export async function reportMemoryUsage(level: number): Promise<void> {
  */
 function recordOptimization(level: number, currentMemory: number): void {
   const lastEntry = optimizationHistory[optimizationHistory.length - 1];
-  
+
   optimizationHistory.push({
     timestamp: Date.now(),
     level,
     memoryBefore: lastEntry?.memoryAfter || currentMemory,
     memoryAfter: currentMemory
   });
-  
+
   // 최대 100개 항목 유지
   if (optimizationHistory.length > 100) {
     optimizationHistory.shift();
@@ -209,5 +209,22 @@ export function getOptimizationActions(level: number): string[] {
       ];
     default:
       return ['알 수 없는 최적화 레벨'];
+  }
+}
+
+export function getOptimizationLevelName(level: OptimizationLevel): string {
+  switch (level) {
+    case OptimizationLevel.Normal:
+      return OPTIMIZATION_LEVEL_DESCRIPTIONS[OptimizationLevel.Normal];
+    case OptimizationLevel.Low:
+      return OPTIMIZATION_LEVEL_DESCRIPTIONS[OptimizationLevel.Low];
+    case OptimizationLevel.Medium:
+      return OPTIMIZATION_LEVEL_DESCRIPTIONS[OptimizationLevel.Medium];
+    case OptimizationLevel.High:
+      return OPTIMIZATION_LEVEL_DESCRIPTIONS[OptimizationLevel.High];
+    case OptimizationLevel.Critical:
+      return OPTIMIZATION_LEVEL_DESCRIPTIONS[OptimizationLevel.Critical];
+    default:
+      return '알 수 없음';
   }
 }

@@ -11,6 +11,17 @@ interface UseNativeMemoryOptions {
   onOptimizationDone?: (result: OptimizationResult) => void;
 }
 
+interface UseNativeMemoryResult {
+  memoryInfo: MemoryInfo | null;
+  loading: boolean;
+  error: string | null;
+  optimizing: boolean;
+  lastOptimized: number | null;
+  fetchMemoryInfo: () => Promise<void>;
+  optimizeMemory: (level: OptimizationLevel) => Promise<OptimizationResult | null>;
+  getMemoryUsageString: () => string;
+}
+
 export function useNativeMemory({
   interval = 10000,
   autoFetch = true,
@@ -18,7 +29,7 @@ export function useNativeMemory({
   optimizationThreshold = 80,
   onMemoryInfo,
   onOptimizationDone
-}: UseNativeMemoryOptions = {}) {
+}: UseNativeMemoryOptions = {}): UseNativeMemoryResult {
   const [memoryInfo, setMemoryInfo] = useState<MemoryInfo | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);

@@ -17,7 +17,7 @@ interface TypingHistoryProps {
   isLoading: boolean;
 }
 
-export function TypingHistory({ logs, isLoading }: TypingHistoryProps) {
+export function TypingHistory({ logs, isLoading }: TypingHistoryProps): React.ReactNode {
   if (isLoading) {
     return <div className={styles.loading}>로딩 중...</div>;
   }
@@ -29,7 +29,7 @@ export function TypingHistory({ logs, isLoading }: TypingHistoryProps) {
   return (
     <div className={styles.historyContainer}>
       <h2>타이핑 기록</h2>
-      
+
       <div className={styles.historyList}>
         {logs.map(log => (
           <div key={log.id} className={styles.historyItem}>
@@ -37,8 +37,8 @@ export function TypingHistory({ logs, isLoading }: TypingHistoryProps) {
               {new Date(log.timestamp).toLocaleString()}
             </div>
             <div className={styles.historyContent}>
-              {log.content.length > 100 
-                ? log.content.substring(0, 100) + '...' 
+              {log.content.length > 100
+                ? log.content.substring(0, 100) + '...'
                 : log.content}
             </div>
             <div className={styles.historyMeta}>

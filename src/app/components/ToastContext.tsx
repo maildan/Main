@@ -1,49 +1,66 @@
-import React, { createContext, useContext, useState } from 'react';
-import { Toast } from './Toast';
+import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
+import { Toast, ToastProps } from './Toast'; // named import로 변경, ToastProps import
 
-type ToastType = 'success' | 'error' | 'info' | 'warning'; // warning 타입 추가
+export type ToastType = 'success' | 'error' | 'info' | 'warning';
 
-interface ToastContextType {
-  showToast: (message: string, type: ToastType) => void;
+// ToastMessage 타입 정의
+interface ToastMessage {
+  id: string;
+  message: string;
+  type: ToastType;
 }
 
-const ToastContext = createContext<ToastContextType | undefined>(undefined);
+// ToastContextType 인터페이스 export 추가
+export interface ToastContextType {
+  addToast: (message: string, type?: ToastType) => void;
+  dismissToast: (id: string) => void;
+}
 
-export function ToastProvider({ children }: { children: React.ReactNode }) {
-  const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
-  
-  const showToast = (message: string, type: ToastType) => {
-    setToast({ message, type });
-    
-    // 3초 후 자동으로 토스트 제거
-    setTimeout(() => {
-      setToast(null);
-    }, 3000);
+// ToastContext export 추가
+export const ToastContext = createContext<ToastContextType | undefined>(undefined);
+
+export const ToastProvider: React.FC<{ children: ReactNode }> = ({ children }): React.ReactNode => {
+  const [toasts, setToasts] = useState<ToastMessage[]>([]);
+
+  const addToast = useCallback((message: string, type: ToastType = 'info'): void => {
+    const id = Date.now().toString() + Math.random().toString(36).substring(2, 5); // 고유 ID 생성 강화
+    setToasts((prevToasts) => [...prevToasts, { id, message, type }]);
+
+    // 자동 해제 타이머 설정 (옵션)
+    setTimeout(() => dismissToast(id), 5000); // 5초 후 자동 해제
+  }, []); // dismissToast 의존성 제거 (useCallback 내부에서 직접 참조하지 않음)
+
+  const dismissToast = useCallback((id: string): void => {
+    setToasts((prevToasts) => prevToasts.filter((toast) => toast.id !== id));
+  }, []);
+
+  const value = {
+    addToast,
+    dismissToast
   };
-  
+
   return (
-    <ToastContext.Provider value={{ showToast }}>
+    <ToastContext.Provider value={value}>
       {children}
-      {toast && (
-        <Toast
-          message={toast.message}
-          type={toast.type}
-          onClose={() => setToast(null)}
-        />
-      )}
+      <div className="fixed bottom-5 right-5 z-50 flex flex-col space-y-2"> {/* 기본 스타일링 */}
+        {toasts.map((toast) => (
+          <Toast // named import 사용
+            key={toast.id}
+            id={toast.id} // id prop 전달
+            message={toast.message}
+            type={toast.type}
+            onDismiss={dismissToast}
+          />
+        ))}
+      </div>
     </ToastContext.Provider>
   );
-}
+};
 
-export const useToast = () => {
+export const useToast = (): ToastContextType => {
   const context = useContext(ToastContext);
-  if (context === undefined) {
-    // 오류 대신 더미 함수 반환하여 앱이 중단되지 않도록 함
-    return {
-      showToast: (message: string, type: ToastType) => {
-        console.warn('ToastProvider가 설정되지 않았습니다:', message);
-      }
-    };
+  if (!context) {
+    throw new Error('useToast must be used within a ToastProvider');
   }
   return context;
 };

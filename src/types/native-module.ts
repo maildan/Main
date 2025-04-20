@@ -124,11 +124,13 @@ export enum GpuTaskType {
   Custom = 'custom'
 }
 
-// GPU 가속 상태 인터페이스
+// GPU 가속 상태 인터페이스 (추가)
 export interface GpuAccelerationStatus {
   available: boolean;
   enabled: boolean;
-  info?: GpuInfo;
+  info?: GpuInfo; // GpuInfo는 이미 정의되어 있음
+  error?: string;
+  timestamp?: number;
 }
 
 // 메모리 정보 인터페이스

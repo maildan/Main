@@ -1,36 +1,39 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import RestartPrompt from '../components/RestartPrompt';
 import '../globals.css';
 
 /**
  * 재시작 안내 페이지
  */
-export default function RestartPage() {
-  // 페이지 로드 시 API 사용 가능 여부 확인
+const RestartPage: React.FC = (): React.ReactNode => {
+  const [api, setApi] = useState<any>(null);
+
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      // API 사용 가능 여부 로깅
-      console.log('RestartPage: API 사용 가능 여부 확인');
-      console.log('window.restartAPI 존재:', !!window.restartAPI);
-      
-      if (window.restartAPI) {
-        // 사용 가능한 API 함수 로깅
-        console.log('사용 가능한 restartAPI 함수:', 
-          Object.keys(window.restartAPI).map(key => `${key}`).join(', ')
-        );
-      }
-      
-      // 대체 API 확인
-      console.log('window.electronAPI 존재:', !!window.electronAPI);
-      if (window.electronAPI) {
-        console.log('window.electronAPI에 restartApp 존재:', 
-          !!window.electronAPI.restartApp
-        );
+      const electronApi = window.electronAPI || window.restartAPI;
+      setApi(electronApi);
+
+      if (!electronApi) {
+        console.error('RestartPage: 재시작 API를 찾을 수 없습니다.');
       }
     }
   }, []);
-  
-  return <RestartPrompt />;
-}
+
+  const handleConfirm = () => {
+    api?.restartApp?.();
+  };
+
+  const handleCancel = () => {
+    api?.closeWindow?.();
+  };
+
+  return <RestartPrompt
+    isOpen={true}
+    onConfirm={handleConfirm}
+    onCancel={handleCancel}
+  />;
+};
+
+export default RestartPage;

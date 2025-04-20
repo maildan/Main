@@ -6,20 +6,33 @@ import { clearLargeObjectsAndCaches } from '../storage-cleaner';
 /**
  * 비활성 캐시 정리
  */
-export function clearInactiveCache(): void {
-  // 캐시 정리 작업 구현
-  // 웹 애플리케이션에서 사용하는 임시 데이터 정리
-  if (window.caches) {
-    // 오래된 캐시 삭제 (선택적)
-    caches.keys().then(cacheNames => {
-      cacheNames.forEach(cacheName => {
-        if (cacheName.includes('temp') || cacheName.includes('nonessential')) {
-          caches.delete(cacheName);
+export function clearInactiveCache(): number {
+  try {
+    // 비활성 상태로 표시된 캐시만 정리
+    let removedCount = 0;
+
+    if (window.__memoryCache && window.__memoryCache instanceof Map) {
+      const keysToDelete: any[] = [];
+
+      window.__memoryCache.forEach((value, key) => {
+        if (value && typeof value === 'object' && value.inactive === true) {
+          keysToDelete.push(key);
         }
       });
-    }).catch(err => {
-      console.warn('캐시 정리 중 오류:', err);
-    });
+
+      keysToDelete.forEach(key => {
+        window.__memoryCache?.delete(key);
+      });
+
+      removedCount = keysToDelete.length;
+    }
+
+    console.log('비활성 캐시 정리 완료');
+
+    return removedCount;
+  } catch (error) {
+    console.warn('비활성 캐시 정리 중 오류:', error);
+    return 0;
   }
 }
 
@@ -225,21 +238,22 @@ export function clearStorageCaches(): void {
 }
 
 /**
- * 오래된 캐시 항목만 정리
+ * 일정 시간 이상 지난 캐시 데이터 정리
+ * @param threshold 캐시 보관 최대 시간 (밀리초)
  */
-export function clearOldCache(): void {
+export function clearOldCache(threshold = 3600000): number {
   try {
-    // 일정 기간 이상 지난 캐시만 정리
+    // 현재 시간 기준으로 threshold보다 오래된 캐시 항목 정리
     const now = Date.now();
-    const CACHE_EXPIRY = 24 * 60 * 60 * 1000; // 24시간
+    let removedCount = 0;
 
-    // 메모리 캐시에서 오래된 항목 제거 - WeakMap은 forEach를 지원하지 않음
     if (window.__memoryCache && window.__memoryCache instanceof Map) {
       const keysToDelete: any[] = [];
 
       window.__memoryCache.forEach((value, key) => {
         if (value && typeof value === 'object' && value.timestamp) {
-          if (now - value.timestamp > CACHE_EXPIRY) {
+          const age = now - value.timestamp;
+          if (age > threshold) {
             keysToDelete.push(key);
           }
         }
@@ -248,11 +262,16 @@ export function clearOldCache(): void {
       keysToDelete.forEach(key => {
         window.__memoryCache?.delete(key);
       });
+
+      removedCount = keysToDelete.length;
     }
 
-    console.log('오래된 캐시 정리 완료');
+    console.log(`오래된 캐시 정리 완료: ${removedCount}개 항목 제거됨`);
+
+    return removedCount;
   } catch (error) {
     console.warn('오래된 캐시 정리 중 오류:', error);
+    return 0;
   }
 }
 
@@ -301,7 +320,7 @@ export function clearImageResizeCache(): number {
 export function cleanupUnusedFonts(): number {
   if (!isBrowser) return 0;
 
-  let count = 0;
+  const count = 0;
   try {
     // 문서에서 사용 중인 폰트 패밀리 수집
     const usedFonts = new Set<string>();
@@ -387,5 +406,28 @@ export function cleanupLowPriorityCache(): number {
  * 긴급 상황용 모든 캐시 정리
  */
 export function cleanupAllCache(): number {
-  return cleanupCache(true);
+  try {
+    // 모든 캐시 정리 사용 가능한 모든 캐시 정리 함수 호출
+
+    // 먼저 return 값이 있는 함수들 실행
+    const results = [
+      clearImageResizeCache(),
+      cleanupUnusedFonts(),
+      cleanupThemeCache()
+    ];
+
+    // void 리턴 함수들 별도 실행
+    clearInactiveCache();
+    clearOldCache();
+
+    // null/undefined 값을 0으로 변환하여 합산
+    const count = results.reduce((acc, curr) => acc + (curr || 0), 0);
+
+    // 메모리 캐시 정리 
+    clearAllCache();
+
+    return count;
+  } catch (e) {
+    return 0;
+  }
 }

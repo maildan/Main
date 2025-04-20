@@ -12,36 +12,49 @@ import {
 } from '@/types';
 
 /**
- * 최적화 레벨 문자열을 열거형으로 변환
- * @param level 레벨 문자열 또는 숫자
+ * 문자열 또는 숫자를 최적화 레벨 열거형으로 변환
+ * @param value 최적화 레벨 문자열 또는 숫자
  */
-export function parseOptimizationLevel(level: string | number): OptimizationLevel {
-  if (typeof level === 'number') {
-    if (level >= 0 && level <= 5) {
-      return level as OptimizationLevel;
+export function parseOptimizationLevel(value: string | number): OptimizationLevel {
+  if (typeof value === 'number') {
+    switch (value) {
+      case 0:
+        return OptimizationLevel.NONE;
+      case 1:
+        return OptimizationLevel.LOW;
+      case 2:
+        return OptimizationLevel.MEDIUM;
+      case 3:
+        return OptimizationLevel.HIGH;
+      case 4:
+        return OptimizationLevel.AGGRESSIVE;
+      case 5:
+        return OptimizationLevel.EXTREME;
+      default:
+        return OptimizationLevel.NONE;
     }
-    return OptimizationLevel.NONE;
   }
 
-  switch (level.toLowerCase()) {
+  switch (value.toLowerCase()) {
     case 'none':
+    case '없음':
       return OptimizationLevel.NONE;
     case 'low':
+    case '낮음':
       return OptimizationLevel.LOW;
     case 'medium':
+    case '중간':
       return OptimizationLevel.MEDIUM;
     case 'high':
+    case '높음':
       return OptimizationLevel.HIGH;
     case 'aggressive':
+    case '적극적':
       return OptimizationLevel.AGGRESSIVE;
     case 'extreme':
+    case '매우 적극적':
       return OptimizationLevel.EXTREME;
     default:
-      // 숫자 문자열인 경우 변환 시도
-      const num = parseInt(level, 10);
-      if (!isNaN(num) && num >= 0 && num <= 5) {
-        return num as OptimizationLevel;
-      }
       return OptimizationLevel.NONE;
   }
 }
@@ -53,7 +66,7 @@ export function parseOptimizationLevel(level: string | number): OptimizationLeve
 export function formatOptimizationLevel(level: OptimizationLevel): string {
   switch (level) {
     case OptimizationLevel.NONE:
-      return '일반';
+      return '없음';
     case OptimizationLevel.LOW:
       return '낮음';
     case OptimizationLevel.MEDIUM:
@@ -61,9 +74,9 @@ export function formatOptimizationLevel(level: OptimizationLevel): string {
     case OptimizationLevel.HIGH:
       return '높음';
     case OptimizationLevel.AGGRESSIVE:
-      return '위험';
+      return '적극적';
     case OptimizationLevel.EXTREME:
-      return '매우 위험';
+      return '매우 적극적';
     default:
       return '알 수 없음';
   }
@@ -327,5 +340,51 @@ export function getOptimizationLevelName(level: OptimizationLevel): string {
       return '매우 적극적';
     default:
       return '중간';
+  }
+}
+
+/**
+ * 최적화 레벨 열거형을 문자열로 변환
+ * @param level 최적화 레벨 열거형
+ */
+export function optimizationLevelToString(level: OptimizationLevel): string {
+  switch (level) {
+    case OptimizationLevel.NONE:
+      return 'NONE';
+    case OptimizationLevel.LOW:
+      return 'LOW';
+    case OptimizationLevel.MEDIUM:
+      return 'MEDIUM';
+    case OptimizationLevel.HIGH:
+      return 'HIGH';
+    case OptimizationLevel.AGGRESSIVE:
+      return 'AGGRESSIVE';
+    case OptimizationLevel.EXTREME:
+      return 'EXTREME';
+    default:
+      return 'NONE';
+  }
+}
+
+/**
+ * 문자열을 최적화 레벨 열거형으로 변환
+ * @param str 변환할 문자열
+ */
+export function stringToOptimizationLevel(str: string): OptimizationLevel {
+  switch (str) {
+    case 'NONE':
+      return OptimizationLevel.NONE;
+    case 'LOW':
+      return OptimizationLevel.LOW;
+    case 'MEDIUM':
+      return OptimizationLevel.MEDIUM;
+    case 'HIGH':
+      return OptimizationLevel.HIGH;
+    case 'AGGRESSIVE':
+      return OptimizationLevel.AGGRESSIVE;
+    case 'EXTREME':
+      return OptimizationLevel.EXTREME;
+    default:
+      return OptimizationLevel.NONE;
   }
 }

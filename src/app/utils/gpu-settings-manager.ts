@@ -25,7 +25,7 @@ const GPU_PROFILES = {
     memoryOptimization: 'low' as const,
     threadCount: 16
   },
-  
+
   // 내장 GPU (중간 성능)
   'IntegratedGpu': {
     useHardwareAcceleration: true,
@@ -34,7 +34,7 @@ const GPU_PROFILES = {
     memoryOptimization: 'medium' as const,
     threadCount: 8
   },
-  
+
   // 저전력 GPU (모바일/시스템)
   'LowPower': {
     useHardwareAcceleration: false,
@@ -56,35 +56,35 @@ export async function detectGPUType(): Promise<string> {
     if (!isAccelerated) {
       return 'LowPower';
     }
-    
+
     // GPU 정보 가져오기
     const gpuInfo = getGPUInfo();
     const { renderer } = gpuInfo;
-    
+
     // 고성능 GPU 확인
-    if (renderer.includes('NVIDIA') || 
-        renderer.includes('AMD') || 
-        renderer.includes('Radeon') ||
-        renderer.includes('GeForce')) {
+    if (renderer.includes('NVIDIA') ||
+      renderer.includes('AMD') ||
+      renderer.includes('Radeon') ||
+      renderer.includes('GeForce')) {
       return 'DiscreteGpu';
     }
-    
+
     // 내장 GPU 확인
     if (renderer.includes('Intel') ||
-        renderer.includes('UHD') ||
-        renderer.includes('Iris')) {
+      renderer.includes('UHD') ||
+      renderer.includes('Iris')) {
       return 'IntegratedGpu';
     }
-    
+
     // 모바일 또는 저전력 GPU 확인
-    if (renderer.includes('Apple') || 
-        renderer.includes('Mali') || 
-        renderer.includes('PowerVR') ||
-        renderer.includes('Adreno')) {
+    if (renderer.includes('Apple') ||
+      renderer.includes('Mali') ||
+      renderer.includes('PowerVR') ||
+      renderer.includes('Adreno')) {
       // 대부분의 최신 모바일 GPU는 내장 GPU와 비슷한 성능 제공
       return 'IntegratedGpu';
     }
-    
+
     // 기타 또는 미확인 GPU - 기본적으로 내장 GPU로 취급
     return 'IntegratedGpu';
   } catch (error) {
@@ -100,7 +100,7 @@ async function checkBatteryStatus(): Promise<boolean> {
   try {
     // 배터리 API 지원 확인
     if ('getBattery' in navigator) {
-      const battery = await (navigator as Navigator & {getBattery(): Promise<any>}).getBattery();
+      const battery = await (navigator as Navigator & { getBattery(): Promise<any> }).getBattery();
       return !battery.charging && battery.level < 0.3; // 충전 중이 아니고 30% 미만일 때 저전력 모드
     }
     return false;
@@ -117,7 +117,7 @@ function checkSystemMemory(): number {
   try {
     // 메모리 API 지원 확인
     if ('deviceMemory' in navigator) {
-      return (navigator as Navigator & {deviceMemory: number}).deviceMemory;
+      return (navigator as Navigator & { deviceMemory: number }).deviceMemory;
     }
     return 0; // 알 수 없음
   } catch (error) {
@@ -133,22 +133,22 @@ function checkSystemMemory(): number {
 export async function getOptimalGPUSettings(): Promise<GPUSettings> {
   try {
     const gpuType = await detectGPUType();
-    
+
     // 배터리 상태 확인 (가능한 경우)
     const isOnBattery = await checkBatteryStatus();
-    
+
     // 기본 설정 가져오기
     const settings = { ...GPU_PROFILES[gpuType as keyof typeof GPU_PROFILES] };
-    
+
     // 배터리 상태에 따른 설정 조정 
     if (isOnBattery && gpuType === 'DiscreteGpu') {
       settings.processingMode = 'normal';
       settings.threadCount = 8;
     }
-    
+
     // 디바이스 메모리에 따른 설정 조정
     const deviceMemory = checkSystemMemory();
-    
+
     if (deviceMemory <= 2) {
       // 낮은 메모리 기기
       settings.memoryOptimization = 'high';
@@ -157,11 +157,11 @@ export async function getOptimalGPUSettings(): Promise<GPUSettings> {
       // 중간 메모리 기기
       settings.memoryOptimization = 'medium';
     }
-    
+
     return settings;
   } catch (error) {
     console.error('최적 GPU 설정 계산 실패:', error);
-    
+
     // 오류 발생 시 안전한 기본값 반환
     return {
       useHardwareAcceleration: false,
@@ -182,7 +182,7 @@ export async function applyGPUSettings(settings: GPUSettings): Promise<boolean> 
     // 하드웨어 가속 설정
     // 실제 구현에서는 여기에 설정 적용 로직 추가
     console.log('GPU 설정 적용:', settings);
-    
+
     // Electron IPC를 통해 메인 프로세스에 설정 전달 (지원되는 경우)
     if (window.electronAPI && window.electronAPI.saveSettings) {
       await window.electronAPI.saveSettings({
@@ -191,7 +191,7 @@ export async function applyGPUSettings(settings: GPUSettings): Promise<boolean> 
         processingMode: settings.processingMode
       });
     }
-    
+
     return true;
   } catch (error) {
     console.error('GPU 설정 적용 중 오류:', error);
@@ -208,7 +208,7 @@ export async function getGPURecommendations() {
     const gpuType = await detectGPUType();
     const recommendedSettings = await getOptimalGPUSettings();
     const gpuInfo = getGPUInfo();
-    
+
     return {
       gpuType,
       gpuInfo,
@@ -218,7 +218,7 @@ export async function getGPURecommendations() {
     };
   } catch (error) {
     console.error('GPU 권장 설정 가져오기 실패:', error);
-    
+
     return {
       gpuType: 'Unknown',
       gpuInfo: { renderer: 'Unknown', vendor: 'Unknown', isAccelerated: false },
@@ -242,5 +242,21 @@ function getGPURecommendationMessage(gpuType: string, settings: GPUSettings): st
       return '저전력 GPU가 감지되었습니다. 메모리와 배터리 사용을 최적화하기 위해 CPU 중심 처리를 권장합니다.';
     default:
       return '시스템에 맞는 기본 설정이 적용되었습니다.';
+  }
+}
+
+export async function loadGpuSettings(): Promise<GPUSettings> {
+  try {
+    // Electron API 사용 시도
+    // ... existing code ...
+  } catch (error) {
+    console.error('GPU 설정 로드 실패:', error);
+    return {
+      useHardwareAcceleration: false,
+      processingMode: 'normal',
+      optimizeForBattery: true,
+      memoryOptimization: 'medium',
+      threadCount: 4
+    };
   }
 }

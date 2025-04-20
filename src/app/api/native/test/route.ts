@@ -1,4 +1,6 @@
 import { NextResponse } from 'next/server';
+import { type NextRequest } from 'next/server';
+import nativeModule from '@/server/native';
 
 export async function GET() {
   try {
@@ -62,6 +64,33 @@ export async function GET() {
       memoryInfo,
     });
   } catch (error) {
+    console.error('네이티브 모듈 테스트 중 오류:', error);
+    return NextResponse.json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    }, { status: 500 });
+  }
+}
+
+/**
+ * 네이티브 모듈 테스트 실행 API (임시)
+ */
+export async function POST(request: NextRequest): Promise<NextResponse> {
+  try {
+    const { testType = 'basic', params = {} } = await request.json();
+
+    if (!nativeModule || typeof nativeModule.getNativeModuleInfo !== 'function') { // getNativeModuleInfo 함수 확인
+      throw new Error('네이티브 모듈 또는 테스트 함수를 사용할 수 없습니다.');
+    }
+
+    // 임시로 getNativeModuleInfo 호출
+    const result = await nativeModule.getNativeModuleInfo(testType, params); // 파라미터는 유지
+
+    return NextResponse.json({ // 성공 응답 반환
+      success: true, // 임시로 true 반환
+      result
+    });
+  } catch (error: any) {
     console.error('네이티브 모듈 테스트 중 오류:', error);
     return NextResponse.json({
       success: false,

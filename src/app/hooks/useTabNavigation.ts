@@ -11,7 +11,14 @@ interface UseTabNavigationProps {
   electronAPI?: TabNavigationAPI | null; // 옵셔널로 변경
 }
 
-export function useTabNavigation({ initialTab, electronAPI }: UseTabNavigationProps) {
+interface UseTabNavigationResult {
+  activeTab: string;
+  debugMode: boolean;
+  handleTabChange: (tab: string) => void;
+  toggleDebugMode: () => void;
+}
+
+export function useTabNavigation({ initialTab, electronAPI }: UseTabNavigationProps): UseTabNavigationResult {
   const [activeTab, setActiveTab] = useState(initialTab);
   const [debugMode, setDebugMode] = useState(false);
 

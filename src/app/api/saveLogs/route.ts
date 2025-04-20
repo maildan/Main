@@ -1,14 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/mysql';
 
-export async function POST(req: NextRequest) {
+/**
+ * 로그 저장 API
+ */
+export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
-    const body = await req.json();
-    const { 
-      content, 
-      keyCount, 
-      typingTime, 
-      timestamp, 
+    const body = await request.json();
+    const {
+      content,
+      keyCount,
+      typingTime,
+      timestamp,
       windowTitle,
       // 아래 변수들은 현재 사용되지 않지만 나중에 사용될 수 있으므로 주석 처리합니다
       // totalChars,
@@ -26,9 +29,9 @@ export async function POST(req: NextRequest) {
       [content, keyCount, typingTime, windowTitle, new Date(timestamp)]
     );
 
-    return NextResponse.json({ 
+    return NextResponse.json({
       success: true,
-      message: '데이터가 성공적으로 저장되었습니다.' 
+      message: '데이터가 성공적으로 저장되었습니다.'
     }, { status: 200 });
   } catch (error: unknown) {
     console.error('DB 저장 오류:', error);

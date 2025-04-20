@@ -10,16 +10,17 @@ interface WindowControlsProps {
   onClose?: () => void;
   electronAPI?: any;
   className?: string;
+  platform?: NodeJS.Platform;
 }
 
 function MinimizeIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path 
-        d="M3 8H13" 
-        stroke="currentColor" 
-        strokeWidth="1.2" 
-        strokeLinecap="round" 
+      <path
+        d="M3 8H13"
+        stroke="currentColor"
+        strokeWidth="1.2"
+        strokeLinecap="round"
       />
     </svg>
   );
@@ -28,14 +29,14 @@ function MinimizeIcon() {
 function MaximizeIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <rect 
-        x="3.5" 
-        y="3.5" 
-        width="9" 
-        height="9" 
-        rx="1" 
-        stroke="currentColor" 
-        strokeWidth="1.2" 
+      <rect
+        x="3.5"
+        y="3.5"
+        width="9"
+        height="9"
+        rx="1"
+        stroke="currentColor"
+        strokeWidth="1.2"
       />
     </svg>
   );
@@ -44,23 +45,24 @@ function MaximizeIcon() {
 function CloseIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path 
-        d="M4 4L12 12M4 12L12 4" 
-        stroke="currentColor" 
-        strokeWidth="1.2" 
-        strokeLinecap="round" 
+      <path
+        d="M4 4L12 12M4 12L12 4"
+        stroke="currentColor"
+        strokeWidth="1.2"
+        strokeLinecap="round"
       />
     </svg>
   );
 }
 
-export default function WindowControls({ 
-  onMinimize, 
-  onMaximize, 
-  onClose, 
+const WindowControls: React.FC<WindowControlsProps> = ({
+  onMinimize,
+  onMaximize,
+  onClose,
   electronAPI,
-  className = '' 
-}: WindowControlsProps) {
+  className = '',
+  platform
+}: WindowControlsProps): React.ReactNode => {
   const { isDarkMode } = useTheme();
 
   const handleMinimize = () => {
@@ -89,16 +91,16 @@ export default function WindowControls({
 
   return (
     <div className={`${styles.windowControls} ${isDarkMode ? styles.darkMode : ''} ${className}`}>
-      <button 
-        className={styles.controlButton} 
+      <button
+        className={styles.controlButton}
         onClick={handleMinimize}
         aria-label="최소화"
         title="최소화"
       >
         <MinimizeIcon />
       </button>
-      
-      <button 
+
+      <button
         className={styles.controlButton}
         onClick={handleMaximize}
         aria-label="최대화"
@@ -106,8 +108,8 @@ export default function WindowControls({
       >
         <MaximizeIcon />
       </button>
-      
-      <button 
+
+      <button
         className={`${styles.controlButton} ${styles.closeButton}`}
         onClick={handleClose}
         aria-label="닫기"
@@ -117,4 +119,6 @@ export default function WindowControls({
       </button>
     </div>
   );
-}
+};
+
+export default WindowControls;

@@ -123,7 +123,7 @@ export function AppHeader({
   const handleSettings = useCallback(() => {
     // 설정 페이지로 이동 또는 설정 모달 열기
     setShowMenu(''); // 메뉴 닫기
-    
+
     // Electron API로 설정 열기 (있는 경우)
     if (electronAPI && electronAPI.onSwitchTab) {
       electronAPI.onSwitchTab('settings');
@@ -177,12 +177,12 @@ export function AppHeader({
   return (
     <>
       {autoHide && !headerVisible && (
-        <div 
+        <div
           className={styles.headerDetectionArea}
           onMouseEnter={handleMouseEnter}
         />
       )}
-      <header 
+      <header
         className={headerClass}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
@@ -191,7 +191,7 @@ export function AppHeader({
         <div className={styles.leftControls}>
           <nav className={styles.menuBar}>
             <div className={styles.menuItem}>
-              <div 
+              <div
                 className={`${styles.menuLabel} ${showMenu === 'file' ? styles.activeMenu : ''}`}
                 onClick={() => toggleMenu('file')}
               >
@@ -212,7 +212,7 @@ export function AppHeader({
               )}
             </div>
             <div className={styles.menuItem}>
-              <div 
+              <div
                 className={`${styles.menuLabel} ${showMenu === 'edit' ? styles.activeMenu : ''}`}
                 onClick={() => toggleMenu('edit')}
               >
@@ -241,7 +241,7 @@ export function AppHeader({
               )}
             </div>
             <div className={styles.menuItem}>
-              <div 
+              <div
                 className={`${styles.menuLabel} ${showMenu === 'help' ? styles.activeMenu : ''}`}
                 onClick={() => toggleMenu('help')}
               >
@@ -275,21 +275,21 @@ export function AppHeader({
           </div>
           {!isOSWindows && (
             <div className={styles.windowControls}>
-              <button 
-                className={styles.controlButton} 
+              <button
+                className={styles.controlButton}
                 onClick={handleMinimize}
                 aria-label="최소화"
               >
                 &#x2212;
               </button>
-              <button 
+              <button
                 className={styles.controlButton}
                 onClick={handleMaximize}
                 aria-label="최대화"
               >
                 &#x25A1;
               </button>
-              <button 
+              <button
                 className={`${styles.controlButton} ${styles.closeButton}`}
                 onClick={handleClose}
                 aria-label="닫기"

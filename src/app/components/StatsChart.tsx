@@ -1,9 +1,10 @@
 import { useState, useMemo } from 'react';
 import styles from './StatsChart.module.css';
-import { 
-    BarChart, Bar, XAxis, YAxis, CartesianGrid, 
-    Tooltip, Legend, ResponsiveContainer 
+import {
+    BarChart, Bar, XAxis, YAxis, CartesianGrid,
+    Tooltip, Legend, ResponsiveContainer
 } from 'recharts';
+import { Line } from 'react-chartjs-2';
 
 interface Log {
     timestamp: string;
@@ -16,7 +17,7 @@ interface StatsChartProps {
     logs: Log[];
 }
 
-export function StatsChart({ logs }: StatsChartProps) {
+export function StatsChart({ logs }: StatsChartProps): React.ReactNode {
     const [chartType, setChartType] = useState<'daily' | 'hourly'>('daily');
     const [dataType, setDataType] = useState<'keyCount' | 'typingTime' | 'totalChars'>('keyCount');
 
@@ -71,18 +72,18 @@ export function StatsChart({ logs }: StatsChartProps) {
     return (
         <div className={styles.statsChartContainer}>
             <h2>타이핑 통계 차트</h2>
-            
+
             <div className={styles.chartControls}>
                 <div className={styles.controlGroup}>
                     <span>기간 선택:</span>
                     <div className={styles.buttonGroup}>
-                        <button 
+                        <button
                             className={chartType === 'daily' ? styles.active : ''}
                             onClick={() => setChartType('daily')}
                         >
                             일별
                         </button>
-                        <button 
+                        <button
                             className={chartType === 'hourly' ? styles.active : ''}
                             onClick={() => setChartType('hourly')}
                         >
@@ -90,23 +91,23 @@ export function StatsChart({ logs }: StatsChartProps) {
                         </button>
                     </div>
                 </div>
-                
+
                 <div className={styles.controlGroup}>
                     <span>데이터 유형:</span>
                     <div className={styles.buttonGroup}>
-                        <button 
+                        <button
                             className={dataType === 'keyCount' ? styles.active : ''}
                             onClick={() => setDataType('keyCount')}
                         >
                             타자수
                         </button>
-                        <button 
+                        <button
                             className={dataType === 'typingTime' ? styles.active : ''}
                             onClick={() => setDataType('typingTime')}
                         >
                             타이핑 시간
                         </button>
-                        <button 
+                        <button
                             className={dataType === 'totalChars' ? styles.active : ''}
                             onClick={() => setDataType('totalChars')}
                         >
@@ -115,7 +116,7 @@ export function StatsChart({ logs }: StatsChartProps) {
                     </div>
                 </div>
             </div>
-            
+
             <div className={styles.chartWrapper}>
                 <ResponsiveContainer width="100%" height={400}>
                     <BarChart
@@ -123,7 +124,7 @@ export function StatsChart({ logs }: StatsChartProps) {
                         margin={{ top: 20, right: 30, left: 20, bottom: 30 }}
                     >
                         <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis 
+                        <XAxis
                             dataKey={chartType === 'daily' ? 'date' : 'hour'}
                             angle={-45}
                             textAnchor="end"
@@ -132,19 +133,19 @@ export function StatsChart({ logs }: StatsChartProps) {
                         <YAxis />
                         <Tooltip />
                         <Legend />
-                        <Bar 
+                        <Bar
                             dataKey={dataType}
                             name={
-                                dataType === 'keyCount' ? '타자수' : 
-                                dataType === 'typingTime' ? '타이핑 시간(초)' :
-                                '총 문자수'
+                                dataType === 'keyCount' ? '타자수' :
+                                    dataType === 'typingTime' ? '타이핑 시간(초)' :
+                                        '총 문자수'
                             }
-                            fill="#8884d8" 
+                            fill="#8884d8"
                         />
                     </BarChart>
                 </ResponsiveContainer>
             </div>
-            
+
             <div className={styles.statsSummary}>
                 <h3>요약 통계</h3>
                 <div className={styles.statsGrid}>
@@ -154,21 +155,21 @@ export function StatsChart({ logs }: StatsChartProps) {
                             {logs.reduce((sum, log) => sum + (log.keyCount || 0), 0).toLocaleString()}
                         </span>
                     </div>
-                    
+
                     <div className={styles.statCard}>
                         <span className={styles.statLabel}>총 타이핑 시간</span>
                         <span className={styles.statValue}>
                             {formatTime(logs.reduce((sum, log) => sum + (log.typingTime || 0), 0))}
                         </span>
                     </div>
-                    
+
                     <div className={styles.statCard}>
                         <span className={styles.statLabel}>총 문자수</span>
                         <span className={styles.statValue}>
                             {logs.reduce((sum, log) => sum + (log.totalChars || 0), 0).toLocaleString()}
                         </span>
                     </div>
-                    
+
                     <div className={styles.statCard}>
                         <span className={styles.statLabel}>기록 수</span>
                         <span className={styles.statValue}>
@@ -184,16 +185,16 @@ export function StatsChart({ logs }: StatsChartProps) {
 // 시간 형식화 함수
 function formatTime(seconds: number): string {
     if (seconds < 60) return `${seconds}초`;
-    
+
     const minutes = Math.floor(seconds / 60);
     const remainingSeconds = seconds % 60;
-    
+
     if (minutes < 60) {
         return `${minutes}분 ${remainingSeconds}초`;
     }
-    
+
     const hours = Math.floor(minutes / 60);
     const remainingMinutes = minutes % 60;
-    
+
     return `${hours}시간 ${remainingMinutes}분 ${remainingSeconds}초`;
 }

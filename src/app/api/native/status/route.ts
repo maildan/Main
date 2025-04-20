@@ -2,7 +2,10 @@ import nativeModule from '@/server/native';
 import { NextResponse } from 'next/server';
 
 // 네이티브 모듈 상태 조회
-export async function GET() {
+/**
+ * 네이티브 모듈 상태 확인 API
+ */
+export async function GET(): Promise<NextResponse> {
   try {
     // 안전하게 함수 존재 여부 확인
     const isAvailable = typeof nativeModule.isNativeModuleAvailable === 'function'

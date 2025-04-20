@@ -9,7 +9,7 @@ import styles from './page.module.css';
  * 로그 분석 페이지
  * 로그 데이터 학습 및 분석 결과를 보여줍니다.
  */
-export default function LogAnalysisPage() {
+const LogAnalysisPage: React.FC = (): React.ReactNode => {
   const router = useRouter();
 
   return (
@@ -76,4 +76,6 @@ export default function LogAnalysisPage() {
       </main>
     </div>
   );
-}
+};
+
+export default LogAnalysisPage;

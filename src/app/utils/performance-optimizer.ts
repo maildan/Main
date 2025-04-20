@@ -5,11 +5,12 @@
  */
 
 import { getSystemStatus } from './system-monitor';
-import { optimizeMemory } from './nativeModuleClient';
 import { setGpuAcceleration } from './gpu-acceleration';
-import { MemoryUsageLevel, ProcessingMode, SystemStatus, MemorySettings, OptimizationLevel } from '@/types';
+import { MemoryUsageLevel, ProcessingMode, SystemStatus, MemorySettings, OptimizationResult, MemoryInfo } from '@/types';
 import { useCallback, useEffect, useRef } from 'react';
 import React from 'react';
+import { nativeModuleClient } from './nativeModuleClient';
+import { OptimizationLevel } from '@/types/optimization-level';
 
 // 최적화 설정
 interface OptimizationSettings {
@@ -44,52 +45,33 @@ export function updateSettings(settings: Partial<OptimizationSettings>) {
  */
 export async function analyzeAndOptimize(forced = false): Promise<boolean> {
   try {
-    // 자동 최적화가 비활성화되고 강제 모드가 아니면 중단
     if (!currentSettings.autoOptimize && !forced) {
       return false;
     }
-
-    // 시스템 상태 확인
     const status = await getSystemStatus(true);
-    
-    // 메모리 정보가 없으면 기본값 사용
-    const memoryInfo = status.memory ?? {
-      percentUsed: 0,
-      level: MemoryUsageLevel.LOW,
-      heapUsedMB: 0,
-      rssMB: 0
-    };
+    const memoryInfo = status.memory ?? { percentUsed: 0, level: MemoryUsageLevel.LOW }; // Simplified default
 
-    // 메모리 사용량이 임계치 이상이거나 강제 모드인 경우에만 최적화
     if (memoryInfo.percentUsed >= currentSettings.memoryThreshold || forced) {
-      // 메모리 레벨에 따른 최적화 수준 결정
-      let optimizationLevel = 0;
-      let emergency = false;
+      let optimizationLevel: OptimizationLevel;
 
       switch (memoryInfo.level) {
         case MemoryUsageLevel.CRITICAL:
-          optimizationLevel = 4;
-          emergency = true;
+          optimizationLevel = OptimizationLevel.AGGRESSIVE; // Use enum member
           break;
         case MemoryUsageLevel.HIGH:
-          optimizationLevel = 3;
-          emergency = currentSettings.aggressiveMode;
+          optimizationLevel = OptimizationLevel.HIGH; // Use enum member
           break;
         case MemoryUsageLevel.MEDIUM:
-          optimizationLevel = 2;
-          emergency = false;
+          optimizationLevel = OptimizationLevel.MEDIUM; // Use enum member
           break;
         case MemoryUsageLevel.LOW:
         default:
-          optimizationLevel = forced ? 1 : 0;
-          emergency = false;
+          optimizationLevel = forced ? OptimizationLevel.LOW : OptimizationLevel.NONE; // Use enum member
       }
 
-      // 최적화 필요한 경우 수행
-      if (optimizationLevel > 0) {
-        console.log(`성능 최적화 수행 (레벨: ${optimizationLevel}, 긴급: ${emergency})`);
-
-        const result = await optimizeMemory(optimizationLevel, emergency);
+      if (optimizationLevel !== OptimizationLevel.NONE) {
+        console.log(`성능 최적화 수행 (레벨: ${optimizationLevel})`); // Removed emergency log
+        const result = await nativeModuleClient.optimizeMemory(optimizationLevel);
         return result.success;
       }
     }
@@ -112,7 +94,7 @@ export async function analyzeAndOptimize(forced = false): Promise<boolean> {
       }
     }
 
-    return true;
+    return true; // Return true if no optimization was needed or GPU switch happened
   } catch (error) {
     console.error('성능 최적화 오류:', error);
     return false;
@@ -125,31 +107,23 @@ export async function analyzeAndOptimize(forced = false): Promise<boolean> {
  */
 export async function switchProcessingMode(mode: ProcessingMode): Promise<boolean> {
   try {
-    // GPU 활성화 여부 결정
     const enableGpu = mode === 'gpu-intensive';
-
-    // GPU 가속 설정 변경
     if (enableGpu) {
       await setGpuAcceleration(true);
     } else if (mode === 'cpu-intensive') {
-      // CPU 집중 모드
       await setGpuAcceleration(false);
     } else if (mode === 'memory-saving') {
-      // 메모리 절약 모드
       await setGpuAcceleration(false);
-      await optimizeMemory(3, true);
+      await nativeModuleClient.optimizeMemory(OptimizationLevel.HIGH);
     } else if (mode === 'normal') {
-      // normal 모드
       await setGpuAcceleration(true);
     } else if (mode === 'auto') {
-      // auto 모드
       await setGpuAcceleration(true);
     }
   } catch (error) {
     console.error('처리 모드 전환 오류:', error);
     return false;
   }
-
   return true;
 }
 
@@ -211,15 +185,9 @@ export async function processBatched<T, R>(
  */
 export async function optimizeForBackground(): Promise<boolean> {
   try {
-    // 백그라운드에서는 메모리 사용량 최소화에 집중
     console.log('백그라운드 모드에서 성능 최적화');
-
-    // GPU 가속 비활성화
     await setGpuAcceleration(false);
-
-    // 메모리 최적화 수행 (레벨 3, 긴급 모드)
-    await optimizeMemory(3, true);
-
+    await nativeModuleClient.optimizeMemory(OptimizationLevel.HIGH);
     return true;
   } catch (error) {
     console.error('백그라운드 최적화 오류:', error);
@@ -230,21 +198,13 @@ export async function optimizeForBackground(): Promise<boolean> {
 /**
  * 성능 최적화 수행
  * @param level 최적화 레벨
- * @param emergency 긴급 모드 여부
  */
-export async function optimizePerformance(
-  // 수정: OptimizationLevel 열거형 값 사용
-  level: OptimizationLevel = OptimizationLevel.MEDIUM,
-  emergency: boolean = false
-): Promise<boolean> {
+export async function optimizePerformance(level: OptimizationLevel = OptimizationLevel.MEDIUM): Promise<boolean> {
   try {
-    console.log(`성능 최적화 시작 (레벨: ${level}, 긴급: ${emergency})`);
-
-    // 메모리 최적화 실행
-    await optimizeMemory(level, emergency);
-
+    console.log(`성능 최적화 시작 (레벨: ${level})`); // Removed emergency log
+    const result = await nativeModuleClient.optimizeMemory(level);
     console.log('성능 최적화 완료');
-    return true;
+    return result.success;
   } catch (error) {
     console.error('성능 최적화 중 오류:', error);
     return false;
@@ -337,39 +297,45 @@ export function optimizeHiddenElements(): void {
  * 앱 성능 진단 및 최적화
  * @returns 성능 진단 결과
  */
-export async function diagnoseAndOptimizePerformance(): Promise<{
-  optimized: boolean;
-  memoryFreed: number;
-}> {
+export async function diagnoseAndOptimizePerformance(): Promise<{ optimized: boolean; memoryFreed: number; }> {
   let memoryFreed = 0;
+  let optimized = false; // Initialize optimized flag
 
-  // 현재 메모리 상태 확인
-  if (window.performance && (window.performance as any).memory) {
+  // Check using performance.memory (browser specific)
+  if (typeof window !== 'undefined' && window.performance && (window.performance as any).memory) {
     const memory = (window.performance as any).memory;
-    const usedRatio = memory.usedJSHeapSize / memory.jsHeapSizeLimit;
+    // Check if properties exist before using them
+    if (memory.usedJSHeapSize !== undefined && memory.jsHeapSizeLimit !== undefined && memory.jsHeapSizeLimit > 0) {
+      const usedRatio = memory.usedJSHeapSize / memory.jsHeapSizeLimit;
 
-    // 메모리 사용량이 70% 이상인 경우 최적화 수행
-    if (usedRatio > 0.7) {
-      const result = await optimizeMemory(2, usedRatio > 0.9);
+      if (usedRatio > 0.7) {
+        // Use OptimizationLevel.MEDIUM, call with one argument
+        const result = await nativeModuleClient.optimizeMemory(OptimizationLevel.MEDIUM);
 
-      if (result && result.success && result.result) {
-        memoryFreed = result.result.freed_mb || 0;
+        if (result && result.success) {
+          // Access freedMB directly from OptimizationResult
+          memoryFreed = result.freedMB ?? 0;
+          optimized = true; // Set optimized flag
+        }
+
+        optimizeHiddenElements();
+        cleanupEventListeners();
+        return { optimized, memoryFreed };
       }
-
-      // DOM 최적화
-      optimizeHiddenElements();
-
-      // 이벤트 핸들러 누수 감지 및 정리
-      cleanupEventListeners();
-
-      return { optimized: true, memoryFreed };
+    } else {
+      console.warn('performance.memory properties not available for optimization check.');
     }
+  } else {
+    console.warn('performance.memory not available.');
   }
 
-  // 일반 최적화만 수행
-  optimizeHiddenElements();
+  // Only run general optimizations if memory check didn't trigger optimization
+  if (!optimized) {
+    optimizeHiddenElements();
+  }
 
-  return { optimized: false, memoryFreed };
+  // Return default values if no optimization occurred based on memory
+  return { optimized, memoryFreed };
 }
 
 /**
@@ -413,87 +379,30 @@ export function withPerformanceOptimization<P extends object>(
 }
 
 /**
- * 시스템 상태에 따라 메모리 최적화 수행
- * @param status 시스템 상태
- * @param currentSettings 메모리 설정
- * @param forced 강제 최적화 여부
+ * 성능 최적화 실행 (Standalone function)
+ * @param level 최적화 레벨 (OptimizationLevel enum)
+ * @returns 최적화 결과
  */
-function optimizeBasedOnSystemStatus(status: SystemStatus, currentSettings: MemorySettings, forced = false): void {
-  // status.memory와 status.processing이 undefined일 경우를 대비한 기본값 설정
-  const memoryInfo = status.memory ?? {
-    percentUsed: 0,
-    level: MemoryUsageLevel.LOW,
-    heapUsedMB: 0,
-    rssMB: 0
-  };
-  
-  const processingInfo = status.processing ?? {
-    mode: ProcessingMode.NORMAL,
-    gpuEnabled: false
-  };
-
-  // 메모리 임계값 초과 또는 강제 최적화 시 수행
-  if (memoryInfo.percentUsed >= currentSettings.memoryThreshold || forced) {
-    // 최적화 수준 선택
-    let optimizationLevel: OptimizationLevel;
-    
-    // 메모리 사용 수준에 따른 최적화 강도 설정
-    switch (memoryInfo.level) {
-      case MemoryUsageLevel.CRITICAL:
-        optimizationLevel = OptimizationLevel.AGGRESSIVE;
-        break;
-      case MemoryUsageLevel.HIGH:
-        optimizationLevel = OptimizationLevel.HIGH;
-        break;
-      case MemoryUsageLevel.MEDIUM:
-        optimizationLevel = OptimizationLevel.MEDIUM;
-        break;
-      default:
-        optimizationLevel = OptimizationLevel.LOW;
+export async function runPerformanceOptimization(level: OptimizationLevel): Promise<OptimizationResult> {
+  console.log(`성능 최적화 실행 (레벨: ${level})`);
+  const optimizationLevel: OptimizationLevel = level;
+  try {
+    const result = await nativeModuleClient.optimizeMemory(optimizationLevel);
+    if (result.success) {
+      console.log(`최적화 완료: ${result.freedMB?.toFixed(2) ?? 0} MB 확보`);
+    } else {
+      console.warn(`최적화 실패: ${result.error}`);
     }
-
-    // 최적화 실행
-    optimizeMemory(optimizationLevel);
-    
-    // 보조 최적화 작업: 하드웨어 가속 최적화
-    const shouldUseGpu = 
-      memoryInfo.level !== MemoryUsageLevel.CRITICAL &&
-      memoryInfo.level !== MemoryUsageLevel.HIGH;
-    
-    // GPU 가속 설정 변경 필요한 경우
-    if (shouldUseGpu !== processingInfo.gpuEnabled) {
-      setGpuAcceleration(shouldUseGpu);
-    }
+    return result;
+  } catch (error: any) {
+    console.error(`최적화 중 오류 발생 (레벨: ${level}):`, error);
+    return {
+      success: false,
+      optimizationLevel: optimizationLevel,
+      timestamp: Date.now(),
+      freedMemory: 0,
+      freedMB: 0,
+      error: error.message || 'Unknown optimization error'
+    };
   }
-}
-
-/**
- * 시스템 성능에 따른 권장 테마 반환
- * @param status 시스템 상태
- * @returns 권장 테마
- */
-function getRecommendedThemeBasedOnPerformance(status: SystemStatus): 'light' | 'dark' | 'system' {
-  // memory 필드가 undefined일 경우를 대비한 기본값 설정
-  const memoryLevel = status.memory?.level ?? MemoryUsageLevel.LOW;
-  
-  if (memoryLevel === MemoryUsageLevel.HIGH) {
-    return 'light'; // 메모리 높음 - 라이트 테마 (일반적으로 DOM 요소가 덜 복잡함)
-  } else if (memoryLevel === MemoryUsageLevel.CRITICAL) {
-    return 'light'; // 메모리 위험 - 라이트 테마 (최소한의 스타일)
-  } else {
-    return 'system'; // 메모리 정상 - 시스템 기본값 유지
-  }
-}
-
-/**
- * 시스템 상태에 따라 애니메이션 축소 여부 결정
- * @param currentStatus 시스템 상태
- * @returns 애니메이션 축소 여부
- */
-function shouldUseReducedAnimations(currentStatus: SystemStatus): boolean {
-  // memory 필드가 undefined일 경우를 대비한 기본값 설정
-  const memoryLevel = currentStatus.memory?.level ?? MemoryUsageLevel.LOW;
-  
-  // 메모리 사용량이 높거나 위험한 경우에는 애니메이션 최소화
-  return memoryLevel === MemoryUsageLevel.HIGH || memoryLevel === MemoryUsageLevel.CRITICAL;
 }

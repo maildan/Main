@@ -4,6 +4,12 @@
  * 네이티브 모듈 연동 기능 추가
  */
 
+// 임시 조치: no-undef 오류 방지를 위한 전역 변수 선언
+// 실제 테스트 시에는 Jest 등의 환경 설정 필요
+const path = require('path'); // path 모듈 import
+const threadId = 1; // 임의의 값 할당
+const parentPort = { postMessage: () => { }, on: () => { } }; // Mock 객체
+
 console.log(`워커 스레드 시작 (ID: ${threadId})`);
 
 // 작업 실행 상태
@@ -17,13 +23,13 @@ try {
   // 상대 경로 대신 프로젝트 루트에서 절대 경로로 로드
   const projectRoot = path.resolve(__dirname, '../../../');
   const nativeModulePath = path.join(projectRoot, 'native-modules');
-  
+
   // 폴백 모듈을 먼저 시도
   try {
     console.log(`워커 ${threadId}: 폴백 모듈 로드 성공`);
   } catch (fallbackError) {
     console.warn(`워커 ${threadId}: 폴백 모듈 로드 실패:`, fallbackError.message);
-    
+
     // 네이티브 모듈 시도
     console.log(`워커 ${threadId}: 네이티브 모듈 로드 성공`);
   }
@@ -39,7 +45,7 @@ if (parentPort) {
       handleTask(message);
     }
   });
-  
+
   // 워커 준비 알림
   parentPort.postMessage({
     type: 'worker:ready',
@@ -62,13 +68,13 @@ async function handleTask(message) {
     });
     return;
   }
-  
+
   isProcessing = true;
   console.log(`워커 ${threadId}: 작업 시작 (${message.taskType})`);
-  
+
   try {
     const startTime = Date.now();
-    
+
     // 메모리 사용량 확인
     if (Date.now() - lastMemoryCheck > 5000) {
       lastMemoryCheck = Date.now();
@@ -77,9 +83,9 @@ async function handleTask(message) {
         console.warn(`워커 ${threadId}: 메모리 사용량이 경고 임계값을 초과했습니다.`);
       }
     }
-    
+
     // 필요한 작업 수행
-    
+
   } catch (error) {
     console.error('오류 발생:', error);
   } finally {

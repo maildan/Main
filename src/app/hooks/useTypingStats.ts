@@ -61,17 +61,31 @@ export interface TypingStatsState {
   accuracy: number;
 }
 
-export function useTypingStats(electronAPI: ElectronAPI | null) {
+interface UseTypingStatsResult {
+  logs: LogEntry[];
+  isLoading: boolean;
+  isTracking: boolean;
+  displayStats: TypingStatsState;
+  processKeyInput: (keyEvent: KeyboardEvent) => void;
+  saveCurrentSession: () => Promise<void>;
+  resetSession: () => void;
+  loadHistory: () => Promise<void>;
+  handleStartTracking: () => void;
+  handleStopTracking: () => void;
+  error: string | null;
+}
+
+export function useTypingStats(electronAPI: ElectronAPI | null, initialTracking = true): UseTypingStatsResult {
   // API에서 가져온 로그 데이터
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isTracking, setIsTracking] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
+
   // 메모리 관리를 위한 ref 사용
   const eventsCleanupRef = useRef<(() => void)[]>([]);
   const intervalsRef = useRef<NodeJS.Timeout[]>([]);
-  
+
   // 현재 통계 상태 - useRef로 관리하여 불필요한 렌더링 방지
   const currentStatsRef = useRef<TypingStatsState>({
     keyCount: 0,
@@ -84,22 +98,22 @@ export function useTypingStats(electronAPI: ElectronAPI | null) {
     pages: 0,
     accuracy: 100
   });
-  
+
   // 화면에 표시할 통계만 useState로 관리
-  const [displayStats, setDisplayStats] = useState({...currentStatsRef.current});
-  const { showToast } = useToast();
-  
+  const [displayStats, setDisplayStats] = useState({ ...currentStatsRef.current });
+  const { addToast } = useToast();
+
   // 주기적으로 표시 통계 업데이트 (불필요한 렌더링 방지)
   useEffect(() => {
     const updateInterval = setInterval(() => {
       // 변경사항이 있는 경우에만 상태 업데이트
       if (JSON.stringify(currentStatsRef.current) !== JSON.stringify(displayStats)) {
-        setDisplayStats({...currentStatsRef.current});
+        setDisplayStats({ ...currentStatsRef.current });
       }
     }, 2000); // 2초마다 업데이트
-    
+
     intervalsRef.current.push(updateInterval);
-    
+
     return () => clearInterval(updateInterval);
   }, [displayStats]);
 
@@ -109,6 +123,7 @@ export function useTypingStats(electronAPI: ElectronAPI | null) {
       if (electronAPI) {
         electronAPI.startTracking?.();
         setIsTracking(true);
+        addToast('타이핑 추적 시작됨', 'info');
       } else {
         console.warn('electronAPI가 없습니다.');
         setIsTracking(true); // API가 없어도 UI는 tracking 상태 표시
@@ -117,7 +132,7 @@ export function useTypingStats(electronAPI: ElectronAPI | null) {
       console.error('startTracking 호출 오류:', error);
       setIsTracking(true);
     }
-  }, [electronAPI]);
+  }, [electronAPI, addToast]);
 
   // 통계 중지 핸들러
   const handleStopTracking = useCallback(() => {
@@ -125,6 +140,7 @@ export function useTypingStats(electronAPI: ElectronAPI | null) {
       if (electronAPI) {
         electronAPI.stopTracking?.();
         setIsTracking(false);
+        addToast('타이핑 추적 중지됨', 'info');
       } else {
         console.warn('electronAPI가 없습니다.');
         setIsTracking(false);
@@ -133,28 +149,28 @@ export function useTypingStats(electronAPI: ElectronAPI | null) {
       console.error('stopTracking 호출 오류:', error);
       setIsTracking(false);
     }
-  }, [electronAPI]);
+  }, [electronAPI, addToast]);
 
   // 로그 데이터 로드 함수
   const fetchLogs = useCallback(async (limit = MAX_LOGS_TO_LOAD) => {
     if (isLoading) return; // 이미 로딩 중이면 중복 호출 방지
-    
+
     try {
       setIsLoading(true);
       const endpoint = `/api/getLogs?limit=${limit}`;
       const response = await fetch(endpoint);
-      
+
       if (!response.ok) {
         throw new Error(`API 요청 실패: ${response.status} ${response.statusText}`);
       }
-      
+
       const contentType = response.headers.get('content-type');
       if (!contentType || !contentType.includes('application/json')) {
         throw new Error('서버에서 잘못된 응답 형식 반환');
       }
-      
+
       const data = await response.json();
-      
+
       if (data.success) {
         // 필요한 필드만 추출하여 메모리 최적화
         const optimizedLogs = data.logs.map((log: any) => ({
@@ -171,7 +187,7 @@ export function useTypingStats(electronAPI: ElectronAPI | null) {
           pages: log.pages,
           accuracy: log.accuracy
         }));
-        
+
         // 상태 업데이트 조건부로 수행
         if (JSON.stringify(logs) !== JSON.stringify(optimizedLogs)) {
           setLogs(optimizedLogs);
@@ -184,11 +200,11 @@ export function useTypingStats(electronAPI: ElectronAPI | null) {
       console.error('로그 API 요청 오류:', error);
       setLogs([]);
       setError('로그를 불러오는 중 문제가 발생했습니다.');
-      showToast?.('데이터 로드 중 오류가 발생했습니다', 'error');
+      addToast?.('데이터 로드 중 오류가 발생했습니다', 'error');
     } finally {
       setIsLoading(false);
     }
-  }, [logs, showToast, isLoading]);
+  }, [logs, addToast, isLoading]);
 
   // 데이터베이스 저장 함수
   const saveToDatabase = useCallback(async (record: RecordData) => {
@@ -200,7 +216,7 @@ export function useTypingStats(electronAPI: ElectronAPI | null) {
       });
 
       const result = await response.json();
-      
+
       if (response.ok) {
         await fetchLogs(); // 로그 다시 불러오기
       } else {
@@ -217,7 +233,7 @@ export function useTypingStats(electronAPI: ElectronAPI | null) {
       if (electronAPI) {
         electronAPI.saveStats?.(content);
       }
-      
+
       // DB에도 저장
       const recordData: RecordData = {
         content,
@@ -231,7 +247,7 @@ export function useTypingStats(electronAPI: ElectronAPI | null) {
         pages: currentStatsRef.current.pages,
         accuracy: currentStatsRef.current.accuracy
       };
-      
+
       saveToDatabase(recordData);
     } catch (error) {
       console.error('saveStats 호출 오류:', error);
@@ -244,7 +260,7 @@ export function useTypingStats(electronAPI: ElectronAPI | null) {
         windowTitle: currentStatsRef.current.windowTitle,
         browserName: currentStatsRef.current.browserName || 'Unknown'
       };
-      
+
       saveToDatabase(recordData);
     }
   }, [electronAPI, saveToDatabase]);
@@ -252,10 +268,10 @@ export function useTypingStats(electronAPI: ElectronAPI | null) {
   // 초기화 함수
   const initializeEventListeners = useCallback(() => {
     if (!electronAPI) return;
-    
+
     // 이벤트 리스너 설정 및 정리 함수 모음
     const cleanupFunctions: (() => void)[] = [];
-    
+
     // 타이핑 통계 업데이트 이벤트 리스너
     if (electronAPI.onTypingStatsUpdate) {
       const cleanup = electronAPI.onTypingStatsUpdate((data: TypingStatsUpdate) => {
@@ -265,20 +281,20 @@ export function useTypingStats(electronAPI: ElectronAPI | null) {
           ...data
         };
       });
-      
+
       cleanupFunctions.push(cleanup);
     }
-    
+
     // 저장된 통계 이벤트 리스너
     if (electronAPI.onStatsSaved) {
       const cleanup = electronAPI.onStatsSaved(() => {
         // 저장 완료 후 로직
         fetchLogs();
       });
-      
+
       cleanupFunctions.push(cleanup);
     }
-    
+
     // 정리 함수를 ref에 저장
     eventsCleanupRef.current = cleanupFunctions;
   }, [electronAPI, fetchLogs]);
@@ -286,7 +302,7 @@ export function useTypingStats(electronAPI: ElectronAPI | null) {
   // 컴포넌트 마운트 시 이벤트 리스너 설정
   useEffect(() => {
     initializeEventListeners();
-    
+
     // 컴포넌트 언마운트 시 이벤트 리스너 정리
     return () => {
       eventsCleanupRef.current.forEach(cleanup => {
@@ -305,11 +321,11 @@ export function useTypingStats(electronAPI: ElectronAPI | null) {
       // 등록된 모든 이벤트 리스너 제거
       eventsCleanupRef.current.forEach(cleanup => cleanup());
       eventsCleanupRef.current = [];
-      
+
       // 등록된 모든 인터벌 제거
       intervalsRef.current.forEach(clearInterval);
       intervalsRef.current = [];
-      
+
       // 대용량 객체 참조 끊기
       setLogs([]);
       currentStatsRef.current = {
@@ -323,7 +339,7 @@ export function useTypingStats(electronAPI: ElectronAPI | null) {
         pages: 0,
         accuracy: 100
       };
-      
+
       // 메모리 해제 요청
       if (window.gc) {
         try {
@@ -340,16 +356,43 @@ export function useTypingStats(electronAPI: ElectronAPI | null) {
     fetchLogs();
   }, [fetchLogs]);
 
+  // 함수 정의 추가 (구현 필요)
+  const processKeyInput = useCallback((_keyEvent: KeyboardEvent) => {
+    // 키 입력 처리 로직
+    console.log('Key input processed (implementation needed)');
+  }, []);
+
+  const saveCurrentSession = useCallback(async () => {
+    // 현재 세션 저장 로직
+    console.log('Session save requested (implementation needed)');
+    addToast('세션 저장 시도 (구현 필요)', 'info');
+    return Promise.resolve();
+  }, [addToast]);
+
+  const resetSession = useCallback(() => {
+    // 세션 초기화 로직
+    console.log('Session reset requested (implementation needed)');
+    addToast('세션 초기화 시도 (구현 필요)', 'info');
+  }, [addToast]);
+
+  const loadHistory = useCallback(async () => {
+    // 기록 로드 로직
+    console.log('History load requested (implementation needed)');
+    addToast('기록 로드 시도 (구현 필요)', 'info');
+    return Promise.resolve();
+  }, [addToast]);
+
   return {
     logs,
-    isLoading, 
+    isLoading,
     isTracking,
     displayStats,
+    processKeyInput,
+    saveCurrentSession,
+    resetSession,
+    loadHistory,
     handleStartTracking,
     handleStopTracking,
-    handleSaveStats,
-    fetchLogs,
-    currentStatsRef,
     error
   };
 }

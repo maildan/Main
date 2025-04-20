@@ -6,7 +6,7 @@
  */
 
 // 올바른 import 경로 설정
-import { getMemoryInfo as getMemoryInfoOriginal } from '../nativeModuleClient';
+import { nativeModuleClient } from '../nativeModuleClient';
 import { getPerformanceHistory } from '../performance-metrics';
 // MemoryEventType을 src/types에서 가져옵니다
 import { MemoryEventType, MemoryInfo } from '@/types';
@@ -241,36 +241,17 @@ function normalizeMemoryInfo(memoryInfo: Record<string, unknown>): MemoryInfo {
 
 /**
  * 메모리 정보 가져오기 함수 래퍼
- * @returns 메모리 정보 또는 기본 값
+ * @returns 메모리 정보 또는 null (오류 발생 시)
  */
-async function getMemoryInfo(): Promise<Record<string, unknown>> {
+async function getMemoryInfo(): Promise<MemoryInfo | null> {
   try {
-    const response = await getMemoryInfoOriginal();
-    if (response && response.success && response.memoryInfo) {
-      return response.memoryInfo;
-    }
-    throw new Error('메모리 정보를 가져오는 데 실패했습니다');
+    const memoryInfo = await nativeModuleClient.getMemoryInfo();
+    return memoryInfo;
   } catch (error) {
-    logger.error('메모리 정보 가져오기 실패', { 
+    logger.error('메모리 정보 가져오기 실패', {
       error: error instanceof Error ? error.message : String(error)
     });
-    
-    // 기본 메모리 정보 반환
-    return {
-      heap_used: 0,
-      heap_total: 0,
-      heap_used_mb: 0,
-      heapUsed: 0,
-      heapTotal: 0,
-      heapUsedMB: 0,
-      rss: 0,
-      rss_mb: 0,
-      rssMB: 0,
-      percent_used: 0,
-      percentUsed: 0,
-      heap_limit: 0, // 추가: 필수 속성 heap_limit
-      timestamp: Date.now()
-    };
+    return null;
   }
 }
 
@@ -286,12 +267,15 @@ export async function logMemoryUsage(
   eventDescription?: string,
   componentId?: string,
   route?: string
-): Promise<MemoryLogEntry> {
+): Promise<MemoryLogEntry | null> {
   // 현재 메모리 정보 가져오기
-  const rawMemoryInfo = await getMemoryInfo();
+  const currentMemoryInfo = await getMemoryInfo();
 
-  // 표준화된 MemoryInfo 인터페이스로 변환
-  const standardizedInfo = normalizeMemoryInfo(rawMemoryInfo);
+  // Handle null case if memory info couldn't be fetched
+  if (!currentMemoryInfo) {
+    logger.warn('메모리 정보를 가져올 수 없어 로그를 기록할 수 없습니다.', { eventType });
+    return null;
+  }
 
   // 현재 라우트 가져오기 (route 매개변수가 없는 경우)
   if (!route && typeof window !== 'undefined') {
@@ -301,7 +285,7 @@ export async function logMemoryUsage(
   // 로그 항목 생성
   const logEntry: MemoryLogEntry = {
     timestamp: Date.now(),
-    info: standardizedInfo,
+    info: currentMemoryInfo,
     eventType,
     eventDescription,
     componentId,
@@ -319,8 +303,8 @@ export async function logMemoryUsage(
   // IndexedDB에 저장 (브라우저 환경에서만 실행)
   if (typeof window !== 'undefined' && window.indexedDB) {
     saveLogToIndexedDB(logEntry).catch(err =>
-      logger.error('메모리 로그 저장 중 오류:', { 
-        error: err instanceof Error ? err.message : String(err) 
+      logger.error('메모리 로그 저장 중 오류:', {
+        error: err instanceof Error ? err.message : String(err)
       })
     );
   }

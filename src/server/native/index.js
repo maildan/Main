@@ -59,12 +59,20 @@ function resolveNativeModulePath() {
   }
 
   // 프로덕션 환경에서는 배포된 위치에서 로드
-  return [
-    // 현재 디렉토리 내 네이티브 모듈
-    path.join(path.dirname(new URL(import.meta.url).pathname), 'typing_stats_native.node'),
-    // 대체 위치 - Node.js 확장 디렉토리
-    path.join(process.cwd(), 'node_modules', '.native-modules', 'typing_stats_native.node')
-  ];
+  if (process.platform === 'win32') {
+    // Windows
+    const programFiles = process.env['ProgramFiles'] || 'C:\\Program Files';
+    return [
+      path.join(programFiles, 'TypingStats', 'native_modules', 'typing_stats_native.node'),
+      'C:\\Program Files\\TypingStats\\modules\\typing_stats_native.node'
+    ];
+  } else {
+    // 기타 플랫폼
+    return [
+      '/usr/lib/typing-stats/native_modules/typing_stats_native.node',
+      '/usr/local/lib/typing-stats/modules/typing_stats_native.node'
+    ];
+  }
 }
 
 /**
@@ -489,7 +497,7 @@ async function getNativeFallback() {
     // 프로젝트 루트 기준 절대 경로 (개발 환경)
     path.join(process.cwd(), 'src', 'server', 'native', 'fallback', 'index.js'),
     // 빌드된 환경 기준 절대 경로 (프로덕션 환경 - 추정)
-    path.join(process.cwd(), '.next', 'server', 'chunks', 'fallback', 'index.js'), 
+    path.join(process.cwd(), '.next', 'server', 'chunks', 'fallback', 'index.js'),
     path.join(process.cwd(), '.next', 'server', 'src', 'server', 'native', 'fallback', 'index.js'), // 다른 빌드 구조 가능성 고려
     path.join(process.cwd(), 'dist', 'server', 'native', 'fallback', 'index.js') // 이전 경로 유지 (혹시 모를 경우)
   ];
@@ -500,13 +508,13 @@ async function getNativeFallback() {
   // 각 경로 시도
   for (const fallbackPath of possibleFallbackPaths) {
     // Windows 경로 문제 해결 (UNC 경로 또는 드라이브 문자 제거)
-    const cleanPath = process.platform === 'win32' && fallbackPath.startsWith('\\') 
-                      ? fallbackPath.substring(1) 
-                      : fallbackPath;
-                      
+    const cleanPath = process.platform === 'win32' && fallbackPath.startsWith('\\')
+      ? fallbackPath.substring(1)
+      : fallbackPath;
+
     // 로그 추가: 실제 확인하는 경로
     logger.info(`폴백 경로 확인 중: ${cleanPath}`);
-    
+
     try {
       if (fs.existsSync(cleanPath)) {
         // CommonJS 모듈 로드 방식 시도 (Next.js 환경 호환성)
@@ -533,11 +541,11 @@ async function getNativeFallback() {
         } catch (importError) {
           logWarning(`폴백 모듈 ESM 로드 실패: ${cleanPath}`, { error: importError.message });
         }
-  } else {
+      } else {
         // 로그 추가: 파일 없음
         // logger.info(`폴백 경로 없음: ${cleanPath}`);
       }
-  } catch (error) {
+    } catch (error) {
       logWarning(`폴백 모듈 접근 실패: ${cleanPath}`, { error: error.message });
     }
   }
@@ -611,12 +619,12 @@ function createInlineFallback() {
         global.gc();
         return JSON.stringify({
           success: true,
-          message: "GC 수행 완료"
+          message: 'GC 수행 완료'
         });
       }
       return JSON.stringify({
         success: false,
-        message: "GC를 사용할 수 없습니다"
+        message: 'GC를 사용할 수 없습니다'
       });
     }
   };
@@ -1043,9 +1051,9 @@ const nativeModuleApi = {
    * @returns {Object} 성능 지표
    */
   getPerformanceMetrics: () => ({ ...moduleState.metrics, timestamp: Date.now() }),
-  
+
   // =========== 설정 관련 함수 (추가) ===========
-  
+
   /**
    * 네이티브 모듈 메모리 설정 초기화/업데이트
    * @param {Object} settings 메모리 설정 객체
@@ -1056,23 +1064,23 @@ const nativeModuleApi = {
     if (!moduleState.initialization.attempted) {
       loadNativeModule();
     }
-    
+
     // 네이티브 모듈 사용 불가 또는 폴백 모드 시
     if (!moduleState.isAvailable || moduleState.isFallback) {
       logger.warning('네이티브 모듈을 사용할 수 없거나 폴백 모드이므로 메모리 설정을 초기화할 수 없습니다.');
       // 폴백 모드에서도 설정값을 내부 상태에 저장할 수 있음 (선택 사항)
-      return false; 
+      return false;
     }
-    
+
     // 실제 네이티브 함수 이름 확인 필요 (예: 'initialize_memory_settings')
-    const nativeFunctionName = 'initialize_memory_settings'; 
+    const nativeFunctionName = 'initialize_memory_settings';
     const nativeFunction = moduleState.nativeModule[nativeFunctionName];
-    
+
     if (typeof nativeFunction !== 'function') {
       logger.error(`네이티브 설정 함수 ${nativeFunctionName}을(를) 찾을 수 없습니다.`);
       return false;
     }
-    
+
     try {
       // 네이티브 함수에 설정 객체를 JSON 문자열로 변환하여 전달
       const settingsJson = JSON.stringify(settings);

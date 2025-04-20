@@ -3,6 +3,8 @@
  */
 
 import { NextResponse } from 'next/server';
+import { type NextRequest } from 'next/server';
+import nativeModule from '@/server/native';
 import { optimizeMemory } from '../../../utils/memory-optimizer';
 import { getMemoryUsage } from '../../../utils/memory/memory-info';
 import { formatBytes } from '../../../utils/common-utils';
@@ -24,10 +26,10 @@ let lastRequestTime = 0;
 /**
  * GET 핸들러 - 메모리 사용량 정보 조회
  */
-export async function GET() {
+export async function GET(): Promise<NextResponse> {
   try {
     const currentTime = Date.now();
-    
+
     // 이전 요청으로부터 최소 시간이 경과했는지 확인
     if (currentTime - lastRequestTime < MEMORY_REQUEST_TIMEOUT) {
       // 타임아웃 미충족 시 이전에 저장된 메모리 정보 반환 또는 요청 제한 메시지
@@ -38,12 +40,12 @@ export async function GET() {
         timeRemaining: MEMORY_REQUEST_TIMEOUT - (currentTime - lastRequestTime)
       });
     }
-    
+
     // 요청 시간 업데이트
     lastRequestTime = currentTime;
 
     const memoryInfo = await getMemoryUsage();
-    
+
     // memoryInfo가 null인 경우 처리
     if (!memoryInfo) {
       return NextResponse.json({
@@ -51,7 +53,7 @@ export async function GET() {
         error: '메모리 정보를 가져올 수 없습니다.'
       }, { status: 404 });
     }
-    
+
     return NextResponse.json({
       success: true,
       data: {
@@ -76,22 +78,22 @@ export async function GET() {
 /**
  * POST 핸들러 - 메모리 최적화 요청 처리
  */
-export async function POST(request: Request) {
+export async function POST(request: Request): Promise<NextResponse> {
   try {
     const { level = 'medium', emergency = false } = await request.json();
-    
+
     // 최적화 레벨 검증 - 값으로 정의된 OPTIMIZATION_LEVEL 사용
     const validLevels = Object.values(OPTIMIZATION_LEVEL);
     const optimizationLevel = validLevels.includes(level as OptimizationLevelType)
       ? level
       : OPTIMIZATION_LEVEL.MEDIUM;
-    
+
     // 메모리 최적화 실행
     const result = await optimizeMemory(optimizationLevel, emergency);
-    
+
     // 최적화 후 메모리 정보 조회
     const memoryInfo = await getMemoryUsage();
-    
+
     // memoryInfo가 null인 경우 처리
     if (!memoryInfo) {
       return NextResponse.json({
@@ -100,7 +102,7 @@ export async function POST(request: Request) {
         error: '최적화 후 메모리 정보를 가져올 수 없습니다.'
       });
     }
-    
+
     return NextResponse.json({
       success: true,
       result,
@@ -136,24 +138,24 @@ export async function PUT(request: Request) {
       // 가비지 컬렉션 수행
       const startTime = Date.now();
       let freedMemory = 0;
-      
+
       try {
         // 메모리 정보를 가져와 GC 전 메모리 상태 기록
         const beforeMemory = await getMemoryUsage();
-        
+
         // 글로벌 가비지 컬렉션 함수 호출 (Node.js 환경에서 --expose-gc 사용 시)
         if (typeof global !== 'undefined' && typeof (global as any).gc === 'function') {
           (global as any).gc();
         }
-        
+
         // GC 후 메모리 정보 가져오기
         const afterMemory = await getMemoryUsage();
-        
+
         // 메모리 정보가 있다면 확보된 메모리 계산
         if (beforeMemory && afterMemory && beforeMemory.heapUsed && afterMemory.heapUsed) {
           freedMemory = Math.max(0, beforeMemory.heapUsed - afterMemory.heapUsed);
         }
-        
+
         return NextResponse.json({
           success: true,
           timestamp: Date.now(),
@@ -171,7 +173,7 @@ export async function PUT(request: Request) {
         }, { status: 500 });
       }
     }
-    
+
     // 지원하지 않는 작업 요청
     return NextResponse.json({
       success: false,
@@ -179,6 +181,32 @@ export async function PUT(request: Request) {
     }, { status: 400 });
   } catch (error) {
     console.error('메모리 작업 처리 중 오류:', error);
+    return NextResponse.json({
+      success: false,
+      error: error instanceof Error ? error.message : String(error)
+    }, { status: 500 });
+  }
+}
+
+/**
+ * DELETE 핸들러 - 가비지 컬렉션 실행
+ */
+export async function DELETE(_request: NextRequest): Promise<NextResponse> {
+  try {
+    // 서버 측에서 네이티브 모듈 불러오기 (import로 변경)
+
+    if (!nativeModule || typeof nativeModule.requestGarbageCollection !== 'function') {
+      throw new Error('네이티브 모듈 또는 가비지 컬렉션 함수를 사용할 수 없습니다.');
+    }
+
+    const result = await nativeModule.requestGarbageCollection();
+
+    return NextResponse.json({
+      success: (result as { success?: boolean })?.success ?? false,
+      result
+    }); // 성공 응답 반환
+  } catch (error: any) {
+    console.error('가비지 컬렉션 실행 중 오류:', error);
     return NextResponse.json({
       success: false,
       error: error instanceof Error ? error.message : String(error)

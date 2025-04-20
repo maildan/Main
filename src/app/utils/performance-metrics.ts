@@ -10,7 +10,7 @@ import { toNativeOptimizationLevel } from './enum-converters';
 import { requestNativeMemoryOptimization } from './native-memory-bridge';
 import { internalOptimizeMemory } from './memory/optimizer';
 import { getMemoryInfo } from './memory/memory-info';
-import { getNativeModuleStatus } from './nativeModuleClient';
+import { nativeModuleClient } from './nativeModuleClient';
 
 // OptimizationLevel 상수 값 정의 (AppOptimizationLevel 타입을 값으로 대체)
 const OPTIMIZATION_LEVEL = {
@@ -56,24 +56,24 @@ export async function benchmarkMemoryOptimization(
 ): Promise<PerformanceResult> {
   // 초기 메모리 상태 기록
   const memoryBefore = await getMemoryInfo() || { heapUsedMB: 0 };
-  
+
   // 네이티브 구현 테스트
   let nativeResult = {
     executionTime: 0,
     success: false,
     error: undefined as string | undefined
   };
-  
+
   // 네이티브 모듈 사용 가능 여부 확인
-  const { available } = await getNativeModuleStatus();
-  
+  const { available } = await nativeModuleClient.getNativeModuleStatus();
+
   if (available) {
     try {
       const nativeStartTime = performance.now();
       const nativeLevel = toNativeOptimizationLevel(level as unknown as OptimizationLevel);
       await requestNativeMemoryOptimization(nativeLevel, emergency);
       const nativeEndTime = performance.now();
-      
+
       nativeResult = {
         executionTime: nativeEndTime - nativeStartTime,
         success: true,
@@ -85,19 +85,19 @@ export async function benchmarkMemoryOptimization(
   } else {
     nativeResult.error = '네이티브 모듈을 사용할 수 없음';
   }
-  
+
   // 자바스크립트 구현 테스트
   let jsResult = {
     executionTime: 0,
     success: false,
     error: undefined as string | undefined
   };
-  
+
   try {
     const jsStartTime = performance.now();
     await internalOptimizeMemory(emergency);
     const jsEndTime = performance.now();
-    
+
     jsResult = {
       executionTime: jsEndTime - jsStartTime,
       success: true,
@@ -106,19 +106,19 @@ export async function benchmarkMemoryOptimization(
   } catch (error) {
     jsResult.error = error instanceof Error ? error.message : '알 수 없는 오류';
   }
-  
+
   // 최종 메모리 상태 기록
   const memoryAfter = await getMemoryInfo() || { heapUsedMB: 0 };
   const _freedMB = (memoryBefore.heapUsedMB ?? 0) - (memoryAfter.heapUsedMB ?? 0); // 사용하지 않는 변수 앞에 _ 추가
-  
+
   // 성능 비교 결과 계산
   const speedupFactor = jsResult.success && nativeResult.success && nativeResult.executionTime > 0
     ? jsResult.executionTime / nativeResult.executionTime
     : 0;
-  
+
   // 메모리 차이 계산 (MB 단위)
   const memoryDifference = (memoryBefore?.heapUsedMB ?? 0) - (memoryAfter?.heapUsedMB ?? 0);
-  
+
   // 결과 객체 생성
   const result: PerformanceResult = {
     operationName: `Memory Optimization (Level ${level}, Emergency: ${emergency})`,
@@ -130,16 +130,16 @@ export async function benchmarkMemoryOptimization(
     memoryAfter,
     memoryDifference
   };
-  
+
   // 이력에 추가
   performanceHistory.push(result);
   if (performanceHistory.length > 50) {
     performanceHistory.shift(); // 최대 50개 항목 유지
   }
-  
+
   // 결과 로깅
   logPerformanceResult(result);
-  
+
   return result;
 }
 
@@ -151,7 +151,7 @@ function logPerformanceResult(result: PerformanceResult): void {
   console.group('🔍 성능 비교 결과');
   console.log(`작업: ${result.operationName}`);
   console.log(`시간: ${new Date(result.timestamp).toLocaleTimeString()}`);
-  
+
   console.group('⚙️ 네이티브 구현');
   console.log(`실행 시간: ${result.nativeImplementation.executionTime.toFixed(2)}ms`);
   console.log(`성공 여부: ${result.nativeImplementation.success ? '✅' : '❌'}`);
@@ -159,7 +159,7 @@ function logPerformanceResult(result: PerformanceResult): void {
     console.error(`오류: ${result.nativeImplementation.error}`);
   }
   console.groupEnd();
-  
+
   console.group('🔧 JavaScript 구현');
   console.log(`실행 시간: ${result.jsImplementation.executionTime.toFixed(2)}ms`);
   console.log(`성공 여부: ${result.jsImplementation.success ? '✅' : '❌'}`);
@@ -167,11 +167,11 @@ function logPerformanceResult(result: PerformanceResult): void {
     console.error(`오류: ${result.jsImplementation.error}`);
   }
   console.groupEnd();
-  
+
   if (result.speedupFactor > 0) {
     console.log(`⚡ 속도 향상: ${result.speedupFactor.toFixed(2)}x ${result.speedupFactor > 1 ? '(네이티브가 더 빠름)' : '(JS가 더 빠름)'}`);
   }
-  
+
   console.log(`💾 메모리 차이: ${result.memoryDifference.toFixed(2)}MB ${result.memoryDifference > 0 ? '감소' : '증가'}`);
   console.groupEnd();
 }
@@ -195,7 +195,7 @@ async function optimizeMemory(level: number, emergency: boolean = false): Promis
  */
 export async function runComprehensiveBenchmark(): Promise<PerformanceResult[]> {
   const results: PerformanceResult[] = [];
-  
+
   // 모든 최적화 레벨에 대해 테스트
   const optimizationLevel = 2; // 중간 레벨 사용
   for (let level = 0; level <= 4; level++) {
@@ -203,22 +203,22 @@ export async function runComprehensiveBenchmark(): Promise<PerformanceResult[]> 
     // 테스트 간 간격을 두어 이전 테스트의 영향 최소화
     await new Promise(resolve => setTimeout(resolve, 1000));
   }
-  
+
   // 긴급 모드 테스트
   await optimizeMemory(optimizationLevel);
   results.push(await benchmarkMemoryOptimization(OPTIMIZATION_LEVEL.EXTREME, true));
-  
+
   // 종합 결과 로깅
   console.group('📊 종합 벤치마크 결과');
   console.log(`총 ${results.length}개 테스트 실행됨`);
-  
+
   const avgSpeedup = results.reduce((sum, r) => sum + r.speedupFactor, 0) / results.length;
   console.log(`평균 속도 향상: ${avgSpeedup.toFixed(2)}x`);
-  
+
   console.log(`최고 속도 향상: ${Math.max(...results.map(r => r.speedupFactor)).toFixed(2)}x`);
   console.log(`총 해제된 메모리: ${results.reduce((sum, r) => sum + r.memoryDifference, 0).toFixed(2)}MB`);
   console.groupEnd();
-  
+
   return results;
 }
 

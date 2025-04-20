@@ -5,7 +5,7 @@ import { useEffect, useRef } from 'react';
  * @param callback 실행할 콜백 함수
  * @param delay 실행 간격(ms), null이면 타이머를 실행하지 않음
  */
-export function useInterval(callback: () => void, delay: number | null) {
+export function useInterval(callback: () => void, delay: number | null): void {
     const savedCallback = useRef<() => void>();
 
     // 콜백 함수가 변경되면 저장

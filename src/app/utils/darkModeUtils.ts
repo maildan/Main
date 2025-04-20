@@ -5,7 +5,7 @@ export function applyDarkModeToAllElements(isDark: boolean) {
   if (isDark) {
     document.body.classList.add('dark-mode');
     document.documentElement.classList.add('dark-mode');
-    
+
     // 주요 컨테이너에도 클래스 추가
     document.querySelectorAll('.tab-content, .chart-container, .history-table').forEach(el => {
       el.classList.add('dark-mode');
@@ -13,7 +13,7 @@ export function applyDarkModeToAllElements(isDark: boolean) {
   } else {
     document.body.classList.remove('dark-mode');
     document.documentElement.classList.remove('dark-mode');
-    
+
     // 주요 컨테이너에서도 클래스 제거
     document.querySelectorAll('.tab-content, .chart-container, .history-table').forEach(el => {
       el.classList.remove('dark-mode');
@@ -27,4 +27,25 @@ export function applyDarkModeToAllElements(isDark: boolean) {
 export function isSystemInDarkMode(): boolean {
   if (typeof window === 'undefined') return false;
   return window.matchMedia('(prefers-color-scheme: dark)').matches;
+}
+
+export function applyDarkMode(isDarkMode: boolean): void {
+  const root = document.documentElement;
+  if (isDarkMode) {
+    document.body.classList.add('dark-mode');
+    document.documentElement.classList.add('dark-mode');
+
+    // 주요 컨테이너에도 클래스 추가
+    document.querySelectorAll('.tab-content, .chart-container, .history-table').forEach(el => {
+      el.classList.add('dark-mode');
+    });
+  } else {
+    document.body.classList.remove('dark-mode');
+    document.documentElement.classList.remove('dark-mode');
+
+    // 주요 컨테이너에서도 클래스 제거
+    document.querySelectorAll('.tab-content, .chart-container, .history-table').forEach(el => {
+      el.classList.remove('dark-mode');
+    });
+  }
 }

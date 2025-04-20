@@ -8,6 +8,9 @@
 import { getLocalStorage as getStorageItem, setLocalStorage as setStorageItem } from './storage-utils';
 // ProcessingMode 타입 가져오기
 import { ProcessingMode } from '@/types';
+import { MemorySettings } from '@/types';
+// Import nativeModuleClient instead of native-memory-bridge
+import { nativeModuleClient } from './nativeModuleClient';
 
 // 메모리 설정 인터페이스 - 로컬에서만 사용함 (global @/types의 MemorySettings와 구분)
 export interface LocalMemorySettings {
@@ -15,16 +18,16 @@ export interface LocalMemorySettings {
   enableAutomaticOptimization: boolean;
   optimizationThreshold: number;  // MB 단위
   optimizationInterval: number;   // 밀리초 단위
-  
+
   // 고급 설정
   aggressiveGC: boolean;
   enableLogging: boolean;
   enablePerformanceMetrics: boolean;
-  
+
   // GPU 관련 설정
   useHardwareAcceleration: boolean;
   processingMode: ProcessingMode;
-  
+
   // 메모리 풀 설정
   useMemoryPool: boolean;
   poolCleanupInterval: number;    // 밀리초 단위
@@ -35,14 +38,14 @@ const DEFAULT_SETTINGS: LocalMemorySettings = {
   enableAutomaticOptimization: true,
   optimizationThreshold: 100,    // 100MB
   optimizationInterval: 60000,   // 1분
-  
+
   aggressiveGC: false,
   enableLogging: true,
   enablePerformanceMetrics: true,
-  
+
   useHardwareAcceleration: false,
   processingMode: ProcessingMode.NORMAL,
-  
+
   useMemoryPool: true,
   poolCleanupInterval: 300000,   // 5분
 };
@@ -83,7 +86,7 @@ async function getNativeMemorySettings(): Promise<NativeMemorySettings | null> {
   try {
     // 동적으로 모듈 import
     const nativeModule = await import('./native-memory-bridge');
-    if (typeof nativeModule.getNativeBridgeState === 'function') {
+    if (typeof nativeModuleClient.getNativeModuleStatus === 'function') {
       // 기본 설정 반환
       return null;
     }
@@ -102,7 +105,7 @@ export async function getMemorySettings(): Promise<LocalMemorySettings> {
   try {
     // 로컬 스토리지에서 설정 가져오기
     const storedSettings = await getStorageItem<Partial<LocalMemorySettings>>(MEMORY_SETTINGS_KEY) || {};
-    
+
     // 네이티브 모듈에서 설정 가져오기 시도
     let nativeSettings: Partial<LocalMemorySettings> = {};
     try {
@@ -125,7 +128,7 @@ export async function getMemorySettings(): Promise<LocalMemorySettings> {
     } catch (error) {
       console.warn('네이티브 설정을 가져오는 중 오류 발생:', error);
     }
-    
+
     // 기본값, 네이티브 설정, 로컬 스토리지 설정 병합 (우선순위 순)
     return {
       ...DEFAULT_SETTINGS,
@@ -147,16 +150,16 @@ export async function saveMemorySettings(settings: Partial<LocalMemorySettings>)
   try {
     // 현재 설정 가져오기
     const currentSettings = await getMemorySettings();
-    
+
     // 새 설정으로 업데이트
     const updatedSettings: LocalMemorySettings = {
       ...currentSettings,
       ...settings,
     };
-    
+
     // 로컬 스토리지에 저장
     await setStorageItem(MEMORY_SETTINGS_KEY, updatedSettings);
-    
+
     // 네이티브 모듈에 설정 적용 시도
     try {
       // 네이티브 설정 형식으로 변환 - undefined 방지를 위해 값 확인
@@ -172,13 +175,13 @@ export async function saveMemorySettings(settings: Partial<LocalMemorySettings>)
         use_memory_pool: updatedSettings.useMemoryPool,
         pool_cleanup_interval: updatedSettings.poolCleanupInterval,
       };
-      
+
       // 네이티브 모듈에 설정 업데이트
       await updateNativeMemorySettings(nativeSettings);
     } catch (error) {
       console.warn('네이티브 설정 적용 중 오류 발생 (로컬 설정은 저장됨):', error);
     }
-    
+
     // 전역 메모리 최적화 유틸리티 업데이트 (존재하는 경우)
     if (typeof window !== 'undefined' && window.__memoryOptimizer) {
       if (!window.__memoryOptimizer.settings) {
@@ -187,7 +190,7 @@ export async function saveMemorySettings(settings: Partial<LocalMemorySettings>)
         Object.assign(window.__memoryOptimizer.settings, updatedSettings);
       }
     }
-    
+
     return true;
   } catch (error) {
     console.error('메모리 설정 저장 중 오류 발생:', error);
@@ -202,15 +205,15 @@ export async function initializeMemorySettings(): Promise<void> {
   try {
     // 설정 가져오기
     const settings = await getMemorySettings();
-    
+
     // 주기적 메모리 최적화 설정 (활성화된 경우)
     if (settings.enableAutomaticOptimization) {
       setupPeriodicMemoryOptimization(settings);
     }
-    
+
     // 하드웨어 가속화 설정 적용
     applyHardwareAccelerationSettings(settings);
-    
+
     console.log('메모리 설정 초기화 완료:', settings);
   } catch (error) {
     console.error('메모리 설정 초기화 중 오류 발생:', error);
@@ -228,13 +231,13 @@ function setupPeriodicMemoryOptimization(settings: LocalMemorySettings): void {
       const cleanup = () => {
         console.log('주기적 메모리 최적화 중지됨');
       };
-      
+
       // 정리 함수 저장 (필요시 호출 가능)
       if (typeof window !== 'undefined') {
         if (!window.__memoryOptimizer) {
           // 타입 안전하게 초기화
           window.__memoryOptimizer = {
-            suggestGarbageCollection: () => {},
+            suggestGarbageCollection: () => { },
             requestGC: async () => null,
             clearBrowserCaches: async () => false,
             clearStorageCaches: () => false,
@@ -246,7 +249,7 @@ function setupPeriodicMemoryOptimization(settings: LocalMemorySettings): void {
             settings: {}
           };
         }
-        
+
         // 타입 안전한 접근 방식
         const memoryOptimizer = window.__memoryOptimizer;
         if (memoryOptimizer) {
@@ -254,7 +257,7 @@ function setupPeriodicMemoryOptimization(settings: LocalMemorySettings): void {
           (memoryOptimizer as any).cleanupPeriodicOptimization = cleanup;
         }
       }
-      
+
       // 타입 안전한 조건문
       if (window.__memoryOptimizer) {
         // setupPeriodicOptimization 프로퍼티가 있는지 확인
@@ -262,27 +265,27 @@ function setupPeriodicMemoryOptimization(settings: LocalMemorySettings): void {
           window.__memoryOptimizer,
           'setupPeriodicOptimization'
         );
-        
+
         // cleanupPeriodicOptimization 프로퍼티가 있는지 확인
         const hasCleanupFunc = Object.prototype.hasOwnProperty.call(
           window.__memoryOptimizer,
           'cleanupPeriodicOptimization'
         );
-        
+
         if (hasCleanupFunc && typeof window.__memoryOptimizer.cleanupPeriodicOptimization === 'function') {
           // 함수 호출 전 타입 체크
           window.__memoryOptimizer.cleanupPeriodicOptimization();
         }
-        
+
         // 새 정리 함수 설정 
         (window.__memoryOptimizer as any).setupPeriodicOptimization = cleanup;
       }
-      
+
       if (typeof window !== 'undefined' && window.__memoryOptimizer) {
         if (!window.__memoryOptimizer.settings) {
           window.__memoryOptimizer.settings = {};
         }
-        
+
         // 타입 안전한 할당
         Object.assign(window.__memoryOptimizer.settings || {}, settings);
       }
@@ -328,4 +331,32 @@ export async function resetMemorySettings(): Promise<boolean> {
     console.error('메모리 설정 재설정 중 오류 발생:', error);
     return false;
   }
+}
+
+/**
+ * 네이티브 모듈 설정을 통합합니다.
+ * @param currentSettings 현재 애플리케이션 설정
+ * @returns 통합된 설정
+ */
+export async function mergeNativeSettings(currentSettings: MemorySettings): Promise<MemorySettings> {
+  try {
+    // Use nativeModuleClient to get status instead of non-existent getNativeBridgeState
+    const nativeStatus = await nativeModuleClient.getNativeModuleStatus();
+
+    if (nativeStatus?.success && nativeStatus?.settings) { // Check if status and settings exist
+      console.log('네이티브 설정과 병합 중...');
+      // 네이티브 모듈 설정 우선 적용 (예시)
+      return {
+        ...currentSettings,
+        enableNativeOptimization: nativeStatus.settings.enableNativeOptimization ?? currentSettings.enableNativeOptimization,
+        processingMode: nativeStatus.settings.processingMode ?? currentSettings.processingMode,
+        // 필요한 경우 다른 네이티브 설정 병합
+      };
+    } else {
+      console.warn('네이티브 설정 정보를 가져올 수 없습니다. 앱 설정 유지.', nativeStatus?.error);
+    }
+  } catch (error) {
+    console.error('네이티브 설정 병합 오류:', error);
+  }
+  return currentSettings; // 오류 발생 시 현재 설정 반환
 }

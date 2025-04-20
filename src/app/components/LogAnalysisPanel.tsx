@@ -64,7 +64,7 @@ export default function LogAnalysisPanel({ className = '' }: LogAnalysisPanelPro
     availableModels: Object.values(LearningModelType)
   });
 
-  const learningStatusRef = useRef(false);
+  const _learningStatusRef = useRef(false);
 
   /**
    * 학습 상태 확인
@@ -255,8 +255,8 @@ export default function LogAnalysisPanel({ className = '' }: LogAnalysisPanelPro
                   <div className={styles.peakHoursChart}>
                     {insight.data.map((hour: HourData, i: number) => (
                       <div key={i} className={styles.hourBar}>
-                        <div 
-                          className={styles.hourBarFill} 
+                        <div
+                          className={styles.hourBarFill}
                           style={{ height: `${hour.percentage || 0}%` }}
                         />
                         <span className={styles.hourLabel}>{hour.hour}</span>
@@ -332,7 +332,7 @@ export default function LogAnalysisPanel({ className = '' }: LogAnalysisPanelPro
             disabled={isLoading}
             className={styles.learningButton}
           >
-            사용자 패턴 학습하기
+            사용자 행동 학습하기
           </button>
         </div>
       );
@@ -373,8 +373,8 @@ export default function LogAnalysisPanel({ className = '' }: LogAnalysisPanelPro
                   <div className={styles.activeHoursChart}>
                     {insight.data.map((hour: HourData, i: number) => (
                       <div key={i} className={styles.hourBar}>
-                        <div 
-                          className={styles.hourBarFill} 
+                        <div
+                          className={styles.hourBarFill}
                           style={{ height: `${hour.percentage || 0}%` }}
                         />
                         <span className={styles.hourLabel}>{hour.hour}</span>

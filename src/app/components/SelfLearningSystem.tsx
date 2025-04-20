@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { LearningModelType } from '../utils/log-learning';
-import { LogType, saveSystemLog } from '../utils/log-utils';
+import { saveSystemLog } from '../utils/log-utils';
 
 /**
  * 자동 학습 옵션 인터페이스
@@ -29,17 +29,18 @@ interface SelfLearningSystemProps {
  * 
  * 백그라운드에서 정기적으로 로그 데이터에서 학습을 실행합니다.
  */
-export default function SelfLearningSystem({
+const SelfLearningSystem: React.FC<SelfLearningSystemProps> = ({
   options,
   onLearningComplete,
   onLearningError
-}: SelfLearningSystemProps) {
+}): React.ReactNode => {
   // 마지막 학습 시간을 추적하는 ref (렌더링을 트리거하지 않기 위해 ref 사용)
   const lastLearningRef = useRef<number | null>(null);
   // 학습 실행 중인지 여부
   const [isLearning, setIsLearning] = useState<boolean>(false);
   // 학습 예약 타이머 ID
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const [learningStatus, setLearningStatus] = useState('idle');
 
   // 기본 옵션과 사용자 옵션을 병합
   const defaultOptions: AutoLearningOptions = {
@@ -222,4 +223,6 @@ export default function SelfLearningSystem({
 
   // 이 컴포넌트는 UI를 렌더링하지 않음
   return null;
-}
+};
+
+export default SelfLearningSystem;

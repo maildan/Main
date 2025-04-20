@@ -1,127 +1,101 @@
 'use client';
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
+// import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'; // Tooltip 관련 import 주석 처리
 import styles from './MiniView.module.css';
 
-// 미니뷰 통계 인터페이스 추가
+// MiniViewStats 타입 임시로 any 사용
 interface MiniViewStats {
-  keyCount: number;
-  typingTime: number;
+  current?: any;
+  system?: any;
+  wpm?: number | string;
+  accuracy?: number | string;
+  timeElapsedFormatted?: string;
+  memoryUsageFormatted?: string;
+  keyCount?: number;
+  typingTime?: number;
   windowTitle?: string;
-  browserName?: string;
-  totalChars?: number;
-  totalWords?: number;
-  accuracy?: number;
-  isTracking?: boolean;
 }
 
-export default function MiniView() {
-  const [isExpanded, setIsExpanded] = useState(false);
-  const [stats, setStats] = useState<MiniViewStats>({
-    keyCount: 0,
-    typingTime: 0,
-    windowTitle: '',
-    browserName: '',
-    totalChars: 0,
-    totalWords: 0,
-    accuracy: 100,
-    isTracking: false
-  });
+interface MiniViewProps {
+  // props 정의
+}
 
-  // 초기화 시 webkitUserSelect를 none으로 설정
+const MiniView: React.FC<MiniViewProps> = (): React.ReactNode => {
+  const [stats, setStats] = useState<MiniViewStats | null>(null); // 초기값 null
+  const [error, setError] = useState<string | null>(null);
+  const [isExpanded, setIsExpanded] = useState(false);
+
   useEffect(() => {
-    document.documentElement.style.webkitUserSelect = 'none';
-    document.documentElement.style.userSelect = 'none';
-    
-    // 전자 API를 사용하여 통계 업데이트 수신
-    let unsubscribe: (() => void) | null = null;
-    
-    if (typeof window !== 'undefined' && window.electronAPI) {
-      unsubscribe = window.electronAPI.onMiniViewStatsUpdate((data: MiniViewStats) => {
-        setStats(data);
-      });
-    }
-    
+    const handleStatsUpdate = (_event: any, data: MiniViewStats) => {
+      setStats(data);
+      setError(null);
+    };
+    const handleStatsError = (_event: any, errorMessage: string) => {
+      setError(errorMessage);
+      setStats(null);
+    };
+
+    window.electronAPI?.onMiniViewStatsUpdate(handleStatsUpdate);
+    window.electronAPI?.onMiniViewStatsError(handleStatsError);
+
+    // 초기 데이터 요청 (선택적)
+    window.electronAPI?.requestMiniViewStats();
+
     return () => {
-      document.documentElement.style.webkitUserSelect = '';
-      document.documentElement.style.userSelect = '';
-      
-      if (unsubscribe) {
-        unsubscribe();
-      }
+      window.electronAPI?.removeListener('mini-view-stats-update', handleStatsUpdate);
+      window.electronAPI?.removeListener('mini-view-stats-error', handleStatsError);
     };
   }, []);
 
-  // 드래그만 가능하게, onClick 제거
-  // Collapsed state: Show only the app icon
-  if (!isExpanded) {
-    return (
-      <div
-        className={styles.miniViewCollapsed}
-        aria-label="타이핑 통계 드래그"
-        style={{
-          WebkitAppRegion: 'drag',
-          cursor: 'move',
-          border: 'none',
-          outline: 'none',
-          boxShadow: 'none'
-        }}
-      >
-        <img
-          src="/app-icon.svg"
-          alt="앱 아이콘"
-          className={styles.appIcon}
-          style={{ 
-            pointerEvents: 'none',
-            WebkitAppRegion: 'drag',
-            border: 'none',
-            outline: 'none'
-          }}
-        />
-      </div>
-    );
+  const toggleExpand = () => {
+    setIsExpanded(!isExpanded);
+    window.electronAPI?.toggleMiniViewSize(!isExpanded); // isExpanded 상태 반대로 전달
+  };
+
+  if (error) {
+    return <div className={styles.miniViewContainer}>{error}</div>;
   }
 
-  // Expanded state: Show the full mini-view with statistics
+  if (!stats) {
+    return <div className={styles.miniViewContainer}>Loading...</div>;
+  }
+
+  const wpm = stats.current?.wpm ?? stats.wpm ?? 'N/A';
+  const acc = stats.current?.accuracy ?? stats.accuracy ?? 'N/A';
+  // const time = stats.current?.timeElapsedFormatted ?? stats.timeElapsedFormatted ?? 'N/A';
+  // const cpuUsage = stats.system?.cpuUsage ?? 'N/A';
+  // const memoryUsage = stats.system?.memoryUsageFormatted ?? 'N/A';
+
   return (
-    <div className={styles.miniView}>
-      <div className={styles.appIconWrapper}>
-        <img
-          src="/app-icon.svg"
-          alt="앱 아이콘"
-          className={styles.appIcon}
-          onClick={() => setIsExpanded(false)}
-        />
+    // <TooltipProvider> // Tooltip 관련 주석 처리
+    <div className={`${styles.miniViewContainer} ${isExpanded ? styles.expanded : ''}`}>
+      {/* <Tooltip> */}
+      {/* <TooltipTrigger asChild> */}
+      <div className={styles.stats} onClick={toggleExpand} tabIndex={0} role="button" aria-label="Toggle mini view details">
+        {/* 간단 정보 표시 */}
+        <span>WPM: {wpm}</span>
+        <span>ACC: {acc}%</span>
       </div>
-      <div className={styles.content}>
-        <div className={styles.statsContainer}>
-          <div className={styles.statItem}>
-            <span className={styles.statLabel}>타자 수</span>
-            <span className={styles.statValue}>{stats.keyCount.toLocaleString()}</span>
-          </div>
-          <div className={styles.statItem}>
-            <span className={styles.statLabel}>타이핑 시간</span>
-            <span className={styles.statValue}>{stats.typingTime}초</span>
-          </div>
-          <div className={styles.statItem}>
-            <span className={styles.statLabel}>평균 속도</span>
-            <span className={styles.statValue}>
-              {stats.typingTime > 0 ? Math.round((stats.keyCount / stats.typingTime) * 60) : 0} 타/분
-            </span>
-          </div>
-          {stats.accuracy && (
-            <div className={styles.statItem}>
-              <span className={styles.statLabel}>정확도</span>
-              <span className={styles.statValue}>{stats.accuracy}%</span>
-            </div>
-          )}
+      {/* </TooltipTrigger> */}
+      {/* <TooltipContent>
+            <p>Time: {time}</p>
+            <p>CPU: {cpuUsage}%</p>
+            <p>Mem: {memoryUsage}</p>
+          </TooltipContent> */}
+      {/* </Tooltip> */}
+
+      {/* 확장 시 추가 정보 (필요시) */}
+      {isExpanded && (
+        <div className={styles.details}>
+          <p>Key Count: {stats.keyCount ?? 'N/A'}</p>
+          <p>Typing Time: {stats.typingTime ?? 'N/A'}s</p>
+          <p>Window: {stats.windowTitle ?? 'N/A'}</p>
         </div>
-        {stats.windowTitle && (
-          <div className={styles.currentWindow}>
-            {stats.windowTitle}
-          </div>
-        )}
-      </div>
+      )}
     </div>
+    // </TooltipProvider> // Tooltip 관련 주석 처리
   );
-}
+};
+
+export default MiniView;

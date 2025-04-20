@@ -1,8 +1,11 @@
 /**
  * 메모리 관리를 위한 유틸리티 함수
  */
-import { OptimizationLevel } from '@/types';
+import { OptimizationLevel } from '@/types/optimization-level';
 import { optimizationController } from './gc/optimization-controller';
+
+// 브라우저 환경 확인 변수 추가
+const isBrowser = typeof window !== 'undefined';
 
 /**
  * 메모리 유틸리티 초기화
@@ -154,5 +157,22 @@ export function cleanupResources(resources: any[]): void {
         // 리소스 해제 에러 무시
       }
     }
+  }
+}
+
+export function scheduleGarbageCollection(delay = 100): void {
+  if (isBrowser) {
+    setTimeout(() => {
+      if (typeof window.gc === 'function') {
+        try {
+          window.gc();
+          console.log('Scheduled garbage collection executed.');
+        } catch (e) {
+          console.warn('Garbage collection failed:', e);
+        }
+      } else {
+        console.warn('Garbage collection API not available.');
+      }
+    }, delay);
   }
 }

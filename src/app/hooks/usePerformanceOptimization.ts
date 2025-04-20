@@ -9,12 +9,21 @@ interface PerformanceState {
   optimizationCount: number;
 }
 
+// 실제 반환 타입에 맞게 인터페이스 수정
+interface PerformanceOptimizationHookResult {
+  isOptimizationNeeded: boolean;
+  lastOptimization: Date | null;
+  optimizationCount: number;
+  checkPerformance: () => void;
+  optimizePerformance: () => Promise<void>; // 비동기 함수이므로 Promise<void> 반환 타입 추가
+}
+
 /**
  * 컴포넌트 렌더링 성능 최적화 훅
  * @param threshold 최적화 임계값 (0-1 사이, 기본값 0.7)
  * @returns 성능 관련 데이터 및 최적화 함수
  */
-export function usePerformanceOptimization(threshold: number = 0.7) {
+export function usePerformanceOptimization(threshold: number = 0.7): PerformanceOptimizationHookResult {
   const [isOptimizationNeeded, setIsOptimizationNeeded] = useState(false);
   const [lastOptimization, setLastOptimization] = useState<Date | null>(null);
 

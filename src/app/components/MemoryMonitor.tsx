@@ -1,16 +1,16 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { 
-  Chart as ChartJS, 
-  CategoryScale, 
-  LinearScale, 
-  PointElement, 
-  LineElement, 
-  Title, 
-  Tooltip, 
-  Legend, 
-  ChartOptions 
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend,
+  ChartOptions
 } from 'chart.js';
 import { Line } from 'react-chartjs-2';
 import { getMemoryInfo } from '../utils/memory/memory-info';
@@ -108,7 +108,7 @@ export default function MemoryMonitor({
     percent: [],
     rss: []
   });
-  
+
   // 현재 메모리 상태
   const [currentMemory, setCurrentMemory] = useState<{
     heapUsed: number;
@@ -117,37 +117,37 @@ export default function MemoryMonitor({
     rss?: number;
     timestamp: number;
   } | null>(null);
-  
+
   // 갱신 중 상태
   const [isRefreshing, setIsRefreshing] = useState(false);
-  
+
   // GC 실행 중 상태
   const [isPerformingGC, setIsPerformingGC] = useState(false);
-  
+
   // 메모리 상태 (안전, 주의, 위험)
   const [memoryStatus, setMemoryStatus] = useState<'safe' | 'warning' | 'danger'>('safe');
-  
+
   // 애니메이션을 위한 타이머 ID
   const timerRef = useRef<NodeJS.Timeout | null>(null);
-  
+
   // 메모리 상태 평가 함수
   const evaluateMemoryStatus = (percentUsed: number) => {
     if (percentUsed > 85) return 'danger';
     if (percentUsed > 70) return 'warning';
     return 'safe';
   };
-  
+
   // 메모리 정보 가져오기
   const fetchMemoryInfo = async () => {
     try {
       setIsRefreshing(true);
-      
+
       const memoryInfo = await getMemoryInfo();
-      
+
       if (memoryInfo) {
         const timestamp = memoryInfo.timestamp || Date.now();
         const formattedTime = formatTime(timestamp);
-        
+
         // 메모리 상태 업데이트
         setCurrentMemory({
           heapUsed: memoryInfo.heap_used_mb || memoryInfo.heapUsedMB || 0,
@@ -156,12 +156,12 @@ export default function MemoryMonitor({
           rss: memoryInfo.rss_mb || memoryInfo.rssMB,
           timestamp
         });
-        
+
         // 메모리 상태 평가
         setMemoryStatus(evaluateMemoryStatus(
           memoryInfo.percent_used || memoryInfo.percentUsed || 0
         ));
-        
+
         // 차트 데이터 업데이트
         setMemoryData(prev => {
           // 새 데이터 포인트 추가
@@ -170,7 +170,7 @@ export default function MemoryMonitor({
           const newTotal = [...prev.total, (memoryInfo.heap_total || 0) / (1024 * 1024)];
           const newPercent = [...prev.percent, memoryInfo.percent_used || memoryInfo.percentUsed || 0];
           const newRSS = [...(prev.rss || []), memoryInfo.rss_mb || memoryInfo.rssMB || 0];
-          
+
           // 데이터 개수 제한
           if (newLabels.length > historyLength) {
             newLabels.shift();
@@ -179,7 +179,7 @@ export default function MemoryMonitor({
             newPercent.shift();
             if (newRSS.length > historyLength) newRSS.shift();
           }
-          
+
           return {
             labels: newLabels,
             used: newUsed,
@@ -195,18 +195,18 @@ export default function MemoryMonitor({
       setIsRefreshing(false);
     }
   };
-  
+
   // 가비지 컬렉션 요청
   const handleGarbageCollection = async () => {
     try {
       setIsPerformingGC(true);
       const result = await requestGC();
-      
+
       if (result && result.success) {
         const freedMB = result.freedMB || 0;
         console.log(`가비지 컬렉션 완료: ${freedMB.toFixed(2)}MB 해제됨`);
       }
-      
+
       // GC 후 메모리 정보 갱신
       await fetchMemoryInfo();
     } catch (error) {
@@ -215,17 +215,17 @@ export default function MemoryMonitor({
       setIsPerformingGC(false);
     }
   };
-  
+
   // 초기화 및 주기적 갱신
   useEffect(() => {
     // 초기 데이터 로드
     fetchMemoryInfo();
-    
+
     // 주기적 갱신 설정
     timerRef.current = setInterval(() => {
       fetchMemoryInfo();
     }, pollInterval);
-    
+
     // 정리 함수
     return () => {
       if (timerRef.current) {
@@ -253,11 +253,11 @@ export default function MemoryMonitor({
       }] : [])
     ]
   };
-  
+
   return (
     <div className={`${styles.container} ${darkMode ? styles.darkMode : ''}`}>
       <h3 className={styles.title}>메모리 모니터링</h3>
-      
+
       {/* 현재 메모리 상태 */}
       <div className={`${styles.statsContainer} ${styles[memoryStatus]}`}>
         {currentMemory ? (
@@ -287,25 +287,25 @@ export default function MemoryMonitor({
           <div className={styles.loading}>데이터 로드 중...</div>
         )}
       </div>
-      
+
       {/* 메모리 사용량 차트 */}
       <div className={styles.chartContainer} style={{ height: `${height}px` }}>
         <Line data={chartData} options={chartOptions} />
       </div>
-      
+
       {/* 컨트롤 버튼 */}
       {showControls && (
         <div className={styles.controls}>
-          <button 
-            className={styles.refreshButton} 
+          <button
+            className={styles.refreshButton}
             onClick={fetchMemoryInfo}
             disabled={isRefreshing}
           >
             {isRefreshing ? '갱신 중...' : '수동 갱신'}
           </button>
-          
-          <button 
-            className={styles.gcButton} 
+
+          <button
+            className={styles.gcButton}
             onClick={handleGarbageCollection}
             disabled={isPerformingGC}
           >
@@ -313,7 +313,7 @@ export default function MemoryMonitor({
           </button>
         </div>
       )}
-      
+
       {/* 메모리 상태 표시 */}
       <div className={`${styles.statusIndicator} ${styles[memoryStatus]}`}>
         <div className={styles.statusLabel}>

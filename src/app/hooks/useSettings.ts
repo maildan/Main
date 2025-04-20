@@ -46,12 +46,23 @@ const defaultSettings: SettingsState = {
   maxMemoryThreshold: 100
 };
 
-export function useSettings(electronAPI: ElectronAPI | null) {
-  const { showToast } = useToast();
-  const [settings, setSettings] = useState<SettingsState>(defaultSettings);
+interface UseSettingsResult {
+  settings: SettingsState | null;
+  isLoading: boolean;
+  error: string | null;
+  saveSettings: (newSettings: Partial<SettingsState>) => Promise<void>;
+  updateSetting: <K extends keyof SettingsState>(key: K, value: SettingsState[K]) => Promise<void>;
+  getSetting: <K extends keyof SettingsState>(key: K, defaultValue?: SettingsState[K]) => SettingsState[K] | undefined;
+}
+
+export function useSettings(electronAPI: ElectronAPI | null, initialSettings?: SettingsState | null): UseSettingsResult {
+  const { addToast } = useToast();
+  const [settings, setSettings] = useState<SettingsState>(initialSettings || defaultSettings);
   const [darkMode, setDarkMode] = useState<boolean>(false);
   const [windowMode, setWindowMode] = useState<WindowModeType>('windowed');
   const [isInitialized, setIsInitialized] = useState<boolean>(false);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
 
   // 설정 로드 함수
   const loadSettings = useCallback(async () => {
@@ -85,15 +96,15 @@ export function useSettings(electronAPI: ElectronAPI | null) {
           console.error('localStorage 로드 오류:', storageError);
         }
       }
-      
+
       // 기본 설정 반환
       return defaultSettings;
     } catch (error) {
       console.error('설정 로드 오류:', error);
-      showToast?.('설정을 불러오지 못했습니다', 'error');
+      addToast?.('설정을 불러오지 못했습니다', 'error');
       return defaultSettings;
     }
-  }, [electronAPI, showToast]);
+  }, [electronAPI, addToast]);
 
   // 설정 저장 함수 개선
   const handleSaveSettings = useCallback(async (newSettings: SettingsState) => {
@@ -102,7 +113,7 @@ export function useSettings(electronAPI: ElectronAPI | null) {
       const hasChanges = JSON.stringify(newSettings) !== JSON.stringify(settings);
       if (!hasChanges) {
         console.log('변경된 설정이 없습니다.');
-        showToast?.('변경된 설정이 없습니다', 'info');
+        addToast?.('변경된 설정이 없습니다', 'info');
         return true;
       }
 
@@ -110,7 +121,7 @@ export function useSettings(electronAPI: ElectronAPI | null) {
       if (electronAPI?.saveSettings) {
         console.log('Electron API를 통해 설정 저장:', newSettings);
         const result = await electronAPI.saveSettings(newSettings);
-        
+
         if (result) {
           console.log('설정 저장 성공');
           setSettings(newSettings);
@@ -125,7 +136,7 @@ export function useSettings(electronAPI: ElectronAPI | null) {
             const event = new CustomEvent('darkmode-changed', { detail: { darkMode: newSettings.darkMode } });
             window.dispatchEvent(event);
           }
-          
+
           // 윈도우 모드 설정 업데이트
           if (newSettings.windowMode !== windowMode) {
             setWindowMode(newSettings.windowMode);
@@ -133,21 +144,21 @@ export function useSettings(electronAPI: ElectronAPI | null) {
               await electronAPI.setWindowMode(newSettings.windowMode);
             }
           }
-          showToast?.('설정이 저장되었습니다', 'success');
+          addToast?.('설정이 저장되었습니다', 'success');
           return true;
         } else {
           console.error('설정 저장 실패');
-          showToast?.('설정 저장에 실패했습니다', 'error');
+          addToast?.('설정 저장에 실패했습니다', 'error');
           return false;
         }
       }
-      
+
       // localStorage를 통한 저장 (Electron API가 없을 때)
       try {
         localStorage.setItem('app_settings', JSON.stringify(newSettings));
         console.log('localStorage에 설정 저장 성공:', newSettings);
         setSettings(newSettings);
-        
+
         // 다크 모드 설정 업데이트
         if (newSettings.darkMode !== darkMode) {
           setDarkMode(newSettings.darkMode);
@@ -156,41 +167,41 @@ export function useSettings(electronAPI: ElectronAPI | null) {
           const event = new CustomEvent('darkmode-changed', { detail: { darkMode: newSettings.darkMode } });
           window.dispatchEvent(event);
         }
-        
+
         // 윈도우 모드 설정 업데이트
         if (newSettings.windowMode !== windowMode) {
           setWindowMode(newSettings.windowMode);
         }
-        
-        showToast?.('설정이 저장되었습니다', 'success');
+
+        addToast?.('설정이 저장되었습니다', 'success');
         return true;
       } catch (storageError) {
         console.error('localStorage 저장 오류:', storageError);
-        showToast?.('설정 저장에 실패했습니다', 'error');
+        addToast?.('설정 저장에 실패했습니다', 'error');
         return false;
       }
     } catch (error) {
       console.error('설정 저장 중 오류 발생:', error);
-      showToast?.('설정을 저장할 수 없습니다', 'error');
+      addToast?.('설정을 저장할 수 없습니다', 'error');
       return false;
     }
-  }, [electronAPI, settings, darkMode, windowMode, showToast]);
+  }, [electronAPI, settings, darkMode, windowMode, addToast]);
 
   // 다크 모드 설정 함수
   const handleDarkModeChange = useCallback(async (enabled: boolean) => {
     try {
       setDarkMode(enabled);
       applyDarkModeToAllElements(enabled);
-      
+
       // Electron API를 통한 다크 모드 설정
       if (electronAPI?.setDarkMode) {
         await electronAPI.setDarkMode(enabled);
       }
-      
+
       // 이벤트 발생 (다른 컴포넌트에 알림)
       const event = new CustomEvent('darkmode-changed', { detail: { darkMode: enabled } });
       window.dispatchEvent(event);
-      
+
       return true;
     } catch (error) {
       console.error('다크 모드 설정 오류:', error);
@@ -202,12 +213,12 @@ export function useSettings(electronAPI: ElectronAPI | null) {
   const handleWindowModeChange = useCallback(async (mode: WindowModeType) => {
     try {
       setWindowMode(mode);
-      
+
       // Electron API를 통한 윈도우 모드 설정
       if (electronAPI?.setWindowMode) {
         await electronAPI.setWindowMode(mode);
       }
-      
+
       return true;
     } catch (error) {
       console.error('윈도우 모드 설정 오류:', error);
@@ -224,13 +235,35 @@ export function useSettings(electronAPI: ElectronAPI | null) {
     }
   }, [loadSettings, isInitialized]);
 
+  const saveSettings = useCallback(async (newSettings: Partial<SettingsState>) => {
+    try {
+      await handleSaveSettings(newSettings as SettingsState);
+    } catch (error) {
+      console.error('설정 저장 중 오류 발생:', error);
+      addToast?.('설정을 저장할 수 없습니다', 'error');
+    }
+  }, [handleSaveSettings, addToast]);
+
+  const updateSetting = useCallback(async <K extends keyof SettingsState>(key: K, value: SettingsState[K]) => {
+    try {
+      const newSettings = { ...settings, [key]: value };
+      await saveSettings(newSettings);
+    } catch (error) {
+      console.error(`설정 업데이트 중 오류 발생: ${key}`, error);
+      addToast?.('설정을 업데이트할 수 없습니다', 'error');
+    }
+  }, [settings, saveSettings, addToast]);
+
+  const getSetting = useCallback(<K extends keyof SettingsState>(key: K, defaultValue?: SettingsState[K]) => {
+    return settings?.[key] ?? defaultValue;
+  }, [settings]);
+
   return {
     settings,
-    darkMode,
-    windowMode,
-    handleSaveSettings,
-    handleDarkModeChange,
-    handleWindowModeChange,
-    loadSettings
+    isLoading,
+    error,
+    saveSettings,
+    updateSetting,
+    getSetting
   };
 }
