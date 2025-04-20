@@ -48,12 +48,18 @@ function App() {
     setActiveSection(newSection);
   };
 
+  // 트래킹 비활성화 메시지인지 확인하는 함수
+  const isTrackingDisabledMessage = (message: string | null): boolean => {
+    return message === "키보드 트래킹이 비활성화되었습니다.";
+  };
+
   return (
     <div className="app-layout">
       {/* 에러 메시지 표시 */}
       <ErrorMessage 
         message={errorMessage} 
         onClose={() => setErrorMessage(null)}
+        isError={isTrackingDisabledMessage(errorMessage)} // 트래킹 비활성화 시 isError를 true로 설정
       />
       
       {/* 트래킹 컨트롤 */}

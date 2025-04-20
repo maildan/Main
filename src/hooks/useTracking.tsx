@@ -4,8 +4,23 @@ import { listen, type EventCallback, type UnlistenFn } from "@tauri-apps/api/eve
 
 /**
  * 키보드 트래킹 기능에 관련된 상태와 로직을 관리하는 커스텀 훅
+ * @returns {TrackingHookReturn} 트래킹 관련 상태와 핸들러 함수들
  */
-export function useTracking() {
+export interface TrackingHookReturn {
+  errorMessage: string | null;
+  setErrorMessage: React.Dispatch<React.SetStateAction<string | null>>;
+  currentLine: string;
+  isComposing: boolean;
+  isTrackingEnabled: boolean;
+  inputRef: React.RefObject<HTMLInputElement>;
+  toggleTracking: () => Promise<void>;
+  handleKeyDown: (event: React.KeyboardEvent<HTMLInputElement>) => Promise<void>;
+  handleCompositionStart: () => void;
+  handleCompositionEnd: (e: React.CompositionEvent<HTMLInputElement>) => Promise<void>;
+  handleInputChange: (e: React.ChangeEvent<HTMLInputElement>) => Promise<void>;
+}
+
+export function useTracking(): TrackingHookReturn {
   // 상태 관리
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [currentLine, setCurrentLine] = useState<string>("");
@@ -17,7 +32,7 @@ export function useTracking() {
 
   useEffect(() => {
     // 초기 트래킹 상태 확인
-    const checkTrackingStatus = async () => {
+    const checkTrackingStatus = async (): Promise<void> => {
       try {
         const status = await invoke<boolean>("get_tracking_status");
         setIsTrackingEnabled(status);
@@ -40,7 +55,7 @@ export function useTracking() {
     }
     
     // 클릭 시 숨겨진 입력 필드로 포커스 이동
-    const handleClick = () => {
+    const handleClick = (): void => {
       if (isTrackingEnabled && inputRef.current) {
         inputRef.current.focus();
       }
@@ -55,7 +70,7 @@ export function useTracking() {
     };
   }, [isTrackingEnabled]);
 
-  const toggleTracking = async () => {
+  const toggleTracking = async (): Promise<void> => {
     try {
       // 반전된 상태 전송
       const newStatus = await invoke<boolean>("set_tracking_enabled", { enabled: !isTrackingEnabled });
@@ -80,7 +95,7 @@ export function useTracking() {
     }
   };
 
-  const handleKeyDown = async (event: React.KeyboardEvent<HTMLInputElement>) => {
+  const handleKeyDown = async (event: React.KeyboardEvent<HTMLInputElement>): Promise<void> => {
     if (!isTrackingEnabled) return;
     
     try {
@@ -96,9 +111,9 @@ export function useTracking() {
     }
   };
 
-  const handleCompositionStart = () => setIsComposing(true);
+  const handleCompositionStart = (): void => setIsComposing(true);
 
-  const handleCompositionEnd = async (e: React.CompositionEvent<HTMLInputElement>) => {
+  const handleCompositionEnd = async (e: React.CompositionEvent<HTMLInputElement>): Promise<void> => {
     setIsComposing(false);
     
     if (!isTrackingEnabled) return;
@@ -110,7 +125,7 @@ export function useTracking() {
     }
   };
   
-  const handleInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleInputChange = async (e: React.ChangeEvent<HTMLInputElement>): Promise<void> => {
     const newValue = e.target.value;
     setCurrentLine(newValue);
     

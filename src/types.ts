@@ -7,6 +7,7 @@ export type Section = "모니터링" | "히스토리" | "통계" | "설정";
 export interface ErrorMessageProps {
   message: string | null;
   onClose: () => void;
+  isError?: boolean;
 }
 
 // 트래킹 컨트롤 관련 prop 타입

@@ -66,12 +66,31 @@
   position: fixed;
   top: 20px;
   right: 20px;
-  background-color: #f44336;
   color: white;
-  padding: 15px;
+  padding: 15px 20px;
   border-radius: 8px;
   z-index: 1000;
-  animation: slideIn 0.3s ease;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  min-width: 250px;
+  max-width: 80%;
+}
+
+.error-message.show {
+  animation: slideIn 0.5s ease forwards;
+}
+
+.error-message.hide {
+  animation: fadeOut 0.5s ease forwards;
+}
+
+/* 일반 알림 메시지 (트래킹 상태 등) */
+.error-message.notification {
+  background-color: #4caf50;
+}
+
+/* 에러 알림 메시지 */
+.error-message.error {
+  background-color: #f44336;
 }
 
 .error-message p {
@@ -79,17 +98,20 @@
 }
 
 .error-message button {
-  background-color: white;
-  color: #f44336;
+  background-color: rgba(255, 255, 255, 0.3);
+  color: white;
   border: none;
   border-radius: 4px;
   padding: 5px 10px;
   cursor: pointer;
   font-weight: 500;
+  transition: background-color 0.2s;
+  float: right;
+  margin-top: -5px;
 }
 
 .error-message button:hover {
-  background-color: #f9f9f9;
+  background-color: rgba(255, 255, 255, 0.5);
 }
 
 /* 애니메이션 */
@@ -101,5 +123,16 @@
   to {
     transform: translateX(0);
     opacity: 1;
+  }
+}
+
+@keyframes fadeOut {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(100%); /* 오른쪽으로 이동하며 사라지도록 수정 */
+    opacity: 0;
   }
 }
