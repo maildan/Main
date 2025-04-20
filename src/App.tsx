@@ -1,199 +1,90 @@
-import { useState, useEffect, useRef } from "react";
-import { invoke } from "@tauri-apps/api/core";
-import { listen, type EventCallback, type UnlistenFn } from "@tauri-apps/api/event";
-import "./App.css";
+import { useState } from "react";
 
-type Section = "모니터링" | "히스토리" | "통계" | "설정";
+// 훅 및 타입 임포트
+import { useTracking } from "./hooks/useTracking";
+import { Section } from "./types";
 
+// 컴포넌트 임포트
+import ErrorMessage from "./components/ErrorMessage";
+import TrackingControl from "./components/TrackingControl";
+import Navigation from "./components/Navigation";
+import SectionPanel from "./components/SectionPanel";
+import TypingInput from "./components/TypingInput";
+
+// CSS 임포트
+import "./styles/base.css";
+import "./styles/layout.css";
+import "./styles/navigation.css";
+import "./styles/tracking.css";
+import "./styles/sections.css";
+import "./styles/components.css";
+import "./styles/utils.css";
+
+/**
+ * 메인 앱 컴포넌트
+ */
 function App() {
-  // 상태 관리
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [currentLine, setCurrentLine] = useState<string>("");
-  const [isComposing, setIsComposing] = useState<boolean>(false);
+  // 트래킹 관련 기능을 훅으로 분리
+  const {
+    errorMessage,
+    setErrorMessage,
+    currentLine,
+    isComposing,
+    isTrackingEnabled,
+    inputRef,
+    toggleTracking,
+    handleKeyDown,
+    handleCompositionStart,
+    handleCompositionEnd,
+    handleInputChange
+  } = useTracking();
+  
+  // 섹션 관련 상태
   const [activeSection, setActiveSection] = useState<Section>("모니터링");
-  const [isTrackingEnabled, setIsTrackingEnabled] = useState<boolean>(false);
-  
-  // 참조
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    // 초기 트래킹 상태 확인
-    const checkTrackingStatus = async () => {
-      try {
-        const status = await invoke<boolean>("get_tracking_status");
-        setIsTrackingEnabled(status);
-      } catch (err) {
-        console.error("트래킹 상태 확인 중 오류 발생:", err);
-      }
-    };
-    
-    checkTrackingStatus();
-
-    // 에러 메시지 이벤트 리스너
-    const unlistenError = listen<string>("show_error", ((event) => {
-      setErrorMessage(event.payload);
-      setTimeout(() => setErrorMessage(null), 5000); // 5초 후 자동으로 제거
-    }) as EventCallback<string>);
-    
-    // 자동 포커스
-    if (inputRef.current) {
-      inputRef.current.focus();
-    }
-    
-    // 클릭 시 숨겨진 입력 필드로 포커스 이동
-    const handleClick = () => {
-      if (isTrackingEnabled && inputRef.current) {
-        inputRef.current.focus();
-      }
-    };
-    
-    document.addEventListener("click", handleClick);
-
-    // 클린업 함수
-    return () => {
-      unlistenError.then((unlisten: UnlistenFn) => unlisten());
-      document.removeEventListener("click", handleClick);
-    };
-  }, [isTrackingEnabled]);
-
-  const toggleTracking = async () => {
-    try {
-      // 반전된 상태 전송
-      const newStatus = await invoke<boolean>("set_tracking_enabled", { enabled: !isTrackingEnabled });
-      setIsTrackingEnabled(newStatus);
-      
-      // 상태 변경 알림
-      const message = newStatus 
-        ? "키보드 트래킹이 활성화되었습니다." 
-        : "키보드 트래킹이 비활성화되었습니다.";
-      
-      setErrorMessage(message);
-      setTimeout(() => setErrorMessage(null), 3000);
-      
-      // 트래킹이 활성화되었다면 입력 필드에 포커스
-      if (newStatus && inputRef.current) {
-        inputRef.current.focus();
-      }
-    } catch (err) {
-      console.error("트래킹 상태 변경 중 오류 발생:", err);
-      setErrorMessage("트래킹 상태 변경에 실패했습니다.");
-      setTimeout(() => setErrorMessage(null), 3000);
-    }
-  };
-
-  const handleKeyDown = async (event: React.KeyboardEvent<HTMLInputElement>) => {
-    if (!isTrackingEnabled) return;
-    
-    try {
-      if (event.key === "Enter" && !isComposing) {
-        if (currentLine.trim()) {
-          await invoke("log_sentence", { sentence: currentLine });
-        }
-        setCurrentLine("");
-        event.preventDefault();
-      }
-    } catch (err) {
-      console.error("문장 저장 중 오류 발생:", err);
-    }
-  };
-
-  const handleCompositionStart = () => setIsComposing(true);
-
-  const handleCompositionEnd = async (e: React.CompositionEvent<HTMLInputElement>) => {
-    setIsComposing(false);
-    
-    if (!isTrackingEnabled) return;
-    
-    try {
-      if (e.data) await invoke("save_typing_data", { key: e.data });
-    } catch (err) {
-      console.error("타이핑 데이터 저장 중 오류 발생:", err);
-    }
-  };
-  
-  const handleInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newValue = e.target.value;
-    setCurrentLine(newValue);
-    
-    if (!isTrackingEnabled) return;
-    
-    try {
-      if (!isComposing && newValue.length > currentLine.length) {
-        const lastChar = newValue.slice(-1);
-        if (lastChar) await invoke("save_typing_data", { key: lastChar });
-      }
-    } catch (err) {
-      console.error("키 입력 저장 중 오류 발생:", err);
-    }
-  };
-
   const sections: Section[] = ["모니터링", "히스토리", "통계", "설정"];
 
+  // 섹션 변경 핸들러
   const handleSectionChange = (newSection: Section) => {
     setActiveSection(newSection);
   };
 
-  const renderSectionContent = (section: Section) => {
-    return (
-      <div className="section-panel">
-        <div className="empty-content">
-          {section} 섹션 - 준비 중입니다
-        </div>
-      </div>
-    );
-  };
-
   return (
     <div className="app-layout">
-      {errorMessage && (
-        <div className="error-message" role="alert">
-          <p>{errorMessage}</p>
-          <button onClick={() => setErrorMessage(null)}>닫기</button>
-        </div>
-      )}
+      {/* 에러 메시지 표시 */}
+      <ErrorMessage 
+        message={errorMessage} 
+        onClose={() => setErrorMessage(null)}
+      />
       
-      <div className="tracking-control">
-        <button 
-          className={`tracking-button ${isTrackingEnabled ? 'active' : ''}`}
-          onClick={toggleTracking}
-          aria-pressed={isTrackingEnabled}
-        >
-          {isTrackingEnabled ? '트래킹 중지' : '트래킹 시작'}
-        </button>
-      </div>
+      {/* 트래킹 컨트롤 */}
+      <TrackingControl 
+        isEnabled={isTrackingEnabled} 
+        onToggle={toggleTracking}
+      />
       
-      <div className="app-sidebar" role="navigation">
-        <nav className="navigation">
-          {sections.map(section => (
-            <button 
-              key={section}
-              className={`nav-button ${activeSection === section ? 'active' : ''}`}
-              onClick={() => handleSectionChange(section)}
-              aria-current={activeSection === section ? "page" : undefined}
-            >
-              {section}
-            </button>
-          ))}
-        </nav>
-      </div>
+      {/* 네비게이션 메뉴 */}
+      <Navigation 
+        sections={sections} 
+        activeSection={activeSection} 
+        onSectionChange={handleSectionChange}
+      />
       
       <div className="app-content">
-        <input
-          ref={inputRef}
-          type="text"
-          value={currentLine}
+        {/* 숨겨진 타이핑 입력 필드 */}
+        <TypingInput
+          currentLine={currentLine}
+          isEnabled={isTrackingEnabled}
+          isComposing={isComposing}
+          inputRef={inputRef}
           onChange={handleInputChange}
           onKeyDown={handleKeyDown}
           onCompositionStart={handleCompositionStart}
           onCompositionEnd={handleCompositionEnd}
-          autoFocus={isTrackingEnabled}
-          className="hidden-input"
-          aria-label="타이핑 입력"
-          disabled={!isTrackingEnabled}
         />
         
+        {/* 섹션 내용 표시 영역 */}
         <div className="section-content" role="main">
-          {renderSectionContent(activeSection)}
+          <SectionPanel section={activeSection} />
         </div>
       </div>
     </div>
