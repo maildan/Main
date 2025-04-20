@@ -12,6 +12,9 @@ lazy_static! {
     static ref TRACKING_ENABLED: AtomicBool = AtomicBool::new(false);
 }
 
+// 로그 저장 경로 상수 정의
+const LOG_DIRECTORY: &str = "c:\\Loop\\src-tauri\\logs";
+
 #[derive(Serialize, Deserialize)]
 struct TypingData {
     timestamp: String,
@@ -37,6 +40,18 @@ fn get_data_file_path(_app_handle: &AppHandle) -> PathBuf {
     }
     
     path.push("typing_data.json");
+    path
+}
+
+// 로그 디렉토리 경로를 가져오는 함수
+fn get_log_directory() -> PathBuf {
+    let path = PathBuf::from(LOG_DIRECTORY);
+    
+    // 디렉토리가 없다면 생성
+    if !path.exists() {
+        std::fs::create_dir_all(&path).expect("Failed to create log directory");
+    }
+    
     path
 }
 
@@ -101,8 +116,44 @@ fn log_sentence(sentence: &str) -> Result<(), String> {
         return Ok(());
     }
     
-    // 완성된 문장을 터미널에 출력
-    println!("Sentence: {}", sentence);
+    // 로그 파일 경로 설정
+    let mut log_path = get_log_directory();
+    log_path.push("sentence_logs.json");
+    
+    // 로그 데이터 생성
+    let log_entry = serde_json::json!({
+        "timestamp": Local::now().to_rfc3339(),
+        "sentence": sentence
+    });
+    
+    // 기존 로그 파일이 있다면 읽기
+    let mut logs = Vec::new();
+    if log_path.exists() {
+        let mut file = OpenOptions::new()
+            .read(true)
+            .open(&log_path)
+            .map_err(|e| e.to_string())?;
+        let mut contents = String::new();
+        file.read_to_string(&mut contents).map_err(|e| e.to_string())?;
+        if !contents.is_empty() {
+            logs = serde_json::from_str(&contents).unwrap_or_else(|_| Vec::new());
+        }
+    }
+    
+    // 새 로그 추가
+    logs.push(log_entry);
+    
+    // 로그를 파일에 저장
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .open(&log_path)
+        .map_err(|e| e.to_string())?;
+    
+    let json_string = serde_json::to_string_pretty(&logs).map_err(|e| e.to_string())?;
+    file.write_all(json_string.as_bytes()).map_err(|e| e.to_string())?;
+    
     Ok(())
 }
 
