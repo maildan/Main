@@ -3,17 +3,14 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen, type EventCallback, type UnlistenFn } from "@tauri-apps/api/event";
 import "./App.css";
 
-type Section = "Monitoring" | "History" | "Statistics" | "Settings";
-type Theme = 'light' | 'dark';
+type Section = "모니터링" | "히스토리" | "통계" | "설정";
 
 function App() {
   // 상태 관리
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [currentLine, setCurrentLine] = useState<string>("");
   const [isComposing, setIsComposing] = useState<boolean>(false);
-  const [activeSection, setActiveSection] = useState<Section>("Monitoring");
-  const [isNavOpen, setIsNavOpen] = useState<boolean>(true);
-  const [theme, setTheme] = useState<Theme>('dark');
+  const [activeSection, setActiveSection] = useState<Section>("모니터링");
   
   // 참조
   const inputRef = useRef<HTMLInputElement>(null);
@@ -24,17 +21,6 @@ function App() {
       setErrorMessage(event.payload);
       setTimeout(() => setErrorMessage(null), 5000); // 5초 후 자동으로 제거
     }) as EventCallback<string>);
-
-    // 시스템 테마 설정 동기화
-    try {
-      const savedTheme = localStorage.getItem('theme') as Theme | null;
-      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-      const initialTheme = savedTheme || (prefersDark ? 'dark' : 'light');
-      setTheme(initialTheme);
-      document.documentElement.setAttribute('data-theme', initialTheme);
-    } catch (err) {
-      console.error("테마 설정 중 오류 발생:", err);
-    }
     
     // 자동 포커스
     if (inputRef.current) {
@@ -95,93 +81,15 @@ function App() {
     }
   };
 
-  const sections: Section[] = ["Monitoring", "History", "Statistics", "Settings"];
-
-  const toggleNavbar = () => {
-    setIsNavOpen(!isNavOpen);
-  };
+  const sections: Section[] = ["모니터링", "히스토리", "통계", "설정"];
 
   const handleSectionChange = (newSection: Section) => {
     setActiveSection(newSection);
-    // 화면 크기에 상관없이 항상 사이드바 닫기
-    setIsNavOpen(false);
-  };
-
-  const toggleTheme = () => {
-    try {
-      const newTheme: Theme = theme === 'dark' ? 'light' : 'dark';
-      
-      // 테마 전환 효과를 위한 클래스 추가
-      document.documentElement.classList.add('theme-transition');
-      
-      // DOM 업데이트 최적화를 위해 즉시 요소 스타일 업데이트
-      document.documentElement.setAttribute('data-theme', newTheme);
-      
-      // 상태 업데이트는 DOM 변경 후 적용
-      setTheme(newTheme);
-      
-      // 로컬 스토리지 저장
-      localStorage.setItem('theme', newTheme);
-      
-      // 트랜지션 이후 클래스 제거 (애니메이션 완료 후)
-      setTimeout(() => {
-        document.documentElement.classList.remove('theme-transition');
-      }, 800); // 트랜지션이 완료되는 시간보다 약간 길게 설정
-    } catch (err) {
-      console.error("테마 변경 중 오류 발생:", err);
-    }
   };
 
   const renderSectionContent = (section: Section) => {
-    if (section === "Settings") {
-      return (
-        <div className="section-panel">
-          <div className="section-header">설정</div>
-          <div className="settings-container">
-            <div className="theme-switcher-card">
-              <div className="theme-header">
-                <h3>테마 설정</h3>
-                <div className="theme-description">화면 디스플레이 모드를 변경합니다</div>
-              </div>
-              
-              <div className="theme-control">
-                <div className="theme-icons">
-                  <div className="theme-icon light">
-                    <span className="icon" aria-hidden="true">☀️</span>
-                    <span className="label">라이트</span>
-                  </div>
-                  
-                  <label className="theme-toggle">
-                    <input 
-                      type="checkbox" 
-                      checked={theme === 'dark'}
-                      onChange={toggleTheme}
-                      aria-label="테마 변경"
-                    />
-                    <span className="toggle-track">
-                      <span className="toggle-indicator"></span>
-                    </span>
-                  </label>
-                  
-                  <div className="theme-icon dark">
-                    <span className="icon" aria-hidden="true">🌙</span>
-                    <span className="label">다크</span>
-                  </div>
-                </div>
-                
-                <div className="theme-status">
-                  현재: <span className="theme-current">{theme === 'dark' ? '다크 모드' : '라이트 모드'}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      );
-    }
-    
     return (
       <div className="section-panel">
-        <div className="section-header">{section}</div>
         <div className="empty-content">
           {section} 섹션 - 준비 중입니다
         </div>
@@ -190,25 +98,13 @@ function App() {
   };
 
   return (
-    <div className={`app-layout ${isNavOpen ? 'nav-open' : 'nav-closed'} theme-${theme}`}>
+    <div className="app-layout">
       {errorMessage && (
         <div className="error-message" role="alert">
           <p>{errorMessage}</p>
           <button onClick={() => setErrorMessage(null)}>닫기</button>
         </div>
       )}
-      
-      <div className="app-header">
-        <button 
-          className="hamburger-menu" 
-          onClick={toggleNavbar}
-          aria-label={isNavOpen ? "메뉴 닫기" : "메뉴 열기"}
-          aria-expanded={isNavOpen}
-        >
-          <div className="hamburger-icon"></div>
-        </button>
-        <h1 className="app-title">Loop</h1>
-      </div>
       
       <div className="app-sidebar" role="navigation">
         <nav className="navigation">
