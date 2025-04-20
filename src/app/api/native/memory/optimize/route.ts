@@ -1,5 +1,5 @@
+import nativeModule from '@/server/native';
 import { NextResponse } from 'next/server';
-import nativeModule from '../../../../../server/native';
 
 export async function GET() {
   try {

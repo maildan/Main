@@ -6,7 +6,7 @@ import { useEffect, useRef } from 'react';
  * @param delay 실행 간격(ms), null이면 타이머를 실행하지 않음
  */
 export function useInterval(callback: () => void, delay: number | null) {
-    const savedCallback = useRef<() => void | null>(null);
+    const savedCallback = useRef<() => void>();
 
     // 콜백 함수가 변경되면 저장
     useEffect(() => {
@@ -16,7 +16,9 @@ export function useInterval(callback: () => void, delay: number | null) {
     // delay가 변경될 때마다 interval 설정
     useEffect(() => {
         function tick() {
-            savedCallback.current?.();
+            if (savedCallback.current) {
+                savedCallback.current();
+            }
         }
 
         if (delay !== null) {

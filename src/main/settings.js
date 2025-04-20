@@ -288,8 +288,7 @@ currentSettings = initSettings();
  */
 function getDarkMode() {
   // 설정에서 다크 모드 값을 가져오고, 없으면 OS 기본값 사용
-  const settings = getSettings();
-  return settings.darkMode !== undefined ? settings.darkMode : nativeTheme.shouldUseDarkColors;
+  return currentSettings.darkMode !== undefined ? currentSettings.darkMode : nativeTheme.shouldUseDarkColors;
 }
 
 module.exports = {

@@ -7,9 +7,9 @@
   },
   "autoStartMonitoring": true,
   "darkMode": true,
-  "colorScheme": "green",
-  "useSystemTheme": false,
-  "windowMode": "normal",
+  "colorScheme": "default",
+  "useSystemTheme": true,
+  "windowMode": "windowed",
   "minimizeToTray": true,
   "showTrayNotifications": true,
   "reduceMemoryInBackground": true,
@@ -21,7 +21,7 @@
   "resumeAfterIdle": true,
   "showKeyCountInHeader": true,
   "showRealtimeWPM": true,
-  "enableSoundEffects": true,
+  "enableSoundEffects": false,
   "enableAnimations": true,
   "useCompactUI": false
 }

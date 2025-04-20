@@ -27,12 +27,12 @@ export async function performHighOptimization(): Promise<OptimizationResult> {
 
 // 네이티브 모듈을 사용하여 위험 수준 최적화 수행
 export async function performCriticalOptimization(): Promise<OptimizationResult> {
-  return requestNativeMemoryOptimization(OptimizationLevel.CRITICAL, true) as Promise<OptimizationResult>;
+  return requestNativeMemoryOptimization(OptimizationLevel.AGGRESSIVE, true) as Promise<OptimizationResult>;
 }
 
 // 최적화 수준별 작업
 export async function performOptimizationByLevel(level: OptimizationLevel): Promise<OptimizationResult> {
-  return requestNativeMemoryOptimization(level, level === OptimizationLevel.CRITICAL) as Promise<OptimizationResult>;
+  return requestNativeMemoryOptimization(level, level === OptimizationLevel.AGGRESSIVE) as Promise<OptimizationResult>;
 }
 
 // 메모리 최적화 단계를 간략화한 버전

@@ -13,19 +13,17 @@ export enum MemoryUsageLevel {
   CRITICAL = 4
 }
 
-// 네이티브 모듈 타입은 네임스페이스로 분리
-export namespace NativeModule {
-  export interface MemoryInfo {
+// 네이티브 모듈 타입 정의 (네임스페이스 제거)
+export interface NativeModuleMemoryInfo {
     heap_used: number;
     heap_total: number;
     // ... 기타 속성
   }
 
-  export interface GPUInfo {
+export interface NativeModuleGPUInfo {
     name: string;
     vendor: string;
     // ... 기타 속성
-  }
 }
 
 /**
@@ -239,12 +237,12 @@ export interface MemoryOptimizerUtility {
  */
 export enum OptimizationLevel {
   NONE = 0,
-  NORMAL = 0, // NONE의 별칭으로 추가
+  // NORMAL = 0, // NONE의 별칭으로 추가 - 중복 오류 방지를 위해 주석 처리
   LOW = 1,
   MEDIUM = 2,
   HIGH = 3,
   AGGRESSIVE = 4,
-  CRITICAL = 4, // AGGRESSIVE의 별칭으로 추가
+  // CRITICAL = 4, // AGGRESSIVE의 별칭으로 추가 - 중복 오류 방지를 위해 주석 처리
   EXTREME = 5 // 추가: 극단적인 최적화 레벨
 }
 

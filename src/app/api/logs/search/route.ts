@@ -2,21 +2,24 @@
  * 로그 검색 API 엔드포인트
  */
 
-import { NextResponse } from 'next/server';
+import { NextResponse, NextRequest } from 'next/server';
 import { readdir, readFile } from 'fs/promises';
 import { join } from 'path';
 import { LogEntry, LogSearchOptions, LogType } from '@/app/utils/log-utils';
 
+// 동적 렌더링 강제
+export const dynamic = 'force-dynamic';
+
 /**
  * 로그를 검색합니다.
  * 
- * @param request - GET 요청
+ * @param request - GET 요청 (NextRequest 사용)
  * @returns 검색 결과
  */
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
   try {
-    // URL에서 검색 옵션 추출
-    const { searchParams } = new URL(request.url);
+    // nextUrl에서 검색 옵션 추출
+    const { searchParams } = request.nextUrl;
     const options: LogSearchOptions = {
       type: searchParams.get('type') as LogType || undefined,
       startTime: searchParams.get('startTime') ? parseInt(searchParams.get('startTime') || '0') : undefined,

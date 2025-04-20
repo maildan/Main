@@ -268,3 +268,16 @@
 .customHeader [role="button"] {
   -webkit-app-region: no-drag !important;
 }
+
+/* 추가: spacer와 themeToggleContainer 스타일 */
+.spacer {
+  flex: 1;
+}
+
+.themeToggleContainer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 8px;
+  -webkit-app-region: no-drag;
+}

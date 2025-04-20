@@ -2,7 +2,9 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import styles from './Settings.module.css';
 import { useToast } from './ToastContext';
 import { useTheme } from './ThemeProvider';
+import { useColorScheme } from './ThemeProvider';
 import SaveConfirmDialog from './dialogs/SaveConfirmDialog';
+import { useElectronApi } from '@/app/hooks/useElectronApi';
 
 interface EnabledCategories {
   docs: boolean;
@@ -76,11 +78,13 @@ const InfoTooltip = ({ text }: { text: string }) => {
 export function Settings({ 
   onSave, 
   initialSettings, 
-  darkMode, 
+  darkMode,
   onDarkModeChange, 
   onWindowModeChange 
 }: SettingsProps) {
-  const { isDarkMode, setDarkMode, colorScheme, setColorScheme, isSystemTheme, setSystemTheme } = useTheme();
+  const { isDarkMode, setDarkMode } = useTheme();
+  const { colorScheme, setColorScheme, isSystemTheme, setSystemTheme } = useColorScheme();
+  const { electronAPI, isElectron } = useElectronApi();
   const [settings, setSettings] = useState<SettingsState>({
     enabledCategories: {
       docs: true,
@@ -112,7 +116,7 @@ export function Settings({
   const [showSaveConfirm, setShowSaveConfirm] = useState(false);
   const { showToast } = useToast();
   const [activeTab, setActiveTab] = useState<'general' | 'advanced' | 'display'>('general');
-  const [apiDebugInfo, setApiDebugInfo] = useState<string>('');
+  const [_apiDebugInfo, setApiDebugInfo] = useState<string>('');
   const [showDebugInfo, setShowDebugInfo] = useState<boolean>(false);
 
   useEffect(() => {
@@ -139,32 +143,15 @@ export function Settings({
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const isBodyDarkMode = isDarkMode;
-      if (isBodyDarkMode) {
-        document.documentElement.classList.add('dark-mode');
-        document.body.classList.add('dark-mode');
-        
-        if (settings.useCompactUI) {
-          document.documentElement.classList.add('compact-ui');
-          document.body.classList.add('compact-ui');
-        } else {
-          document.documentElement.classList.remove('compact-ui');
-          document.body.classList.remove('compact-ui');
-        }
+      if (settings.useCompactUI) {
+        document.documentElement.classList.add('compact-ui');
+        document.body.classList.add('compact-ui');
       } else {
-        document.documentElement.classList.remove('dark-mode');
-        document.body.classList.remove('dark-mode');
-        
-        if (settings.useCompactUI) {
-          document.documentElement.classList.add('compact-ui');
-          document.body.classList.add('compact-ui');
-        } else {
-          document.documentElement.classList.remove('compact-ui');
-          document.body.classList.remove('compact-ui');
-        }
+        document.documentElement.classList.remove('compact-ui');
+        document.body.classList.remove('compact-ui');
       }
     }
-  }, [isDarkMode, settings.useCompactUI]);
+  }, [settings.useCompactUI]);
 
   useEffect(() => {
     if (settings.enableSoundEffects) {
@@ -218,9 +205,9 @@ export function Settings({
     }));
     
     // Electron API를 사용하여 창 모드 변경
-    if (window.electronAPI && window.electronAPI.setWindowMode) {
+    if (electronAPI && electronAPI.setWindowMode) {
       try {
-        window.electronAPI.setWindowMode(mode)
+        electronAPI.setWindowMode(mode)
           .catch((error: any) => {
             console.error('창 모드 변경 중 오류:', error);
             showToast('창 모드 변경 중 오류가 발생했습니다.', 'error');
@@ -236,14 +223,14 @@ export function Settings({
     }
   };
 
-  const handleMinimizeToTrayToggle = () => {
+  const _handleMinimizeToTrayToggle = () => {
     setSettings(prev => ({
       ...prev,
       minimizeToTray: !prev.minimizeToTray
     }));
   };
   
-  const handleShowTrayNotificationsToggle = () => {
+  const _handleShowTrayNotificationsToggle = () => {
     setSettings(prev => ({
       ...prev,
       showTrayNotifications: !prev.showTrayNotifications
@@ -310,9 +297,6 @@ export function Settings({
 
   const handleHardwareAccelerationToggle = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newValue = e.target.checked;
-    if (newValue !== initialSettings?.useHardwareAcceleration) {
-      setNeedsRestart(true);
-    }
     setSettings(prev => ({
       ...prev,
       useHardwareAcceleration: newValue
@@ -341,61 +325,22 @@ export function Settings({
   const confirmSaveSettings = () => {
     setShowSaveConfirm(false);
     
-    const hasSettingChanges = 
-      JSON.stringify({...settings, darkMode: isDarkMode}) !== 
-      JSON.stringify({...initialSettings, darkMode: isDarkMode});
-    
-    if (hasSettingChanges) {
-      if (settings.darkMode !== isDarkMode) {
-        setDarkMode(settings.darkMode);
-        
-        const root = document.documentElement;
-        if (settings.darkMode) {
-          root.style.setProperty('--card-bg', '#222222');
-          root.style.setProperty('--text-color', 'rgba(255, 255, 255, 0.87)');
-          root.style.setProperty('--border-color', 'rgba(255, 255, 255, 0.12)');
-          root.style.setProperty('--button-hover-bg', 'rgba(255, 255, 255, 0.08)');
-          root.style.setProperty('--primary-color', '#90caf9');
-        } else {
-          root.style.setProperty('--card-bg', '#ffffff');
-          root.style.setProperty('--text-color', 'rgba(0, 0, 0, 0.87)');
-          root.style.setProperty('--border-color', 'rgba(0, 0, 0, 0.12)');
-          root.style.setProperty('--button-hover-bg', 'rgba(0, 0, 0, 0.05)');
-          root.style.setProperty('--primary-color', '#1976d2');
-        }
+    if (electronAPI && typeof electronAPI.saveSettings === 'function') {
+      try {
+        console.log('IPC: saveSettings 호출', settings);
+        electronAPI.saveSettings(settings);
+      } catch (error) {
+        console.error('설정 저장 IPC 호출 오류:', error);
+        showToast('설정 저장 중 오류가 발생했습니다.', 'error');
       }
-      
-      onSave({...settings, darkMode: settings.darkMode});
-      
-      if (settings.darkMode) {
-        document.documentElement.classList.add('dark-mode');
-        document.body.classList.add('dark-mode');
+    } else {
+      console.warn('electronAPI.saveSettings 함수를 사용할 수 없습니다.');
+      if (onSave) {
+        onSave(settings);
+        showToast('설정이 임시 저장되었습니다 (Electron API 없음).', 'info');
       } else {
-        document.documentElement.classList.remove('dark-mode');
-        document.body.classList.remove('dark-mode');
+        showToast('설정 저장 기능을 사용할 수 없습니다.', 'error');
       }
-      
-      if (needsRestart) {
-        showToast('GPU 가속 설정이 변경되었습니다. 변경 사항을 적용하려면 앱을 재시작하세요.', 'info');
-      if (window.electronAPI) {
-        if (typeof window.electronAPI.showRestartPrompt === 'function') {
-          window.electronAPI.showRestartPrompt();
-        } else {
-          if (window.confirm('GPU 가속 설정이 변경되었습니다. 지금 앱을 재시작하시겠습니까?')) {
-            if (typeof window.electronAPI.restartApp === 'function') {
-              window.electronAPI.restartApp();
-            } else {
-              console.error('restartApp 함수를 찾을 수 없습니다.');
-              showToast('앱을 수동으로 재시작해 주세요.', 'warning');
-            }
-          }
-        }
-      }
-    } else {
-      showToast('설정이 저장되었습니다.', 'success');
-      }
-    } else {
-      showToast('변경된 설정이 없습니다.', 'info');
     }
   };
   
@@ -405,25 +350,21 @@ export function Settings({
 
   const handleRestartClick = useCallback(() => {
     try {
-      if (!window.electronAPI) {
+      if (!electronAPI) {
         showToast('Electron API를 찾을 수 없습니다. preload 스크립트가 올바르게 로드되었는지 확인하세요.', 'error');
         return;
       }
-      const apiInfo = Object.keys(window.electronAPI)
-        .map(key => `${key}: ${typeof (window.electronAPI as any)[key]}`)
+      const apiInfo = Object.keys(electronAPI)
+        .map(key => `${key}: ${typeof (electronAPI as any)[key]}`)
         .join('\n');
       console.log('사용 가능한 API 목록:', apiInfo);
       setApiDebugInfo(apiInfo);
-      if (typeof window.electronAPI.restartApp === 'function') {
-        window.electronAPI.restartApp();
+      if (typeof electronAPI.restartApp === 'function') {
+        electronAPI.restartApp();
         return;
       } 
-      if (typeof window.electronAPI.showRestartPrompt === 'function') {
-        window.electronAPI.showRestartPrompt();
-        return;
-      }
-      if (window.electron && typeof window.electron.restartApp === 'function') {
-        window.electron.restartApp();
+      if (typeof electronAPI.showRestartPrompt === 'function') {
+        electronAPI.showRestartPrompt();
         return;
       }
       showToast('재시작 기능을 사용할 수 없습니다. 앱을 수동으로 재시작하세요.', 'warning');
@@ -434,21 +375,20 @@ export function Settings({
       setApiDebugInfo(String(error));
       setShowDebugInfo(true);
     }
-  }, [showToast]);
+  }, [electronAPI, showToast]);
 
-  const toggleDebugInfo = () => {
-    if (window.electronAPI) {
-      const apiInfo = Object.keys(window.electronAPI)
-        .map(key => {
-          const type = typeof (window.electronAPI as any)[key];
-          return `${key}: ${type}`;
-        })
-        .join('\n');
-      setApiDebugInfo(apiInfo);
-    } else {
-      setApiDebugInfo('electronAPI가 정의되지 않았습니다');
+  const _toggleDebugInfo = () => {
+    setShowDebugInfo(prev => !prev);
+    
+    // 디버그 정보를 가져오는 로직
+    if (!showDebugInfo && electronAPI && electronAPI.getSystemInfo) {
+      electronAPI.getSystemInfo().then((info: string) => {
+        setApiDebugInfo(info);
+      }).catch((error: any) => {
+        console.error('시스템 정보 가져오기 실패:', error);
+        setApiDebugInfo('시스템 정보를 가져올 수 없습니다');
+      });
     }
-    setShowDebugInfo(!showDebugInfo);
   };
 
   // 여기에 컬러 스키마 변경 핸들러 추가
@@ -470,6 +410,46 @@ export function Settings({
     }));
     setSystemTheme(newValue);
   };
+
+  // 설정 저장 결과 처리 (IPC 응답 수신)
+  useEffect(() => {
+    if (!isElectron) return;
+
+    const handleSettingsSaved = (_event: any, result: { success: boolean; settings: SettingsState; restartRequired?: boolean; error?: string }) => {
+      console.log('IPC 응답: settings-saved', result);
+      if (result.success) {
+        // 저장 성공 시 needsRestart 상태 업데이트
+        setNeedsRestart(result.restartRequired || false);
+        // 성공 토스트 메시지 (IPC 핸들러에서 재시작 프롬프트 띄우므로 여기선 단순 저장 메시지)
+        if (!result.restartRequired) {
+           showToast('설정이 저장되었습니다.', 'success');
+        }
+        // 필요한 경우 부모 컴포넌트에 알림 (onSave 유지 시)
+        if (onSave) {
+           onSave(result.settings);
+        }
+      } else {
+        showToast(`설정 저장 실패: ${result.error || '알 수 없는 오류'}`, 'error');
+      }
+    };
+
+    // 이벤트 리스너 등록 (타입 오류 방지를 위해 any 사용)
+    const ipcRenderer = (window as any).electron?.ipcRenderer || (window as any).ipcRenderer;
+    if (ipcRenderer) {
+      ipcRenderer.on('settings-saved', handleSettingsSaved);
+      console.log('\'settings-saved\' IPC 리스너 등록됨');
+    } else {
+      console.warn('ipcRenderer를 찾을 수 없어 \'settings-saved\' 리스너를 등록할 수 없습니다.');
+    }
+
+    // 컴포넌트 언마운트 시 리스너 제거
+    return () => {
+      if (ipcRenderer) {
+        ipcRenderer.removeListener('settings-saved', handleSettingsSaved);
+        console.log('\'settings-saved\' IPC 리스너 제거됨');
+      }
+    };
+  }, [isElectron, showToast, onSave]);
 
   return (
     <div className={`${styles.settingsContainer} ${isDarkMode ? styles.darkMode : ''} ${settings.useCompactUI ? styles.compactUI : ''}`}>
@@ -962,7 +942,7 @@ export function Settings({
               
           {needsRestart && (
             <div className={styles.restartNotice}>
-              <p>GPU 가속 설정이 변경되었습니다. 변경 사항을 적용하려면 앱을 재시작해야 합니다.</p>
+              <p>일부 설정이 변경되었습니다. 변경 사항을 적용하려면 앱을 재시작해야 합니다.</p>
                 <button 
                   className={styles.restartButton}
                   onClick={handleRestartClick}

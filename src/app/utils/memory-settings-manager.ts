@@ -271,7 +271,7 @@ function setupPeriodicMemoryOptimization(settings: LocalMemorySettings): void {
         
         if (hasCleanupFunc && typeof window.__memoryOptimizer.cleanupPeriodicOptimization === 'function') {
           // 함수 호출 전 타입 체크
-          (window.__memoryOptimizer.cleanupPeriodicOptimization as Function)();
+          window.__memoryOptimizer.cleanupPeriodicOptimization();
         }
         
         // 새 정리 함수 설정 

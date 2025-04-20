@@ -135,7 +135,7 @@ export async function getOptimalGPUSettings(): Promise<GPUSettings> {
     const gpuType = await detectGPUType();
     
     // 배터리 상태 확인 (가능한 경우)
-    let isOnBattery = await checkBatteryStatus();
+    const isOnBattery = await checkBatteryStatus();
     
     // 기본 설정 가져오기
     const settings = { ...GPU_PROFILES[gpuType as keyof typeof GPU_PROFILES] };

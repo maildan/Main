@@ -11,11 +11,11 @@ const GPU_ACCELERATION_THRESHOLDS = {
 };
 
 // GPU 가속 상태 추적
-let gpuAccelerationStatus = {
+const gpuAccelerationStatus = {
   hardwareAccelerated: false,
   gpuTier: 0, // 0: 알 수 없음, 1: 저사양, 2: 중간, 3: 고사양
   lastCheck: 0,
-  acceleratedElements: new WeakSet(),
+  acceleratedElements: new WeakSet<HTMLElement>(),
   canvas3DContexts: new WeakMap<HTMLCanvasElement, WebGLRenderingContext | WebGL2RenderingContext>(),
   failedDetection: false
 };
@@ -209,12 +209,6 @@ export function applyHardwareAcceleration(
       } else {
         style.willChange = 'transform';
       }
-    }
-    
-    // IE 대응이 필요한 경우
-    if (typeof (window as any).MSCSSMatrix !== 'undefined') {
-      // msTransform 대신 표준 transform 사용
-      style.transform = style.transform;
     }
     
     // 캐시에 저장

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import nativeModule from '../../../../server/native';
+// import nativeModule from '../../../../server/native'; // 상대 경로 주석 처리
+import nativeModule from '@/server/native'; // 절대 경로 별칭 사용
 
 export async function GET() {
   try {
@@ -51,9 +52,9 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
 
-    // 런타임에 서버 측에서만 모듈 가져오기
+    // 런타임에 서버 측에서만 모듈 가져오기 - 별칭 사용
     const nativeModule = process.env.NODE_ENV === 'development'
-      ? (await import('../../../../server/native')).default
+      ? (await import('@/server/native')).default // 절대 경로 별칭 사용
       : null;
 
     // 네이티브 모듈이 로드되었는지 확인

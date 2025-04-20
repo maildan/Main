@@ -1,74 +1,50 @@
 // ES 모듈 import 문을 CommonJS require로 변경
 const path = require('path');
 const { app } = require('electron');
+const isDev = require('electron-is-dev');
 
 // 개발 모드 확인
-const isDev = process.env.NODE_ENV === 'development';
+const isDevMode = process.env.NODE_ENV === 'development';
 
 // 앱 상태 관리
 const appState = {
   mainWindow: null,
-  miniViewWindow: null, // 미니뷰 창 참조
-  miniViewStatsInterval: null, // 미니뷰 통계 전송 인터벌
-  miniViewLastMode: 'icon', // 미니뷰 마지막 모드 ('icon' 또는 'normal')
-  isTracking: false,
-  keyboardListener: null,
-  windowMode: 'windowed',
+  tray: null,
+  miniViewWindow: null,
+  analyticsWindow: null,
+  allowQuit: false,
+  isClosing: false,
+  isFullscreen: false,
   autoHideToolbar: false,
-  autoHideCssKey: null, // CSS 키 저장을 위해 추가
-  backgroundCssKey: null, // 백그라운드 모드 CSS 키
-  allowQuit: false, // 완전히 종료할지 여부
-  tray: null, // 트레이 객체 참조
-  updateInterval: null, // 통계 업데이트 인터벌 참조
-  lastGcTime: Date.now(), // 마지막 GC 실행 시간
-  idleTime: 0, // 사용자 마지막 활동 이후 경과 시간
-  memoryUsage: {
-    lastCheck: Date.now(),
-    heapUsed: 0,
-    heapTotal: 0,
-    rss: 0
-  },
-  currentStats: {
-    keyCount: 0,
-    typingTime: 0,
-    startTime: null,
-    lastActiveTime: null,
-    currentWindow: null,
-    currentBrowser: null,
-    totalChars: 0,
-    totalWords: 0,
-    totalCharsNoSpace: 0,
-    pages: 0,
-    accuracy: 100
-  },
+  lastActive: Date.now(),
+  idleTimeout: 5 * 60 * 1000, // 5분
   settings: {
-    enabledCategories: {
-      docs: true,
-      office: true,
-      coding: true,
-      sns: true
-    },
-    autoStartMonitoring: true,
-    resumeAfterIdle: true, // 유휴 상태 후 자동 재시작 (신규 추가)
-    idleTimeout: 300, // 유휴 상태 판단 시간 (초) (신규 추가)
     darkMode: false,
-    windowMode: 'windowed',
-    minimizeToTray: true, // 트레이로 최소화 설정 (기본값 true)
-    showTrayNotifications: true, // 트레이 알림 표시 여부
-    reduceMemoryInBackground: true, // 백그라운드에서 메모리 사용 감소
-    enableMiniView: true, // 미니뷰 활성화 기본값
-    useHardwareAcceleration: false, // 하드웨어 가속 사용 여부
-    processingMode: 'auto', // 처리 모드 - 'auto', 'normal', 'cpu-intensive', 'gpu-intensive'
-    garbageCollectionInterval: 60000, // 주기적 GC 실행 간격 (ms)
-    maxMemoryThreshold: 100, // 메모리 임계치 (MB)
-    autoCleanupLogs: true, // 오래된 로그 자동 정리
-    maxHistoryItems: 500, // 최대 히스토리 항목 수
-    logRetentionDays: 30 // 로그 보관 일수
+    minimizeToTray: true,
+    showTrayNotifications: true,
+    startMinimized: false,
+    autoHideToolbar: false,
+    idleThreshold: 5, // 분
+    useHardwareAcceleration: true,
+    reduceMemoryInBackground: true,
+    maxMemoryThreshold: 200, // MB
+    loggingLevel: 'info',
+    processingMode: 'auto', // 'performance', 'balanced', 'eco'
+    windowMode: 'normal' // 'normal', 'fullscreen', 'fullscreen-auto-hide'
   },
-  inBackgroundMode: false,
-  gpuEnabled: false, // GPU 가속 사용 여부
-  gpuResources: null, // GPU 관련 리소스 저장 객체
-  isRestarting: false // 재시작 관련 상태 추가
+  memoryMonitorInterval: 60000,
+  memoryThreshold: {
+    high: 150,
+    critical: 250
+  },
+  paths: {
+    userData: app.getPath('userData'),
+    appData: app.getPath('appData'),
+    temp: app.getPath('temp'),
+    logs: path.join(app.getPath('userData'), 'logs'),
+    settings: path.join(app.getPath('userData'), 'settings.json'),
+    database: path.join(app.getPath('userData'), 'database.sqlite')
+  }
 };
 
 // IDLE 시간 기준 증가
@@ -185,13 +161,23 @@ const GOOGLE_DOCS_TITLE_PATTERNS = [
   'google drawings', '구글 그림', '.gdoc', '.gsheet', '.gslides'
 ];
 
-// 설정 파일 경로
-const userDataPath = process.env.NODE_ENV === 'development' 
-  ? path.join(__dirname, '../../userData') // 개발 환경
-  : app.getPath('userData'); // 프로덕션 환경
+// 앱 경로 상수
+const APP_PATHS = {
+  root: app.getAppPath(),
+  userData: app.getPath('userData'),
+  preload: path.join(app.getAppPath(), 'preload.js'),
+  error: path.join(app.getAppPath(), 'error.html')
+};
 
-const settingsPath = path.join(userDataPath, 'settings.json');
-const userDataPathExport = userDataPath;
+// UI 관련 상수
+const UI_CONSTANTS = {
+  minWidth: 800,
+  minHeight: 600,
+  defaultWidth: 1200,
+  defaultHeight: 800,
+  toolbarHeight: 38,
+  statusBarHeight: 24
+};
 
 // 모든 상수를 한 번에 내보냄
 module.exports = {
@@ -205,8 +191,8 @@ module.exports = {
   WEBSITE_URL_PATTERNS,
   GOOGLE_DOCS_URL_PATTERNS,
   GOOGLE_DOCS_TITLE_PATTERNS,
-  settingsPath,
-  userDataPath: userDataPathExport,
+  APP_PATHS,
+  UI_CONSTANTS,
   MEMORY_CHECK_INTERVAL,
   BACKGROUND_ACTIVITY_INTERVAL,
   LOW_MEMORY_THRESHOLD,

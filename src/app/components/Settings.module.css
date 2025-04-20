@@ -301,54 +301,103 @@
 
 .radioGroup {
   display: flex;
+  gap: 20px;
+  margin-bottom: 15px;
   flex-wrap: wrap;
-  gap: 1rem;
-  margin-top: 0.5rem;
-  margin-bottom: 1rem;
 }
 
 .radioLabel {
-  display: flex;
+  display: inline-flex; /* flex로 변경 */
   align-items: center;
   cursor: pointer;
-  padding: 0.5rem 1rem;
-  border-radius: 6px;
-  background-color: rgba(255, 255, 255, 0.5);
-  transition: background-color 0.2s;
-  flex: 1;
-  min-width: 140px;
+  user-select: none;
+  position: relative;
+  padding-left: 30px; /* 라디오 버튼 공간 확보 */
+  min-height: 20px; /* 최소 높이 설정 */
 }
 
 .radioLabel:hover {
-  background-color: rgba(255, 255, 255, 0.8);
+  /* 호버 효과는 그대로 두거나 필요에 따라 조정 */
 }
 
 .darkMode .radioLabel {
-  background-color: rgba(30, 30, 30, 0.7); /* 라디오 버튼 배경색 어둡게 */
+  color: var(--text-color, #E0E0E0); /* 다크모드 텍스트 색상 적용 */
 }
 
 .darkMode .radioLabel:hover {
-  background-color: rgba(40, 40, 40, 0.9); /* 호버 시 더 진한 배경색 */
+  /* 다크모드 호버 효과 */
 }
 
 .radioLabel input[type="radio"] {
-  margin-right: 10px;
-  width: 18px;
-  height: 18px;
-  accent-color: #4d7cfe;
+  position: absolute;
+  opacity: 0;
+  cursor: pointer;
+  height: 0;
+  width: 0;
 }
 
-.darkMode .radioLabel input[type="radio"] {
-  accent-color: #5e8efe;
+/* 커스텀 라디오 버튼 모양 생성 */
+.radioText::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 20px;
+  height: 20px;
+  border: 2px solid #ccc;
+  border-radius: 50%;
+  background-color: #fff;
+  transition: border-color 0.2s, background-color 0.2s;
+}
+
+.darkMode .radioText::before {
+  border-color: #555;
+  background-color: #333;
+}
+
+/* 선택 시 커스텀 라디오 버튼 모양 변경 */
+.radioLabel input[type="radio"]:checked + .radioText::before {
+  border-color: #4d7cfe;
+  background-color: #4d7cfe;
+}
+
+/* 선택 시 내부 원 표시 */
+.radioText::after {
+  content: '';
+  position: absolute;
+  left: 6px; /* 내부 원 위치 조정 */
+  top: 50%;
+  transform: translateY(-50%);
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #fff;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.radioLabel input[type="radio"]:checked + .radioText::after {
+  opacity: 1;
+}
+
+.darkMode .radioLabel input[type="radio"]:checked + .radioText::before {
+  border-color: #5e8efe;
+  background-color: #5e8efe;
+}
+
+.darkMode .radioLabel input[type="radio"]:checked + .radioText::after {
+  background-color: #1a1a1a; /* 다크모드 내부 원 색상 */
 }
 
 .radioText {
   font-size: 0.95rem;
   font-weight: 500;
+  line-height: 1.4; /* 줄 높이 추가 */
 }
 
 .darkMode .radioText {
-  color: #d0d0d0;
+  color: var(--text-color, #d0d0d0); /* 다크모드 텍스트 색상 적용 */
 }
 
 .selectLabel {

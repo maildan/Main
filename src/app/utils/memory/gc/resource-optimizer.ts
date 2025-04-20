@@ -154,11 +154,11 @@ export function freeUnusedMemory(): boolean {
     // 위젯 캐시 정리
     if (window.__widgetCache) {
       const widgetCache = window.__widgetCache as Record<string, any>;
-      let itemsToRemove: string[] = [];
+      const itemsToRemove: string[] = [];
       
       for (const key in widgetCache) {
         // 비활성 상태인 위젯만 정리
-        if (widgetCache[key]?.state === 'inactive') {
+        if (Object.prototype.hasOwnProperty.call(widgetCache, key) && widgetCache[key]?.state === 'inactive') {
           itemsToRemove.push(key);
         }
       }
@@ -397,28 +397,30 @@ export function clearImageResizeCache(): void {
  * 사용되지 않는 텍스처 캐시를 정리합니다.
  */
 export function cleanupTextureCache(): number {
-  try {
-    // 텍스처 캐시가 없으면 생성
-    if (!window.hasOwnProperty('__textureCache')) {
-      // 빈 Map으로 초기화 (타입 지정)
-      (window as any).__textureCache = new Map<string, string>();
-      return 0;
+  let count = 0;
+  const win = window as MemoryCacheWindow;
+  if (win.__textureCache) {
+    // Map 인스턴스인지 확인
+    if (win.__textureCache instanceof Map) {
+      const cache = win.__textureCache as Map<string, unknown>; // Map으로 타입 단언
+      for (const key of cache.keys()) { // .keys() 사용
+        // 텍스처 해제 로직 (예시: WebGL 텍스처 삭제)
+        cache.delete(key);
+        count++;
+      }
+    } else { // 일반 객체 (Record)인 경우
+      const cache = win.__textureCache as Record<string, unknown>; 
+      for (const key in cache) {
+        if (Object.prototype.hasOwnProperty.call(cache, key)) { 
+          delete cache[key];
+          count++;
+        }
+      }
     }
-    
-    // 이전 크기 기록
-    const textureCache = (window as any).__textureCache;
-    const cacheSize = textureCache instanceof Map ? textureCache.size : 0;
-    
-    // 캐시 초기화
-    if (textureCache instanceof Map) {
-      textureCache.clear();
-    }
-    
-    return cacheSize;
-  } catch (error) {
-    console.error('텍스처 캐시 정리 오류:', error);
-    return 0;
+    // 캐시 객체 자체를 초기화할 수도 있음 (선택 사항)
+    // win.__textureCache = new Map<string, unknown>();
   }
+  return count;
 }
 
 /**
@@ -426,27 +428,30 @@ export function cleanupTextureCache(): number {
  * 사용되지 않는 객체 캐시를 정리합니다.
  */
 export function cleanupObjectCache(): number {
-  try {
-    // 객체 캐시가 없으면 생성
-    if (!window.hasOwnProperty('__objectCache')) {
-      (window as any).__objectCache = new Map<string, any>();
-      return 0;
+  let count = 0;
+  const win = window as MemoryCacheWindow;
+  if (win.__objectCache) {
+    // Map 인스턴스인지 확인
+    if (win.__objectCache instanceof Map) {
+      const cache = win.__objectCache as Map<string, unknown>; // Map으로 타입 단언
+      for (const key of cache.keys()) { // .keys() 사용
+        // 객체 참조 해제 로직 (예시)
+        cache.delete(key);
+        count++;
+      }
+    } else { // 일반 객체 (Record)인 경우
+      const cache = win.__objectCache as Record<string, unknown>;
+      for (const key in cache) {
+        if (Object.prototype.hasOwnProperty.call(cache, key)) { 
+          delete cache[key];
+          count++;
+        }
+      }
     }
-    
-    // 이전 크기 기록
-    const objectCache = (window as any).__objectCache;
-    const cacheSize = objectCache instanceof Map ? objectCache.size : 0;
-    
-    // 캐시 초기화
-    if (objectCache instanceof Map) {
-      objectCache.clear();
-    }
-    
-    return cacheSize;
-  } catch (error) {
-    console.error('객체 캐시 정리 오류:', error);
-    return 0;
+    // 캐시 객체 자체를 초기화할 수도 있음 (선택 사항)
+    // win.__objectCache = new Map<string, unknown>();
   }
+  return count;
 }
 
 /**

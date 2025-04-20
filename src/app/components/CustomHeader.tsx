@@ -3,6 +3,7 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import styles from './CustomHeader.module.css';
 import { useTheme } from './ThemeProvider';
+import ThemeToggle from './ThemeToggle';
 
 // 앱 아이콘 컴포넌트
 function AppIcon() {
@@ -78,20 +79,6 @@ function SettingsIcon() {
   );
 }
 
-// Rust 테스트 아이콘
-function TestIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path d="M3 8.5H13" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-      <path d="M3 4.5H13" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-      <path d="M3 12.5H13" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-      <circle cx="5.5" cy="4.5" r="1" fill="currentColor" />
-      <circle cx="8.5" cy="8.5" r="1" fill="currentColor" />
-      <circle cx="7.5" cy="12.5" r="1" fill="currentColor" />
-    </svg>
-  );
-}
-
 interface CustomHeaderProps {
   api: any;
   isVisible?: boolean;
@@ -131,19 +118,12 @@ export function CustomHeader({ api, isVisible = true, autoHide = false, onVisibi
     return () => document.removeEventListener('click', handleClickOutside);
   }, [showAppMenu]);
 
-  // Rust 네이티브 모듈 테스트 핸들러
-  const handleOpenRustTest = useCallback(() => {
-    if (api && api.onSwitchTab) {
-      api.onSwitchTab('rustTest');
-      setShowAppMenu(false);
-    }
-  }, [api, setShowAppMenu]);
-
   return (
     <div 
       className={`${styles.toolbarContainer} ${isDarkMode ? styles.darkMode : ''}`}
       data-testid="custom-toolbar"
         ref={headerRef}
+        style={{ visibility: isVisible ? 'visible' : 'hidden' }}
     >
       <div className={styles.innerToolbar}>
         <div className={styles.iconBar}>
@@ -183,14 +163,6 @@ export function CustomHeader({ api, isVisible = true, autoHide = false, onVisibi
             <HistoryIcon />
           </button>
           <button 
-            className={`${styles.toolbarIcon} ${activeTab === 'rustTest' ? styles.active : ''}`}
-            onClick={() => handleTabChange('rustTest')}
-            title="Rust 테스트"
-            data-no-drag="true"
-          >
-            <TestIcon />
-          </button>
-          <button 
             className={`${styles.toolbarIcon} ${activeTab === 'settings' ? styles.active : ''}`}
             onClick={() => handleTabChange('settings')}
             title="설정"
@@ -198,6 +170,13 @@ export function CustomHeader({ api, isVisible = true, autoHide = false, onVisibi
           >
             <SettingsIcon />
           </button>
+          
+          <div className={styles.spacer}></div>
+          
+          {/* 테마 토글 버튼 */}
+          <div className={styles.themeToggleContainer} data-no-drag="true">
+            <ThemeToggle compact={true} />
+          </div>
         </div>
         
         {/* 앱 메뉴 팝업 */}
@@ -214,9 +193,6 @@ export function CustomHeader({ api, isVisible = true, autoHide = false, onVisibi
             }}>
               <span>설정</span>
             </div>
-            <div className={styles.appMenuItem} onClick={handleOpenRustTest}>
-              <span>테스트</span>
-            </div>
             <div className={styles.appMenuItem} onClick={() => {
               if (api && api.restartApp) {
                 api.restartApp();
@@ -226,7 +202,6 @@ export function CustomHeader({ api, isVisible = true, autoHide = false, onVisibi
             </div>
             <div className={styles.appMenuSeparator} />
             <div className={styles.appMenuItem} onClick={() => {
-              alert('앱을 종료하려면 창의 닫기 버튼을 사용하세요.');
               setShowAppMenu(false);
             }}>
               <span>종료</span>

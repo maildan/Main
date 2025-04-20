@@ -11,6 +11,19 @@ const { initializeAppLifecycle } = require('./app-lifecycle');
 const { registerAllIpcHandlers } = require('./ipc-handlers');
 const { initializeNativeModule } = require('./memory-manager-native');
 
+// 앱 기본 설정
+const APP_CONFIG = {
+  defaultWidth: 1200,
+  defaultHeight: 800,
+  minWidth: 800,
+  minHeight: 600,
+  backgroundColor: '#ffffff',
+  title: '키보드 분석 도구',
+  appUrl: process.env.NODE_ENV === 'development' 
+    ? 'http://localhost:3000'
+    : `file://${path.join(__dirname, '../.next/server/app/page.html')}`
+};
+
 // 앱 상태 저장소
 global.appState = {
   settings: null,

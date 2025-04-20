@@ -1,5 +1,5 @@
+import nativeModule from '@/server/native';
 import { NextResponse } from 'next/server';
-import nativeModule from '../../../../server/native';
 
 // 네이티브 모듈 상태 조회
 export async function GET() {

@@ -10,15 +10,16 @@ cache:
   key: ${CI_COMMIT_REF_SLUG}
   paths:
     - node_modules/
+    - .yarn-cache/
 
 test:
   stage: test
   image: node:${NODE_VERSION}
   script:
-    - npm ci --legacy-peer-deps
-    - npm run lint:check
-    - npm run typecheck
-    - npm run test:ci
+    - yarn install --frozen-lockfile
+    - yarn run lint:check
+    - yarn run typecheck
+    - yarn run test:ci
   artifacts:
     reports:
       junit: junit.xml
@@ -27,9 +28,9 @@ build:
   stage: build
   image: node:${NODE_VERSION}
   script:
-    - npm ci --legacy-peer-deps
-    - npm run build:native
-    - npm run build
+    - yarn install --frozen-lockfile
+    - yarn run build:native
+    - yarn run build
   artifacts:
     paths:
       - .next/
@@ -43,8 +44,8 @@ deploy_production:
   stage: deploy
   image: node:${NODE_VERSION}
   script:
-    - npm ci --legacy-peer-deps --production
-    - npm run deploy:prod
+    - yarn install --frozen-lockfile --production
+    - yarn run deploy:prod
   environment:
     name: production
     url: ${PRODUCTION_URL}
@@ -61,8 +62,8 @@ deploy_staging:
   stage: deploy
   image: node:${NODE_VERSION}
   script:
-    - npm ci --legacy-peer-deps --production
-    - npm run deploy:staging
+    - yarn install --frozen-lockfile --production
+    - yarn run deploy:staging
   environment:
     name: staging
     url: ${STAGING_URL}

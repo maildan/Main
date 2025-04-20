@@ -7,8 +7,8 @@ const path = require('path');
 const fs = require('fs');
 const { debugLog } = require('./utils');
 
-// 네이티브 모듈 및 폴백 경로
-const NATIVE_MODULE_PATH = path.resolve(__dirname, '../native-modules');
+// 네이티브 모듈 경로 수정: copy-native.js 가 복사하는 위치로 변경
+const NATIVE_MODULE_PATH = path.resolve(__dirname, '../server/native/typing_stats_native.node'); 
 const FALLBACK_MODULE_PATH = path.resolve(__dirname, '../server/native/fallback/index.js');
 
 /**
@@ -20,22 +20,18 @@ function loadNativeModule() {
   let usingFallback = false;
   
   try {
-    // 네이티브 모듈이 존재하는지 확인
-    const dllPath = path.join(NATIVE_MODULE_PATH, 'typing_stats_native.dll');
-    
-    if (fs.existsSync(dllPath)) {
+    // 네이티브 모듈 파일이 존재하는지 직접 확인
+    if (fs.existsSync(NATIVE_MODULE_PATH)) { 
       try {
-        // 네이티브 모듈은 Node 애드온을 통해서만 로드 가능
-        // 직접 DLL 파일을 JS로 로드할 수 없음
-        // 대신 공식 네이티브 모듈 경로에서 로드 시도
-        nativeModule = require('../native-modules');
+        // 수정된 경로에서 직접 .node 파일 로드 시도
+        nativeModule = require(NATIVE_MODULE_PATH);
         debugLog('네이티브 모듈 로드 성공');
       } catch (err) {
-        debugLog(`네이티브 모듈 로드 실패(애드온 방식): ${err.message}`);
+        debugLog(`네이티브 모듈 로드 실패(${NATIVE_MODULE_PATH}): ${err.message}`);
         usingFallback = true;
       }
     } else {
-      debugLog('네이티브 모듈 파일이 존재하지 않음');
+      debugLog('네이티브 모듈 파일이 존재하지 않음:', NATIVE_MODULE_PATH);
       usingFallback = true;
     }
     

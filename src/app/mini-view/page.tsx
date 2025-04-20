@@ -23,34 +23,12 @@ export default function MiniViewPage() {
 
   return (
     <ToastProvider>
-      <div style={{ 
-        width: '100vw', 
-        height: '100vh', 
-        overflow: 'hidden',
-        padding: 0,
-        margin: 0,
-        outline: 'none',
-        border: 'none',
-        WebkitUserSelect: 'none',
+      <div 
+        className="w-screen h-screen overflow-hidden p-0 m-0 outline-none border-none select-none"
+        style={{
         WebkitAppRegion: 'drag'
-      }}>
-        <style jsx global>{`
-          * {
-            outline: none !important;
-            -webkit-tap-highlight-color: transparent !important;
-            border: none !important;
-          }
-          
-          body, html {
-            -webkit-app-region: drag !important;
-          }
-          
-          button, img {
-            border: none !important;
-            outline: none !important;
-            pointer-events: none !important;
-          }
-        `}</style>
+        }}
+      >
         <MiniView />
       </div>
     </ToastProvider>

@@ -3,7 +3,8 @@ import { NextResponse } from 'next/server';
 export async function GET() {
   try {
     // 네이티브 모듈 동적 임포트 (타입 에러 해결)
-    const nativeModuleImport = await import('../../../../server/native').catch(() => ({}));
+    // const nativeModuleImport = await import('../../../../server/native').catch(() => ({})); // 상대 경로 주석 처리
+    const nativeModuleImport = await import('@/server/native').catch(() => ({})); // 절대 경로 별칭 사용
     // 타입 오류 수정: 객체에 default 속성이 있는지 확인 후 접근
     const nativeModule = 'default' in nativeModuleImport
       ? nativeModuleImport.default

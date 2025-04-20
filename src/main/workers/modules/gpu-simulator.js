@@ -169,7 +169,7 @@ function simulateGpuWordFrequency(content) {
   const step = words.length > sampleSize ? Math.floor(words.length / sampleSize) : 1;
   
   for (let i = 0; i < words.length; i += step) {
-    const word = words[i].toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, '');
+    const word = words[i].toLowerCase().replace(/[.,/#!$%^&*;:{}=\-_`~()]/g, '');
     if (word && word.length > 1) {
       wordFreq[word] = (wordFreq[word] || 0) + 1;
     }

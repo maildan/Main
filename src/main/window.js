@@ -149,14 +149,18 @@ async function createWindow() {
     // 로드 URL 결정
     const startUrl = isDev
       ? 'http://localhost:3000'
-      : `file://${path.join(__dirname, '../../dist/index.html')}`;
+      : url.format({
+          pathname: path.join(__dirname, '../../dist/renderer/index.html'),
+          protocol: 'file:',
+          slashes: true
+        });
 
     // URL 로드 및 이벤트 핸들러 설정
     debugLog(`메인 윈도우 URL 로딩 시작: ${startUrl}`);
 
     // 로딩 시 최대 재시도 횟수 및 재시도 간격 설정
     let retryCount = 0;
-    const MAX_RETRIES = 5;
+    const MAX_RETRIES = 30; // 더 많은 재시도 횟수
     const RETRY_DELAY = 2000;
 
     const loadWithRetry = () => {
@@ -174,60 +178,97 @@ async function createWindow() {
           } else {
             debugLog('최대 재시도 횟수 초과, 오류 화면 표시');
 
-            // 오류 화면 표시
-            const errorHtml = `
-              <!DOCTYPE html>
-              <html>
-              <head>
-                <title>연결 오류</title>
-                <meta charset="UTF-8">
-                <style>
-                  body { font-family: Arial; padding: 20px; color: #333; background: #f0f0f0; }
-                  .container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-                  h1 { color: #2196F3; }
-                  pre { background: #f5f5f5; padding: 10px; border-radius: 4px; overflow: auto; }
-                  .error { color: #e53935; }
-                  .solution { margin-top: 20px; border-top: 1px solid #eee; padding-top: 20px; }
-                  button { padding: 10px 15px; background: #2196F3; color: white; border: none; border-radius: 4px; cursor: pointer; }
-                  button:hover { background: #1976D2; }
-                </style>
-              </head>
-              <body>
-                <div class="container">
-                  <h1>Next.js 서버 연결 오류</h1>
-                  <p>Next.js 서버에 연결할 수 없습니다.</p>
-                  <p class="error">오류: Next.js 서버가 실행 중인지 확인하세요.</p>
-                  <div class="solution">
-                    <h3>해결 방법:</h3>
-                    <p>터미널에서 아래 명령어 실행 후 앱을 다시 시작하세요:</p>
-                    <ol>
-                      <li>개발 모드: <code>npm run dev</code></li>
-                      <li>또는 프로덕션 모드: <code>npm run build</code> 후 <code>npm run start</code></li>
-                    </ol>
-                    <button onclick="window.location.reload()">새로고침</button>
-                    <button onclick="window.api.restartApp()">앱 재시작</button>
+            // Next.js 서버가 없는 경우, 대체 화면 표시
+            if (isDev) {
+              // 개발 모드에서는 오류 화면 표시
+              const errorHtml = `
+                <!DOCTYPE html>
+                <html>
+                <head>
+                  <title>Next.js 서버 연결 오류</title>
+                  <meta charset="UTF-8">
+                  <style>
+                    body { font-family: Arial; padding: 20px; color: #333; background: #f0f0f0; }
+                    .container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+                    h1 { color: #2196F3; }
+                    pre { background: #f5f5f5; padding: 10px; border-radius: 4px; overflow: auto; }
+                    .error { color: #e53935; }
+                    .solution { margin-top: 20px; border-top: 1px solid #eee; padding-top: 20px; }
+                    button { padding: 10px 15px; background: #2196F3; color: white; border: none; border-radius: 4px; cursor: pointer; margin-right: 10px; }
+                    button:hover { background: #1976D2; }
+                  </style>
+                </head>
+                <body>
+                  <div class="container">
+                    <h1>Next.js 서버 연결 오류</h1>
+                    <p>Next.js 서버에 연결할 수 없습니다.</p>
+                    <p class="error">오류: Next.js 서버가 실행 중인지 확인하세요.</p>
+                    <div class="solution">
+                      <h3>해결 방법:</h3>
+                      <p>1. 새 터미널에서 다음 명령어를 실행하세요:</p>
+                      <pre>cd ${app.getAppPath().replace(/\\/g, '/')}\nnpm run server</pre>
+                      <p>2. 서버가 시작된 후 아래 버튼을 클릭하세요.</p>
+                      <button onclick="window.location.reload()">새로고침</button>
+                      <button onclick="window.api && window.api.restartApp ? window.api.restartApp() : alert('앱을 직접 다시 시작해주세요.')">앱 재시작</button>
+                      <button onclick="window.api && window.api.openExternal ? window.api.openExternal('http://localhost:3000') : window.open('http://localhost:3000')">브라우저에서 열기</button>
+                    </div>
                   </div>
-                </div>
-                <script>
-                  // 5초마다 자동으로 연결 재시도
-                  setInterval(() => {
-                    fetch('http://localhost:3000')
-                      .then(response => {
-                        if (response.status === 200) {
-                          window.location.reload();
-                        }
-                      })
-                      .catch(e => console.log('서버 확인 중...'));
-                  }, 5000);
-                </script>
-              </body>
-              </html>
-            `;
+                  <script>
+                    // 5초마다 자동으로 연결 재시도
+                    setInterval(() => {
+                      fetch('http://localhost:3000', { mode: 'no-cors' })
+                        .then(response => {
+                          if (response.status === 200) {
+                            window.location.reload();
+                          }
+                        })
+                        .catch(e => console.log('서버 확인 중...'));
+                    }, 5000);
+                  </script>
+                </body>
+                </html>
+              `;
 
-            const tempPath = path.join(__dirname, '../../error.html');
-            fs.writeFileSync(tempPath, errorHtml);
+              const tempPath = path.join(app.getAppPath(), 'error.html');
+              fs.writeFileSync(tempPath, errorHtml);
 
-            return appState.mainWindow.loadFile(tempPath);
+              return mainWindow.loadFile(tempPath);
+            } else {
+              // 프로덕션 모드에서는 빌드된 파일 로드 시도
+              // 프로덕션 대체 경로 수정: dist/renderer/index.html
+              const fallbackHtml = path.join(app.getAppPath(), 'dist/renderer', 'index.html');
+              
+              if (fs.existsSync(fallbackHtml)) {
+                debugLog(`대체 경로 로드 시도: ${fallbackHtml}`);
+                return mainWindow.loadFile(fallbackHtml);
+              } else {
+                // 모든 시도 실패 시 기본 오류 메시지 표시
+                const basicErrorHtml = `
+                  <!DOCTYPE html>
+                  <html>
+                  <head>
+                    <title>연결 오류</title>
+                    <meta charset="UTF-8">
+                    <style>
+                      body { font-family: Arial; padding: 20px; text-align: center; }
+                      h1 { color: #d32f2f; }
+                    </style>
+                  </head>
+                  <body>
+                    <h1>앱 로드 오류</h1>
+                    <p>애플리케이션을 로드하는 중 오류가 발생했습니다.</p>
+                    <p>앱을 다시 시작하거나 재설치해 보세요.</p>
+                    <button onclick="window.location.reload()">새로고침</button>
+                  </body>
+                  </html>
+                `;
+                
+                const basicErrorPath = path.join(app.getAppPath(), 'basic-error.html');
+                fs.writeFileSync(basicErrorPath, basicErrorHtml);
+                
+                return mainWindow.loadFile(basicErrorPath);
+              }
+            }
           }
         });
     };

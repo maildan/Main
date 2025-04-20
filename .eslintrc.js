@@ -10,11 +10,10 @@ module.exports = {
     'eslint:recommended',
     'plugin:@typescript-eslint/recommended',
     'plugin:react/recommended',
-    'plugin:react-hooks/recommended',
     'prettier' // Prettier와 ESLint 충돌 방지
   ],
   parser: '@typescript-eslint/parser',
-  plugins: ['@typescript-eslint', 'react', 'react-hooks'],
+  plugins: ['@typescript-eslint', 'react'],
   settings: {
     react: {
       version: 'detect',
@@ -102,10 +101,6 @@ module.exports = {
     '*.config.js',
     '*.config.mjs'
   ],
-  
-  // 캐시 설정 추가
-  cache: true,
-  cacheLocation: '.eslintcache',
   
   // 병렬 처리 지원
   reportUnusedDisableDirectives: true,

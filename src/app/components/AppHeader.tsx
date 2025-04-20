@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import styles from './AppHeader.module.css';
 import { useTheme } from './ThemeProvider';
+import ThemeToggle from './ThemeToggle';
 
 interface AppHeaderProps {
   title?: string;
@@ -269,6 +270,9 @@ export function AppHeader({
 
         {/* 우측: 윈도우 컨트롤 버튼 - 윈도우 OS에서는 네이티브 컨트롤 사용하지 않음 */}
         <div className={styles.rightControls}>
+          <div className={styles.themeToggleWrapper}>
+            <ThemeToggle compact={true} />
+          </div>
           {!isOSWindows && (
             <div className={styles.windowControls}>
               <button 

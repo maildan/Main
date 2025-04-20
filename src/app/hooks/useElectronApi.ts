@@ -90,6 +90,8 @@ interface ElectronApiHookResult {
 
 export function useElectronApi(): ElectronApiHookResult {
   const [api, setApi] = useState<ElectronAPI>(createDummyElectronAPI());
+  // isElectron 상태 추가, 초기값 false
+  const [isElectron, setIsElectron] = useState<boolean>(false);
 
   useEffect(() => {
     // 브라우저 환경 확인
@@ -100,9 +102,11 @@ export function useElectronApi(): ElectronApiHookResult {
       if (electronAPI) {
         // Electron 환경에서 실행 중
         setApi(electronAPI);
+        setIsElectron(true); // isElectron 상태 업데이트
       } else {
         // 브라우저 환경에서 실행 중이므로 더미 API 생성
         setApi(createDummyElectronAPI());
+        setIsElectron(false); // isElectron 상태 업데이트
       }
     }
   }, []);
@@ -110,6 +114,6 @@ export function useElectronApi(): ElectronApiHookResult {
   return { 
     electronAPI: api,
     api, // 호환성을 위해 alias로도 제공
-    isElectron: typeof (window as any).electronAPI !== 'undefined'
+    isElectron // 상태 변수 반환
   };
 }

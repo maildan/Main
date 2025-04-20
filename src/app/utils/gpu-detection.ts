@@ -85,7 +85,7 @@ export async function detectGpuCapabilities(): Promise<GpuCapabilities> {
     const canvas = document.createElement('canvas');
     
     // WebGL 1.0 확인
-    let gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl') as WebGLRenderingContext | null;
+    const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl') as WebGLRenderingContext | null;
     capabilities.webGLSupported = !!gl;
     
     if (gl) {
@@ -116,7 +116,7 @@ export async function detectGpuCapabilities(): Promise<GpuCapabilities> {
     }
     
     // WebGL 2.0 확인
-    let gl2 = canvas.getContext('webgl2') as WebGL2RenderingContext | null;
+    const gl2 = canvas.getContext('webgl2') as WebGL2RenderingContext | null;
     capabilities.webGL2Supported = !!gl2;
     
     // WebGPU 확인 (아직 모든 브라우저에서 지원되지 않음)

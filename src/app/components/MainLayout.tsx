@@ -36,7 +36,7 @@ export function MainLayout({
             height: '100vh',
             overflow: 'auto',
             padding: '16px',
-            paddingTop: '56px' // 헤더 높이를 고려한 패딩 추가
+            paddingTop: '56px'
           }}>
             <ClientSideControls>
               {children}

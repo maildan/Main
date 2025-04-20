@@ -48,7 +48,6 @@ export async function runOptimization(
       break;
 
     case OptimizationLevel.AGGRESSIVE:
-    case OptimizationLevel.CRITICAL:
     case OptimizationLevel.EXTREME:
       await cleanupCache();
       await cleanupDom(true);

@@ -7,11 +7,10 @@ export enum OptimizationLevel {
     MEDIUM = 2,
     HIGH = 3,
     AGGRESSIVE = 4,
-    // 이전 코드와 호환되도록 별칭 추가
-    NORMAL = 0,
-    CRITICAL = 4,
-    // EXTREME 추가 (CRITICAL과 동일한 값 사용)
-    EXTREME = 4
+    // 이전 코드와 호환되도록 별칭 추가 - 중복 오류 방지를 위해 주석 처리
+    // NORMAL = 0,
+    // CRITICAL = 4,
+    // EXTREME = 4 // EXTREME도 AGGRESSIVE/CRITICAL과 값이 중복되어 주석 처리
 }
 
 // 네이티브 모듈을 위한 최적화 레벨 enum
@@ -30,7 +29,7 @@ export const OPTIMIZATION_LEVEL_DESCRIPTIONS: Record<string, string> = {
     [OptimizationLevel.MEDIUM.toString()]: '중간',
     [OptimizationLevel.HIGH.toString()]: '높음',
     [OptimizationLevel.AGGRESSIVE.toString()]: '적극적',
-    [OptimizationLevel.EXTREME.toString()]: '매우 적극적'
+    // [OptimizationLevel.EXTREME.toString()]: '매우 적극적' // EXTREME 주석 처리로 인해 함께 주석 처리
 };
 
 // 최적화 레벨 매핑 - 문자열 키로 변환하여 중복 방지
@@ -41,7 +40,7 @@ export const APP_TO_NATIVE_LEVEL_MAP: Record<string, NativeOptimizationLevel> = 
     [OptimizationLevel.MEDIUM.toString()]: NativeOptimizationLevel.Medium,
     [OptimizationLevel.HIGH.toString()]: NativeOptimizationLevel.High,
     [OptimizationLevel.AGGRESSIVE.toString()]: NativeOptimizationLevel.Critical,
-    [OptimizationLevel.EXTREME.toString()]: NativeOptimizationLevel.Critical
+    // [OptimizationLevel.EXTREME.toString()]: NativeOptimizationLevel.Critical // EXTREME 주석 처리로 인해 함께 주석 처리
 };
 
 export const NATIVE_TO_APP_LEVEL_MAP: Record<NativeOptimizationLevel, OptimizationLevel> = {

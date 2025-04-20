@@ -1,4 +1,4 @@
-const { ipcMain, app, globalShortcut } = require('electron');
+const { ipcMain, app, globalShortcut, BrowserWindow } = require('electron');
 const activeWin = require('active-win');
 const { appState, HIGH_MEMORY_THRESHOLD } = require('./constants');
 const { detectBrowserName, isGoogleDocsWindow } = require('./browser');
@@ -538,26 +538,25 @@ function setupIpcHandlers() {
   });
 
   // 윈도우 모드 변경 요청 처리
-  ipcMain.on('set-window-mode', (event, mode) => {
+  ipcMain.on('set-window-mode', async (event, mode) => {
     debugLog('윈도우 모드 변경 요청 받음:', mode);
     
     try {
       applyWindowMode(mode);
       appState.settings.windowMode = mode;
       
-      // 설정 저장
-      const saveResult = saveSettings();
+      // 설정 저장 (비동기 처리)
+      await saveSettings();
       
-      // 더 자세한 응답 제공
+      // 직렬화 가능한 데이터만 전송
       event.reply('window-mode-changed', { 
         success: true, 
         mode,
         autoHideToolbar: appState.autoHideToolbar,
-        isFullScreen: appState.mainWindow?.isFullScreen() || false,
-        saveResult 
+        isFullScreen: appState.mainWindow?.isFullScreen() || false
       });
       
-      // 모든 사용자에게 창 모드 변경 알림
+      // 모든 사용자에게 창 모드 변경 알림 (기존 로직 유지)
       if (appState.mainWindow && appState.mainWindow.webContents) {
         appState.mainWindow.webContents.send('window-mode-status', {
           mode: mode,
@@ -696,7 +695,7 @@ function setupIpcHandlers() {
   });
   
   // 트레이 설정 업데이트 처리
-  ipcMain.on('update-tray-settings', (event, settings) => {
+  ipcMain.on('update-tray-settings', async (event, settings) => {
     debugLog('트레이 설정 업데이트 요청:', settings);
     
     try {
@@ -712,23 +711,25 @@ function setupIpcHandlers() {
         appState.settings.reduceMemoryInBackground = settings.reduceMemoryInBackground;
       }
       
-      // 설정 저장 시도
       const { setupTray, destroyTray } = require('./tray');
       
-      // 트레이 옵션이 꺼졌는데 트레이가 활성화된 경우 제거
       if (!appState.settings.minimizeToTray && appState.tray) {
         destroyTray();
       } else if (appState.settings.minimizeToTray && !appState.tray) {
-        // 트레이 옵션이 켜졌는데 트레이가 없는 경우 생성
         setupTray();
       }
       
-      // 설정 업데이트 후 저장
-      const saveResult = saveSettings();
+      // 설정 업데이트 후 저장 (비동기 처리)
+      await saveSettings();
       
+      // 직렬화 가능한 데이터만 전송
       event.reply('tray-settings-updated', { 
         success: true, 
-        settings: appState.settings
+        settings: {
+          minimizeToTray: appState.settings.minimizeToTray,
+          showTrayNotifications: appState.settings.showTrayNotifications,
+          reduceMemoryInBackground: appState.settings.reduceMemoryInBackground
+        }
       });
       
     } catch (error) {

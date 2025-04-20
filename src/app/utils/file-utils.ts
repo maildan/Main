@@ -31,7 +31,7 @@ export function getFileNameWithoutExtension(filename: string): string {
  * @param path 파일 경로
  */
 export function getFileName(path: string): string {
-  return path.replace(/^.*[\\\/]/, '');
+  return path.replace(/^.*[\\/]/, '');
 }
 
 /**

@@ -455,7 +455,7 @@ const fallbacks = {
  */
 function isNativeModuleAvailable() {
   try {
-    return nativeModule !== null && !moduleState.isFallback;
+    return moduleState.nativeModule !== null && !moduleState.isFallback;
   } catch (error) {
     logError('네이티브 모듈 가용성 확인 오류', { error: error.message });
     return false;
@@ -466,272 +466,87 @@ function isNativeModuleAvailable() {
  * 폴백 모듈 사용 가능 여부 확인
  * @returns {boolean} 폴백 모듈 사용 가능 여부
  */
-function isFallbackModuleAvailable() {
-  return fallbackModule !== null;
+function isFallbackMode() {
+  return moduleState.isFallback;
 }
 
 async function getNativeFallback() {
   // 캐싱된 모듈이 있으면 반환
-  if (fallbackModule !== null) {
-    return fallbackModule;
+  if (moduleState.nativeModule !== null) {
+    return moduleState.nativeModule;
   }
+
+  // 현재 파일 디렉토리 경로 계산 (ESM 호환)
+  const currentDir = path.dirname(new URL(import.meta.url).pathname);
+  // Windows 경로 문제 해결 ('C:' 제거)
+  const compatibleCurrentDir = process.platform === 'win32' ? currentDir.substring(1) : currentDir;
 
   // 폴백 모듈 경로 - 경로 형식 수정
   const possibleFallbackPaths = [
-    // 상대 경로 방식으로 수정
-    path.join(__dirname, 'fallback', 'index.js'),
-    path.join(__dirname, 'fallback.js'),
-    // 절대 경로는 정확한 형식으로 수정
+    // 현재 디렉토리 기준 상대 경로
+    path.join(compatibleCurrentDir, 'fallback', 'index.js'),
+    path.join(compatibleCurrentDir, 'fallback.js'),
+    // 프로젝트 루트 기준 절대 경로 (개발 환경)
     path.join(process.cwd(), 'src', 'server', 'native', 'fallback', 'index.js'),
-    path.join(process.cwd(), 'dist', 'server', 'native', 'fallback', 'index.js')
+    // 빌드된 환경 기준 절대 경로 (프로덕션 환경 - 추정)
+    path.join(process.cwd(), '.next', 'server', 'chunks', 'fallback', 'index.js'), 
+    path.join(process.cwd(), '.next', 'server', 'src', 'server', 'native', 'fallback', 'index.js'), // 다른 빌드 구조 가능성 고려
+    path.join(process.cwd(), 'dist', 'server', 'native', 'fallback', 'index.js') // 이전 경로 유지 (혹시 모를 경우)
   ];
 
   // 로그에 모든 시도 경로 기록
-  loggerInfo('폴백 모듈 로드 시도', { paths: possibleFallbackPaths });
+  logger.info('폴백 모듈 로드 시도', { paths: possibleFallbackPaths });
 
   // 각 경로 시도
   for (const fallbackPath of possibleFallbackPaths) {
+    // Windows 경로 문제 해결 (UNC 경로 또는 드라이브 문자 제거)
+    const cleanPath = process.platform === 'win32' && fallbackPath.startsWith('\\') 
+                      ? fallbackPath.substring(1) 
+                      : fallbackPath;
+                      
+    // 로그 추가: 실제 확인하는 경로
+    logger.info(`폴백 경로 확인 중: ${cleanPath}`);
+    
     try {
-      if (fs.existsSync(fallbackPath)) {
+      if (fs.existsSync(cleanPath)) {
         // CommonJS 모듈 로드 방식 시도 (Next.js 환경 호환성)
         if (typeof require !== 'undefined') {
           try {
-            fallbackModule = require(fallbackPath);
-            loggerInfo(`폴백 모듈 로드(CommonJS): ${fallbackPath}`);
-            return fallbackModule;
+            const fallbackModule = require(cleanPath);
+            moduleState.nativeModule = fallbackModule.default || fallbackModule;
+            logger.info(`폴백 모듈 로드(CommonJS): ${cleanPath}`);
+            return moduleState.nativeModule;
           } catch (requireError) {
-            logWarning(`폴백 모듈 CommonJS 로드 실패: ${fallbackPath}`, { error: requireError.message });
+            logWarning(`폴백 모듈 CommonJS 로드 실패: ${cleanPath}`, { error: requireError.message });
             // CommonJS 실패 시 ESM 시도
           }
         }
 
         // ESM 방식 로드 시도
         try {
-          const loadedModule = await import(fallbackPath);
-          fallbackModule = loadedModule.default || loadedModule;
-          loggerInfo(`폴백 모듈 로드(ESM): ${fallbackPath}`);
-          return fallbackModule;
+          // file:// URL 형태로 변환 (ESM import는 URL 필요)
+          const fileUrl = new URL(`file://${cleanPath}`).href;
+          const loadedModule = await import(fileUrl);
+          moduleState.nativeModule = loadedModule.default || loadedModule;
+          logger.info(`폴백 모듈 로드(ESM): ${cleanPath}`);
+          return moduleState.nativeModule;
         } catch (importError) {
-          logWarning(`폴백 모듈 ESM 로드 실패: ${fallbackPath}`, { error: importError.message });
+          logWarning(`폴백 모듈 ESM 로드 실패: ${cleanPath}`, { error: importError.message });
         }
-      }
-    } catch (error) {
-      logWarning(`폴백 모듈 접근 실패: ${fallbackPath}`, { error: error.message });
-    }
-  }
-
-  logError('폴백 모듈을 찾을 수 없음, 인라인 폴백 생성');
-
-  // 인라인 폴백 생성
-  fallbackModule = createInlineFallback();
-  return fallbackModule;
-}
-
-// 누락된 getMemoryInfo 함수 정의 추가
-// 이 함수는 기본 폴백으로 작동합니다
-function getMemoryInfo() {
-  try {
-    const memoryUsage = process.memoryUsage();
-    const heapUsed = memoryUsage.heapUsed;
-    const heapTotal = memoryUsage.heapTotal;
-    const percentUsed = Math.round((heapUsed / heapTotal) * 10000) / 100;
-    const heapUsedMB = Math.round((heapUsed / (1024 * 1024)) * 100) / 100;
-
-    return {
-      heap_used: heapUsed,
-      heap_total: heapTotal,
-      heap_limit: memoryUsage.heapTotal,
-      rss: memoryUsage.rss,
-      external: memoryUsage.external,
-      array_buffers: memoryUsage.arrayBuffers,
-      heap_used_mb: heapUsedMB,
-      rss_mb: Math.round((memoryUsage.rss / (1024 * 1024)) * 100) / 100,
-      percent_used: percentUsed,
-      timestamp: Date.now()
-    };
-  } catch (error) {
-    console.error('메모리 정보 가져오기 오류:', error);
-
-    // 기본값 반환
-    return {
-      heap_used: 0,
-      heap_total: 0,
-      heap_limit: 0,
-      rss: 0,
-      external: 0,
-      heap_used_mb: 0,
-      rss_mb: 0,
-      percent_used: 0,
-      timestamp: Date.now()
-    };
-  }
-}
-
-// determineOptimizationLevel 함수 추가 (약 1100-1150 라인 사이에 추가)
-
-/**
- * 시스템 상태에 따른 최적화 레벨 결정
- * @param {Object} memoryInfo 메모리 정보 객체
- * @param {boolean} emergency 긴급 최적화 필요 여부
- * @returns {number} 최적화 레벨 (1-4)
- */
-function determineOptimizationLevel(memoryInfo, emergency = false) {
-  if (!memoryInfo) {
-    return emergency ? 3 : 1;
-  }
-
-  const { percentUsed } = memoryInfo;
-
-  if (emergency || percentUsed > 90) {
-    return 4; // 최고 수준 (긴급)
-  } else if (percentUsed > 75) {
-    return 3; // 높은 수준
-  } else if (percentUsed > 60) {
-    return 2; // 중간 수준
   } else {
-    return 1; // 낮은 수준
-  }
-}
-
-// GC 요청 함수 추가
-
-/**
- * GC 요청 함수 - 누락된 함수 구현
- * @param {boolean} emergency 긴급 GC 수행 여부
- * @returns {Promise<Object>} 결과 객체
- */
-async function requestGarbageCollection(emergency = false) {
-  try {
-    // 네이티브 모듈 사용 가능 여부 확인
-    const nativeModule = await getNativeModule();
-
-    // 네이티브 모듈에서 GC 함수 사용
-    if (nativeModule && typeof nativeModule.request_garbage_collection === 'function') {
-      const resultJson = nativeModule.request_garbage_collection(emergency);
-      try {
-        const result = typeof resultJson === 'string' ? JSON.parse(resultJson) : resultJson;
-        return {
-          success: result.success || true,
-          message: result.message || "네이티브 GC 수행 완료",
-          freedMemory: result.freed_mb || 0
-        };
-      } catch (parseError) {
-        logger.error('GC 결과 파싱 오류', { error: parseError.message });
-        // 파싱 오류 시 기본 성공 응답
-        return { success: true, message: "네이티브 GC 수행 완료" };
+        // 로그 추가: 파일 없음
+        // logger.info(`폴백 경로 없음: ${cleanPath}`);
       }
-    }
-
-    // 네이티브 모듈 없거나 함수 없는 경우 폴백
-    if (typeof global.gc === 'function') {
-      // JavaScript GC 호출
-      const memBefore = process.memoryUsage().heapUsed / (1024 * 1024);
-      global.gc(emergency);
-
-      // GC 후 메모리 사용량 차이 계산
-      const memAfter = process.memoryUsage().heapUsed / (1024 * 1024);
-      const freedMB = Math.max(0, memBefore - memAfter).toFixed(2);
-
-      logger.info(`JavaScript GC 수행 완료 (${emergency ? '긴급' : '일반'}), ${freedMB}MB 정리됨`);
-
-      return {
-        success: true,
-        message: `JavaScript GC 수행 완료 (${emergency ? '긴급' : '일반'})`,
-        freedMemory: parseFloat(freedMB)
-      };
-    }
-
-    // GC 사용 불가
-    logger.warning('GC를 사용할 수 없음');
-    return {
-      success: false,
-      message: "GC를 사용할 수 없습니다. '--expose-gc' 플래그와 함께 실행하세요."
-    };
   } catch (error) {
-    logger.error('GC 요청 처리 중 오류', { error: error.message });
-    return {
-      success: false,
-      message: `GC 요청 중 오류: ${error.message}`
-    };
-  }
-}
-
-// 누락된 GPU 함수 정의 추가
-
-/**
- * GPU 가속 지원 여부 확인
- * @returns {boolean} GPU 가속 지원 여부
- */
-function isGpuAccelerationAvailable() {
-  try {
-    // 네이티브 모듈 있으면 해당 함수 사용
-    if (nativeModule && typeof nativeModule.is_gpu_acceleration_available === 'function') {
-      return nativeModule.is_gpu_acceleration_available();
-    }
-    return false; // 기본값은 지원 안함
-  } catch (error) {
-    logError('GPU 가속 지원 확인 오류', { error: error.message });
-    return false;
-  }
-}
-
-// 폴백 모듈 경로 수정 부분
-
-async function getNativeFallback() {
-  // 캐싱된 모듈이 있으면 반환
-  if (fallbackModule !== null) {
-    return fallbackModule;
-  }
-
-  // 폴백 모듈 경로 - 여러 가능한 경로 시도
-  const possibleFallbackPaths = [
-    // 상대 경로 방식으로 수정
-    path.join(__dirname, 'fallback', 'index.js'),
-    path.join(__dirname, 'fallback.js'),
-    // 절대 경로는 그대로 유지
-    path.join(process.cwd(), 'src', 'server', 'native', 'fallback', 'index.js'),
-    path.join(process.cwd(), 'dist', 'server', 'native', 'fallback', 'index.js')
-  ];
-
-  // 로그에 모든 시도 경로 기록
-  loggerInfo('폴백 모듈 로드 시도', { paths: possibleFallbackPaths });
-
-  // 각 경로 시도
-  for (const fallbackPath of possibleFallbackPaths) {
-    try {
-      if (fs.existsSync(fallbackPath)) {
-        // CommonJS 모듈 로드 방식 시도 (Next.js 환경 호환성)
-        if (require) {
-          try {
-            fallbackModule = require(fallbackPath);
-            loggerInfo(`폴백 모듈 로드(CommonJS): ${fallbackPath}`);
-            return fallbackModule;
-          } catch (requireError) {
-            logWarning(`폴백 모듈 CommonJS 로드 실패: ${fallbackPath}`, { error: requireError.message });
-            // CommonJS 실패 시 ESM 시도
-          }
-        }
-
-        // ESM 방식 로드 시도
-        try {
-          const loadedModule = await import(fallbackPath);
-          fallbackModule = loadedModule.default || loadedModule;
-          loggerInfo(`폴백 모듈 로드(ESM): ${fallbackPath}`);
-          return fallbackModule;
-        } catch (importError) {
-          logWarning(`폴백 모듈 ESM 로드 실패: ${fallbackPath}`, { error: importError.message });
-        }
-      }
-    } catch (error) {
-      logWarning(`폴백 모듈 접근 실패: ${fallbackPath}`, { error: error.message });
+      logWarning(`폴백 모듈 접근 실패: ${cleanPath}`, { error: error.message });
     }
   }
 
   logError('폴백 모듈을 찾을 수 없음, 인라인 폴백 생성');
 
   // 인라인 폴백 생성
-  fallbackModule = createInlineFallback();
-  return fallbackModule;
+  moduleState.nativeModule = createInlineFallback();
+  return moduleState.nativeModule;
 }
 
 /**
@@ -805,6 +620,22 @@ function createInlineFallback() {
       });
     }
   };
+}
+
+/**
+ * 네이티브 모듈 가져오기 (필요시 로드)
+ * @returns {Promise<Object|null>} 네이티브 모듈 객체
+ */
+async function getNativeModule() {
+  try {
+    if (!moduleState.initialization.attempted) {
+      await loadNativeModule();
+    }
+    return moduleState.nativeModule;
+  } catch (error) {
+    logError('네이티브 모듈 가져오기 오류', { error: error.message });
+    return null;
+  }
 }
 
 // 모듈 API 정의
@@ -956,7 +787,61 @@ const nativeModuleApi = {
    * @param {boolean} emergency 긴급 GC 수행 여부
    * @returns {Promise<Object>} GC 결과
    */
-  requestGarbageCollection: requestGarbageCollection,
+  requestGarbageCollection: async (emergency = false) => {
+    try {
+      // 네이티브 모듈 사용 가능 여부 확인
+      const nativeModule = await getNativeModule();
+
+      // 네이티브 모듈에서 GC 함수 사용
+      if (nativeModule && typeof nativeModule.request_garbage_collection === 'function') {
+        const resultJson = nativeModule.request_garbage_collection(emergency);
+        try {
+          const result = typeof resultJson === 'string' ? JSON.parse(resultJson) : resultJson;
+          return {
+            success: result.success || true,
+            message: result.message || '네이티브 GC 수행 완료',
+            freedMemory: result.freed_mb || 0
+          };
+        } catch (parseError) {
+          logger.error('GC 결과 파싱 오류', { error: parseError.message });
+          // 파싱 오류 시 기본 성공 응답
+          return { success: true, message: '네이티브 GC 수행 완료' };
+        }
+      }
+
+      // 네이티브 모듈 없거나 함수 없는 경우 폴백
+      if (typeof global.gc === 'function') {
+        // JavaScript GC 호출
+        const memBefore = process.memoryUsage().heapUsed / (1024 * 1024);
+        global.gc(emergency);
+
+        // GC 후 메모리 사용량 차이 계산
+        const memAfter = process.memoryUsage().heapUsed / (1024 * 1024);
+        const freedMB = Math.max(0, memBefore - memAfter).toFixed(2);
+
+        logger.info(`JavaScript GC 수행 완료 (${emergency ? '긴급' : '일반'}), ${freedMB}MB 정리됨`);
+
+        return {
+          success: true,
+          message: `JavaScript GC 수행 완료 (${emergency ? '긴급' : '일반'})`,
+          freedMemory: parseFloat(freedMB)
+        };
+      }
+
+      // GC 사용 불가
+      logger.warning('GC를 사용할 수 없음');
+      return {
+        success: false,
+        message: 'GC를 사용할 수 없습니다. \'--expose-gc\' 플래그와 함께 실행하세요.'
+      };
+    } catch (error) {
+      logger.error('GC 요청 처리 중 오류', { error: error.message });
+      return {
+        success: false,
+        message: `GC 요청 중 오류: ${error.message}`
+      };
+    }
+  },
 
   // =========== GPU 관련 함수 ===========
 
@@ -1157,343 +1042,86 @@ const nativeModuleApi = {
    * 성능 지표 가져오기
    * @returns {Object} 성능 지표
    */
-  getPerformanceMetrics: () => ({ ...moduleState.metrics, timestamp: Date.now() })
+  getPerformanceMetrics: () => ({ ...moduleState.metrics, timestamp: Date.now() }),
+  
+  // =========== 설정 관련 함수 (추가) ===========
+  
+  /**
+   * 네이티브 모듈 메모리 설정 초기화/업데이트
+   * @param {Object} settings 메모리 설정 객체
+   * @returns {boolean} 성공 여부 (네이티브 함수가 반환값을 준다면)
+   */
+  initializeMemorySettings: (settings) => {
+    // 네이티브 모듈이 로드되었는지 확인
+    if (!moduleState.initialization.attempted) {
+      loadNativeModule();
+    }
+    
+    // 네이티브 모듈 사용 불가 또는 폴백 모드 시
+    if (!moduleState.isAvailable || moduleState.isFallback) {
+      logger.warning('네이티브 모듈을 사용할 수 없거나 폴백 모드이므로 메모리 설정을 초기화할 수 없습니다.');
+      // 폴백 모드에서도 설정값을 내부 상태에 저장할 수 있음 (선택 사항)
+      return false; 
+    }
+    
+    // 실제 네이티브 함수 이름 확인 필요 (예: 'initialize_memory_settings')
+    const nativeFunctionName = 'initialize_memory_settings'; 
+    const nativeFunction = moduleState.nativeModule[nativeFunctionName];
+    
+    if (typeof nativeFunction !== 'function') {
+      logger.error(`네이티브 설정 함수 ${nativeFunctionName}을(를) 찾을 수 없습니다.`);
+      return false;
+    }
+    
+    try {
+      // 네이티브 함수에 설정 객체를 JSON 문자열로 변환하여 전달
+      const settingsJson = JSON.stringify(settings);
+      const result = nativeFunction(settingsJson);
+      logger.info('네이티브 메모리 설정 초기화 완료', { settings });
+      // 네이티브 함수가 성공 여부를 반환한다면 그 값을 반환
+      return typeof result === 'boolean' ? result : true;
+    } catch (error) {
+      logger.error('네이티브 메모리 설정 초기화 중 오류', { error: error.message, settings });
+      return false;
+    }
+  },
+
+  // =========== GPU 관련 함수 추가 ===========
+
+  /**
+   * 네이티브 GPU 모듈 초기화
+   * @returns {boolean} 성공 여부
+   */
+  initializeGpuModule: createFunctionWrapper(
+    'initialize_gpu_module', // 실제 네이티브 함수명
+    () => { // 폴백 구현
+      logger.info('폴백: GPU 모듈 초기화 시도 (항상 실패)');
+      return false;
+    },
+    false // 기본 반환값
+  ),
+
+  /**
+   * 네이티브 GPU 가속 설정
+   * @param {boolean} enable 활성화 여부
+   * @returns {boolean} 성공 여부
+   */
+  setGpuAcceleration: (enable) => {
+    const func = createFunctionWrapper(
+      'set_gpu_acceleration', // 실제 네이티브 함수명
+      (fallbackEnable) => { // 폴백 구현
+        logger.info(`폴백: GPU 가속 설정 시도 (enable: ${fallbackEnable}) -> 항상 실패`);
+        return false;
+      },
+      false // 기본 반환값
+    );
+    return func(Boolean(enable)); // 파라미터 타입 보장
+  }
 };
 
 // 네이티브 모듈 로드 시도
 loadNativeModule();
 
-// 사용하지 않는 변수 앞에 _로 시작하는 이름 사용
-async function optimizeMemory(level = 2, _emergency = false) {
-  // u32와 boolean 타입으로 변환
-  const levelU32 = Math.min(Math.max(0, Math.floor(level)), 4);
-  const emergencyBool = Boolean(_emergency);
-
-  const optimizeFunc = createFunctionWrapper(
-    'optimize_memory',
-    () => fallbacks.optimizeMemory(levelU32, emergencyBool),
-    null,
-    true
-  );
-
-  try {
-    moduleState.metrics.lastGcTime = Date.now();
-    const result = await optimizeFunc(levelU32, emergencyBool);
-
-    // 문자열 결과 파싱
-    if (typeof result === 'string') {
-      return JSON.parse(result);
-    }
-    return result;
-  } catch (error) {
-    logger.error('메모리 최적화 오류', {
-      error: error.message,
-      level: levelU32,
-      emergency: emergencyBool
-    });
-    return fallbacks.optimizeMemory(levelU32, emergencyBool);
-  }
-}
-
-function initializeWorkerPool(_threadCount = 0) {
-  // 정수로 변환
-  const threads = Math.max(0, Math.floor(Number(_threadCount) || 0));
-
-  return createFunctionWrapper(
-    'initialize_worker_pool',
-    () => fallbacks.initializeWorkerPool(threads),
-    false
-  )(threads);
-}
-
-async function submitTask(taskType, _data = {}) {
-  // 타입 검증 및 변환
-  const taskTypeStr = String(taskType || 'echo');
-  const dataStr = typeof _data === 'object' ? JSON.stringify(_data) : String(_data);
-
-  const submitFunc = createFunctionWrapper(
-    'submit_task',
-    () => fallbacks.submitTask(taskTypeStr, dataStr),
-    null,
-    true
-  );
-
-  try {
-    const result = await submitFunc(taskTypeStr, dataStr);
-
-    // 문자열 결과 파싱
-    if (typeof result === 'string') {
-      return JSON.parse(result);
-    }
-    return result;
-  } catch (error) {
-    logger.error('작업 제출 오류', {
-      error: error.message,
-      taskType: taskTypeStr
-    });
-    return fallbacks.submitTask(taskTypeStr, dataStr);
-  }
-}
-
-// 외부에서 logger 다시 불러오지 않고 위에서 생성한 logger 인스턴스 사용
-const loggerInfo = logInfo;
-// logError, logWarning은 이미 위에서 선언되었으므로 재사용
-
-// 모듈 캐싱
-let nativeModule = null;
-let fallbackModule = null;
-let lastLoadAttempt = 0;
-const LOAD_COOLDOWN = 5000; // 재시도 간격 (5초)
-
-/**
- * 네이티브 모듈 로드 시도
- * @returns {Promise<Object|null>} 네이티브 모듈 또는 null
- */
-async function getNativeModule() {
-  // 캐싱된 모듈이 있으면 반환
-  if (nativeModule !== null) {
-    return nativeModule;
-  }
-
-  // 마지막 시도 후 일정 시간이 지나지 않았으면 null 반환
-  const now = Date.now();
-  if (now - lastLoadAttempt < LOAD_COOLDOWN) {
-    return null;
-  }
-
-  lastLoadAttempt = now;
-
-  // 수정: 가능한 네이티브 모듈 경로
-  const possiblePaths = [
-    // DLL 파일을 직접 로드하지 않고 Node.js 네이티브 모듈로만 로드
-    path.join(process.cwd(), 'native-modules', 'target', 'release', 'typing_stats_native.node'),
-    path.join(process.cwd(), 'native-modules', 'target', 'debug', 'typing_stats_native.node'),
-    // 다른 가능한 위치
-    path.join(process.cwd(), 'node_modules', '.native-modules', 'typing_stats_native.node'),
-    path.join(process.cwd(), 'src', 'native-modules', 'typing_stats_native.node')
-  ];
-
-  loggerInfo('네이티브 모듈 로드 시도', { paths: possiblePaths });
-
-  // 각 경로 시도
-  for (const modulePath of possiblePaths) {
-    try {
-      if (fs.existsSync(modulePath)) {
-        // .node 파일만 직접 require로 로드 (ESM 환경에서)
-        const loadedModule = require(modulePath); // import 대신 require 사용
-        nativeModule = loadedModule;
-        loggerInfo(`네이티브 모듈 로드 성공: ${modulePath}`);
-        return nativeModule;
-      }
-    } catch (error) {
-      logWarning(`모듈 로드 실패: ${modulePath}`, { error: error.message });
-    }
-  }
-
-  logWarning('네이티브 모듈을 찾을 수 없음, 폴백 모듈 사용 시도');
-  return null;
-}
-
-/**
- * 폴백 모듈 사용 가능 여부 확인
- * @returns {boolean} 폴백 모듈 사용 가능 여부
- */
-function isFallbackModuleAvailable() {
-  return fallbackModule !== null;
-}
-
-/**
- * 네이티브 모듈 정보 가져오기
- * @returns {Promise<Object>} 네이티브 모듈 정보
- */
-async function getNativeModuleInfo() {
-  const module = await getNativeModule();
-  const fallback = module ? null : await getNativeFallback();
-
-  return {
-    available: module !== null || fallback !== null,
-    usingNative: module !== null,
-    usingFallback: module === null && fallback !== null,
-    noModuleAvailable: module === null && fallback === null,
-    timestamp: Date.now()
-  };
-}
-
-/**
- * 네이티브 함수 래핑
- * 네이티브 모듈이 없으면 폴백을 사용하고, 두 모듈 모두 없으면 에러 반환
- * @param {string} functionName 함수 이름
- * @param {Array} args 함수 인자
- * @returns {Promise<any>} 함수 실행 결과
- */
-async function callNativeFunction(functionName, ...args) {
-  // 네이티브 모듈 로드 시도
-  const nativeModule = await getNativeModule();
-
-  if (nativeModule && typeof nativeModule[functionName] === 'function') {
-    // 네이티브 모듈 함수 호출
-    return nativeModule[functionName](...args);
-  }
-
-  // 폴백 모듈 로드 시도
-  const fallbackModule = await getNativeFallback();
-
-  if (fallbackModule && typeof fallbackModule[functionName] === 'function') {
-    // 폴백 모듈 함수 호출
-    return fallbackModule[functionName](...args);
-  }
-
-  // 두 모듈 모두 사용할 수 없음 - 기본값 반환
-  logError(`${functionName} 함수를 네이티브 모듈과 폴백 모듈 모두에서 찾을 수 없습니다`);
-
-  // 함수별 기본 응답 생성
-  return createDefaultResponse(functionName);
-}
-
-/**
- * 함수별 기본 응답 생성
- * @param {string} functionName 함수 이름
- * @returns {any} 기본 응답
- */
-function createDefaultResponse(functionName) {
-  const timestamp = Date.now();
-
-  switch (functionName) {
-    case 'get_memory_info':
-      return JSON.stringify({
-        success: false,
-        timestamp,
-        heap_used: 0,
-        heap_total: 0,
-        heap_used_mb: 0,
-        rss: 0,
-        rss_mb: 0,
-        percent_used: 0,
-        error: 'Memory info not available'
-      });
-
-    case 'force_garbage_collection':
-      return JSON.stringify({
-        success: false,
-        timestamp,
-        freed_memory: 0,
-        freed_mb: 0,
-        duration: 0,
-        error: 'Garbage collection not available'
-      });
-
-    case 'optimize_memory':
-      return JSON.stringify({
-        success: false,
-        timestamp,
-        optimization_level: 'none',
-        freed_memory: 0,
-        freed_mb: 0,
-        duration: 0,
-        error: 'Memory optimization not available'
-      });
-
-    case 'get_gpu_info':
-      return JSON.stringify({
-        success: false,
-        timestamp,
-        available: false,
-        acceleration_enabled: false,
-        name: 'Software Renderer',
-        vendor: 'None',
-        error: 'GPU info not available'
-      });
-
-    default:
-      return JSON.stringify({
-        success: false,
-        timestamp,
-        error: `Function ${functionName} not implemented`
-      });
-  }
-}
-
-// 공통 네이티브 모듈 함수들
-const combinedExports = {
-  getNativeModule,
-  getNativeFallback,
-  getNativeModuleInfo,
-  callNativeFunction,
-  isNativeModuleAvailable,
-  isFallbackModuleAvailable,
-
-  // 보다 간편한 사용을 위한 일반적인 함수들
-  getMemoryInfo: async () => {
-    try {
-      return await callNativeFunction('get_memory_info');
-    } catch (error) {
-      logError('메모리 정보 가져오기 실패', { error: error.message });
-      return createDefaultResponse('get_memory_info');
-    }
-  },
-
-  forceGarbageCollection: async () => {
-    try {
-      return await callNativeFunction('force_garbage_collection');
-    } catch (error) {
-      logError('가비지 컬렉션 수행 실패', { error: error.message });
-      return createDefaultResponse('force_garbage_collection');
-    }
-  },
-
-  optimizeMemory: async (level = 'medium', emergency = false) => {
-    try {
-      return await callNativeFunction('optimize_memory', level, emergency);
-    } catch (error) {
-      logError('메모리 최적화 실패', { error: error.message });
-      return createDefaultResponse('optimize_memory');
-    }
-  },
-
-  getGpuInfo: async () => {
-    try {
-      return await callNativeFunction('get_gpu_info');
-    } catch (error) {
-      logError('GPU 정보 가져오기 실패', { error: error.message });
-      return createDefaultResponse('get_gpu_info');
-    }
-  },
-
-  setGpuAcceleration: async (enable) => {
-    try {
-      const functionName = enable ? 'enable_gpu_acceleration' : 'disable_gpu_acceleration';
-      return await callNativeFunction(functionName);
-    } catch (error) {
-      logError(`GPU 가속화 ${enable ? '활성화' : '비활성화'} 실패`, { error: error.message });
-      return JSON.stringify({
-        success: false,
-        timestamp: Date.now(),
-        enabled: false,
-        error: `GPU acceleration ${enable ? 'enable' : 'disable'} failed: ${error.message}`
-      });
-    }
-  },
-
-  // 네이티브 모듈 API
-  ...nativeModuleApi,
-
-  // 폴백 구현 함수들
-  getMemoryInfo,
-  determineOptimizationLevel,
-  requestGarbageCollection,
-  optimizeMemory,
-  isGpuAccelerationAvailable,
-  enableGpuAcceleration,
-  disableGpuAcceleration,
-  getGpuInfo,
-  performGpuComputation,
-  getNativeModuleInfo
-};
-
-// 마지막에 CommonJS 호환성 추가
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = combinedExports;
-}
-
-// 단일 default export 사용
-export default combinedExports;
+// 외부 API 노출 추가
+export default nativeModuleApi;
+module.exports = nativeModuleApi;
