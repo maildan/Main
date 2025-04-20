@@ -195,3 +195,7 @@ Next.js 공식 문서 — https://nextjs.org/docs
 효과적인 코드 리뷰 가이드라인 — https://google.github.io/eng-practices/review/
 
 CI/CD 모범 사례 — https://docs.github.com/en/actions/automating-builds-and-tests/about-continuous-integration
+
+RUST 공식 문서 - https://doc.rust-lang.org/std/index.html
+
+RUST 공식 에러 가이드라인 - hhttps://doc.rust-lang.org/error_codes/error-index.html

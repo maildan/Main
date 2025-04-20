@@ -4,6 +4,13 @@ use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
 use chrono::Local;
 use tauri::AppHandle;
+use std::sync::atomic::{AtomicBool, Ordering};
+use lazy_static::lazy_static;
+
+// 키보드 트래킹 활성화 상태를 저장하는 전역 변수
+lazy_static! {
+    static ref TRACKING_ENABLED: AtomicBool = AtomicBool::new(false);
+}
 
 #[derive(Serialize, Deserialize)]
 struct TypingData {
@@ -33,8 +40,27 @@ fn get_data_file_path(_app_handle: &AppHandle) -> PathBuf {
     path
 }
 
+// 키보드 트래킹 활성화/비활성화
+#[tauri::command]
+fn set_tracking_enabled(enabled: bool) -> Result<bool, String> {
+    TRACKING_ENABLED.store(enabled, Ordering::SeqCst);
+    println!("트래킹 상태: {}", if enabled { "활성화" } else { "비활성화" });
+    Ok(enabled)
+}
+
+// 현재 트래킹 상태 확인
+#[tauri::command]
+fn get_tracking_status() -> bool {
+    TRACKING_ENABLED.load(Ordering::SeqCst)
+}
+
 #[tauri::command]
 fn save_typing_data(app_handle: AppHandle, key: &str) -> Result<(), String> {
+    // 트래킹이 비활성화되어 있으면 저장하지 않음
+    if !TRACKING_ENABLED.load(Ordering::SeqCst) {
+        return Ok(());
+    }
+
     // 터미널에 로그 출력
     println!("Key pressed: {}", key);
     
@@ -70,6 +96,11 @@ fn save_typing_data(app_handle: AppHandle, key: &str) -> Result<(), String> {
 
 #[tauri::command]
 fn log_sentence(sentence: &str) -> Result<(), String> {
+    // 트래킹이 비활성화되어 있으면 저장하지 않음
+    if !TRACKING_ENABLED.load(Ordering::SeqCst) {
+        return Ok(());
+    }
+    
     // 완성된 문장을 터미널에 출력
     println!("Sentence: {}", sentence);
     Ok(())
@@ -79,7 +110,13 @@ fn log_sentence(sentence: &str) -> Result<(), String> {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![greet, save_typing_data, log_sentence])
+        .invoke_handler(tauri::generate_handler![
+            greet, 
+            save_typing_data, 
+            log_sentence,
+            set_tracking_enabled,
+            get_tracking_status
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

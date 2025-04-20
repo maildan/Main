@@ -1,0 +1,1 @@
+cargo build를 실행할 시 터미널에 cd src-tauri를 미리 입력하려 위치 변경 후 빌드 
