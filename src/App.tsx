@@ -19,6 +19,7 @@ import "./styles/tracking.css";
 import "./styles/sections.css";
 import "./styles/components.css";
 import "./styles/utils.css";
+import "./styles/monitoring.css";
 
 /**
  * 메인 앱 컴포넌트
