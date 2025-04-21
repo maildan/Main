@@ -3,6 +3,20 @@
 // 섹션 타입
 export type Section = "모니터링" | "히스토리" | "통계" | "설정";
 
+// 브라우저 정보 타입
+export interface BrowserInfo {
+  name: string;
+  process_id: number;
+  window_title: string;
+}
+
+// 브라우저 통계 타입
+export interface BrowserStats {
+  browserName: string;
+  visitCount: number;
+  totalTimeSpent: number; // 초 단위
+}
+
 // 에러 메시지 관련 prop 타입
 export interface ErrorMessageProps {
   message: string | null;
