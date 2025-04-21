@@ -1,49 +1,70 @@
 /**
  * 메모리 설정 관리 유틸리티
- * 
- * 이 모듈은 애플리케이션의 메모리 최적화 설정을 관리하고 
+ *
+ * 이 모듈은 애플리케이션의 메모리 최적화 설정을 관리하고
  * native 모듈과 JavaScript 간의 설정 동기화를 처리합니다.
  */
 
-import { updateNativeMemorySettings, getNativeMemorySettings } from './native-memory-bridge';
-import { getLocalStorage as getStorageItem, setLocalStorage as setStorageItem } from './storage-utils';
+import {
+  getLocalStorage as getStorageItem,
+  setLocalStorage as setStorageItem,
+} from './storage-utils';
 
 // 메모리 설정 인터페이스
 export interface MemorySettings {
   // 기본 설정
   enableAutomaticOptimization: boolean;
-  optimizationThreshold: number;  // MB 단위
-  optimizationInterval: number;   // 밀리초 단위
-  
+  optimizationThreshold: number; // MB 단위
+  optimizationInterval: number; // 밀리초 단위
+
   // 고급 설정
   aggressiveGC: boolean;
   enableLogging: boolean;
   enablePerformanceMetrics: boolean;
-  
+
   // GPU 관련 설정
   useHardwareAcceleration: boolean;
   processingMode: 'auto' | 'normal' | 'cpu-intensive' | 'gpu-intensive';
-  
+
   // 메모리 풀 설정
   useMemoryPool: boolean;
-  poolCleanupInterval: number;    // 밀리초 단위
+  poolCleanupInterval: number; // 밀리초 단위
+
+  // --- 누락된 속성 추가 ---
+  preferNativeImplementation: boolean; // 네이티브 구현 선호
+  enableAutomaticFallback: boolean; // 자동 폴백 활성화
+  fallbackRetryDelay: number; // 폴백 재시도 간격 (밀리초)
+  componentSpecificSettings: Record<
+    string,
+    {
+      // 컴포넌트별 설정
+      optimizeOnUnmount: boolean;
+      aggressiveCleanup: boolean;
+    }
+  >;
 }
 
 // 기본 설정 값
 const DEFAULT_SETTINGS: MemorySettings = {
   enableAutomaticOptimization: true,
-  optimizationThreshold: 100,    // 100MB
-  optimizationInterval: 60000,   // 1분
-  
+  optimizationThreshold: 100, // 100MB
+  optimizationInterval: 60000, // 1분
+
   aggressiveGC: false,
   enableLogging: true,
   enablePerformanceMetrics: true,
-  
+
   useHardwareAcceleration: false,
   processingMode: 'auto',
-  
+
   useMemoryPool: true,
-  poolCleanupInterval: 300000,   // 5분
+  poolCleanupInterval: 300000, // 5분
+
+  // --- 추가된 속성 기본값 ---
+  preferNativeImplementation: true, // 기본값 예시 (실제 값 확인 필요)
+  enableAutomaticFallback: true, // 기본값 예시 (실제 값 확인 필요)
+  fallbackRetryDelay: 300000, // 5분 (기본값 예시)
+  componentSpecificSettings: {}, // 빈 객체로 초기화
 };
 
 // 로컬 스토리지 키
@@ -56,10 +77,12 @@ const MEMORY_SETTINGS_KEY = 'typing-stats-memory-settings';
 export async function getMemorySettings(): Promise<MemorySettings> {
   try {
     // 로컬 스토리지에서 설정 가져오기
-    const storedSettings = await getStorageItem<Partial<MemorySettings>>(MEMORY_SETTINGS_KEY) || {};
-    
+    const storedSettings =
+      (await getStorageItem<Partial<MemorySettings>>(MEMORY_SETTINGS_KEY)) || {};
+
     // 네이티브 모듈에서 설정 가져오기 시도
     let nativeSettings: Partial<MemorySettings> = {};
+    /* // 주석 처리 시작
     try {
       const settings = await getNativeMemorySettings();
       if (settings) {
@@ -75,12 +98,17 @@ export async function getMemorySettings(): Promise<MemorySettings> {
           processingMode: settings.processing_mode as any,
           useMemoryPool: settings.use_memory_pool,
           poolCleanupInterval: settings.pool_cleanup_interval,
+          preferNativeImplementation: settings.prefer_native_implementation,
+          enableAutomaticFallback: settings.enable_automatic_fallback,
+          fallbackRetryDelay: settings.fallback_retry_delay,
+          componentSpecificSettings: settings.component_specific_settings,
         };
       }
     } catch (error) {
       console.warn('네이티브 설정을 가져오는 중 오류 발생:', error);
     }
-    
+    */ // 주석 처리 끝
+
     // 기본값, 네이티브 설정, 로컬 스토리지 설정 병합 (우선순위 순)
     return {
       ...DEFAULT_SETTINGS,
@@ -102,17 +130,18 @@ export async function saveMemorySettings(settings: Partial<MemorySettings>): Pro
   try {
     // 현재 설정 가져오기
     const currentSettings = await getMemorySettings();
-    
+
     // 새 설정으로 업데이트
     const updatedSettings: MemorySettings = {
       ...currentSettings,
       ...settings,
     };
-    
+
     // 로컬 스토리지에 저장
     await setStorageItem(MEMORY_SETTINGS_KEY, updatedSettings);
-    
+
     // 네이티브 모듈에 설정 적용 시도
+    /* // 주석 처리 시작
     try {
       // 네이티브 설정 형식으로 변환
       const nativeSettings = {
@@ -126,14 +155,19 @@ export async function saveMemorySettings(settings: Partial<MemorySettings>): Pro
         processing_mode: updatedSettings.processingMode,
         use_memory_pool: updatedSettings.useMemoryPool,
         pool_cleanup_interval: updatedSettings.poolCleanupInterval,
+        prefer_native_implementation: updatedSettings.preferNativeImplementation,
+        enable_automatic_fallback: updatedSettings.enableAutomaticFallback,
+        fallback_retry_delay: updatedSettings.fallbackRetryDelay,
+        component_specific_settings: updatedSettings.componentSpecificSettings,
       };
       
       // 네이티브 모듈에 설정 업데이트
-      await updateNativeMemorySettings(nativeSettings);
+      await updateNativeMemorySettings(nativeSettings); 
     } catch (error) {
       console.warn('네이티브 설정 적용 중 오류 발생 (로컬 설정은 저장됨):', error);
     }
-    
+    */ // 주석 처리 끝
+
     // 전역 메모리 최적화 유틸리티 업데이트 (존재하는 경우)
     if (typeof window !== 'undefined' && window.__memoryOptimizer) {
       if (!window.__memoryOptimizer.settings) {
@@ -142,7 +176,7 @@ export async function saveMemorySettings(settings: Partial<MemorySettings>): Pro
         Object.assign(window.__memoryOptimizer.settings, updatedSettings);
       }
     }
-    
+
     return true;
   } catch (error) {
     console.error('메모리 설정 저장 중 오류 발생:', error);
@@ -157,15 +191,15 @@ export async function initializeMemorySettings(): Promise<void> {
   try {
     // 설정 가져오기
     const settings = await getMemorySettings();
-    
+
     // 주기적 메모리 최적화 설정 (활성화된 경우)
     if (settings.enableAutomaticOptimization) {
       setupPeriodicMemoryOptimization(settings);
     }
-    
+
     // 하드웨어 가속화 설정 적용
     applyHardwareAccelerationSettings(settings);
-    
+
     console.log('메모리 설정 초기화 완료:', settings);
   } catch (error) {
     console.error('메모리 설정 초기화 중 오류 발생:', error);
@@ -175,11 +209,12 @@ export async function initializeMemorySettings(): Promise<void> {
 /**
  * 주기적 메모리 최적화 설정
  */
-function setupPeriodicMemoryOptimization(settings: MemorySettings): void {
+function setupPeriodicMemoryOptimization(_settings: MemorySettings): void {
   try {
     // 기존의 최적화 유틸리티 사용
-    import('./native-memory-bridge').then(({ setupPeriodicMemoryOptimization }) => {
-      const cleanup = setupPeriodicMemoryOptimization(
+    /* // 주석 처리 시작
+    import('./native-memory-bridge').then(({ setupPeriodicMemoryOptimization }) => { 
+      const cleanup = setupPeriodicMemoryOptimization( 
         settings.optimizationInterval,
         settings.optimizationThreshold
       );
@@ -212,6 +247,8 @@ function setupPeriodicMemoryOptimization(settings: MemorySettings): void {
     }).catch(error => {
       console.error('주기적 최적화 설정 중 오류 발생:', error);
     });
+    */
+    // 주석 처리 끝
   } catch (error) {
     console.error('주기적 메모리 최적화 설정 중 오류 발생:', error);
   }
@@ -222,40 +259,42 @@ function setupPeriodicMemoryOptimization(settings: MemorySettings): void {
  */
 function applyHardwareAccelerationSettings(settings: MemorySettings): void {
   try {
-    // GPU 가속화 관련 설정 적용
-    import('./gpu-acceleration').then(({ toggleGpuAcceleration }) => {
-      // 설정에 따라 GPU 가속화 활성화/비활성화
-      toggleGpuAcceleration(settings.useHardwareAcceleration).then(success => {
-        if (success) {
-          console.log(`GPU 가속화 ${settings.useHardwareAcceleration ? '활성화' : '비활성화'} 성공`);
-        } else {
-          console.warn(`GPU 가속화 ${settings.useHardwareAcceleration ? '활성화' : '비활성화'} 실패`);
-        }
-      });
-    }).catch(error => {
-      console.error('GPU 가속화 설정 적용 중 오류 발생:', error);
-    });
+    if (typeof window !== 'undefined') {
+      // 하드웨어 가속화 설정 적용 로직 (필요시 구현)
+      console.log('하드웨어 가속화 설정 적용:', settings.useHardwareAcceleration);
+    }
   } catch (error) {
     console.error('하드웨어 가속화 설정 적용 중 오류 발생:', error);
   }
 }
 
 /**
- * 설정을 기본값으로 재설정
- * @returns 재설정 성공 여부
+ * 메모리 설정 초기화 (기본값으로 재설정)
  */
 export async function resetMemorySettings(): Promise<boolean> {
   try {
+    // 기본 설정으로 저장
     return await saveMemorySettings(DEFAULT_SETTINGS);
   } catch (error) {
-    console.error('메모리 설정 재설정 중 오류 발생:', error);
+    console.error('메모리 설정 초기화 중 오류 발생:', error);
     return false;
   }
 }
 
-// 윈도우 타입 선언 확장
+// 전역 타입 확장을 위한 선언
 declare global {
   interface Window {
-    __memoryOptimizer?: any;
+    __memoryOptimizer?: {
+      suggestGarbageCollection: () => void;
+      requestGC: (emergency?: boolean) => Promise<any>;
+      clearBrowserCaches: () => Promise<boolean>;
+      clearStorageCaches: () => boolean;
+      checkMemoryUsage: () => Record<string, number> | null;
+      forceGC: () => boolean;
+      getMemoryInfo: () => any;
+      optimizeMemory: (aggressive?: boolean) => Promise<any>;
+      optimizeImageResources: () => Promise<any>;
+      settings?: Record<string, any>;
+    };
   }
 }

@@ -11,15 +11,18 @@ export function clearInactiveCache(): void {
   // 웹 애플리케이션에서 사용하는 임시 데이터 정리
   if (window.caches) {
     // 오래된 캐시 삭제 (선택적)
-    caches.keys().then(cacheNames => {
-      cacheNames.forEach(cacheName => {
-        if (cacheName.includes('temp') || cacheName.includes('nonessential')) {
-          caches.delete(cacheName);
-        }
+    caches
+      .keys()
+      .then(cacheNames => {
+        cacheNames.forEach(cacheName => {
+          if (cacheName.includes('temp') || cacheName.includes('nonessential')) {
+            caches.delete(cacheName);
+          }
+        });
+      })
+      .catch(err => {
+        console.warn('캐시 정리 중 오류:', err);
       });
-    }).catch(err => {
-      console.warn('캐시 정리 중 오류:', err);
-    });
   }
 }
 
@@ -80,14 +83,17 @@ function clearBrowserCache(): void {
 
     // Cache API를 사용하는 경우 (Service Worker 캐시 등)
     if ('caches' in window) {
-      caches.keys().then(cacheNames => {
-        cacheNames.forEach(cacheName => {
-          // 앱 전용 캐시만 정리 (다른 웹사이트 캐시는 건드리지 않음)
-          if (cacheName.includes('typing-stats-app')) {
-            caches.delete(cacheName);
-          }
-        });
-      }).catch(e => console.warn('캐시 API 접근 오류:', e));
+      caches
+        .keys()
+        .then(cacheNames => {
+          cacheNames.forEach(cacheName => {
+            // 앱 전용 캐시만 정리 (다른 웹사이트 캐시는 건드리지 않음)
+            if (cacheName.includes('typing-stats-app')) {
+              caches.delete(cacheName);
+            }
+          });
+        })
+        .catch(e => console.warn('캐시 API 접근 오류:', e));
     }
   } catch (error) {
     console.warn('브라우저 캐시 정리 중 오류:', error);
@@ -104,7 +110,7 @@ function clearAppCache(): void {
     // 1. 이미지 변환 캐시
     if (!window.__imageResizeCache) {
       // 타입 캐스팅을 사용하여 타입 오류 해결
-      window.__imageResizeCache = new Map<string, any>();
+      window.__imageResizeCache = {};
     } else {
       // 기존 Map을 적절한 타입으로 다시 설정
       const existingCache = window.__imageResizeCache;
@@ -166,19 +172,23 @@ export function releaseAllCaches(): void {
   try {
     // IndexedDB 캐시 정리
     if (window.indexedDB) {
-      window.indexedDB.databases().then(databases => {
-        databases.forEach(db => {
-          try {
-            if (db.name) { // null 체크 추가
-              window.indexedDB.deleteDatabase(db.name);
+      window.indexedDB
+        .databases()
+        .then(databases => {
+          databases.forEach(db => {
+            try {
+              if (db.name) {
+                // null 체크 추가
+                window.indexedDB.deleteDatabase(db.name);
+              }
+            } catch (e) {
+              // 개별 DB 삭제 실패 처리
             }
-          } catch (e) {
-            // 개별 DB 삭제 실패 처리
-          }
+          });
+        })
+        .catch(err => {
+          console.warn('IndexedDB 정리 중 오류:', err);
         });
-      }).catch(err => {
-        console.warn('IndexedDB 정리 중 오류:', err);
-      });
     }
 
     // Storage API 정리
@@ -190,7 +200,7 @@ export function releaseAllCaches(): void {
           if (navigator.serviceWorker && navigator.serviceWorker.controller) {
             // 서비스 워커에 캐시 정리 요청
             navigator.serviceWorker.controller.postMessage({
-              type: 'CLEAR_ALL_CACHES'
+              type: 'CLEAR_ALL_CACHES',
             });
           }
         }
@@ -258,7 +268,7 @@ export function clearOldCache(): void {
 
 /**
  * 캐시 최적화 기능
- * 
+ *
  * 브라우저 환경에서 발생하는 다양한 캐시를 관리하고 최적화합니다.
  */
 
@@ -268,7 +278,7 @@ const isBrowser = typeof window !== 'undefined';
 // Window 인터페이스 확장
 declare global {
   interface Window {
-    __imageResizeCache?: Map<string, string>;
+    __imageResizeCache?: Record<string, any>;
   }
 }
 
@@ -276,7 +286,7 @@ declare global {
  * 글로벌 이미지 리사이징 캐시
  */
 if (isBrowser && !window.__imageResizeCache) {
-  window.__imageResizeCache = new Map<string, string>();
+  window.__imageResizeCache = {};
 }
 
 /**
@@ -286,8 +296,10 @@ export function clearImageResizeCache(): number {
   if (!isBrowser) return 0;
 
   try {
-    const cacheSize = window.__imageResizeCache?.size || 0;
-    window.__imageResizeCache?.clear();
+    const cacheSize = window.__imageResizeCache ? Object.keys(window.__imageResizeCache).length : 0;
+    if (window.__imageResizeCache) {
+      window.__imageResizeCache = {};
+    }
     return cacheSize;
   } catch (error) {
     console.error('이미지 캐시 정리 중 오류:', error);
@@ -368,9 +380,7 @@ export function cleanupCache(aggressive: boolean = false): number {
   // 공격적 모드일 때만 수행할 작업
   if (aggressive) {
     count += cleanupUnusedFonts();
-    clearServiceWorkerCache().catch(err =>
-      console.warn('서비스 워커 캐시 정리 실패:', err)
-    );
+    clearServiceWorkerCache().catch(err => console.warn('서비스 워커 캐시 정리 실패:', err));
   }
 
   return count;

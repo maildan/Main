@@ -1,6 +1,6 @@
 /**
  * 추가 타입 선언
- * 
+ *
  * 이 파일은 외부 라이브러리나 웹 API에 대한 타입 확장을 정의합니다.
  */
 
@@ -39,10 +39,10 @@ interface Window {
     setUpdateInterval: (interval: number) => Promise<boolean>;
     getSystemInfo: () => Promise<SystemInfo>;
   };
-  
+
   // 가비지 컬렉션 관련
   gc?: () => void;
-  
+
   // 전역 메모리 관리 상태
   __memoryOptimizer?: {
     suggestGarbageCollection: () => void;
@@ -57,20 +57,14 @@ interface Window {
     optimizeImageResources: () => Promise<any>;
     settings?: Record<string, any>;
   };
-  
-  // 이미지 캐시 저장소
-  __imageResizeCache?: Map<string, string>;
-  
-  // 오브젝트 URL 저장소
-  __objectUrls?: Map<string, string>;
-  
+
   // 앱 복구 기능
   __appRecovery?: {
     emergencyCleanup: () => void;
     diagnostics: () => Record<string, unknown>;
     optimizeMemory: (level: number) => boolean;
   };
-  
+
   // 메모리 관리자
   __memoryManager?: {
     settings: {
@@ -80,15 +74,22 @@ interface Window {
     memoryInfo?: any;
     [key: string]: any;
   };
-  
-  // 기타 속성들
+
+  // 기타 시스템 속성
   __nativeBinding?: boolean;
   __gpuInfo?: any;
   __gpuAccelerator?: any;
+
+  // 메모리 최적화 관련 캐시 속성들 (WindowWithResources와 일치)
   __objectUrls?: Map<string, string>;
-  __widgetCache?: Map<string, any>;
+  __widgetCache?: Record<string, any>;
   __styleCache?: Record<string, any>;
   __imageResizeCache?: Record<string, any>;
+  __textureCache?: Map<string, string>;
+  __objectCache?: Map<string, any>;
+  __memoryCache?: Map<string, any>;
+  __bufferCache?: Record<string, any>;
+  _dynamicModules?: Map<string, any>;
 }
 
 /**

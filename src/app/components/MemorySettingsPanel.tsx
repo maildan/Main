@@ -1,17 +1,106 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { 
-  loadMemorySettings, 
-  saveMemorySettings, 
-  resetMemorySettings 
+import {
+  loadMemorySettings,
+  saveMemorySettings,
+  resetMemorySettings,
 } from '../settings/memory-settings';
-import { MemorySettings } from '@/types'; // @/types에서 MemorySettings 타입 가져오기
 import { runComprehensiveBenchmark } from '../utils/performance-metrics';
+import { MemorySettings } from '../utils/memory-settings-manager'; // @/types에서 MemorySettings 타입 가져오기
 // 메모리 유틸리티 가져오기
-import { configureAutoOptimization } from '../utils/memory'; // 대체 함수 사용
 import { getNativeModuleStatus } from '../utils/nativeModuleClient';
 import styles from './MemorySettingsPanel.module.css';
+// import { Switch } from '@/components/ui/switch';
+// import { Slider } from '@/components/ui/slider';
+import { logger } from '@/app/utils/memory/logger'; // 로거 가져오기
+import { getMemoryInfo } from '../utils/memory-management';
+// import { Button } from '@/components/ui/button';
+import { configureAutoOptimization } from '../utils/memory-optimizer';
+
+// UI 컴포넌트 대체 함수 정의
+// Switch 컴포넌트 대체
+type SwitchProps = {
+  checked: boolean;
+  onCheckedChange: (checked: boolean) => void;
+  disabled?: boolean;
+};
+
+const Switch: React.FC<SwitchProps> = ({ checked, onCheckedChange, disabled }) => {
+  return (
+    <label className={styles.switch || 'switch'}>
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={e => onCheckedChange(e.target.checked)}
+        disabled={disabled}
+      />
+      <span className={styles.slider || 'slider'}></span>
+    </label>
+  );
+};
+
+// Slider 컴포넌트 대체
+type SliderProps = {
+  value: number[];
+  onValueChange: (value: number[]) => void;
+  min?: number;
+  max?: number;
+  step?: number;
+  disabled?: boolean;
+};
+
+const Slider: React.FC<SliderProps> = ({
+  value,
+  onValueChange,
+  min = 0,
+  max = 100,
+  step = 1,
+  disabled,
+}) => {
+  return (
+    <input
+      type="range"
+      value={value[0]}
+      onChange={e => onValueChange([parseInt(e.target.value)])}
+      min={min}
+      max={max}
+      step={step}
+      disabled={disabled}
+      className={styles.slider || 'slider'}
+    />
+  );
+};
+
+// Button 컴포넌트 대체
+type ButtonProps = {
+  onClick?: () => void;
+  disabled?: boolean;
+  children: React.ReactNode;
+  variant?: 'default' | 'outline' | 'destructive';
+  className?: string;
+};
+
+const Button: React.FC<ButtonProps> = ({
+  onClick,
+  disabled,
+  children,
+  variant = 'default',
+  className = '',
+}) => {
+  const baseClass = styles.button || 'button';
+  const variantClass = variant !== 'default' ? `${baseClass}-${variant}` : '';
+
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className={`${baseClass} ${variantClass} ${className}`}
+    >
+      {children}
+    </button>
+  );
+};
 
 interface MemorySettingsPanelProps {
   showPerformanceData?: boolean;
@@ -40,7 +129,7 @@ interface MemoryManagerState {
 
 const MemorySettingsPanel: React.FC<MemorySettingsPanelProps> = ({
   showPerformanceData = true,
-  onSettingsChange
+  onSettingsChange,
 }) => {
   // 설정 상태
   const [settings, setSettings] = useState<MemorySettings | null>(null);
@@ -49,22 +138,22 @@ const MemorySettingsPanel: React.FC<MemorySettingsPanelProps> = ({
   const [isBenchmarking, setIsBenchmarking] = useState(false);
   const [activeTab, setActiveTab] = useState('general');
   const [managerState, setManagerState] = useState<MemoryManagerState | null>(null);
-  
+
   // 설정 초기 로딩
   useEffect(() => {
     const initializeSettings = async () => {
       try {
         // 메모리 유틸리티 초기화
-        configureAutoOptimization({ enabled: true });
-        
+        configureAutoOptimization({ enabled: true }); // 주석 해제하고 함수 정상 호출
+
         // 네이티브 모듈 상태 확인
         const { available } = await getNativeModuleStatus();
         setIsNativeAvailable(available);
-        
+
         // 메모리 설정 로딩
         const loadedSettings = loadMemorySettings();
         setSettings(loadedSettings);
-        
+
         // 메모리 매니저 상태 직접 설정 (함수를 직접 호출하는 대신)
         setManagerState({
           nativeAvailable: available,
@@ -72,7 +161,7 @@ const MemorySettingsPanel: React.FC<MemorySettingsPanelProps> = ({
           monitoringActive: true,
           lastNativeCheck: Date.now(),
           recentFailures: [],
-          optimizationHistory: []
+          optimizationHistory: [],
         });
       } catch (error) {
         console.error('설정 초기화 오류:', error);
@@ -80,26 +169,26 @@ const MemorySettingsPanel: React.FC<MemorySettingsPanelProps> = ({
         setIsLoading(false);
       }
     };
-    
+
     initializeSettings();
   }, []);
-  
+
   // 설정 변경 핸들러
   const handleSettingChange = <K extends keyof MemorySettings>(
-    key: K, 
+    key: K,
     value: MemorySettings[K]
   ) => {
     if (!settings) return;
-    
+
     const updatedSettings = { ...settings, [key]: value };
     setSettings(updatedSettings);
     saveMemorySettings(updatedSettings);
-    
+
     if (onSettingsChange) {
       onSettingsChange(updatedSettings);
     }
   };
-  
+
   // 컴포넌트 설정 변경 핸들러
   const handleComponentSettingChange = (
     componentId: string,
@@ -107,40 +196,40 @@ const MemorySettingsPanel: React.FC<MemorySettingsPanelProps> = ({
     value: boolean
   ) => {
     if (!settings) return;
-    
-    const updatedSettings = { 
+
+    const updatedSettings = {
       ...settings,
       componentSpecificSettings: {
         ...settings.componentSpecificSettings,
         [componentId]: {
-          ...settings.componentSpecificSettings[componentId] || {
+          ...(settings.componentSpecificSettings[componentId] || {
             optimizeOnUnmount: false,
-            aggressiveCleanup: false
-          },
-          [key]: value
-        }
-      }
+            aggressiveCleanup: false,
+          }),
+          [key]: value,
+        },
+      },
     };
-    
+
     setSettings(updatedSettings);
     saveMemorySettings(updatedSettings);
-    
+
     if (onSettingsChange) {
       onSettingsChange(updatedSettings);
     }
   };
-  
+
   // 설정 초기화 핸들러
   const handleResetSettings = () => {
     resetMemorySettings();
     const defaultSettings = loadMemorySettings();
     setSettings(defaultSettings);
-    
+
     if (onSettingsChange) {
       onSettingsChange(defaultSettings);
     }
   };
-  
+
   // 벤치마크 실행 핸들러
   const handleRunBenchmark = async () => {
     setIsBenchmarking(true);
@@ -150,37 +239,37 @@ const MemorySettingsPanel: React.FC<MemorySettingsPanelProps> = ({
       setIsBenchmarking(false);
     }
   };
-  
+
   // 로딩 중이거나 설정이 없는 경우 로딩 표시
   if (isLoading || !settings) {
     return <div className={styles.loading}>설정 로딩 중...</div>;
   }
-  
+
   return (
     <div className={styles.container}>
       <h2 className={styles.title}>메모리 최적화 설정</h2>
-      
+
       <div className={styles.tabs}>
-        <button 
+        <button
           className={`${styles.tabButton} ${activeTab === 'general' ? styles.activeTab : ''}`}
           onClick={() => setActiveTab('general')}
         >
           기본 설정
         </button>
-        <button 
+        <button
           className={`${styles.tabButton} ${activeTab === 'advanced' ? styles.activeTab : ''}`}
           onClick={() => setActiveTab('advanced')}
         >
           고급 설정
         </button>
-        <button 
+        <button
           className={`${styles.tabButton} ${activeTab === 'components' ? styles.activeTab : ''}`}
           onClick={() => setActiveTab('components')}
         >
           컴포넌트 설정
         </button>
         {showPerformanceData && (
-          <button 
+          <button
             className={`${styles.tabButton} ${activeTab === 'performance' ? styles.activeTab : ''}`}
             onClick={() => setActiveTab('performance')}
           >
@@ -188,7 +277,7 @@ const MemorySettingsPanel: React.FC<MemorySettingsPanelProps> = ({
           </button>
         )}
       </div>
-      
+
       <div className={styles.tabContent}>
         {/* 기본 설정 탭 */}
         {activeTab === 'general' && (
@@ -202,17 +291,19 @@ const MemorySettingsPanel: React.FC<MemorySettingsPanelProps> = ({
               </div>
               <div className={styles.settingControl}>
                 <label className={styles.switch}>
-                  <input 
-                    type="checkbox" 
+                  <input
+                    type="checkbox"
                     checked={settings.preferNativeImplementation}
-                    onChange={(e) => handleSettingChange('preferNativeImplementation', e.target.checked)}
+                    onChange={e =>
+                      handleSettingChange('preferNativeImplementation', e.target.checked)
+                    }
                     disabled={!isNativeAvailable}
                   />
                   <span className={styles.slider}></span>
                 </label>
               </div>
             </div>
-            
+
             <div className={styles.settingItem}>
               <div className={styles.settingLabel}>
                 <div className={styles.settingTitle}>자동 폴백 활성화</div>
@@ -222,16 +313,16 @@ const MemorySettingsPanel: React.FC<MemorySettingsPanelProps> = ({
               </div>
               <div className={styles.settingControl}>
                 <label className={styles.switch}>
-                  <input 
-                    type="checkbox" 
+                  <input
+                    type="checkbox"
                     checked={settings.enableAutomaticFallback}
-                    onChange={(e) => handleSettingChange('enableAutomaticFallback', e.target.checked)}
+                    onChange={e => handleSettingChange('enableAutomaticFallback', e.target.checked)}
                   />
                   <span className={styles.slider}></span>
                 </label>
               </div>
             </div>
-            
+
             <div className={styles.settingItem}>
               <div className={styles.settingLabel}>
                 <div className={styles.settingTitle}>자동 최적화 활성화</div>
@@ -241,16 +332,18 @@ const MemorySettingsPanel: React.FC<MemorySettingsPanelProps> = ({
               </div>
               <div className={styles.settingControl}>
                 <label className={styles.switch}>
-                  <input 
-                    type="checkbox" 
+                  <input
+                    type="checkbox"
                     checked={settings.enableAutomaticOptimization}
-                    onChange={(e) => handleSettingChange('enableAutomaticOptimization', e.target.checked)}
+                    onChange={e =>
+                      handleSettingChange('enableAutomaticOptimization', e.target.checked)
+                    }
                   />
                   <span className={styles.slider}></span>
                 </label>
               </div>
             </div>
-            
+
             <div className={styles.settingItem}>
               <div className={styles.settingLabel}>
                 <div className={styles.settingTitle}>최적화 임계값 (MB)</div>
@@ -259,40 +352,42 @@ const MemorySettingsPanel: React.FC<MemorySettingsPanelProps> = ({
                 </div>
               </div>
               <div className={styles.settingControl}>
-                <input 
+                <input
                   type="number"
                   className={styles.numberInput}
                   min={50}
                   max={500}
                   value={settings.optimizationThreshold}
-                  onChange={(e) => handleSettingChange('optimizationThreshold', Number(e.target.value))}
+                  onChange={e =>
+                    handleSettingChange('optimizationThreshold', Number(e.target.value))
+                  }
                   disabled={!settings.enableAutomaticOptimization}
                 />
               </div>
             </div>
-            
+
             <div className={styles.settingItem}>
               <div className={styles.settingLabel}>
                 <div className={styles.settingTitle}>최적화 체크 간격 (초)</div>
-                <div className={styles.settingDescription}>
-                  자동 최적화 체크 주기
-                </div>
+                <div className={styles.settingDescription}>자동 최적화 체크 주기</div>
               </div>
               <div className={styles.settingControl}>
-                <input 
+                <input
                   type="number"
                   className={styles.numberInput}
                   min={10}
                   max={300}
                   value={settings.optimizationInterval / 1000}
-                  onChange={(e) => handleSettingChange('optimizationInterval', Number(e.target.value) * 1000)}
+                  onChange={e =>
+                    handleSettingChange('optimizationInterval', Number(e.target.value) * 1000)
+                  }
                   disabled={!settings.enableAutomaticOptimization}
                 />
               </div>
             </div>
           </div>
         )}
-        
+
         {/* 고급 설정 탭 */}
         {activeTab === 'advanced' && (
           <div className={styles.settingsGroup}>
@@ -305,16 +400,16 @@ const MemorySettingsPanel: React.FC<MemorySettingsPanelProps> = ({
               </div>
               <div className={styles.settingControl}>
                 <label className={styles.switch}>
-                  <input 
-                    type="checkbox" 
+                  <input
+                    type="checkbox"
                     checked={settings.aggressiveGC}
-                    onChange={(e) => handleSettingChange('aggressiveGC', e.target.checked)}
+                    onChange={e => handleSettingChange('aggressiveGC', e.target.checked)}
                   />
                   <span className={styles.slider}></span>
                 </label>
               </div>
             </div>
-            
+
             <div className={styles.settingItem}>
               <div className={styles.settingLabel}>
                 <div className={styles.settingTitle}>상세 로깅 활성화</div>
@@ -324,16 +419,16 @@ const MemorySettingsPanel: React.FC<MemorySettingsPanelProps> = ({
               </div>
               <div className={styles.settingControl}>
                 <label className={styles.switch}>
-                  <input 
-                    type="checkbox" 
+                  <input
+                    type="checkbox"
                     checked={settings.enableLogging}
-                    onChange={(e) => handleSettingChange('enableLogging', e.target.checked)}
+                    onChange={e => handleSettingChange('enableLogging', e.target.checked)}
                   />
                   <span className={styles.slider}></span>
                 </label>
               </div>
             </div>
-            
+
             <div className={styles.settingItem}>
               <div className={styles.settingLabel}>
                 <div className={styles.settingTitle}>성능 측정 활성화</div>
@@ -343,16 +438,18 @@ const MemorySettingsPanel: React.FC<MemorySettingsPanelProps> = ({
               </div>
               <div className={styles.settingControl}>
                 <label className={styles.switch}>
-                  <input 
-                    type="checkbox" 
+                  <input
+                    type="checkbox"
                     checked={settings.enablePerformanceMetrics}
-                    onChange={(e) => handleSettingChange('enablePerformanceMetrics', e.target.checked)}
+                    onChange={e =>
+                      handleSettingChange('enablePerformanceMetrics', e.target.checked)
+                    }
                   />
                   <span className={styles.slider}></span>
                 </label>
               </div>
             </div>
-            
+
             <div className={styles.settingItem}>
               <div className={styles.settingLabel}>
                 <div className={styles.settingTitle}>메모리 풀 사용</div>
@@ -362,16 +459,16 @@ const MemorySettingsPanel: React.FC<MemorySettingsPanelProps> = ({
               </div>
               <div className={styles.settingControl}>
                 <label className={styles.switch}>
-                  <input 
-                    type="checkbox" 
+                  <input
+                    type="checkbox"
                     checked={settings.useMemoryPool}
-                    onChange={(e) => handleSettingChange('useMemoryPool', e.target.checked)}
+                    onChange={e => handleSettingChange('useMemoryPool', e.target.checked)}
                   />
                   <span className={styles.slider}></span>
                 </label>
               </div>
             </div>
-            
+
             <div className={styles.settingItem}>
               <div className={styles.settingLabel}>
                 <div className={styles.settingTitle}>폴백 재시도 간격 (분)</div>
@@ -380,40 +477,42 @@ const MemorySettingsPanel: React.FC<MemorySettingsPanelProps> = ({
                 </div>
               </div>
               <div className={styles.settingControl}>
-                <input 
+                <input
                   type="number"
                   className={styles.numberInput}
                   min={1}
                   max={60}
                   value={settings.fallbackRetryDelay / 60000}
-                  onChange={(e) => handleSettingChange('fallbackRetryDelay', Number(e.target.value) * 60000)}
+                  onChange={e =>
+                    handleSettingChange('fallbackRetryDelay', Number(e.target.value) * 60000)
+                  }
                   disabled={!settings.enableAutomaticFallback}
                 />
               </div>
             </div>
-            
+
             <div className={styles.settingItem}>
               <div className={styles.settingLabel}>
                 <div className={styles.settingTitle}>풀 정리 간격 (분)</div>
-                <div className={styles.settingDescription}>
-                  메모리 풀 정리 주기
-                </div>
+                <div className={styles.settingDescription}>메모리 풀 정리 주기</div>
               </div>
               <div className={styles.settingControl}>
-                <input 
+                <input
                   type="number"
                   className={styles.numberInput}
                   min={1}
                   max={60}
                   value={settings.poolCleanupInterval / 60000}
-                  onChange={(e) => handleSettingChange('poolCleanupInterval', Number(e.target.value) * 60000)}
+                  onChange={e =>
+                    handleSettingChange('poolCleanupInterval', Number(e.target.value) * 60000)
+                  }
                   disabled={!settings.useMemoryPool}
                 />
               </div>
             </div>
           </div>
         )}
-        
+
         {/* 컴포넌트 설정 탭 */}
         {activeTab === 'components' && (
           <div className={styles.settingsGroup}>
@@ -422,7 +521,7 @@ const MemorySettingsPanel: React.FC<MemorySettingsPanelProps> = ({
               <p className={styles.componentDescription}>
                 특정 컴포넌트에 대한 메모리 최적화 동작을 설정합니다.
               </p>
-              
+
               {Object.keys(settings.componentSpecificSettings).length > 0 ? (
                 Object.entries(settings.componentSpecificSettings).map(([id, compSettings]) => (
                   <div key={id} className={styles.componentItem}>
@@ -434,12 +533,16 @@ const MemorySettingsPanel: React.FC<MemorySettingsPanelProps> = ({
                         <div className={styles.settingLabel}>언마운트 시 최적화</div>
                         <div className={styles.settingControl}>
                           <label className={styles.switch}>
-                            <input 
-                              type="checkbox" 
+                            <input
+                              type="checkbox"
                               checked={compSettings.optimizeOnUnmount}
-                              onChange={(e) => handleComponentSettingChange(
-                                id, 'optimizeOnUnmount', e.target.checked
-                              )}
+                              onChange={e =>
+                                handleComponentSettingChange(
+                                  id,
+                                  'optimizeOnUnmount',
+                                  e.target.checked
+                                )
+                              }
                             />
                             <span className={styles.slider}></span>
                           </label>
@@ -449,12 +552,16 @@ const MemorySettingsPanel: React.FC<MemorySettingsPanelProps> = ({
                         <div className={styles.settingLabel}>적극적 정리</div>
                         <div className={styles.settingControl}>
                           <label className={styles.switch}>
-                            <input 
-                              type="checkbox" 
+                            <input
+                              type="checkbox"
                               checked={compSettings.aggressiveCleanup}
-                              onChange={(e) => handleComponentSettingChange(
-                                id, 'aggressiveCleanup', e.target.checked
-                              )}
+                              onChange={e =>
+                                handleComponentSettingChange(
+                                  id,
+                                  'aggressiveCleanup',
+                                  e.target.checked
+                                )
+                              }
                             />
                             <span className={styles.slider}></span>
                           </label>
@@ -471,15 +578,15 @@ const MemorySettingsPanel: React.FC<MemorySettingsPanelProps> = ({
             </div>
           </div>
         )}
-        
+
         {/* 성능 데이터 탭 */}
         {activeTab === 'performance' && showPerformanceData && (
           <div className={styles.settingsGroup}>
             <div className={styles.performanceData}>
               <h3>성능 측정 데이터</h3>
-              
+
               <div className={styles.benchmarkControls}>
-                <button 
+                <button
                   className={styles.benchmarkButton}
                   onClick={handleRunBenchmark}
                   disabled={isBenchmarking}
@@ -490,7 +597,7 @@ const MemorySettingsPanel: React.FC<MemorySettingsPanelProps> = ({
                   네이티브 및 JavaScript 구현 간의 성능을 측정합니다.
                 </p>
               </div>
-              
+
               {/* 메모리 매니저 상태 표시 */}
               {managerState && (
                 <div className={styles.managerState}>
@@ -517,11 +624,13 @@ const MemorySettingsPanel: React.FC<MemorySettingsPanelProps> = ({
                     <div className={styles.stateItem}>
                       <div className={styles.stateLabel}>마지막 네이티브 체크</div>
                       <div className={styles.stateValue}>
-                        {managerState.lastNativeCheck ? new Date(managerState.lastNativeCheck).toLocaleTimeString() : '없음'}
+                        {managerState.lastNativeCheck
+                          ? new Date(managerState.lastNativeCheck).toLocaleTimeString()
+                          : '없음'}
                       </div>
                     </div>
                   </div>
-                  
+
                   {/* 최근 실패 기록 */}
                   {managerState.recentFailures.length > 0 && (
                     <div className={styles.failureLog}>
@@ -532,18 +641,14 @@ const MemorySettingsPanel: React.FC<MemorySettingsPanelProps> = ({
                             <div className={styles.failureTime}>
                               {new Date(failure.timestamp).toLocaleTimeString()}
                             </div>
-                            <div className={styles.failureOperation}>
-                              {failure.operation}
-                            </div>
-                            <div className={styles.failureError}>
-                              {failure.error}
-                            </div>
+                            <div className={styles.failureOperation}>{failure.operation}</div>
+                            <div className={styles.failureError}>{failure.error}</div>
                           </li>
                         ))}
                       </ul>
                     </div>
                   )}
-                  
+
                   {/* 최적화 이력 */}
                   {managerState.optimizationHistory.length > 0 && (
                     <div className={styles.optimizationHistory}>
@@ -566,7 +671,9 @@ const MemorySettingsPanel: React.FC<MemorySettingsPanelProps> = ({
                                 <td>{record.level}</td>
                                 <td>{record.implementation === 'native' ? '네이티브' : 'JS'}</td>
                                 <td>{record.success ? '성공' : '실패'}</td>
-                                <td>{record.freedMemory ? `${record.freedMemory.toFixed(2)}MB` : '-'}</td>
+                                <td>
+                                  {record.freedMemory ? `${record.freedMemory.toFixed(2)}MB` : '-'}
+                                </td>
                               </tr>
                             ))}
                           </tbody>
@@ -580,27 +687,23 @@ const MemorySettingsPanel: React.FC<MemorySettingsPanelProps> = ({
           </div>
         )}
       </div>
-      
+
       <div className={styles.actions}>
-        <button 
-          className={styles.resetButton}
-          onClick={handleResetSettings}
-        >
+        <button className={styles.resetButton} onClick={handleResetSettings}>
           기본값으로 초기화
         </button>
       </div>
-      
+
       <div className={styles.statusBar}>
         <div className={styles.statusItem}>
-          네이티브 모듈: {isNativeAvailable ? (
+          네이티브 모듈:{' '}
+          {isNativeAvailable ? (
             <span className={styles.statusAvailable}>사용 가능</span>
           ) : (
             <span className={styles.statusUnavailable}>사용 불가</span>
           )}
         </div>
-        <div className={styles.statusItem}>
-          설정 변경 시 즉시 적용됩니다
-        </div>
+        <div className={styles.statusItem}>설정 변경 시 즉시 적용됩니다</div>
       </div>
     </div>
   );

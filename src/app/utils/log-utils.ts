@@ -1,53 +1,70 @@
 /**
  * 로그 저장 및 관리 유틸리티
- * 
+ *
  * 애플리케이션 내의 대화 로그와 에러 로그를 저장하고 관리하는 기능 제공
  */
 
 import { formatBytes, getCurrentTimestamp } from './common-utils';
-import { logger } from './memory/logger';
+import { logger, LogLevel as MemoryLogLevel } from './memory/logger';
+// @ts-ignore
+import { v4 as uuidv4 } from 'uuid';
 
 /**
  * 로그 타입 정의
  */
 export enum LogType {
   CONVERSATION = 'conversation', // 사용자와 AI 간 대화 로그
-  ERROR = 'error',               // 에러 로그
-  PERFORMANCE = 'performance',   // 성능 관련 로그
-  MEMORY = 'memory',             // 메모리 관련 로그
-  SYSTEM = 'system'              // 시스템 관련 로그
+  ERROR = 'error', // 에러 로그
+  PERFORMANCE = 'performance', // 성능 관련 로그
+  MEMORY = 'memory', // 메모리 관련 로그
+  SYSTEM = 'system', // 시스템 관련 로그
+  USER = 'user', // 사용자 관련 로그
+}
+
+/**
+ * 로그 레벨 정의
+ */
+export enum LogLevel {
+  Debug = 0,
+  Info = 1,
+  Warn = 2,
+  Error = 3,
+  Critical = 4,
 }
 
 /**
  * 로그 데이터 인터페이스
  */
 export interface LogEntry {
-  id?: string;           // 로그 고유 ID (저장 시 자동 생성)
-  type: LogType;         // 로그 타입
-  timestamp: number;     // 로그 생성 시간 (밀리초 타임스탬프)
-  content: string;       // 로그 내용
-  metadata?: any;        // 추가 메타데이터 (JSON 직렬화 가능한 객체)
-  tags?: string[];       // 로그 태그 (검색 및 필터링용)
-  sessionId?: string;    // 세션 ID
+  id?: string; // 로그 고유 ID (저장 시 자동 생성)
+  type: LogType; // 로그 타입
+  timestamp: number; // 로그 생성 시간 (밀리초 타임스탬프)
+  content: string; // 로그 내용
+  metadata?: any; // 추가 메타데이터 (JSON 직렬화 가능한 객체)
+  tags?: string[]; // 로그 태그 (검색 및 필터링용)
+  sessionId?: string; // 세션 ID
+  level: LogLevel; // 로그 레벨
+  message: string; // 로그 메시지
+  data?: Record<string, unknown>; // 로그 데이터 (선택적으로 변경)
 }
 
 /**
  * 로그 검색 옵션 인터페이스
  */
 export interface LogSearchOptions {
-  type?: LogType | LogType[];    // 검색할 로그 타입
-  startTime?: number;            // 검색 시작 시간
-  endTime?: number;              // 검색 종료 시간
-  tags?: string[];               // 검색할 태그
-  query?: string;                // 검색 쿼리 (로그 내용에서 검색)
-  limit?: number;                // 검색 결과 제한
-  offset?: number;               // 검색 결과 오프셋
-  sessionId?: string;            // 세션 ID로 검색
+  type?: LogType | LogType[]; // 검색할 로그 타입
+  startTime?: number; // 검색 시작 시간
+  endTime?: number; // 검색 종료 시간
+  tags?: string[]; // 검색할 태그
+  query?: string; // 검색 쿼리 (로그 내용에서 검색)
+  limit?: number; // 검색 결과 제한
+  offset?: number; // 검색 결과 오프셋
+  sessionId?: string; // 세션 ID로 검색
 }
 
 /**
  * 로그를 저장합니다.
- * 
+ *
  * @param logEntry - 저장할 로그 데이터
  * @returns 저장된 로그 엔트리 (ID 포함)
  */
@@ -59,7 +76,7 @@ export async function saveLog(logEntry: Omit<LogEntry, 'id'>): Promise<LogEntry>
     const log: LogEntry = {
       ...logEntry,
       id,
-      timestamp: logEntry.timestamp || getCurrentTimestamp()
+      timestamp: logEntry.timestamp || getCurrentTimestamp(),
     };
 
     // 로그 API 엔드포인트로 저장 요청
@@ -80,14 +97,21 @@ export async function saveLog(logEntry: Omit<LogEntry, 'id'>): Promise<LogEntry>
     logger.debug(`로그 저장 완료 (ID: ${id}, 타입: ${logEntry.type})`);
     return result.data;
   } catch (error) {
-    logger.error('로그 저장 중 오류 발생:', error);
+    logger.error('로그 저장 중 오류 발생:', {
+      error: error instanceof Error ? { message: error.message, stack: error.stack } : error,
+    });
 
     // API 호출 실패시 로컬 스토리지에 임시 저장
     try {
       const storageKey = `log_${Date.now()}`;
       localStorage.setItem(storageKey, JSON.stringify(logEntry));
     } catch (storageError) {
-      logger.error('로그의 로컬 스토리지 백업 저장 실패:', storageError);
+      logger.error('로그의 로컬 스토리지 백업 저장 실패:', {
+        storageError:
+          storageError instanceof Error
+            ? { message: storageError.message, stack: storageError.stack }
+            : storageError,
+      });
     }
 
     throw error;
@@ -96,7 +120,7 @@ export async function saveLog(logEntry: Omit<LogEntry, 'id'>): Promise<LogEntry>
 
 /**
  * 로그를 검색합니다.
- * 
+ *
  * @param options - 검색 옵션
  * @returns 검색된 로그 엔트리 배열
  */
@@ -136,14 +160,14 @@ export async function searchLogs(options: LogSearchOptions = {}): Promise<LogEnt
     logger.debug(`로그 검색 완료 (결과 수: ${result.data.length})`);
     return result.data;
   } catch (error) {
-    logger.error('로그 검색 중 오류 발생:', error);
+    logger.error('로그 검색 중 오류 발생:', { error });
     throw error;
   }
 }
 
 /**
  * 대화 로그를 저장합니다.
- * 
+ *
  * @param userMessage - 사용자 메시지
  * @param aiResponse - AI 응답
  * @param metadata - 추가 메타데이터
@@ -168,21 +192,24 @@ export async function saveConversationLog(
     content: JSON.stringify({
       userMessage,
       aiResponse,
-      timestamp: now
+      timestamp: now,
     }),
     metadata: {
       ...metadata,
       messageSize: {
         user: new Blob([userMessage]).size,
-        ai: new Blob([aiResponse]).size
+        ai: new Blob([aiResponse]).size,
       },
       messageSizeFormatted: {
         user: formatBytes(new Blob([userMessage]).size),
-        ai: formatBytes(new Blob([aiResponse]).size)
-      }
+        ai: formatBytes(new Blob([aiResponse]).size),
+      },
     },
     tags: ['conversation', 'ai', ...(metadata.tags || [])],
-    sessionId
+    sessionId,
+    level: LogLevel.Info,
+    message: '대화 로그',
+    data: {},
   };
 
   return saveLog(logEntry);
@@ -190,15 +217,12 @@ export async function saveConversationLog(
 
 /**
  * 에러 로그를 저장합니다.
- * 
+ *
  * @param error - 에러 객체 또는 에러 메시지
  * @param metadata - 추가 메타데이터
  * @returns 저장된 로그 엔트리
  */
-export async function saveErrorLog(
-  error: Error | string,
-  metadata: any = {}
-): Promise<LogEntry> {
+export async function saveErrorLog(error: Error | string, metadata: any = {}): Promise<LogEntry> {
   const errorMessage = error instanceof Error ? error.message : error;
   const errorStack = error instanceof Error ? error.stack : undefined;
 
@@ -209,14 +233,20 @@ export async function saveErrorLog(
     metadata: {
       ...metadata,
       stack: errorStack,
-      browserInfo: typeof navigator !== 'undefined' ? {
-        userAgent: navigator.userAgent,
-        platform: navigator.platform,
-        language: navigator.language
-      } : undefined
+      browserInfo:
+        typeof navigator !== 'undefined'
+          ? {
+              userAgent: navigator.userAgent,
+              platform: navigator.platform,
+              language: navigator.language,
+            }
+          : undefined,
     },
     tags: ['error', ...(metadata.tags || [])],
-    sessionId: metadata.sessionId || localStorage.getItem('sessionId')
+    sessionId: metadata.sessionId || localStorage.getItem('sessionId') || undefined,
+    level: LogLevel.Error,
+    message: errorMessage,
+    data: {},
   };
 
   return saveLog(logEntry);
@@ -224,7 +254,7 @@ export async function saveErrorLog(
 
 /**
  * 메모리 로그를 저장합니다.
- * 
+ *
  * @param memoryInfo - 메모리 정보
  * @returns 저장된 로그 엔트리
  */
@@ -236,10 +266,13 @@ export async function saveMemoryLog(memoryInfo: any): Promise<LogEntry> {
     metadata: {
       heapUsed: memoryInfo.heapUsed,
       heapTotal: memoryInfo.heapTotal,
-      percentUsed: memoryInfo.percentUsed
+      percentUsed: memoryInfo.percentUsed,
     },
     tags: ['memory', 'performance'],
-    sessionId: localStorage.getItem('sessionId')
+    sessionId: localStorage.getItem('sessionId') || undefined,
+    level: LogLevel.Info,
+    message: '메모리 사용량 기록',
+    data: {},
   };
 
   return saveLog(logEntry);
@@ -247,10 +280,10 @@ export async function saveMemoryLog(memoryInfo: any): Promise<LogEntry> {
 
 /**
  * 성능 로그를 저장합니다.
- * 
- * @param metric - 성능 메트릭 이름
- * @param value - 성능 값
- * @param unit - 값의 단위 (ms, MB 등)
+ *
+ * @param metric - 측정 항목 (ex: 'api_response_time', 'render_time')
+ * @param value - 측정값
+ * @param unit - 측정 단위 (기본값: 'ms')
  * @param metadata - 추가 메타데이터
  * @returns 저장된 로그 엔트리
  */
@@ -268,10 +301,13 @@ export async function savePerformanceLog(
       ...metadata,
       metric,
       value,
-      unit
+      unit,
     },
     tags: ['performance', metric, ...(metadata.tags || [])],
-    sessionId: localStorage.getItem('sessionId')
+    sessionId: localStorage.getItem('sessionId') || undefined,
+    level: LogLevel.Info,
+    message: `성능 측정: ${metric}`,
+    data: { metric, value, unit },
   };
 
   return saveLog(logEntry);
@@ -279,69 +315,76 @@ export async function savePerformanceLog(
 
 /**
  * 시스템 로그를 저장합니다.
- * 
- * @param message - 시스템 메시지
+ *
+ * @param message - 로그 메시지
  * @param metadata - 추가 메타데이터
  * @returns 저장된 로그 엔트리
  */
-export async function saveSystemLog(
-  message: string,
-  metadata: any = {}
-): Promise<LogEntry> {
+export async function saveSystemLog(message: string, metadata: any = {}): Promise<LogEntry> {
   const logEntry: Omit<LogEntry, 'id'> = {
     type: LogType.SYSTEM,
     timestamp: getCurrentTimestamp(),
     content: message,
     metadata: {
       ...metadata,
-      systemInfo: typeof navigator !== 'undefined' ? {
-        userAgent: navigator.userAgent,
-        language: navigator.language,
-        platform: navigator.platform
-      } : undefined
+      osInfo:
+        typeof navigator !== 'undefined'
+          ? {
+              platform: navigator.platform,
+              userAgent: navigator.userAgent,
+            }
+          : undefined,
     },
     tags: ['system', ...(metadata.tags || [])],
-    sessionId: metadata.sessionId || localStorage.getItem('sessionId')
+    sessionId: localStorage.getItem('sessionId') || undefined,
+    level: LogLevel.Info,
+    message,
+    data: {},
   };
 
   return saveLog(logEntry);
 }
 
 /**
- * 로컬 저장소의 로그를 모두 서버로 동기화합니다.
+ * 로컬에 저장된 로그를 서버와 동기화합니다.
+ * 오프라인 상태에서 저장된 로그를 온라인 상태가 될 때 서버로 전송합니다.
  */
 export async function syncLocalLogs(): Promise<void> {
   try {
-    // 로컬 스토리지에서 로그로 시작하는 키 모두 가져오기
-    const logKeys = Object.keys(localStorage).filter(key => key.startsWith('log_'));
+    if (typeof localStorage === 'undefined') return;
 
-    if (logKeys.length === 0) {
-      logger.debug('동기화할 로컬 로그가 없습니다.');
-      return;
+    // 로컬 스토리지에서 로그 키 찾기
+    const logKeys: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith('log_')) {
+        logKeys.push(key);
+      }
     }
 
-    logger.info(`${logKeys.length}개의 로컬 로그 동기화 시작`);
+    if (logKeys.length === 0) return;
 
-    // 각 로그 동기화
+    logger.debug(`로컬 로그 동기화 시작 (${logKeys.length}개 항목)`);
+
+    // 각 로그를 서버로 전송
     for (const key of logKeys) {
       try {
         const logJson = localStorage.getItem(key);
         if (!logJson) continue;
 
-        const log = JSON.parse(logJson);
-        await saveLog(log);
+        const logEntry = JSON.parse(logJson);
+        await saveLog(logEntry);
 
-        // 성공적으로 동기화된 로그는 로컬 스토리지에서 제거
+        // 성공적으로 저장된 로그는 로컬 스토리지에서 삭제
         localStorage.removeItem(key);
       } catch (error) {
-        logger.error(`로그 동기화 중 오류 (${key}):`, error);
+        logger.error('로그 항목 동기화 실패:', { error });
       }
     }
 
-    logger.info('로컬 로그 동기화 완료');
+    logger.debug('로컬 로그 동기화 완료');
   } catch (error) {
-    logger.error('로그 동기화 중 오류 발생:', error);
-    throw error;
+    logger.error('로그 동기화 중 오류 발생:', { error });
   }
 }
 
@@ -350,8 +393,10 @@ export async function syncLocalLogs(): Promise<void> {
  */
 
 export function isDebugMode(): boolean {
-  return process.env.NODE_ENV === 'development' ||
-    (typeof localStorage !== 'undefined' && localStorage.getItem('debug_mode') === 'true');
+  return (
+    process.env.NODE_ENV === 'development' ||
+    (typeof localStorage !== 'undefined' && localStorage.getItem('debug_mode') === 'true')
+  );
 }
 
 export function addLogEntry(entry: Omit<LogEntry, 'id'>): void {
@@ -360,7 +405,7 @@ export function addLogEntry(entry: Omit<LogEntry, 'id'>): void {
 
     const logEntry = {
       ...entry,
-      id: Date.now().toString() + Math.random().toString(36).substr(2, 5)
+      id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
     };
 
     const logsJson = localStorage.getItem('application_logs');
@@ -378,107 +423,106 @@ export function addLogEntry(entry: Omit<LogEntry, 'id'>): void {
   }
 }
 
-export enum LogLevel {
-  Debug = 'debug',
-  Info = 'info',
-  Warn = 'warn',
-  Error = 'error',
-  Critical = 'critical'
-}
+/**
+ * 로그 항목을 생성합니다.
+ */
+export function createLogEntry(level: LogLevel, message: string, data?: unknown): LogEntry {
+  const logType =
+    level === LogLevel.Error || level === LogLevel.Critical ? LogType.ERROR : LogType.SYSTEM;
 
-export function logDebug(message: string, data?: unknown): void {
-  if (!isDebugMode()) return;
+  const sessionId = getCurrentSessionId() ?? 'unknown-session';
 
-  const safeData: Record<string, unknown> = data && typeof data === 'object' ?
-    { ...data as Record<string, unknown> } : { value: data };
-
-  console.debug(`[Debug] ${message}`, safeData);
-
-  addLogEntry({
-    level: LogLevel.Debug,
-    message,
-    data: safeData,
-    timestamp: Date.now(),
-    sessionId: getCurrentSessionId()
-  });
-}
-
-export function logInfo(message: string, data?: unknown): void {
-  const safeData: Record<string, unknown> = data && typeof data === 'object' ?
-    { ...data as Record<string, unknown> } : data !== undefined ? { value: data } : {};
-
-  console.info(`[Info] ${message}`, safeData);
-
-  addLogEntry({
-    level: LogLevel.Info,
-    message,
-    data: safeData,
-    timestamp: Date.now(),
-    sessionId: getCurrentSessionId()
-  });
-}
-
-export function logWarn(message: string, data?: unknown): void {
-  const safeData: Record<string, unknown> = data && typeof data === 'object' ?
-    { ...data as Record<string, unknown> } : data !== undefined ? { value: data } : {};
-
-  console.warn(`[Warning] ${message}`, safeData);
-
-  addLogEntry({
-    level: LogLevel.Warn,
-    message,
-    data: safeData,
-    timestamp: Date.now(),
-    sessionId: getCurrentSessionId()
-  });
-}
-
-export function logError(message: string, data?: unknown): void {
-  const safeData: Record<string, unknown> = data && typeof data === 'object' ?
-    { ...data as Record<string, unknown> } : data !== undefined ? { value: data } : {};
-
-  console.error(`[Error] ${message}`, safeData);
-
-  addLogEntry({
-    level: LogLevel.Error,
-    message,
-    data: safeData,
-    timestamp: Date.now(),
-    sessionId: getCurrentSessionId()
-  });
-}
-
-export function logCritical(message: string, data?: unknown): void {
-  const safeData: Record<string, unknown> = data && typeof data === 'object' ?
-    { ...data as Record<string, unknown> } : data !== undefined ? { value: data } : {};
-
-  console.error(`[CRITICAL] ${message}`, safeData);
-
-  addLogEntry({
-    level: LogLevel.Critical,
-    message,
-    data: safeData,
-    timestamp: Date.now(),
-    sessionId: getCurrentSessionId()
-  });
-}
-
-function getCurrentSessionId(): string | undefined {
-  if (typeof localStorage === 'undefined') return undefined;
-
-  const sessionId = localStorage.getItem('session_id');
-  return sessionId || undefined;
-}
-
-export function createLogEntry(level: LogLevel, message: string, data?: unknown): Omit<LogEntry, 'id'> {
-  const safeData: Record<string, unknown> = data && typeof data === 'object' ?
-    { ...data as Record<string, unknown> } : data !== undefined ? { value: data } : {};
+  // 데이터 처리: Error 객체인 경우 메시지와 스택을 추출하고, 그렇지 않은 경우 그대로 사용
+  let formattedData: Record<string, unknown> | undefined;
+  if (data instanceof Error) {
+    formattedData = {
+      errorMessage: data.message,
+      stack: data.stack,
+    };
+  } else if (data !== undefined) {
+    formattedData =
+      typeof data === 'object' && data !== null
+        ? (data as Record<string, unknown>)
+        : { value: data };
+  }
 
   return {
+    id: uuidv4(),
+    timestamp: Date.now(),
+    type: logType,
     level,
     message,
-    data: safeData,
-    timestamp: Date.now(),
-    sessionId: getCurrentSessionId(),
+    content: message,
+    data: formattedData,
+    sessionId,
   };
+}
+
+/**
+ * 디버그 로그를 기록합니다.
+ */
+export async function logDebug(message: string, data?: unknown): Promise<void> {
+  try {
+    const logEntry = createLogEntry(LogLevel.Debug, message, data);
+    logger.debug(logEntry.message, logEntry.data);
+  } catch (error) {
+    console.error('로깅 중 오류 발생:', error);
+  }
+}
+
+/**
+ * 정보 로그를 기록합니다.
+ */
+export async function logInfo(message: string, data?: unknown): Promise<void> {
+  try {
+    const logEntry = createLogEntry(LogLevel.Info, message, data);
+    logger.info(logEntry.message, logEntry.data);
+  } catch (error) {
+    console.error('로깅 중 오류 발생:', error);
+  }
+}
+
+/**
+ * 경고 로그를 기록합니다.
+ */
+export async function logWarn(message: string, data?: unknown): Promise<void> {
+  try {
+    const logEntry = createLogEntry(LogLevel.Warn, message, data);
+    logger.warn(logEntry.message, logEntry.data);
+  } catch (error) {
+    console.error('로깅 중 오류 발생:', error);
+  }
+}
+
+/**
+ * 에러 로그를 기록합니다.
+ */
+export async function logError(message: string, error?: unknown): Promise<void> {
+  try {
+    const logEntry = createLogEntry(LogLevel.Error, message, error);
+    logger.error(logEntry.message, logEntry.data);
+  } catch (loggingError) {
+    console.error('로깅 중 오류 발생:', loggingError);
+  }
+}
+
+/**
+ * 치명적 에러 로그를 기록합니다.
+ */
+export async function logCritical(message: string, error?: unknown): Promise<void> {
+  try {
+    const logEntry = createLogEntry(LogLevel.Critical, message, error);
+    logger.error(logEntry.message, logEntry.data);
+  } catch (loggingError) {
+    console.error('로깅 중 오류 발생:', loggingError);
+  }
+}
+
+/**
+ * 현재 세션 ID를 가져옵니다.
+ */
+export function getCurrentSessionId(): string | undefined {
+  return typeof localStorage !== 'undefined'
+    ? localStorage.getItem('sessionId') || undefined
+    : undefined;
 }

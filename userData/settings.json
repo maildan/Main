@@ -1,13 +1,12 @@
 {
   "enabledCategories": {
     "docs": true,
-    "office": false,
-    "coding": false,
-    "sns": false
+    "office": true,
+    "coding": true,
+    "sns": true
   },
   "autoStartMonitoring": true,
   "resumeAfterIdle": true,
-  "idleTimeout": 300,
   "darkMode": true,
   "windowMode": "windowed",
   "minimizeToTray": true,
@@ -16,9 +15,5 @@
   "enableMiniView": true,
   "useHardwareAcceleration": true,
   "processingMode": "gpu-intensive",
-  "garbageCollectionInterval": 60000,
-  "maxMemoryThreshold": null,
-  "autoCleanupLogs": true,
-  "maxHistoryItems": 500,
-  "logRetentionDays": 30
+  "maxMemoryThreshold": 80
 }

@@ -1,6 +1,6 @@
 /**
  * DOM 요소 정리 유틸리티
- * 
+ *
  * 브라우저 DOM 요소에 대한 메모리 최적화 기능을 제공합니다.
  */
 
@@ -18,7 +18,7 @@ interface RemovedElement {
 declare global {
   interface Window {
     __removedElements?: Array<RemovedElement>;
-    __imageResizeCache?: Map<string, string>;
+    __imageResizeCache?: Record<string, any>;
   }
 }
 
@@ -73,10 +73,7 @@ export function cleanupHiddenElements(): number {
     const elements = Array.from(document.querySelectorAll('div, section, article'));
     const hiddenElements = elements.filter(el => {
       const style = window.getComputedStyle(el);
-      return (
-        style.display === 'none' &&
-        el.querySelectorAll('*').length > 50
-      );
+      return style.display === 'none' && el.querySelectorAll('*').length > 50;
     });
 
     // 임시로 DOM에서 제거하고 나중에 복구할 수 있도록 참조 저장
@@ -85,7 +82,7 @@ export function cleanupHiddenElements(): number {
       window.__removedElements.push({
         element: el,
         parent: el.parentElement,
-        nextSibling: el.nextSibling
+        nextSibling: el.nextSibling,
       });
 
       el.parentElement?.removeChild(el);
@@ -178,14 +175,14 @@ export function performFullDomCleanup(): Record<string, number> {
     images: clearUnusedImages(),
     hiddenElements: cleanupHiddenElements(),
     eventListeners: cleanupEventListeners(),
-    domTree: optimizeDomTree()
+    domTree: optimizeDomTree(),
   };
 
   const total = Object.values(results).reduce((sum, val) => sum + val, 0);
 
   return {
     ...results,
-    total
+    total,
   };
 }
 
@@ -198,7 +195,9 @@ export function restoreImages(): number {
 
   let count = 0;
   try {
-    const images = Array.from(document.querySelectorAll('img[data-original-src]')) as HTMLImageElement[];
+    const images = Array.from(
+      document.querySelectorAll('img[data-original-src]')
+    ) as HTMLImageElement[];
 
     images.forEach(img => {
       if (img.dataset.originalSrc) {
@@ -218,7 +217,7 @@ export function restoreImages(): number {
 /**
  * DOM 요소 정리
  * 불필요한 DOM 요소를 정리하고 메모리 사용량을 줄입니다.
- * 
+ *
  * @param aggressive 공격적인 정리 모드 사용 여부
  * @returns 정리된 항목 수 반환
  */

@@ -1,23 +1,15 @@
 /**
  * 성능 최적화 유틸리티
- * 
- * 애플리케이션 성능 최적화 기능을 제공합니다.
+ *
+ * 메모리와 CPU/GPU 사용을 최적화하여 애플리케이션 성능 개선
  */
 
-import { getSystemStatus } from './system-monitor';
 import { optimizeMemory } from './nativeModuleClient';
 import { setGpuAcceleration } from './gpu-acceleration';
-import { MemoryUsageLevel } from '@/types';
+import { MemoryUsageLevel, SystemStatus, ProcessingMode, OptimizationLevel } from '@/types';
 import { useCallback, useEffect, useRef } from 'react';
 import React from 'react';
-
-// OptimizationLevel을 타입이 아닌 열거형으로 재정의
-export enum OptimizationLevel {
-  LOW = 1,
-  MEDIUM = 2,
-  HIGH = 3,
-  EXTREME = 4
-}
+import { getSystemStatus } from './system-monitor';
 
 // 최적화 설정
 interface OptimizationSettings {
@@ -32,7 +24,7 @@ const defaultSettings: OptimizationSettings = {
   autoOptimize: true,
   memoryThreshold: 70, // 70% 이상 사용시 최적화
   aggressiveMode: false,
-  switchToGpuIfAvailable: true
+  switchToGpuIfAvailable: true,
 };
 
 // 현재 설정
@@ -61,12 +53,15 @@ export async function analyzeAndOptimize(forced = false): Promise<boolean> {
     const status = await getSystemStatus(true);
 
     // 메모리 사용량이 임계치 이상이거나 강제 모드인 경우에만 최적화
-    if (status.memory.percentUsed >= currentSettings.memoryThreshold || forced) {
+    const memoryPercentUsed =
+      status.memoryInfo && status.memoryInfo.percentUsed ? status.memoryInfo.percentUsed : 0;
+
+    if (memoryPercentUsed >= currentSettings.memoryThreshold || forced) {
       // 메모리 레벨에 따른 최적화 수준 결정
       let optimizationLevel = 0;
       let emergency = false;
 
-      switch (status.memory.level) {
+      switch (status.memoryUsageLevel) {
         case MemoryUsageLevel.CRITICAL:
           optimizationLevel = 4;
           emergency = true;
@@ -97,11 +92,12 @@ export async function analyzeAndOptimize(forced = false): Promise<boolean> {
     // GPU 가속 여부 결정
     if (currentSettings.switchToGpuIfAvailable) {
       const shouldUseGpu =
-        status.memory.level !== MemoryUsageLevel.CRITICAL &&
-        status.memory.level !== MemoryUsageLevel.HIGH;
+        status.memoryUsageLevel !== MemoryUsageLevel.CRITICAL &&
+        status.memoryUsageLevel !== MemoryUsageLevel.HIGH;
 
       // 현재 GPU 상태와 다른 경우에만 변경
-      if (shouldUseGpu !== status.processing.gpuEnabled) {
+      const gpuMode = status.processingMode === ProcessingMode.GPU_INTENSIVE;
+      if (shouldUseGpu !== gpuMode) {
         await setGpuAcceleration(shouldUseGpu);
       }
     }
@@ -167,9 +163,9 @@ export async function processBatched<T, R>(
   const status = await getSystemStatus();
 
   // 메모리 사용량이 높으면 배치 크기 줄이기
-  if (status.memory.level === MemoryUsageLevel.HIGH) {
+  if (status.memoryUsageLevel === MemoryUsageLevel.HIGH) {
     batchSize = Math.max(10, Math.floor(batchSize / 2));
-  } else if (status.memory.level === MemoryUsageLevel.CRITICAL) {
+  } else if (status.memoryUsageLevel === MemoryUsageLevel.CRITICAL) {
     batchSize = Math.max(5, Math.floor(batchSize / 4));
   }
 
@@ -185,8 +181,10 @@ export async function processBatched<T, R>(
     if (i + batchSize < items.length) {
       const currentStatus = await getSystemStatus(true);
 
-      if (currentStatus.memory.level === MemoryUsageLevel.HIGH ||
-        currentStatus.memory.level === MemoryUsageLevel.CRITICAL) {
+      if (
+        currentStatus.memoryUsageLevel === MemoryUsageLevel.HIGH ||
+        currentStatus.memoryUsageLevel === MemoryUsageLevel.CRITICAL
+      ) {
         await analyzeAndOptimize(true);
 
         // 잠시 딜레이를 주어 GC가 실행될 시간 제공
@@ -271,18 +269,21 @@ export function useRenderDebounce<T extends (...args: any[]) => any>(
     };
   }, []);
 
-  return useCallback((...args: Parameters<T>) => {
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-    }
+  return useCallback(
+    (...args: Parameters<T>) => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
 
-    return new Promise<ReturnType<T>>((resolve) => {
-      timeoutRef.current = setTimeout(() => {
-        const result = callback(...args);
-        resolve(result as ReturnType<T>);
-      }, delay);
-    });
-  }, [callback, delay]) as T;
+      return new Promise<ReturnType<T>>(resolve => {
+        timeoutRef.current = setTimeout(() => {
+          const result = callback(...args);
+          resolve(result as ReturnType<T>);
+        }, delay);
+      });
+    },
+    [callback, delay]
+  ) as T;
 }
 
 /**
@@ -311,7 +312,7 @@ export function optimizeHiddenElements(): void {
 
   // 뷰포트 밖에 있는 큰 요소 최적화
   const offscreenElements = document.querySelectorAll('[data-optimize-offscreen="true"]');
-  offscreenElements.forEach((element) => {
+  offscreenElements.forEach(element => {
     if (element instanceof HTMLElement) {
       if (!isElementInViewport(element)) {
         // 화면 밖 요소는 DOM에서 렌더링 비용이 낮은 상태로 변경
@@ -381,7 +382,7 @@ function cleanupEventListeners(): void {
 export function withPerformanceOptimization<P extends object>(
   WrappedComponent: React.ComponentType<P>
 ): React.FC<P> {
-  const OptimizedComponent: React.FC<P> = (props) => {
+  const OptimizedComponent: React.FC<P> = props => {
     useEffect(() => {
       // 컴포넌트 마운트 시 성능 최적화
       const optimizeTimer = setTimeout(() => {

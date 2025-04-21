@@ -1,6 +1,6 @@
 /**
  * 메모리 사용량 로깅 및 분석 유틸리티
- * 
+ *
  * 장기적인 메모리 사용 패턴 분석과 최적화 전략 수립에 필요한
  * 데이터를 수집하고 저장합니다.
  */
@@ -13,7 +13,7 @@ import { MemoryEventType, MemoryInfo } from '@/types';
 
 /**
  * 메모리 로거 모듈
- * 
+ *
  * 메모리 사용량 및 관련 이벤트를 로깅하기 위한 유틸리티
  */
 
@@ -22,7 +22,7 @@ export enum LogLevel {
   DEBUG = 0,
   INFO = 1,
   WARN = 2,
-  ERROR = 3
+  ERROR = 3,
 }
 
 // 로그 항목 인터페이스
@@ -46,7 +46,7 @@ const DEFAULT_OPTIONS: LoggerOptions = {
   minLevel: LogLevel.INFO,
   maxLogs: 100,
   printToConsole: true,
-  moduleName: 'memory'
+  moduleName: 'memory',
 };
 
 /**
@@ -77,7 +77,7 @@ export class MemoryLogger {
       timestamp: Date.now(),
       level,
       message,
-      data
+      data,
     };
 
     // 로그 배열에 추가
@@ -229,7 +229,7 @@ export async function logMemoryUsage(
   route?: string
 ): Promise<MemoryLogEntry> {
   // 현재 메모리 정보 가져오기
-  const rawMemoryInfo = await getMemoryInfo() || {
+  const rawMemoryInfo = (await getMemoryInfo()) || {
     heap_used: 0,
     heap_total: 0,
     heap_used_mb: 0,
@@ -241,7 +241,7 @@ export async function logMemoryUsage(
     rssMB: 0,
     percent_used: 0,
     percentUsed: 0,
-    timestamp: Date.now()
+    timestamp: Date.now(),
   };
 
   // 표준화된 MemoryInfo 인터페이스로 변환
@@ -259,7 +259,7 @@ export async function logMemoryUsage(
     eventType,
     eventDescription,
     componentId,
-    route
+    route,
   };
 
   // 인메모리 로그에 추가
@@ -271,9 +271,7 @@ export async function logMemoryUsage(
   }
 
   // IndexedDB에 저장 (백그라운드로 실행)
-  saveLogToIndexedDB(logEntry).catch(err =>
-    console.error('메모리 로그 저장 중 오류:', err)
-  );
+  saveLogToIndexedDB(logEntry).catch(err => console.error('메모리 로그 저장 중 오류:', err));
 
   return logEntry;
 }
@@ -285,7 +283,7 @@ export async function logMemoryUsage(
  */
 export function startMemoryMonitoring(intervalMs: number = 60000): () => void {
   const intervalId = setInterval(() => {
-    logMemoryUsage(MemoryEventType.PERIODIC_CHECK);
+    logMemoryUsage(MemoryEventType.INFO);
   }, intervalMs);
 
   return () => clearInterval(intervalId);
@@ -307,7 +305,7 @@ async function saveLogToIndexedDB(logEntry: MemoryLogEntry): Promise<void> {
     const request = window.indexedDB.open(MEMORY_LOG_DB, 1);
 
     // 데이터베이스 생성/업그레이드 이벤트
-    request.onupgradeneeded = (event) => {
+    request.onupgradeneeded = event => {
       const db = (event.target as IDBOpenDBRequest).result;
 
       // 객체 저장소가 없으면 생성
@@ -317,12 +315,12 @@ async function saveLogToIndexedDB(logEntry: MemoryLogEntry): Promise<void> {
     };
 
     // 오류 처리
-    request.onerror = (event) => {
+    request.onerror = event => {
       reject(new Error(`IndexedDB 오류: ${(event.target as IDBOpenDBRequest).error}`));
     };
 
     // 성공 처리
-    request.onsuccess = (event) => {
+    request.onsuccess = event => {
       const db = (event.target as IDBOpenDBRequest).result;
 
       try {
@@ -376,7 +374,9 @@ export async function getMemoryLogs(
 
   // 이벤트 타입 기준 필터링
   const filtered = eventTypes
-    ? filteredByTime.filter((log: MemoryLogEntry) => eventTypes.includes(log.eventType as MemoryEventType))
+    ? filteredByTime.filter((log: MemoryLogEntry) =>
+        eventTypes.includes(log.eventType as MemoryEventType)
+      )
     : filteredByTime;
 
   // 최신 순으로 정렬하고 제한된 개수 반환
@@ -407,38 +407,15 @@ export async function analyzeMemoryUsage(
   const avgUsage = usages.reduce((sum, usage) => sum + usage, 0) / usages.length;
   const peakUsage = Math.max(...usages);
   const minUsage = Math.min(...usages);
-    .slice(0, limit);
-}
-
-/**
- * 메모리 사용 통계 분석
- * @param startTime 시작 시간 (밀리초)
- * @param endTime 종료 시간 (밀리초)
- * @returns 메모리 사용 통계
- */
-export async function analyzeMemoryUsage(
-  startTime: number = Date.now() - 24 * 60 * 60 * 1000, // 기본: 24시간
-  endTime: number = Date.now()
-): Promise<MemoryUsageStats> {
-  // 지정된 기간의 로그 가져오기
-  const logs = await getMemoryLogs(1000, startTime, endTime);
-
-  if (logs.length === 0) {
-    throw new Error('분석할 메모리 로그가 없습니다');
-  }
-
-  // 기본 통계 계산
-  const usages = logs.map(log => log.info.heap_used_mb || 0);
-  const avgUsage = usages.reduce((sum, usage) => sum + usage, 0) / usages.length;
-  const peakUsage = Math.max(...usages);
-  const minUsage = Math.min(...usages);
   const lastUsage = usages[0]; // 최신 로그가 첫 번째
 
   // 시간별 사용량
-  const usageOverTime = logs.map(log => ({
-    timestamp: log.timestamp,
-    usageMB: log.info.heap_used_mb || 0
-  })).sort((a, b) => a.timestamp - b.timestamp);
+  const usageOverTime = logs
+    .map(log => ({
+      timestamp: log.timestamp,
+      usageMB: log.info.heap_used_mb || 0,
+    }))
+    .sort((a, b) => a.timestamp - b.timestamp);
 
   // 최적화 이벤트 추출
   const optimizationEvents = logs
@@ -453,13 +430,13 @@ export async function analyzeMemoryUsage(
 
       return {
         timestamp: log.timestamp,
-        freedMemory: Math.max(0, freedMemory) // 음수인 경우 0으로 처리
+        freedMemory: Math.max(0, freedMemory), // 음수인 경우 0으로 처리
       };
     });
 
   // GC 이벤트 추출
   const gcEvents = logs
-    .filter(log => log.eventType === MemoryEventType.GARBAGE_COLLECTION)
+    .filter(log => log.eventType === MemoryEventType.GC)
     .map(log => {
       // GC 전후 메모리 차이 계산
       const index = logs.indexOf(log);
@@ -470,13 +447,13 @@ export async function analyzeMemoryUsage(
 
       return {
         timestamp: log.timestamp,
-        freedMemory: Math.max(0, freedMemory)
+        freedMemory: Math.max(0, freedMemory),
       };
     });
 
   // 메모리 누수 의심 컴포넌트 분석
-  const componentMounts = logs.filter(log =>
-    log.eventType === MemoryEventType.COMPONENT_MOUNT && log.componentId
+  const componentMounts = logs.filter(
+    log => log.eventType === MemoryEventType.INFO && log.componentId
   );
 
   const componentCounts: Record<string, number> = {};
@@ -499,7 +476,7 @@ export async function analyzeMemoryUsage(
     usageOverTime,
     optimizationEvents,
     gcEvents,
-    leakSuspects
+    leakSuspects,
   };
 }
 
@@ -519,8 +496,8 @@ export async function exportMemoryLogs(): Promise<string> {
     systemInfo: {
       userAgent: navigator.userAgent,
       platform: navigator.platform,
-      language: navigator.language
-    }
+      language: navigator.language,
+    },
   };
 
   return JSON.stringify(exportData, null, 2);
@@ -541,27 +518,26 @@ export function setupAutomaticMemoryLogging(): () => void {
   if (typeof window !== 'undefined') {
     // 페이지 로드 시
     const handleLoad = () => {
-      logMemoryUsage(MemoryEventType.PAGE_NAVIGATION, 'Page loaded');
+      logMemoryUsage(MemoryEventType.INFO, 'Page loaded');
     };
     window.addEventListener('load', handleLoad);
     cleanupFunctions.push(() => window.removeEventListener('load', handleLoad));
 
     // 페이지 언로드 시
     const handleBeforeUnload = () => {
-      logMemoryUsage(MemoryEventType.PAGE_NAVIGATION, 'Page unloaded');
+      logMemoryUsage(MemoryEventType.INFO, 'Page unloaded');
     };
     window.addEventListener('beforeunload', handleBeforeUnload);
     cleanupFunctions.push(() => window.removeEventListener('beforeunload', handleBeforeUnload));
 
     // 가시성 변경 시
     const handleVisibilityChange = () => {
-      logMemoryUsage(
-        MemoryEventType.PAGE_NAVIGATION,
-        `Visibility changed: ${document.visibilityState}`
-      );
+      logMemoryUsage(MemoryEventType.INFO, `Visibility changed: ${document.visibilityState}`);
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
-    cleanupFunctions.push(() => document.removeEventListener('visibilitychange', handleVisibilityChange));
+    cleanupFunctions.push(() =>
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    );
   }
 
   // 모든 정리 함수를 호출하는 함수 반환

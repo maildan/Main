@@ -4,8 +4,9 @@
  */
 import { requestNativeMemoryOptimization } from '@/app/utils/native-memory-bridge';
 import { OptimizationLevel } from '@/types/native-module';
+import { MemoryEventType } from '@/types';
 import { getMemoryInfo } from '../memory-info';
-import { logMemoryUsage, MemoryEventType } from '../logger';
+import { logMemoryUsage } from '../logger';
 
 /**
  * 가벼운 수준의 메모리 최적화 수행
@@ -65,16 +66,16 @@ export const OPTIMIZATION_LEVEL_DESCRIPTIONS = {
   1: '낮은 수준 최적화 - 비필수 캐시 정리',
   2: '중간 수준 최적화 - 사용하지 않는 리소스 정리',
   3: '높은 수준 최적화 - 적극적인 메모리 회수',
-  4: '긴급 최적화 - 모든 비필수 리소스 해제'
+  4: '긴급 최적화 - 모든 비필수 리소스 해제',
 };
 
 // 레벨별 임계값 (메모리 사용률 %)
 export const OPTIMIZATION_THRESHOLDS = {
-  LEVEL_0: 50,  // 50% 미만
-  LEVEL_1: 70,  // 50-70%
-  LEVEL_2: 80,  // 70-80%
-  LEVEL_3: 90,  // 80-90%
-  LEVEL_4: 95   // 90% 이상 (위험)
+  LEVEL_0: 50, // 50% 미만
+  LEVEL_1: 70, // 50-70%
+  LEVEL_2: 80, // 70-80%
+  LEVEL_3: 90, // 80-90%
+  LEVEL_4: 95, // 90% 이상 (위험)
 };
 
 // 최적화 히스토리
@@ -90,13 +91,13 @@ const optimizationHistory: Array<{
  */
 export async function recommendOptimizationLevel(): Promise<number> {
   const memoryInfo = await getMemoryInfo();
-  
+
   if (!memoryInfo) {
     return 0; // 정보를 얻을 수 없는 경우 기본값
   }
-  
+
   const memoryUsagePercent = memoryInfo.percentUsed || 0;
-  
+
   if (memoryUsagePercent > OPTIMIZATION_THRESHOLDS.LEVEL_4) {
     return 4;
   } else if (memoryUsagePercent > OPTIMIZATION_THRESHOLDS.LEVEL_3) {
@@ -106,7 +107,7 @@ export async function recommendOptimizationLevel(): Promise<number> {
   } else if (memoryUsagePercent > OPTIMIZATION_THRESHOLDS.LEVEL_1) {
     return 1;
   }
-  
+
   return 0;
 }
 
@@ -116,25 +117,22 @@ export async function recommendOptimizationLevel(): Promise<number> {
 export async function reportMemoryUsage(level: number): Promise<void> {
   try {
     const memoryInfo = await getMemoryInfo();
-    
+
     if (!memoryInfo) {
       return;
     }
-    
+
     const heapUsedMB = memoryInfo.heapUsedMB || 0;
     const percentUsed = memoryInfo.percentUsed || 0;
-    
+
     const message = `메모리 최적화 (레벨 ${level}) 완료: ${heapUsedMB.toFixed(2)}MB (${percentUsed.toFixed(1)}%)`;
-    
+
     // 로그 기록
-    await logMemoryUsage(
-      MemoryEventType.OPTIMIZATION,
-      message
-    );
-    
+    await logMemoryUsage(MemoryEventType.OPTIMIZATION, message);
+
     // 콘솔 로깅
     console.log(message);
-    
+
     // 내역 저장
     recordOptimization(level, heapUsedMB);
   } catch (error) {
@@ -147,14 +145,14 @@ export async function reportMemoryUsage(level: number): Promise<void> {
  */
 function recordOptimization(level: number, currentMemory: number): void {
   const lastEntry = optimizationHistory[optimizationHistory.length - 1];
-  
+
   optimizationHistory.push({
     timestamp: Date.now(),
     level,
     memoryBefore: lastEntry?.memoryAfter || currentMemory,
-    memoryAfter: currentMemory
+    memoryAfter: currentMemory,
   });
-  
+
   // 최대 100개 항목 유지
   if (optimizationHistory.length > 100) {
     optimizationHistory.shift();
@@ -174,29 +172,17 @@ export function getOptimizationHistory() {
 export function getOptimizationActions(level: number): string[] {
   switch (level) {
     case 0:
-      return [
-        '기본 상태 유지',
-        '일반적인 가비지 컬렉션 허용'
-      ];
+      return ['기본 상태 유지', '일반적인 가비지 컬렉션 허용'];
     case 1:
-      return [
-        '비필수 캐시 정리',
-        '사용하지 않는 이미지 언로드',
-        '비활성 이벤트 리스너 정리'
-      ];
+      return ['비필수 캐시 정리', '사용하지 않는 이미지 언로드', '비활성 이벤트 리스너 정리'];
     case 2:
-      return [
-        '모든 레벨 1 작업 포함',
-        'DOM 참조 정리',
-        '비표시 요소 정리',
-        '메모리 풀 최적화'
-      ];
+      return ['모든 레벨 1 작업 포함', 'DOM 참조 정리', '비표시 요소 정리', '메모리 풀 최적화'];
     case 3:
       return [
         '모든 레벨 2 작업 포함',
         '애니메이션 및 타이머 일시 중지',
         '대용량 객체 참조 해제',
-        '인메모리 캐시 축소'
+        '인메모리 캐시 축소',
       ];
     case 4:
       return [
@@ -204,7 +190,7 @@ export function getOptimizationActions(level: number): string[] {
         '비필수 모듈 언로드',
         'GPU 가속화 비활성화',
         '백그라운드 작업 중지',
-        '인메모리 DB 압축'
+        '인메모리 DB 압축',
       ];
     default:
       return ['알 수 없는 최적화 레벨'];

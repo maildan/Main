@@ -1,12 +1,12 @@
 /**
  * 시스템 모니터링 유틸리티
- * 
+ *
  * 메모리, CPU, GPU 등 시스템 리소스 상태를 모니터링합니다.
  */
 
 import { getMemoryInfo } from './nativeModuleClient';
 import { getGpuInformation } from './gpu-acceleration';
-import { SystemStatus, MemoryUsageLevel, ProcessingMode } from '@/types';
+import { SystemStatus, ProcessingMode, MemoryUsageLevel as AppMemoryUsageLevel } from '@/types';
 import { getMemoryUsageLevel } from './enum-converters';
 
 // 모니터링 상태
@@ -28,15 +28,15 @@ const listeners: Array<(status: SystemStatus) => void> = [];
  */
 export function startSystemMonitoring(interval: number = CHECK_INTERVAL) {
   if (isMonitoring) return;
-  
+
   isMonitoring = true;
-  
+
   // 즉시 첫 번째 체크 수행
   checkSystemStatus();
-  
+
   // 주기적 체크 설정
   monitorInterval = setInterval(checkSystemStatus, interval);
-  
+
   console.log(`시스템 모니터링 시작 (간격: ${interval}ms)`);
 }
 
@@ -45,14 +45,14 @@ export function startSystemMonitoring(interval: number = CHECK_INTERVAL) {
  */
 export function stopSystemMonitoring() {
   if (!isMonitoring) return;
-  
+
   isMonitoring = false;
-  
+
   if (monitorInterval) {
     clearInterval(monitorInterval);
     monitorInterval = null;
   }
-  
+
   console.log('시스템 모니터링 중지');
 }
 
@@ -63,54 +63,49 @@ async function checkSystemStatus() {
   try {
     const memoryResponse = await getMemoryInfo();
     const gpuInfo = await getGpuInformation();
-    
+
     if (!memoryResponse.success) {
       console.error('메모리 정보를 가져오는 데 실패했습니다:', memoryResponse.error);
       return;
     }
-    
+
     const memoryInfo = memoryResponse.memoryInfo;
     const percentUsed = memoryInfo.percentUsed;
-    const memoryLevel = getMemoryUsageLevel(percentUsed);
-    
-    // 처리 모드 결정
-    let processingMode: ProcessingMode = 'normal';
-    
-    if (memoryLevel === MemoryUsageLevel.CRITICAL) {
-      processingMode = 'memory-saving';
-    } else if (memoryLevel === MemoryUsageLevel.HIGH) {
-      processingMode = 'cpu-intensive';
+
+    // getMemoryUsageLevel 함수는 enum-converters.ts의 값을 반환하므로
+    // 애플리케이션 레벨의 MemoryUsageLevel로 변환합니다.
+    const memoryLevel = convertToAppMemoryLevel(getMemoryUsageLevel(percentUsed));
+
+    // 처리 모드 결정 (ProcessingMode 열거형 값 사용)
+    let processingMode: ProcessingMode = ProcessingMode.NORMAL;
+
+    // 변환된 MemoryUsageLevel 값을 사용
+    if (memoryLevel === AppMemoryUsageLevel.CRITICAL) {
+      processingMode = ProcessingMode.MEMORY_SAVING;
+    } else if (memoryLevel === AppMemoryUsageLevel.HIGH) {
+      processingMode = ProcessingMode.CPU_INTENSIVE;
     } else if (gpuInfo?.available && gpuInfo?.accelerationEnabled) {
-      processingMode = 'gpu-intensive';
+      processingMode = ProcessingMode.GPU_INTENSIVE;
     }
-    
+
     // 시스템 상태 업데이트
     const status: SystemStatus = {
-      memory: {
-        percentUsed,
-        level: memoryLevel,
-        heapUsedMB: memoryInfo.heapUsedMB,
-        rssMB: memoryInfo.rssMB
-      },
-      processing: {
-        mode: processingMode,
-        gpuEnabled: Boolean(gpuInfo?.accelerationEnabled)
-      },
-      optimizations: {
-        count: 0, // 이 정보는 현재 API에서 제공하지 않음
-        lastTimestamp: 0,
-        freedMemoryMB: 0
-      },
-      timestamp: Date.now()
+      memoryUsageLevel: memoryLevel,
+      cpuUsage: 0, // 현재 API에서 CPU 사용량 정보가 없음
+      memoryInfo: memoryInfo,
+      processingMode: processingMode,
+      timestamp: Date.now(),
+      optimizationCount: 0,
+      lastOptimization: 0,
     };
-    
+
     // 캐시 업데이트
     cachedStatus = status;
     statusUpdateTime = Date.now();
-    
+
     // 리스너에게 알림
     notifyListeners(status);
-    
+
     // 전역 객체에 상태 저장 (브라우저 환경인 경우)
     if (typeof window !== 'undefined') {
       // 타입 안전하게 접근
@@ -123,6 +118,26 @@ async function checkSystemStatus() {
     }
   } catch (error) {
     console.error('시스템 상태 확인 오류:', error);
+  }
+}
+
+/**
+ * enum-converters의 MemoryUsageLevel을 애플리케이션의 MemoryUsageLevel로 변환
+ */
+function convertToAppMemoryLevel(level: number): AppMemoryUsageLevel {
+  switch (level) {
+    case 0:
+      return AppMemoryUsageLevel.NORMAL;
+    case 1:
+      return AppMemoryUsageLevel.LOW;
+    case 2:
+      return AppMemoryUsageLevel.MEDIUM;
+    case 3:
+      return AppMemoryUsageLevel.HIGH;
+    case 4:
+      return AppMemoryUsageLevel.CRITICAL;
+    default:
+      return AppMemoryUsageLevel.NORMAL;
   }
 }
 
@@ -146,12 +161,12 @@ function notifyListeners(status: SystemStatus) {
  */
 export function subscribeToSystemStatus(listener: (status: SystemStatus) => void): () => void {
   listeners.push(listener);
-  
+
   // 이미 캐시된 상태가 있다면 즉시 전달
   if (cachedStatus) {
     listener(cachedStatus);
   }
-  
+
   // 리스너 제거 함수 반환
   return () => {
     const index = listeners.indexOf(listener);
@@ -167,34 +182,36 @@ export function subscribeToSystemStatus(listener: (status: SystemStatus) => void
  */
 export async function getSystemStatus(forceRefresh = false): Promise<SystemStatus> {
   const now = Date.now();
-  
+
   // 캐시가 유효하고 강제 갱신이 아닌 경우 캐시된 상태 반환
   if (cachedStatus && now - statusUpdateTime < STATUS_TTL && !forceRefresh) {
     return cachedStatus;
   }
-  
+
   // 새로운 상태 확인
   await checkSystemStatus();
-  
+
   // 캐시된 상태가 있으면 반환, 없으면 기본값 반환
-  return cachedStatus || {
-    memory: {
-      percentUsed: 0,
-      level: MemoryUsageLevel.LOW,
-      heapUsedMB: 0,
-      rssMB: 0
-    },
-    processing: {
-      mode: 'normal',
-      gpuEnabled: false
-    },
-    optimizations: {
-      count: 0,
-      lastTimestamp: 0,
-      freedMemoryMB: 0
-    },
-    timestamp: now
-  };
+  return (
+    cachedStatus || {
+      memoryUsageLevel: AppMemoryUsageLevel.NORMAL,
+      cpuUsage: 0,
+      memoryInfo: {
+        timestamp: Date.now(),
+        heap_used: 0,
+        heap_total: 0,
+        heap_limit: 0,
+        rss: 0,
+        heap_used_mb: 0,
+        rss_mb: 0,
+        percent_used: 0,
+      },
+      processingMode: ProcessingMode.NORMAL,
+      timestamp: now,
+      optimizationCount: 0,
+      lastOptimization: 0,
+    }
+  );
 }
 
 /**
@@ -205,18 +222,18 @@ export async function getBatteryStatus(): Promise<any> {
   if (typeof navigator === 'undefined' || !navigator.getBattery) {
     return null;
   }
-  
+
   try {
     // 타입 안전하게 접근
     const getBattery = navigator.getBattery;
     if (getBattery) {
       const battery = await getBattery();
-      
+
       return {
         charging: battery.charging,
         level: battery.level,
         chargingTime: battery.chargingTime,
-        dischargingTime: battery.dischargingTime
+        dischargingTime: battery.dischargingTime,
       };
     }
     return null;
@@ -233,18 +250,18 @@ export function getNetworkStatus(): any {
   if (typeof navigator === 'undefined') {
     return null;
   }
-  
+
   // 타입 안전하게 접근
   const connection = (navigator as any).connection;
   if (!connection) {
     return { online: navigator.onLine };
   }
-  
+
   return {
     online: navigator.onLine,
     effectiveType: connection.effectiveType,
     downlink: connection.downlink,
     rtt: connection.rtt,
-    saveData: connection.saveData
+    saveData: connection.saveData,
   };
 }

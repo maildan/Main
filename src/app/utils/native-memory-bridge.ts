@@ -3,7 +3,20 @@
  */
 
 import { MemoryInfo, OptimizationResult, OptimizationLevel, GCResult } from '@/types';
-import { safeOptimizationLevel } from './memory/optimization-utils';
+
+/**
+ * 최적화 레벨 값을 안전하게 처리하는 함수
+ * 유효한 최적화 레벨 범위(0-4) 내의 값으로 변환
+ */
+function safeOptimizationLevel(level: number): number {
+  // 숫자가 아니면 기본값 반환
+  if (typeof level !== 'number' || isNaN(level)) {
+    return OptimizationLevel.MEDIUM;
+  }
+
+  // 범위 제한 (0-4)
+  return Math.max(0, Math.min(4, Math.floor(level)));
+}
 
 /**
  * 네이티브 메모리 정보 요청
@@ -29,7 +42,11 @@ export async function requestNativeMemoryInfo(): Promise<MemoryInfo | null> {
   }
 }
 
-import { optimizeMemory, forceGarbageCollection, getMemoryInfo as fetchMemoryInfo } from './nativeModuleClient';
+import {
+  optimizeMemory,
+  forceGarbageCollection,
+  getMemoryInfo as fetchMemoryInfo,
+} from './nativeModuleClient';
 
 // 브리지 상태
 const bridgeState = {
@@ -37,7 +54,7 @@ const bridgeState = {
   isAvailable: false,
   lastError: null as Error | null,
   lastCheck: 0,
-  errorCount: 0
+  errorCount: 0,
 };
 
 /**
@@ -65,9 +82,7 @@ async function withErrorHandling<T>(
   } catch (error) {
     // 오류 기록
     bridgeState.errorCount++;
-    bridgeState.lastError = error instanceof Error
-      ? error
-      : new Error(String(error));
+    bridgeState.lastError = error instanceof Error ? error : new Error(String(error));
 
     console.error(`Native bridge error in ${operationName}:`, error);
 
@@ -104,9 +119,7 @@ async function checkBridgeAvailability(): Promise<boolean> {
   } catch (error) {
     bridgeState.isAvailable = false;
     bridgeState.isInitialized = true;
-    bridgeState.lastError = error instanceof Error
-      ? error
-      : new Error(String(error));
+    bridgeState.lastError = error instanceof Error ? error : new Error(String(error));
     bridgeState.lastCheck = Date.now();
     return false;
   }
@@ -132,7 +145,7 @@ export async function requestNativeGarbageCollection(): Promise<GCResult | null>
       freedMemory: 0,
       freedMB: 0,
       duration: 0,
-      error: bridgeState.lastError?.message || '가비지 컬렉션을 사용할 수 없습니다'
+      error: bridgeState.lastError?.message || '가비지 컬렉션을 사용할 수 없습니다',
     }),
     '가비지 컬렉션'
   );
@@ -164,7 +177,7 @@ export async function requestNativeMemoryOptimization(
       timestamp: Date.now(),
       freedMemory: 0,
       freedMB: 0,
-      error: bridgeState.lastError?.message || '메모리 최적화를 사용할 수 없습니다'
+      error: bridgeState.lastError?.message || '메모리 최적화를 사용할 수 없습니다',
     }),
     '메모리 최적화'
   );
@@ -187,7 +200,7 @@ export async function checkNativeBridgeStatus(): Promise<{
     initialized: bridgeState.isInitialized,
     lastCheck: bridgeState.lastCheck,
     errorCount: bridgeState.errorCount,
-    lastError: bridgeState.lastError?.message || null
+    lastError: bridgeState.lastError?.message || null,
   };
 }
 

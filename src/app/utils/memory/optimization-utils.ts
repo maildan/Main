@@ -2,11 +2,11 @@
  * 메모리 최적화 유틸리티
  */
 import { OptimizationLevel } from '@/types';
-import { cleanupDom } from './dom-cleanup';
-import { cleanupCache } from './cache-optimizer';
-import { optimizeEvents } from './event-optimizer';
-import { optimizeResources } from './resource-optimizer';
-import { emergencyRecovery } from './emergency-recovery';
+import { cleanupDom } from './gc/dom-cleanup';
+import { cleanupCache } from './gc/cache-optimizer';
+import { optimizeEvents } from './gc/event-optimizer';
+import { optimizeResources } from './gc/resource-optimizer';
+import { emergencyRecovery } from './gc/emergency-recovery';
 import { logger } from './logger';
 
 // 함수들을 재내보내기
@@ -19,15 +19,14 @@ let memoryThreshold = 80; // 기본값: 80%
 
 /**
  * 메모리 최적화를 실행합니다.
- * 
+ *
  * @param level - 최적화 레벨
  * @param emergency - 긴급 상황 여부
  */
-export async function runOptimization(
-  level: OptimizationLevel,
-  emergency: boolean
-): Promise<void> {
-  logger.info(`[Optimization Utils] Running optimization at level: ${level}, emergency: ${emergency}`);
+export async function runOptimization(level: OptimizationLevel, emergency: boolean): Promise<void> {
+  logger.info(
+    `[Optimization Utils] Running optimization at level: ${level}, emergency: ${emergency}`
+  );
 
   // 요청된 레벨에 따라 최적화 작업 수행
   switch (level) {
@@ -49,7 +48,6 @@ export async function runOptimization(
 
     case OptimizationLevel.AGGRESSIVE:
     case OptimizationLevel.CRITICAL:
-    case OptimizationLevel.EXTREME:
       await cleanupCache();
       await cleanupDom(true);
       await optimizeEvents();
@@ -70,7 +68,7 @@ export async function runOptimization(
 
 /**
  * 자동 메모리 최적화 설정을 구성합니다.
- * 
+ *
  * @param options - 자동 최적화 설정
  */
 export function configureAutoOptimization(options: {
@@ -88,9 +86,13 @@ export function configureAutoOptimization(options: {
     memoryThreshold = options.threshold;
   }
 
-  logger.info(`[Optimization Utils] Auto optimization ${autoOptimizationEnabled ? 'enabled' : 'disabled'}`);
+  logger.info(
+    `[Optimization Utils] Auto optimization ${autoOptimizationEnabled ? 'enabled' : 'disabled'}`
+  );
   if (autoOptimizationEnabled) {
-    logger.info(`[Optimization Utils] Interval: ${optimizationInterval}ms, Threshold: ${memoryThreshold}%`);
+    logger.info(
+      `[Optimization Utils] Interval: ${optimizationInterval}ms, Threshold: ${memoryThreshold}%`
+    );
   }
 }
 
@@ -105,7 +107,7 @@ export function getAutoOptimizationSettings(): {
   return {
     enabled: autoOptimizationEnabled,
     interval: optimizationInterval,
-    threshold: memoryThreshold
+    threshold: memoryThreshold,
   };
 }
 

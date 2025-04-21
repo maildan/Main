@@ -1,11 +1,15 @@
 /**
  * 메모리 관리 유틸리티
- * 
+ *
  * 애플리케이션 메모리 관리 기능들을 통합하여 제공합니다.
  */
 
 import { MemoryInfo, GCResult, OptimizationResult, OptimizationLevel } from '@/types';
-import { requestNativeMemoryInfo, requestNativeGarbageCollection, requestNativeMemoryOptimization } from './native-memory-bridge';
+import {
+  requestNativeMemoryInfo,
+  requestNativeGarbageCollection,
+  requestNativeMemoryOptimization,
+} from './native-memory-bridge';
 
 /**
  * 메모리 정보 가져오기
@@ -23,7 +27,9 @@ export async function getMemoryInfo(): Promise<MemoryInfo | null> {
  * 가비지 컬렉션 수행
  * @param _emergency 긴급 모드 여부
  */
-export async function performGarbageCollection(_emergency: boolean = false): Promise<GCResult | null> {
+export async function performGarbageCollection(
+  _emergency: boolean = false
+): Promise<GCResult | null> {
   try {
     return await requestNativeGarbageCollection();
   } catch (error) {
@@ -77,7 +83,7 @@ export async function optimizeMemory(
     if (result) {
       // 속성 이름 호환성 처리 - 일관된 속성 사용
       const freedMB = result.freedMB || result.freed_mb || 0;
-      
+
       // 모든 필수 속성 지정 (타입 충돌 해결)
       return {
         success: result.success,
@@ -88,7 +94,7 @@ export async function optimizeMemory(
         optimization_level: level,
         freed_memory: result.freedMemory || result.freed_memory || 0,
         freed_mb: freedMB,
-        duration: result.duration
+        duration: result.duration,
       };
     }
 
@@ -124,9 +130,7 @@ function recordOptimization(
       };
 
       const existingRecordsJson = localStorage.getItem('memoryOptimizationRecords');
-      const records = existingRecordsJson
-        ? JSON.parse(existingRecordsJson)
-        : [];
+      const records = existingRecordsJson ? JSON.parse(existingRecordsJson) : [];
 
       // 최대 20개까지만 저장
       records.push(record);
@@ -150,23 +154,30 @@ function recordOptimization(
 export function formatMemoryInfo(info: MemoryInfo): Record<string, string> {
   if (!info) return {};
 
-  const heapUsedMB = info.heapUsed !== undefined
-    ? Math.round(info.heapUsed / (1024 * 1024) * 10) / 10
-    : info.heapUsedMB || 0;
+  const heapUsedMB =
+    info.heapUsed !== undefined
+      ? Math.round((info.heapUsed / (1024 * 1024)) * 10) / 10
+      : info.heap_used_mb || 0;
 
-  const heapTotalMB = info.heapTotal !== undefined
-    ? Math.round(info.heapTotal / (1024 * 1024) * 10) / 10
-    : info.heapTotalMB || 0;
+  const heapTotalMB =
+    info.heapTotal !== undefined
+      ? Math.round((info.heapTotal / (1024 * 1024)) * 10) / 10
+      : info.heap_total
+        ? Math.round((info.heap_total / (1024 * 1024)) * 10) / 10
+        : 0;
 
-  const percent = info.percentUsed !== undefined
-    ? info.percentUsed
-    : (info.heapTotal && info.heapUsed) ? (info.heapUsed / info.heapTotal) * 100 : 0;
+  const percent =
+    info.percentUsed !== undefined
+      ? info.percentUsed
+      : info.heapTotal && info.heapUsed
+        ? (info.heapUsed / info.heapTotal) * 100
+        : 0;
 
   return {
     heapUsed: `${heapUsedMB} MB`,
     heapTotal: `${heapTotalMB} MB`,
     percentUsed: `${Math.round(percent * 10) / 10}%`,
-    timestamp: new Date(info.timestamp || Date.now()).toLocaleString()
+    timestamp: new Date(info.timestamp || Date.now()).toLocaleString(),
   };
 }
 
@@ -185,41 +196,44 @@ export function evaluateMemoryStatus(info: MemoryInfo): {
       status: 'unknown',
       message: '메모리 정보를 가져올 수 없음',
       percentUsed: 0,
-      needsOptimization: false
+      needsOptimization: false,
     };
   }
 
-  const percent = info.percentUsed !== undefined
-    ? info.percentUsed
-    : (info.heapTotal && info.heapUsed) ? (info.heapUsed / info.heapTotal) * 100 : 0;
+  const percent =
+    info.percentUsed !== undefined
+      ? info.percentUsed
+      : info.heapTotal && info.heapUsed
+        ? (info.heapUsed / info.heapTotal) * 100
+        : 0;
 
   if (percent > 90) {
     return {
       status: 'critical',
       message: '메모리 사용량이 매우 높음 (최적화 필요)',
       percentUsed: percent,
-      needsOptimization: true
+      needsOptimization: true,
     };
   } else if (percent > 75) {
     return {
       status: 'warning',
       message: '메모리 사용량이 높음',
       percentUsed: percent,
-      needsOptimization: true
+      needsOptimization: true,
     };
   } else if (percent > 60) {
     return {
       status: 'normal',
       message: '메모리 사용량이 정상',
       percentUsed: percent,
-      needsOptimization: false
+      needsOptimization: false,
     };
   } else {
     return {
       status: 'good',
       message: '메모리 사용량이 낮음',
       percentUsed: percent,
-      needsOptimization: false
+      needsOptimization: false,
     };
   }
 }
@@ -244,24 +258,36 @@ export function createEmptyMemoryInfo(): MemoryInfo {
     heap_used_mb: 0,
     rss_mb: 0,
     percent_used: 0,
-    heap_limit: 0
+    heap_limit: 0,
   };
 }
 
 /**
- * 네이티브 메모리 정보를 표준 형식으로 변환
- * @param nativeInfo 네이티브 메모리 정보
+ * 네이티브 메모리 정보를 앱 메모리 정보로 변환
  */
 export function convertNativeMemoryInfo(nativeInfo: Record<string, unknown>): MemoryInfo {
-  // any 타입 사용이 불가피한 경우 (네이티브 모듈 응답 형식이 다양할 수 있음)
+  if (!nativeInfo) {
+    return createEmptyMemoryInfo();
+  }
+
   return {
-    heapUsed: nativeInfo.heap_used || nativeInfo.heapUsed || 0,
-    heapTotal: nativeInfo.heap_total || nativeInfo.heapTotal || 0,
-    rss: nativeInfo.rss || 0,
-    heapUsedMB: nativeInfo.heap_used_mb || nativeInfo.heapUsedMB || 0,
-    heap_used_mb: nativeInfo.heap_used_mb || nativeInfo.heapUsedMB || 0,
-    rss_mb: nativeInfo.rss_mb || nativeInfo.rssMB || 0,
-    percent_used: nativeInfo.percent_used || nativeInfo.percentUsed || 0,
-    heap_limit: nativeInfo.heap_limit
+    timestamp: (nativeInfo.timestamp as number) || Date.now(),
+
+    // 숫자 타입으로 변환하여 지정
+    heapUsed: (nativeInfo.heap_used as number) || (nativeInfo.heapUsed as number) || 0,
+    heapTotal: (nativeInfo.heap_total as number) || (nativeInfo.heapTotal as number) || 0,
+    rss: (nativeInfo.rss as number) || 0,
+    heapUsedMB: (nativeInfo.heap_used_mb as number) || (nativeInfo.heapUsedMB as number) || 0,
+    heap_used_mb: (nativeInfo.heap_used_mb as number) || (nativeInfo.heapUsedMB as number) || 0,
+    rss_mb: (nativeInfo.rss_mb as number) || (nativeInfo.rssMB as number) || 0,
+    percent_used: (nativeInfo.percent_used as number) || (nativeInfo.percentUsed as number) || 0,
+    heap_limit: (nativeInfo.heap_limit as number) || 0,
+
+    // 선택적 필드 지정
+    heap_used: (nativeInfo.heap_used as number) || (nativeInfo.heapUsed as number) || 0,
+    heap_total: (nativeInfo.heap_total as number) || (nativeInfo.heapTotal as number) || 0,
+    percentUsed: (nativeInfo.percent_used as number) || (nativeInfo.percentUsed as number) || 0,
+    rssMB: (nativeInfo.rss_mb as number) || (nativeInfo.rssMB as number) || 0,
+    heapLimit: (nativeInfo.heap_limit as number) || 0,
   };
 }

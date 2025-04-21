@@ -1,15 +1,101 @@
 /**
  * 최적화 레벨 열거형 변환 유틸리티
  */
-import {
-  OptimizationLevel,
-  NativeOptimizationLevel,
-  APP_TO_NATIVE_LEVEL_MAP,
-  NATIVE_TO_APP_LEVEL_MAP,
-  MemoryEventType,
-  MemoryUsageLevel,
-  GpuTaskType
-} from '@/types';
+
+// 필요한 열거형 타입들을 직접 정의
+// 최적화 레벨 열거형
+export enum OptimizationLevel {
+  NONE = 0, // 최적화 없음
+  NORMAL = 0, // 일반 최적화
+  LOW = 1, // 낮은 수준의 최적화
+  MEDIUM = 2, // 중간 수준의 최적화
+  HIGH = 3, // 높은 수준의 최적화
+  AGGRESSIVE = 4, // 적극적인 최적화
+  CRITICAL = 4, // 중요 상황 최적화
+  EXTREME = 4, // 극단적인 최적화
+}
+
+// 네이티브 최적화 레벨 열거형
+export enum NativeOptimizationLevel {
+  Normal = 0,
+  Low = 1,
+  Medium = 2,
+  High = 3,
+  Critical = 4,
+}
+
+// 메모리 이벤트 타입 열거형
+export enum MemoryEventType {
+  PERIODIC_CHECK = 'periodic_check',
+  PAGE_NAVIGATION = 'page_navigation',
+  OPTIMIZATION = 'optimization',
+  COMPONENT_MOUNT = 'component_mount',
+  COMPONENT_UNMOUNT = 'component_unmount',
+  USER_ACTION = 'user_action',
+  GARBAGE_COLLECTION = 'garbage_collection',
+  RESOURCE_LOADING = 'resource_loading',
+  ERROR = 'error',
+  WARNING = 'warning',
+  CUSTOM = 'custom',
+}
+
+// 메모리 사용량 레벨 열거형
+export enum MemoryUsageLevel {
+  LOW = 0,
+  MEDIUM = 1,
+  HIGH = 2,
+  CRITICAL = 3,
+}
+
+// GPU 작업 타입 열거형
+export enum GpuTaskType {
+  MATRIX_MULTIPLICATION = 0,
+  TEXT_ANALYSIS = 1,
+  PATTERN_DETECTION = 2,
+  IMAGE_PROCESSING = 3,
+  DATA_AGGREGATION = 4,
+  TYPING_STATISTICS = 5,
+  CUSTOM = 6,
+}
+
+// 앱 레벨과 네이티브 레벨 간의 매핑 (중복 키 회피를 위해 함수로 대체)
+export function getNativeOptimizationLevel(level: OptimizationLevel): NativeOptimizationLevel {
+  switch (level) {
+    case OptimizationLevel.NONE:
+    case OptimizationLevel.NORMAL:
+      return NativeOptimizationLevel.Normal;
+    case OptimizationLevel.LOW:
+      return NativeOptimizationLevel.Low;
+    case OptimizationLevel.MEDIUM:
+      return NativeOptimizationLevel.Medium;
+    case OptimizationLevel.HIGH:
+      return NativeOptimizationLevel.High;
+    case OptimizationLevel.AGGRESSIVE:
+    case OptimizationLevel.CRITICAL:
+    case OptimizationLevel.EXTREME:
+      return NativeOptimizationLevel.Critical;
+    default:
+      return NativeOptimizationLevel.Medium; // 기본값
+  }
+}
+
+// 네이티브 레벨에서 앱 레벨로의 매핑 (함수로 구현)
+export function getAppOptimizationLevel(level: NativeOptimizationLevel): OptimizationLevel {
+  switch (level) {
+    case NativeOptimizationLevel.Normal:
+      return OptimizationLevel.NORMAL;
+    case NativeOptimizationLevel.Low:
+      return OptimizationLevel.LOW;
+    case NativeOptimizationLevel.Medium:
+      return OptimizationLevel.MEDIUM;
+    case NativeOptimizationLevel.High:
+      return OptimizationLevel.HIGH;
+    case NativeOptimizationLevel.Critical:
+      return OptimizationLevel.CRITICAL;
+    default:
+      return OptimizationLevel.MEDIUM; // 기본값
+  }
+}
 
 /**
  * 최적화 레벨 문자열을 열거형으로 변환
@@ -172,47 +258,20 @@ export function getMemoryUsageLevel(percentUsed: number): MemoryUsageLevel {
 }
 
 /**
- * 애플리케이션 OptimizationLevel을 네이티브 OptimizationLevel로 변환
- */
-export function toNativeOptimizationLevel(level: OptimizationLevel): NativeOptimizationLevel {
-  // 매핑 테이블에서 바로 조회 (더 안전하고 직관적임)
-  const nativeLevel = APP_TO_NATIVE_LEVEL_MAP[level];
-
-  // 매핑 테이블에 없는 경우 기본값 반환
-  if (nativeLevel === undefined) {
-    console.warn(`알 수 없는 최적화 레벨 (${level}), 기본값 사용`);
-    return NativeOptimizationLevel.Medium;
-  }
-
-  return nativeLevel;
-}
-
-/**
- * 네이티브 OptimizationLevel을 애플리케이션 OptimizationLevel로 변환
- */
-export function toAppOptimizationLevel(level: NativeOptimizationLevel): OptimizationLevel {
-  // 매핑 테이블에서 바로 조회 (더 안전하고 직관적임)
-  const appLevel = NATIVE_TO_APP_LEVEL_MAP[level];
-
-  // 매핑 테이블에 없는 경우 기본값 반환
-  if (appLevel === undefined) {
-    console.warn(`알 수 없는 네이티브 최적화 레벨 (${level}), 기본값 사용`);
-    return OptimizationLevel.MEDIUM;
-  }
-
-  return appLevel as OptimizationLevel;
-}
-
-/**
  * 숫자를 적절한 최적화 레벨로 안전하게 변환
  */
 export function safeOptimizationLevel(level: number): OptimizationLevel {
   switch (level) {
-    case 0: return OptimizationLevel.NORMAL;
-    case 1: return OptimizationLevel.LOW;
-    case 2: return OptimizationLevel.MEDIUM;
-    case 3: return OptimizationLevel.HIGH;
-    case 4: return OptimizationLevel.CRITICAL;
+    case 0:
+      return OptimizationLevel.NORMAL;
+    case 1:
+      return OptimizationLevel.LOW;
+    case 2:
+      return OptimizationLevel.MEDIUM;
+    case 3:
+      return OptimizationLevel.HIGH;
+    case 4:
+      return OptimizationLevel.CRITICAL;
     default:
       console.warn(`유효하지 않은 최적화 레벨 (${level}), 기본값 사용`);
       return OptimizationLevel.MEDIUM;
@@ -239,7 +298,7 @@ export function convertNativeMemoryInfo(nativeInfo: any): any {
     percent_used: nativeInfo.percent_used,
     percentUsed: nativeInfo.percent_used,
     heap_limit: nativeInfo.heap_limit,
-    heapLimit: nativeInfo.heap_limit
+    heapLimit: nativeInfo.heap_limit,
   };
 }
 
@@ -256,7 +315,7 @@ export function convertNativeGCResult(nativeResult: any): any {
     freed_memory: nativeResult.freed_memory,
     freedMB: nativeResult.freed_mb,
     freed_mb: nativeResult.freed_mb,
-    error: nativeResult.error
+    error: nativeResult.error,
   };
 }
 
@@ -304,8 +363,17 @@ export function getOptimizationLevelName(level: OptimizationLevel): string {
     [OptimizationLevel.LOW]: '낮음',
     [OptimizationLevel.MEDIUM]: '중간',
     [OptimizationLevel.HIGH]: '높음',
-    [OptimizationLevel.AGGRESSIVE]: '적극적'
+    [OptimizationLevel.AGGRESSIVE]: '적극적',
   };
 
   return names[level] || '중간';
+}
+
+/**
+ * toNativeOptimizationLevel 함수의 별칭 - 이전 코드와의 호환성 유지를 위해 추가
+ * @param level 최적화 레벨
+ * @returns 네이티브 최적화 레벨
+ */
+export function toNativeOptimizationLevel(level: OptimizationLevel): NativeOptimizationLevel {
+  return getNativeOptimizationLevel(level);
 }

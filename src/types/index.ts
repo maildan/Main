@@ -10,7 +10,7 @@ export enum MemoryUsageLevel {
   LOW = 1,
   MEDIUM = 2,
   HIGH = 3,
-  CRITICAL = 4
+  CRITICAL = 4,
 }
 
 // 네이티브 모듈 타입은 네임스페이스로 분리
@@ -36,7 +36,7 @@ export enum AppOptimizationLevel {
   LOW = 1,
   MEDIUM = 2,
   HIGH = 3,
-  AGGRESSIVE = 4
+  AGGRESSIVE = 4,
 }
 
 /**
@@ -101,7 +101,7 @@ export enum ProcessingMode {
   NORMAL = 'normal',
   CPU_INTENSIVE = 'cpu-intensive',
   GPU_INTENSIVE = 'gpu-intensive',
-  MEMORY_SAVING = 'memory-saving'
+  MEMORY_SAVING = 'memory-saving',
 }
 
 /**
@@ -114,7 +114,7 @@ export enum MemoryEventType {
   GC = 'gc',
   OPTIMIZATION = 'optimization',
   THRESHOLD = 'threshold',
-  STATE_CHANGE = 'state_change'
+  STATE_CHANGE = 'state_change',
 }
 
 /**
@@ -230,5 +230,84 @@ export enum OptimizationLevel {
   AGGRESSIVE = 4,
   // 이전 코드와 호환되도록 별칭 추가
   NORMAL = 0,
-  CRITICAL = 4
+  CRITICAL = 4,
+}
+
+/**
+ * GPU 작업 타입 열거형 (missing type 추가)
+ */
+export enum GpuTaskType {
+  MATRIX_MULTIPLICATION = 0,
+  TEXT_ANALYSIS = 1,
+  PATTERN_DETECTION = 2,
+  IMAGE_PROCESSING = 3,
+  DATA_AGGREGATION = 4,
+  TYPING_STATISTICS = 5,
+  CUSTOM = 6,
+}
+
+/**
+ * 시스템 상태 인터페이스 (missing type 추가)
+ */
+export interface SystemStatus {
+  memoryUsageLevel: MemoryUsageLevel;
+  cpuUsage: number;
+  memoryInfo: MemoryInfo;
+  processingMode: ProcessingMode;
+  timestamp: number;
+  optimizationCount: number;
+  lastOptimization?: number;
+}
+
+/**
+ * GPU 정보 인터페이스 (missing type 추가)
+ */
+export interface GpuInfo {
+  name: string;
+  vendor: string;
+  driverVersion: string;
+  memoryMB?: number;
+  available: boolean;
+}
+
+/**
+ * GPU 계산 결과 인터페이스 (missing type 추가)
+ */
+export interface GpuComputationResult {
+  success: boolean;
+  executionTime: number;
+  result?: any;
+  error?: string;
+}
+
+/**
+ * 작업 결과 인터페이스 (missing type 추가)
+ */
+export interface TaskResult {
+  success: boolean;
+  timestamp: number;
+  executionTime: number;
+  taskType: string;
+  error?: string;
+  data?: any;
+}
+
+/**
+ * 메모리 설정 인터페이스 (missing type 추가)
+ */
+export interface MemorySettings {
+  preferNativeImplementation: boolean;
+  enableAutomaticFallback: boolean;
+  enableAutomaticOptimization: boolean;
+  optimizationThreshold: number;
+  optimizationInterval: number;
+  aggressiveGC: boolean;
+  enableLogging: boolean;
+  enablePerformanceMetrics: boolean;
+  useHardwareAcceleration: boolean;
+  useMemoryPool: boolean;
+  fallbackRetryDelay: number;
+  poolCleanupInterval: number;
+  processingMode: string;
+  componentSpecificSettings: Record<string, any>;
 }
