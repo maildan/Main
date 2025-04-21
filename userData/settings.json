@@ -14,6 +14,6 @@
   "reduceMemoryInBackground": true,
   "enableMiniView": true,
   "useHardwareAcceleration": true,
-  "processingMode": "gpu-intensive",
-  "maxMemoryThreshold": 80
+  "processingMode": "cpu-intensive",
+  "maxMemoryThreshold": 100
 }

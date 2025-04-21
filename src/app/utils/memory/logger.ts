@@ -365,7 +365,6 @@ export async function getMemoryLogs(
   eventTypes?: MemoryEventType[]
 ): Promise<MemoryLogEntry[]> {
   // 시간 기준 필터링
-  const _now = Date.now(); // 사용하지 않는 변수에 _ 추가
   const filteredByTime = memoryLogs.filter((log: MemoryLogEntry) => {
     if (startTime && log.timestamp < startTime) return false;
     if (endTime && log.timestamp > endTime) return false;
