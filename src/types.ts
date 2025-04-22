@@ -3,11 +3,26 @@
 // 섹션 타입
 export type Section = "모니터링" | "히스토리" | "통계" | "설정";
 
+// 웹 애플리케이션 유형
+export enum WebAppType {
+  GoogleDocs = "GoogleDocs",
+  GoogleSheets = "GoogleSheets",
+  GoogleSlides = "GoogleSlides",
+  Notion = "Notion",
+  Trello = "Trello",
+  GitHub = "GitHub",
+  Gmail = "Gmail",
+  YouTube = "YouTube",
+  Other = "Other",
+  None = "None"
+}
+
 // 브라우저 정보 타입
 export interface BrowserInfo {
   name: string;
   process_id: number;
   window_title: string;
+  web_app: WebAppType; // 웹 애플리케이션 유형 필드 추가
 }
 
 // 브라우저 통계 타입

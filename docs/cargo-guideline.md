@@ -5,3 +5,4 @@
 5. 오류를 해결하거나 새로운 코드에 대한 요구사항을 이행한 후에는 애플리케이션의 작동여부를 확인하기 위하여 1번과 2번을 수행한다.
 옳은 예: cd src tauri -> cargo build, cd .. -> npm run tauri dev
 틀린 예: cd src tauri && cargo build, cd .. && npm run tauri dev
+6. tauri 코드를 생성할 때에는 Tauri V2 공식문서를 이용한다. (https://v2.tauri.app/start/)

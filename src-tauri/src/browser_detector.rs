@@ -6,11 +6,63 @@ use windows::{
 };
 use serde::Serialize;
 
+// 웹 애플리케이션 유형을 나타내는 열거형
+#[derive(Debug, Serialize, Clone, PartialEq)]
+pub enum WebAppType {
+    GoogleDocs,
+    GoogleSheets,
+    GoogleSlides,
+    Notion,
+    Trello,
+    GitHub,
+    Gmail,
+    YouTube,
+    Other,
+    None,
+}
+
+// 문자열을 WebAppType으로 변환하는 구현
+impl From<&str> for WebAppType {
+    fn from(s: &str) -> Self {
+        match s {
+            "GoogleDocs" => WebAppType::GoogleDocs,
+            "GoogleSheets" => WebAppType::GoogleSheets,
+            "GoogleSlides" => WebAppType::GoogleSlides,
+            "Notion" => WebAppType::Notion,
+            "Trello" => WebAppType::Trello,
+            "GitHub" => WebAppType::GitHub,
+            "Gmail" => WebAppType::Gmail,
+            "YouTube" => WebAppType::YouTube,
+            _ => WebAppType::Other,
+        }
+    }
+}
+
+// 문자열로 변환하는 Display 구현
+impl std::fmt::Display for WebAppType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
+            WebAppType::GoogleDocs => "Google Docs",
+            WebAppType::GoogleSheets => "Google Sheets",
+            WebAppType::GoogleSlides => "Google Slides",
+            WebAppType::Notion => "Notion",
+            WebAppType::Trello => "Trello",
+            WebAppType::GitHub => "GitHub",
+            WebAppType::Gmail => "Gmail",
+            WebAppType::YouTube => "YouTube",
+            WebAppType::Other => "Other",
+            WebAppType::None => "None",
+        };
+        write!(f, "{}", s)
+    }
+}
+
 #[derive(Debug, Serialize)]
 pub struct BrowserInfo {
     pub name: String,
     pub process_id: u32,
     pub window_title: String,
+    pub web_app: WebAppType, // 추가된 필드: 웹 애플리케이션 유형
 }
 
 // 알려진 브라우저 프로세스 이름 목록
@@ -22,6 +74,33 @@ const BROWSER_PROCESSES: [&str; 6] = [
     "brave.exe",
     "opera.exe",
 ];
+
+// 웹 애플리케이션 패턴 (창 제목 기반)
+const WEB_APP_PATTERNS: [(WebAppType, &[&str]); 8] = [
+    (WebAppType::GoogleDocs, &["Google Docs", "docs.google.com"]),
+    (WebAppType::GoogleSheets, &["Google Sheets", "sheets.google.com"]),
+    (WebAppType::GoogleSlides, &["Google Slides", "slides.google.com"]),
+    (WebAppType::Notion, &["Notion", "notion.so"]),
+    (WebAppType::Trello, &["Trello", "trello.com"]),
+    (WebAppType::GitHub, &["GitHub", "github.com"]),
+    (WebAppType::Gmail, &["Gmail", "mail.google.com"]),
+    (WebAppType::YouTube, &["YouTube", "youtube.com"]),
+];
+
+// 창 제목에서 웹 애플리케이션 유형 감지 함수
+fn detect_web_app_from_title(window_title: &str) -> WebAppType {
+    let lower_title = window_title.to_lowercase();
+    
+    for (app_type, patterns) in WEB_APP_PATTERNS.iter() {
+        for pattern in patterns.iter() {
+            if lower_title.contains(&pattern.to_lowercase()) {
+                return app_type.clone();
+            }
+        }
+    }
+    
+    WebAppType::None
+}
 
 // 외부에서 호출할 메인 함수
 pub fn detect_active_browsers() -> Vec<BrowserInfo> {
@@ -55,10 +134,14 @@ pub fn detect_active_browsers() -> Vec<BrowserInfo> {
                         _ => "Unknown Browser",
                     };
                     
+                    // 웹 애플리케이션 유형 감지
+                    let web_app = detect_web_app_from_title(&window_title);
+                    
                     active_browsers.push(BrowserInfo {
                         name: browser_name.to_string(),
                         process_id,
                         window_title,
+                        web_app,
                     });
                 }
             }
@@ -159,10 +242,14 @@ unsafe extern "system" fn enum_windows_proc(hwnd: HWND, lparam: LPARAM) -> BOOL 
                                 _ => "Unknown Browser",
                             };
                             
+                            // 웹 애플리케이션 유형 감지
+                            let web_app = detect_web_app_from_title(&window_title);
+                            
                             enum_data.push(BrowserInfo {
                                 name: browser_name.to_string(),
                                 process_id,
                                 window_title,
+                                web_app,
                             });
                         }
                     }

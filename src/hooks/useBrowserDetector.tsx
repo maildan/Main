@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { BrowserInfo } from '../types';
+import { BrowserInfo, WebAppType } from '../types';
 
 /**
  * 브라우저 감지 기능과 관련된 상태와 함수들을 제공하는 커스텀 훅
@@ -14,6 +14,7 @@ export function useBrowserDetector() {
   const [error, setError] = useState<string | null>(null);
   const [isAutoDetectionEnabled, setIsAutoDetectionEnabled] = useState<boolean>(false);
   const [detectionInterval, setDetectionInterval] = useState<number | null>(null);
+  const [activeWebApp, setActiveWebApp] = useState<WebAppType>(WebAppType.None);
 
   /**
    * 현재 활성화된 브라우저 감지
@@ -26,8 +27,9 @@ export function useBrowserDetector() {
       const browsers = await invoke<BrowserInfo[]>('detect_active_browsers');
       setActiveBrowsers(browsers || []);
       
-      // 브라우저 정보 로깅 (선택적)
+      // 활성화된 웹 애플리케이션 감지
       if (browsers && browsers.length > 0) {
+        setActiveWebApp(browsers[0].web_app);
         await invoke('log_browser_activity');
       }
     } catch (err) {
@@ -88,14 +90,53 @@ export function useBrowserDetector() {
     };
   }, [detectionInterval]);
 
+  /**
+   * 특정 웹 애플리케이션이 활성화되어 있는지 확인
+   */
+  const isWebAppActive = useCallback((appType: WebAppType): boolean => {
+    return activeWebApp === appType;
+  }, [activeWebApp]);
+
+  /**
+   * 현재 활성화된 웹 애플리케이션 이름 가져오기
+   */
+  const getActiveWebAppName = useCallback((): string => {
+    switch (activeWebApp) {
+      case WebAppType.GoogleDocs:
+        return "Google 문서";
+      case WebAppType.GoogleSheets:
+        return "Google 스프레드시트";
+      case WebAppType.GoogleSlides:
+        return "Google 프레젠테이션";
+      case WebAppType.Notion:
+        return "Notion";
+      case WebAppType.Trello:
+        return "Trello";
+      case WebAppType.GitHub:
+        return "GitHub";
+      case WebAppType.Gmail:
+        return "Gmail";
+      case WebAppType.YouTube:
+        return "YouTube";
+      case WebAppType.Other:
+        return "기타 웹사이트";
+      case WebAppType.None:
+      default:
+        return "없음";
+    }
+  }, [activeWebApp]);
+
   return {
     activeBrowsers,
     allBrowserWindows,
     isDetecting,
     error,
     isAutoDetectionEnabled,
+    activeWebApp,
     detectActiveBrowsers,
     findAllBrowserWindows,
-    toggleAutoDetection
+    toggleAutoDetection,
+    isWebAppActive,
+    getActiveWebAppName
   };
 }

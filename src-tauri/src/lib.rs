@@ -16,7 +16,7 @@ lazy_static! {
 }
 
 // 로그 저장 경로 상수 정의
-const LOG_DIRECTORY: &str = "c:\\Loop\\src-tauri\\logs";
+const LOG_DIRECTORY: &str = "c:\\Loop\\logs";
 
 #[derive(Serialize, Deserialize)]
 struct TypingData {
