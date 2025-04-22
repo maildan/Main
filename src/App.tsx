@@ -1,50 +1,98 @@
-import { useState, useEffect } from "react";
-import { invoke } from "@tauri-apps/api/core";
-import "./App.css";
+import { useState } from "react";
 
+// 훅 및 타입 임포트
+import { useTracking } from "./hooks/useTracking";
+import { Section } from "./types";
+
+// 컴포넌트 임포트
+import ErrorMessage from "./components/ErrorMessage";
+import TrackingControl from "./components/TrackingControl";
+import Navigation from "./components/Navigation";
+import SectionPanel from "./components/SectionPanel";
+import TypingInput from "./components/TypingInput";
+
+// CSS 임포트
+import "./styles/base.css";
+import "./styles/layout.css";
+import "./styles/navigation.css";
+import "./styles/tracking.css";
+import "./styles/sections.css";
+import "./styles/components.css";
+import "./styles/utils.css";
+import "./styles/monitoring.css";
+
+/**
+ * 메인 앱 컴포넌트
+ */
 function App() {
-  const [currentLine, setCurrentLine] = useState("");
+  // 트래킹 관련 기능을 훅으로 분리
+  const {
+    errorMessage,
+    setErrorMessage,
+    currentLine,
+    isComposing,
+    isTrackingEnabled,
+    inputRef,
+    toggleTracking,
+    handleKeyDown,
+    handleCompositionStart,
+    handleCompositionEnd,
+    handleInputChange
+  } = useTracking();
   
-  // useEffect를 사용하여 컴포넌트가 마운트될 때 이벤트 리스너 추가
-  useEffect(() => {
-    // 전역 이벤트 리스너 추가
-    const handleGlobalKeyPress = async (event: KeyboardEvent) => {
-      const pressedKey = event.key;
+  // 섹션 관련 상태
+  const [activeSection, setActiveSection] = useState<Section>("모니터링");
+  const sections: Section[] = ["모니터링", "히스토리", "통계", "설정"];
 
-      if (pressedKey === "Enter") {
-        // 현재 줄을 로그에 추가하고 문장을 Rust 백엔드로 보내어 터미널에 로그 출력
-        if (currentLine.trim()) {
-          await invoke("log_sentence", { sentence: currentLine });
-        }
-        setCurrentLine("");
-      } else if (pressedKey === " ") {
-        // 공백 추가
-        setCurrentLine((prev) => prev + " ");
-        await invoke("save_typing_data", { key: pressedKey });
-      } else if (pressedKey.length === 1 && /^[a-zA-Z0-9,;:.(){}[\]<>|\\\/+=\-_*&^%$#@!~?'"`]$/.test(pressedKey)) {
-        // 일반 키인 경우만 처리 (제어키, 기능키 제외)
-        // 큰따옴표("), 작은따옴표('), 슬래시(/), 물음표(?), 물결(~) 등의 문장 기호 포함
-        setCurrentLine((prev) => prev + pressedKey);
-        await invoke("save_typing_data", { key: pressedKey });
-      }
-    };
+  // 섹션 변경 핸들러
+  const handleSectionChange = (newSection: Section) => {
+    setActiveSection(newSection);
+  };
 
-    // 전역 document에 이벤트 리스너 추가
-    document.addEventListener("keydown", handleGlobalKeyPress);
-
-    // 컴포넌트 언마운트 시 이벤트 리스너 제거
-    return () => {
-      document.removeEventListener("keydown", handleGlobalKeyPress);
-    };
-  }, [currentLine]); // currentLine이 변경될 때마다 이벤트 리스너 업데이트
+  // 트래킹 비활성화 메시지인지 확인하는 함수
+  const isTrackingDisabledMessage = (message: string | null): boolean => {
+    return message === "키보드 트래킹이 비활성화되었습니다.";
+  };
 
   return (
-    <div className="App">
-      <h1>Typing App</h1>
-      <p>텍스트를 입력하세요. 엔터를 누르면 문장이 로그에 저장됩니다.</p>
+    <div className="app-layout">
+      {/* 에러 메시지 표시 */}
+      <ErrorMessage 
+        message={errorMessage} 
+        onClose={() => setErrorMessage(null)}
+        isError={isTrackingDisabledMessage(errorMessage)} // 트래킹 비활성화 시 isError를 true로 설정
+      />
       
-      <div className="typing-area">
-        <strong>현재 입력:</strong> {currentLine}
+      {/* 트래킹 컨트롤 */}
+      <TrackingControl 
+        isEnabled={isTrackingEnabled} 
+        onToggle={toggleTracking}
+      />
+      
+      {/* 네비게이션 메뉴 */}
+      <Navigation 
+        sections={sections} 
+        activeSection={activeSection} 
+        onSectionChange={handleSectionChange}
+      />
+      
+      <div className="app-content">
+        {/* 숨겨진 타이핑 입력 필드 */}
+        <TypingInput
+          currentLine={currentLine}
+          isEnabled={isTrackingEnabled}
+          isComposing={isComposing}
+          inputRef={inputRef}
+          onChange={handleInputChange}
+          onKeyDown={handleKeyDown}
+          onCompositionStart={handleCompositionStart}
+          onCompositionEnd={handleCompositionEnd}
+        />
+        
+        {/* 섹션 내용 표시 영역 */}
+        <div className="section-content" role="main">
+          <SectionPanel section={activeSection} />
+        </div>
       </div>
     </div>
   );

@@ -1,0 +1,265 @@
+/* 모니터링 섹션 스타일 */
+.monitoring-section {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  padding: 15px;
+  background-color: #fff;
+  width: 100%;
+}
+
+/* 섹션 헤더 스타일 */
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 5px;
+  padding-bottom: 5px;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.section-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #333;
+  margin: 0;
+}
+
+/* 모니터링 시작 버튼 (헤더 내) */
+.monitoring-start-btn {
+  padding: 6px 12px;
+  border-radius: 4px;
+  border: none;
+  background-color: #e6e6e6;
+  color: #333;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.monitoring-start-btn:hover {
+  background-color: #d9d9d9;
+}
+
+/* 모니터링 종료 버튼 */
+.monitoring-stop-btn {
+  padding: 6px 12px;
+  border-radius: 4px;
+  border: none;
+  background-color: #f8d7da;
+  color: #721c24;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.monitoring-stop-btn:hover {
+  background-color: #f5c6cb;
+}
+
+/* 모니터링 상태 컨테이너 */
+.monitoring-status-container {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+/* 모니터링 상태 표시 */
+.monitoring-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.status-indicator {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.status-indicator.active {
+  background-color: #4caf50;
+}
+
+.status-indicator.inactive {
+  background-color: #f44336;
+}
+
+.status-text {
+  font-size: 14px;
+  font-weight: 400;
+  color: #555;
+}
+
+/* 좌우 레이아웃 컨테이너 */
+.monitoring-content-container {
+  display: flex;
+  gap: 20px;
+}
+
+/* 왼쪽 칼럼 */
+.monitoring-left-column {
+  flex: 1;
+}
+
+/* 오른쪽 칼럼 */
+.monitoring-right-column {
+  flex: 1;
+  background-color: #f9f9f9;
+  border-radius: 4px;
+  padding: 15px;
+  min-height: 300px;
+}
+
+/* 모니터링 시작/종료 버튼 */
+.monitoring-toggle-btn {
+  padding: 4px 12px;
+  border-radius: 4px;
+  border: 1px solid #e0e0e0;
+  font-size: 13px;
+  font-weight: 400;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background-color: #f5f5f5;
+  color: #333;
+}
+
+.monitoring-toggle-btn.start:hover {
+  background-color: #e8f5e9;
+}
+
+.monitoring-toggle-btn.stop:hover {
+  background-color: #ffebee;
+}
+
+/* 브라우저 상태 감지 섹션 */
+.browser-detection {
+  padding: 12px;
+  background-color: #f9f9f9;
+  border-radius: 4px;
+  margin-bottom: 15px;
+}
+
+.detection-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #333;
+  margin-top: 0;
+  margin-bottom: 10px;
+}
+
+.detection-items {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.detection-item {
+  display: flex;
+  gap: 5px;
+  font-size: 13px;
+}
+
+.detection-label {
+  font-weight: 500;
+  color: #555;
+  width: 110px;
+}
+
+.detection-value {
+  font-weight: 400;
+  color: #333;
+}
+
+/* 바로가기 섹션 */
+.shortcuts-section {
+  margin-top: 15px;
+  background-color: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+}
+
+/* 탭 버튼 컨테이너 */
+.shortcut-buttons {
+  display: flex;
+  border-bottom: 1px solid #e0e0e0;
+  background-color: #f8f9fa;
+  padding: 0;
+  border-radius: 8px 8px 0 0;
+}
+
+/* 탭 버튼 */
+.shortcut-btn {
+  flex: 1;
+  padding: 12px 16px;
+  background: none;
+  border: none;
+  border-right: 1px solid #e0e0e0;
+  color: #666;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.shortcut-btn:last-child {
+  border-right: none;
+}
+
+.shortcut-btn:hover {
+  background-color: #f0f0f0;
+  color: #333;
+}
+
+.shortcut-btn.active {
+  background-color: #fff;
+  color: #1a73e8;
+  border-bottom: 2px solid #1a73e8;
+  margin-bottom: -1px;
+}
+
+/* 바로가기 컨텐츠 영역 */
+.shortcut-content {
+  padding: 20px;
+}
+
+/* 바로가기 그리드 */
+.shortcut-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+  padding: 0;
+  list-style: none;
+  margin: 0;
+}
+
+/* 바로가기 아이템 */
+.shortcut-item {
+  background-color: #f8f9fa;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  padding: 12px 16px;
+  font-size: 14px;
+  color: #333;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.shortcut-item:hover {
+  background-color: #f0f0f0;
+  border-color: #d0d0d0;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.shortcut-item:active {
+  transform: translateY(0);
+  box-shadow: none;
+}

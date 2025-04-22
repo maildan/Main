@@ -4,6 +4,19 @@ use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
 use chrono::Local;
 use tauri::AppHandle;
+use std::sync::atomic::{AtomicBool, Ordering};
+use lazy_static::lazy_static;
+
+// 브라우저 감지 모듈 추가
+pub mod browser_detector;
+
+// 키보드 트래킹 활성화 상태를 저장하는 전역 변수
+lazy_static! {
+    static ref TRACKING_ENABLED: AtomicBool = AtomicBool::new(false);
+}
+
+// 로그 저장 경로 상수 정의
+const LOG_DIRECTORY: &str = "c:\\Loop\\logs";
 
 #[derive(Serialize, Deserialize)]
 struct TypingData {
@@ -33,8 +46,108 @@ fn get_data_file_path(_app_handle: &AppHandle) -> PathBuf {
     path
 }
 
+// 로그 디렉토리 경로를 가져오는 함수
+fn get_log_directory() -> PathBuf {
+    let path = PathBuf::from(LOG_DIRECTORY);
+    
+    // 디렉토리가 없다면 생성
+    if !path.exists() {
+        std::fs::create_dir_all(&path).expect("Failed to create log directory");
+    }
+    
+    path
+}
+
+// 키보드 트래킹 활성화/비활성화
+#[tauri::command]
+fn set_tracking_enabled(enabled: bool) -> Result<bool, String> {
+    TRACKING_ENABLED.store(enabled, Ordering::SeqCst);
+    println!("트래킹 상태: {}", if enabled { "활성화" } else { "비활성화" });
+    Ok(enabled)
+}
+
+// 현재 트래킹 상태 확인
+#[tauri::command]
+fn get_tracking_status() -> bool {
+    TRACKING_ENABLED.load(Ordering::SeqCst)
+}
+
+// 현재 활성화된 브라우저 감지
+#[tauri::command]
+fn detect_active_browsers() -> Result<Vec<browser_detector::BrowserInfo>, String> {
+    let browsers = browser_detector::detect_active_browsers();
+    Ok(browsers)
+}
+
+// 모든 브라우저 창 찾기
+#[tauri::command]
+fn find_all_browser_windows() -> Result<Vec<browser_detector::BrowserInfo>, String> {
+    let browsers = browser_detector::find_all_browser_windows();
+    Ok(browsers)
+}
+
+// 브라우저와 현재 URL 정보 로깅
+#[tauri::command]
+fn log_browser_activity(_app_handle: AppHandle) -> Result<(), String> {
+    // 트래킹이 비활성화되어 있으면 저장하지 않음
+    if !TRACKING_ENABLED.load(Ordering::SeqCst) {
+        return Ok(());
+    }
+
+    let browsers = browser_detector::detect_active_browsers();
+    if !browsers.is_empty() {
+        // 첫 번째 감지된 브라우저 정보 사용
+        let browser = &browsers[0];
+        
+        // 브라우저 활동 로그 저장
+        let data = serde_json::json!({
+            "timestamp": Local::now().to_rfc3339(),
+            "browser_name": browser.name,
+            "window_title": browser.window_title,
+        });
+        
+        let mut log_path = get_log_directory();
+        log_path.push("browser_activity_logs.json");
+
+        // 기존 로그 파일이 있다면 읽기
+        let mut logs = Vec::new();
+        if log_path.exists() {
+            let mut file = OpenOptions::new()
+                .read(true)
+                .open(&log_path)
+                .map_err(|e| e.to_string())?;
+            let mut contents = String::new();
+            file.read_to_string(&mut contents).map_err(|e| e.to_string())?;
+            if !contents.is_empty() {
+                logs = serde_json::from_str(&contents).unwrap_or_else(|_| Vec::new());
+            }
+        }
+        
+        // 새 로그 추가
+        logs.push(data);
+        
+        // 로그를 파일에 저장
+        let mut file = OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(&log_path)
+            .map_err(|e| e.to_string())?;
+        
+        let json_string = serde_json::to_string_pretty(&logs).map_err(|e| e.to_string())?;
+        file.write_all(json_string.as_bytes()).map_err(|e| e.to_string())?;
+    }
+    
+    Ok(())
+}
+
 #[tauri::command]
 fn save_typing_data(app_handle: AppHandle, key: &str) -> Result<(), String> {
+    // 트래킹이 비활성화되어 있으면 저장하지 않음
+    if !TRACKING_ENABLED.load(Ordering::SeqCst) {
+        return Ok(());
+    }
+
     // 터미널에 로그 출력
     println!("Key pressed: {}", key);
     
@@ -70,8 +183,49 @@ fn save_typing_data(app_handle: AppHandle, key: &str) -> Result<(), String> {
 
 #[tauri::command]
 fn log_sentence(sentence: &str) -> Result<(), String> {
-    // 완성된 문장을 터미널에 출력
-    println!("Sentence: {}", sentence);
+    // 트래킹이 비활성화되어 있으면 저장하지 않음
+    if !TRACKING_ENABLED.load(Ordering::SeqCst) {
+        return Ok(());
+    }
+    
+    // 로그 파일 경로 설정
+    let mut log_path = get_log_directory();
+    log_path.push("sentence_logs.json");
+    
+    // 로그 데이터 생성
+    let log_entry = serde_json::json!({
+        "timestamp": Local::now().to_rfc3339(),
+        "sentence": sentence
+    });
+    
+    // 기존 로그 파일이 있다면 읽기
+    let mut logs = Vec::new();
+    if log_path.exists() {
+        let mut file = OpenOptions::new()
+            .read(true)
+            .open(&log_path)
+            .map_err(|e| e.to_string())?;
+        let mut contents = String::new();
+        file.read_to_string(&mut contents).map_err(|e| e.to_string())?;
+        if !contents.is_empty() {
+            logs = serde_json::from_str(&contents).unwrap_or_else(|_| Vec::new());
+        }
+    }
+    
+    // 새 로그 추가
+    logs.push(log_entry);
+    
+    // 로그를 파일에 저장
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .open(&log_path)
+        .map_err(|e| e.to_string())?;
+    
+    let json_string = serde_json::to_string_pretty(&logs).map_err(|e| e.to_string())?;
+    file.write_all(json_string.as_bytes()).map_err(|e| e.to_string())?;
+    
     Ok(())
 }
 
@@ -79,7 +233,17 @@ fn log_sentence(sentence: &str) -> Result<(), String> {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![greet, save_typing_data, log_sentence])
+        .invoke_handler(tauri::generate_handler![
+            greet, 
+            save_typing_data, 
+            log_sentence,
+            set_tracking_enabled,
+            get_tracking_status,
+            // 브라우저 감지 관련 함수들 추가
+            detect_active_browsers,
+            find_all_browser_windows,
+            log_browser_activity
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
