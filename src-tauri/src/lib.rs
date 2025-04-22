@@ -87,6 +87,13 @@ fn find_all_browser_windows() -> Result<Vec<browser_detector::BrowserInfo>, Stri
     Ok(browsers)
 }
 
+// 모든 애플리케이션 찾기
+#[tauri::command]
+fn find_all_applications() -> Result<Vec<browser_detector::BrowserInfo>, String> {
+    let applications = browser_detector::find_all_applications();
+    Ok(applications)
+}
+
 // 브라우저와 현재 URL 정보 로깅
 #[tauri::command]
 fn log_browser_activity(_app_handle: AppHandle) -> Result<(), String> {
@@ -414,7 +421,9 @@ pub fn run() {
             find_all_browser_windows,
             log_browser_activity,
             // 프로그램 실행 관련 함수 추가
-            launch_program
+            launch_program,
+            // 모든 애플리케이션 찾기 함수 추가
+            find_all_applications
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

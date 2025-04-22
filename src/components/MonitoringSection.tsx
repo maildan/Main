@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useBrowserDetector } from "../hooks/useBrowserDetector";
-import { BrowserInfo } from "../types";
+import { BrowserInfo, AppType } from "../types";
 import { invoke } from "@tauri-apps/api/core";
 
 /**
@@ -79,11 +79,14 @@ const MonitoringSection: React.FC = () => {
   // 브라우저 감지 훅 사용
   const {
     allBrowserWindows,
+    allApplications,
     error,
     isAutoDetectionEnabled,
     detectActiveBrowsers,
     findAllBrowserWindows,
-    toggleAutoDetection
+    findAllApplications,
+    toggleAutoDetection,
+    isAppRunning,
   } = useBrowserDetector();
   
   // 브라우저 이름 추출
@@ -137,6 +140,32 @@ const MonitoringSection: React.FC = () => {
       '인스타그램',
     ]
   };
+  
+  // 탭 콘텐츠에 맞는 앱 타입 매핑
+  const tabAppTypeMap = {
+    '문서': {
+      '구글 문서': AppType.GoogleDocs,
+      '구글 스프레드시트': AppType.GoogleSheets,
+      '구글 프레젠테이션': AppType.GoogleSlides,
+      'Notion': AppType.Notion
+    },
+    '오피스': {
+      '워드': AppType.MicrosoftWord,
+      '엑셀': AppType.MicrosoftExcel,
+      '파워포인트': AppType.MicrosoftPowerPoint,
+      '원노트': AppType.MicrosoftOneNote
+    },
+    '코딩': {
+      'VS Code': AppType.VSCode,
+      'Inteliji': AppType.IntelliJ,
+      'Eclipse': AppType.Eclipse
+    },
+    'SNS': {
+      '카카오톡': AppType.KakaoTalk,
+      '디스코드': AppType.Discord,
+      '인스타그램': AppType.Instagram
+    }
+  };
 
   // 모니터링 시작/종료 토글 함수
   const toggleMonitoring = () => {
@@ -148,6 +177,7 @@ const MonitoringSection: React.FC = () => {
         // 모니터링 시작 시 브라우저 감지 실행
         detectActiveBrowsers();
         findAllBrowserWindows();
+        findAllApplications(); // 모든 애플리케이션도 감지
         
         // 자동 감지 설정 (아직 활성화되지 않았다면)
         if (!isAutoDetectionEnabled) {
@@ -210,10 +240,10 @@ const MonitoringSection: React.FC = () => {
       <div className="monitoring-content-container">
         {/* 왼쪽 섹션 - 브라우저 상태 감지 및 바로가기 */}
         <div className="monitoring-left-column">
-          {/* 3. 브라우저 상태 감지 섹션 */}
+          {/* 3. 브라우저 및 애플리케이션 상태 감지 섹션 */}
           <div className="browser-detection">
             <div className="detection-header">
-              <h3 className="detection-title">브라우저 상태 감지</h3>
+              <h3 className="detection-title">애플리케이션 상태 감지</h3>
             </div>
             
             <div className="detection-items">
@@ -229,6 +259,30 @@ const MonitoringSection: React.FC = () => {
                 <span className="detection-label">현재 창 감지:</span>
                 <span className="detection-value">{currentWindow}</span>
               </div>
+              
+              {/* 실행 중인 애플리케이션 정보 표시 */}
+              <div className="detection-header">
+                <h4 className="detection-subtitle">실행 중인 바로가기 앱</h4>
+              </div>
+              {isMonitoringActive && allApplications.length > 0 ? (
+                <div className="app-running-list">
+                  {Object.entries(tabAppTypeMap).map(([category, apps]) => (
+                    Object.entries(apps).map(([appName, appType]) => 
+                      isAppRunning(appType as AppType) && (
+                        <div key={appName} className="detection-item app-running">
+                          <span className="app-indicator active"></span>
+                          <span className="app-name">{appName}</span>
+                          <span className="app-category">({category})</span>
+                        </div>
+                      )
+                    )
+                  ))}
+                </div>
+              ) : (
+                <div className="no-apps-running">
+                  {isMonitoringActive ? '감지된 바로가기 앱 없음' : '모니터링을 시작하세요'}
+                </div>
+              )}
             </div>
           </div>
           

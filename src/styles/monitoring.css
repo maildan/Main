@@ -183,6 +183,58 @@
   color: #333;
 }
 
+/* 실행 중인 애플리케이션 감지 스타일 */
+.detection-subtitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: #333;
+  margin-top: 10px;
+  margin-bottom: 8px;
+  border-top: 1px solid #eee;
+  padding-top: 10px;
+}
+
+.app-running-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.app-running {
+  display: flex;
+  align-items: center;
+  background-color: #f0f7ff;
+  padding: 6px 10px;
+  border-radius: 4px;
+}
+
+.app-indicator {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #4caf50;
+  margin-right: 8px;
+}
+
+.app-name {
+  font-weight: 500;
+  color: #333;
+  margin-right: 6px;
+}
+
+.app-category {
+  font-size: 11px;
+  color: #666;
+}
+
+.no-apps-running {
+  color: #777;
+  font-style: italic;
+  font-size: 12px;
+  padding: 8px 0;
+}
+
 /* 바로가기 섹션 */
 .shortcuts-section {
   margin-top: 15px;
