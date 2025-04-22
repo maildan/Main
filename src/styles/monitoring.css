@@ -6,6 +6,15 @@
   padding: 15px;
   background-color: #fff;
   width: 100%;
+  max-height: 80vh; /* 최대 높이 설정 */
+  overflow-y: auto; /* y축 스크롤 가능 */
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE and Edge */
+}
+
+/* Chrome, Safari, Opera에서 스크롤바 숨김 */
+.monitoring-section::-webkit-scrollbar {
+  display: none;
 }
 
 /* 섹션 헤더 스타일 */
@@ -262,4 +271,51 @@
 .shortcut-item:active {
   transform: translateY(0);
   box-shadow: none;
+}
+
+/* 바로가기 컨테이너 */
+.shortcut-container {
+  position: relative;
+  width: 100%;
+}
+
+/* 에러 팝업 스타일 */
+.error-popup {
+  position: absolute;
+  top: -40px;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: #f8d7da;
+  color: #721c24;
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  z-index: 100;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+  animation: fadeIn 0.3s ease-in-out;
+  max-width: 300px;
+  text-align: center;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translate(-50%, -10px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+
+/* 로딩 인디케이터 */
+.loading-indicator {
+  display: inline-block;
+  margin-left: 5px;
+  animation: loadingDots 1.5s infinite;
+}
+
+.shortcut-item.executing {
+  background-color: #e8f4f8;
+  pointer-events: none;
+}
+
+@keyframes loadingDots {
+  0%, 20% { content: "."; }
+  40% { content: ".."; }
+  60%, 100% { content: "..."; }
 }

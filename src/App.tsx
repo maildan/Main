@@ -55,7 +55,7 @@ function App() {
   };
 
   return (
-    <div className="app-layout">
+    <div className="app-layout scrollable-container">
       {/* 에러 메시지 표시 */}
       <ErrorMessage 
         message={errorMessage} 

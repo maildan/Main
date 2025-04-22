@@ -1,19 +1,71 @@
 import React, { useState, useEffect } from "react";
 import { useBrowserDetector } from "../hooks/useBrowserDetector";
 import { BrowserInfo } from "../types";
+import { invoke } from "@tauri-apps/api/core";
 
 /**
  * 바로가기 탭 아이템 컴포넌트
  */
 const TabContent: React.FC<{ title: string, items: string[] }> = ({ items }) => {
+  const [executingProgram, setExecutingProgram] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // 프로그램 실행 함수
+  const handleProgramLaunch = async (programName: string) => {
+    try {
+      // 이미 프로그램 실행 중이면 무시
+      if (executingProgram) {
+        return;
+      }
+
+      setExecutingProgram(programName);
+      setErrorMessage(null);
+
+      // 타임아웃 설정 (5초)
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error("실행 시간이 초과되었습니다.")), 5000);
+      });
+
+      // Rust 함수 호출 (타임아웃과 경쟁)
+      const invokePromise = invoke<string>("launch_program", { programName });
+      
+      // Promise.race로 먼저 완료되는 프로미스를 처리
+      const result = await Promise.race([invokePromise, timeoutPromise]);
+      console.log(result); // 성공 메시지 출력
+    } catch (error) {
+      console.error("프로그램 실행 오류:", error);
+      // 타임아웃이나 일반 오류 메시지 표시
+      const errorMsg = error instanceof Error 
+        ? error.message 
+        : String(error);
+      setErrorMessage(errorMsg);
+      setTimeout(() => setErrorMessage(null), 3000); // 3초 후 오류 메시지 제거
+    } finally {
+      setExecutingProgram(null);
+    }
+  };
+
   return (
-    <ul className="shortcut-list">
-      {items.map((item, index) => (
-        <li key={index} className="shortcut-item">
-          {item}
-        </li>
-      ))}
-    </ul>
+    <div className="shortcut-container">
+      {errorMessage && (
+        <div className="error-popup">
+          {errorMessage}
+        </div>
+      )}
+      
+      <ul className="shortcut-list">
+        {items.map((item, index) => (
+          <li 
+            key={index} 
+            className={`shortcut-item ${executingProgram === item ? 'executing' : ''}`}
+            onClick={() => handleProgramLaunch(item)}
+          >
+            {item}
+            {executingProgram === item && <span className="loading-indicator">...</span>}
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 };
 
@@ -22,7 +74,7 @@ const TabContent: React.FC<{ title: string, items: string[] }> = ({ items }) => 
  */
 const MonitoringSection: React.FC = () => {
   const [isMonitoringActive, setIsMonitoringActive] = useState(false);
-  const [activeTab, setActiveTab] = useState<'구글문서' | '오피스' | '코딩' | 'SNS'>('SNS');
+  const [activeTab, setActiveTab] = useState<'문서' | '오피스' | '코딩' | 'SNS'>('SNS');
   
   // 브라우저 감지 훅 사용
   const {
@@ -62,7 +114,7 @@ const MonitoringSection: React.FC = () => {
   
   // 탭 콘텐츠 데이터
   const tabContents = {
-    '구글문서': [
+    '문서': [
       '구글 문서',
       '구글 스프레드시트',
       '구글 프레젠테이션',
@@ -76,15 +128,13 @@ const MonitoringSection: React.FC = () => {
     ],
     '코딩': [
       'VS Code',
-      '파이참',
-      '이클립스',
-      '안드로이드 스튜디오'
+      'Inteliji',
+      'Eclipse',
     ],
     'SNS': [
       '카카오톡',
       '디스코드',
-      '슬랙',
-      '텔레그램'
+      '인스타그램',
     ]
   };
 
@@ -124,12 +174,12 @@ const MonitoringSection: React.FC = () => {
   }, [isAutoDetectionEnabled, toggleAutoDetection]);
 
   // 탭 변경 핸들러
-  const handleTabChange = (tab: '구글문서' | '오피스' | '코딩' | 'SNS') => {
+  const handleTabChange = (tab: '문서' | '오피스' | '코딩' | 'SNS') => {
     setActiveTab(tab);
   };
 
   return (
-    <div className="monitoring-section">
+    <div className="monitoring-section scrollable-container">
       {/* 1. 타이핑 모니터링 제목 */}
       <div className="section-header">
         <h2 className="section-title">타이핑 모니터링</h2>
@@ -189,9 +239,9 @@ const MonitoringSection: React.FC = () => {
                 <button 
                   key={tab}
                   className={`shortcut-btn ${activeTab === tab ? 'active' : ''}`}
-                  onClick={() => handleTabChange(tab as '구글문서' | '오피스' | '코딩' | 'SNS')}
+                  onClick={() => handleTabChange(tab as '문서' | '오피스' | '코딩' | 'SNS')}
                 >
-                  {tab === '구글문서' ? '구글 문서' : tab}
+                  {tab === '문서' ? '문서' : tab}
                 </button>
               ))}
             </div>

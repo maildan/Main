@@ -14,6 +14,13 @@
   padding: 24px;
   flex-grow: 1;
   overflow: hidden;
+  overflow-y: auto;
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE and Edge */
+}
+
+.section-panel::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Opera */
 }
 
 .section-header {
@@ -30,9 +37,10 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #333333;
+  color: #666;
   opacity: 0.7;
-  font-size: 1.4rem;
+  font-size: 16px;
+  height: 100%;
 }
 
 /* 설정 섹션 스타일 */

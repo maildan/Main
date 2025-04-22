@@ -1,6 +1,7 @@
 use std::fs::OpenOptions;
 use std::io::{Read, Write};
 use std::path::PathBuf;
+use std::process::Command;
 use serde::{Deserialize, Serialize};
 use chrono::Local;
 use tauri::AppHandle;
@@ -229,6 +230,175 @@ fn log_sentence(sentence: &str) -> Result<(), String> {
     Ok(())
 }
 
+// 프로그램 실행 함수
+#[tauri::command]
+fn launch_program(program_name: &str) -> Result<String, String> {
+    // 프로그램별 실행 정보 매핑
+    let program_info = match program_name {
+        "구글 문서" => ("browser", "https://docs.google.com"),
+        "구글 스프레드시트" => ("browser", "https://sheets.google.com"),
+        "구글 프레젠테이션" => ("browser", "https://slides.google.com"),
+        "Notion" => ("browser", "notion://"),
+        "인스타그램" => ("browser", "https://instagram.com"),
+        
+        "워드" => ("native", "WINWORD.EXE"),
+        "엑셀" => ("native", "EXCEL.EXE"), 
+        "파워포인트" => ("native", "POWERPNT.EXE"),
+        "원노트" => ("native", "ONENOTE.EXE"),
+        
+        "VS Code" => ("native", "code.exe"),
+        "Inteliji" => ("native", "idea64.exe"),
+        "Eclipse" => ("native", "eclipse.exe"),
+        
+        "카카오톡" => ("native", "KakaoTalk.exe"),
+        "디스코드" => ("native", "Discord.exe"),
+        
+        _ => return Err(format!("알 수 없는 프로그램: {}", program_name)),
+    };
+
+    match program_info.0 {
+        // 웹 URL은 브라우저로 열기
+        "browser" => {
+            if let Err(e) = open::that(program_info.1) {
+                return Err(format!("프로그램을 실행하지 못했습니다: {}", e));
+            }
+            return Ok(format!("{}를 웹 브라우저에서 열었습니다.", program_name));
+        },
+        // 네이티브 프로그램 실행
+        "native" => {
+            // 프로그램 설치 여부 및 전체 경로 확인
+            match find_program_path(program_info.1) {
+                Some(full_path) => {
+                    // 실행 파일이 있는 경우, 직접 실행
+                    match Command::new(full_path.clone()).spawn() {
+                        Ok(_) => Ok(format!("{}를 실행했습니다.", program_name)),
+                        Err(e) => {
+                            // 직접 실행 실패 시 cmd로 시도
+                            match Command::new("cmd").args(&["/C", "start", "", &full_path]).spawn() {
+                                Ok(_) => Ok(format!("{}를 실행했습니다.", program_name)),
+                                Err(_) => Err(format!("프로그램 실행 중 오류가 발생했습니다: {}", e)),
+                            }
+                        }
+                    }
+                },
+                None => Err(format!("{}가 설치되어 있지 않습니다.", program_name)),
+            }
+        },
+        _ => Err(format!("프로그램 유형 오류: {}", program_name)),
+    }
+}
+
+// 프로그램 전체 경로 찾기 함수
+fn find_program_path(program_name: &str) -> Option<String> {
+    // 1. where 명령어로 위치 찾기
+    if let Ok(output) = Command::new("cmd").args(&["/C", &format!("where {}", program_name)]).output() {
+        if output.status.success() {
+            if let Ok(stdout) = String::from_utf8(output.stdout) {
+                let lines: Vec<&str> = stdout.lines().collect();
+                if !lines.is_empty() {
+                    return Some(lines[0].trim().to_string());
+                }
+            }
+        }
+    }
+    
+    // 2. 일반적인 경로에서 검색
+    let common_paths = match program_name.to_lowercase().as_str() {
+        "code.exe" => vec![
+            "C:\\Program Files\\Microsoft VS Code\\bin\\code.exe",
+            "C:\\Program Files\\Microsoft VS Code\\Code.exe",
+            "C:\\Users\\%USERNAME%\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe",
+            "C:\\Users\\%USERNAME%\\AppData\\Local\\Programs\\Microsoft VS Code\\bin\\code.exe"
+        ],
+        "kakaotalk.exe" => vec![
+            "C:\\Program Files (x86)\\Kakao\\KakaoTalk\\KakaoTalk.exe",
+            "C:\\Program Files\\Kakao\\KakaoTalk\\KakaoTalk.exe",
+            "C:\\Users\\%USERNAME%\\AppData\\Local\\Kakao\\KakaoTalk\\KakaoTalk.exe"
+        ],
+        "discord.exe" => vec![
+            "C:\\Program Files\\Discord\\Discord.exe",
+            "C:\\Users\\%USERNAME%\\AppData\\Local\\Discord\\app-*\\Discord.exe",
+            "C:\\Users\\%USERNAME%\\AppData\\Local\\Discord\\Update.exe"
+        ],
+        "winword.exe" => vec![
+            "C:\\Program Files\\Microsoft Office\\root\\Office16\\WINWORD.EXE",
+            "C:\\Program Files (x86)\\Microsoft Office\\root\\Office16\\WINWORD.EXE",
+            "C:\\Program Files\\Microsoft Office\\Office16\\WINWORD.EXE"
+        ],
+        "excel.exe" => vec![
+            "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE",
+            "C:\\Program Files (x86)\\Microsoft Office\\root\\Office16\\EXCEL.EXE",
+            "C:\\Program Files\\Microsoft Office\\Office16\\EXCEL.EXE"
+        ],
+        "powerpnt.exe" => vec![
+            "C:\\Program Files\\Microsoft Office\\root\\Office16\\POWERPNT.EXE",
+            "C:\\Program Files (x86)\\Microsoft Office\\root\\Office16\\POWERPNT.EXE",
+            "C:\\Program Files\\Microsoft Office\\Office16\\POWERPNT.EXE"
+        ],
+        "onenote.exe" => vec![
+            "C:\\Program Files\\Microsoft Office\\root\\Office16\\ONENOTE.EXE",
+            "C:\\Program Files (x86)\\Microsoft Office\\root\\Office16\\ONENOTE.EXE",
+            "C:\\Program Files\\Microsoft Office\\Office16\\ONENOTE.EXE"
+        ],
+        "idea64.exe" => vec![
+            "C:\\Program Files\\JetBrains\\IntelliJ IDEA*\\bin\\idea64.exe"
+        ],
+        "eclipse.exe" => vec![
+            "C:\\Eclipse\\eclipse.exe",
+            "C:\\Program Files\\Eclipse\\eclipse.exe"
+        ],
+        _ => Vec::new(),
+    };
+
+    // USERNAME 환경 변수 가져오기
+    if let Ok(username) = std::env::var("USERNAME") {
+        for path_template in common_paths {
+            let path_str = path_template.replace("%USERNAME%", &username);
+            
+            // 와일드카드가 포함된 경로 처리
+            if path_str.contains('*') {
+                let parts: Vec<&str> = path_str.split('*').collect();
+                let prefix = parts[0];
+                let prefix_dir = std::path::Path::new(prefix);
+                
+                if !prefix_dir.exists() || !prefix_dir.is_dir() {
+                    continue;
+                }
+                
+                if let Ok(entries) = std::fs::read_dir(prefix_dir) {
+                    for entry in entries.filter_map(Result::ok) {
+                        if entry.path().is_dir() {
+                            let potential_path = if parts.len() > 1 {
+                                entry.path().join(parts[1])
+                            } else {
+                                entry.path()
+                            };
+                            
+                            if potential_path.exists() {
+                                return Some(potential_path.to_string_lossy().to_string());
+                            }
+                        }
+                    }
+                }
+            } else if std::path::Path::new(&path_str).exists() {
+                return Some(path_str);
+            }
+        }
+    }
+    
+    // 3. PATH 환경 변수에서 검색
+    if let Ok(path_var) = std::env::var("PATH") {
+        for path in std::env::split_paths(&path_var) {
+            let full_path = path.join(program_name);
+            if full_path.exists() {
+                return Some(full_path.to_string_lossy().to_string());
+            }
+        }
+    }
+
+    None
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -242,7 +412,9 @@ pub fn run() {
             // 브라우저 감지 관련 함수들 추가
             detect_active_browsers,
             find_all_browser_windows,
-            log_browser_activity
+            log_browser_activity,
+            // 프로그램 실행 관련 함수 추가
+            launch_program
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
