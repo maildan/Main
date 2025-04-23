@@ -31,8 +31,6 @@ export enum AppType {
   // SNS 애플리케이션
   KakaoTalk = "KakaoTalk",
   Discord = "Discord",
-  Slack = "Slack",
-  Telegram = "Telegram",
   
   // 기타
   Other = "Other",
@@ -80,6 +78,10 @@ export interface NavigationProps {
 // 섹션 패널 관련 prop 타입
 export interface SectionPanelProps {
   section: Section;
+  // 모니터링 관련 속성 추가
+  isMonitoringActive?: boolean;
+  toggleMonitoring?: () => void;
+  browserDetector?: any;
 }
 
 // 타이핑 입력 관련 prop 타입

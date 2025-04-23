@@ -5,12 +5,21 @@ import MonitoringSection from "./MonitoringSection";
 /**
  * 각 섹션의 내용을 표시하는 컴포넌트
  */
-const SectionPanel: React.FC<SectionPanelProps> = ({ section }) => {
+const SectionPanel: React.FC<SectionPanelProps> = ({ 
+  section, 
+  isMonitoringActive,
+  toggleMonitoring,
+  browserDetector
+}) => {
   // 현재 선택된 섹션에 따라 다른 컴포넌트 렌더링
   const renderSection = () => {
     switch (section) {
       case "모니터링":
-        return <MonitoringSection />;
+        return <MonitoringSection 
+          isMonitoringActive={isMonitoringActive} 
+          toggleMonitoring={toggleMonitoring}
+          browserDetector={browserDetector}
+        />;
       default:
         return (
           <div className="empty-content">

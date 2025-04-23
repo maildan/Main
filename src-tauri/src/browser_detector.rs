@@ -35,8 +35,6 @@ pub enum AppType {
     // SNS 애플리케이션
     KakaoTalk,
     Discord,
-    Slack,
-    Telegram,
     
     // 기타
     Other,
@@ -72,8 +70,6 @@ impl From<&str> for AppType {
             // SNS 애플리케이션
             "KakaoTalk" => AppType::KakaoTalk,
             "Discord" => AppType::Discord,
-            "Slack" => AppType::Slack,
-            "Telegram" => AppType::Telegram,
             
             _ => AppType::Other,
         }
@@ -103,8 +99,6 @@ impl std::fmt::Display for AppType {
             AppType::AndroidStudio => "Android Studio",
             AppType::KakaoTalk => "KakaoTalk",
             AppType::Discord => "Discord",
-            AppType::Slack => "Slack",
-            AppType::Telegram => "Telegram",
             AppType::Other => "Other",
             AppType::None => "None",
         };

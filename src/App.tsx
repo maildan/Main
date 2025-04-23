@@ -2,6 +2,7 @@ import { useState } from "react";
 
 // 훅 및 타입 임포트
 import { useTracking } from "./hooks/useTracking";
+import { useBrowserDetector } from "./hooks/useBrowserDetector";
 import { Section } from "./types";
 
 // 컴포넌트 임포트
@@ -40,9 +41,37 @@ function App() {
     handleInputChange
   } = useTracking();
   
+  // 브라우저 감지 기능 훅
+  const browserDetector = useBrowserDetector();
+  
+  // 모니터링 활성화 상태를 앱 수준으로 관리
+  const [isMonitoringActive, setIsMonitoringActive] = useState(false);
+  
   // 섹션 관련 상태
   const [activeSection, setActiveSection] = useState<Section>("모니터링");
   const sections: Section[] = ["모니터링", "히스토리", "통계", "설정"];
+
+  // 모니터링 토글 함수
+  const toggleMonitoring = () => {
+    const newState = !isMonitoringActive;
+    
+    if (newState) {
+      // 모니터링 시작 시 브라우저 감지 실행
+      browserDetector.detectActiveBrowsers();
+      browserDetector.findAllBrowserWindows();
+      browserDetector.findAllApplications();
+      
+      // 자동 감지 설정
+      if (!browserDetector.isAutoDetectionEnabled) {
+        browserDetector.toggleAutoDetection();
+      }
+    } else if (!newState && browserDetector.isAutoDetectionEnabled) {
+      // 모니터링 종료 시 자동 감지 중단
+      browserDetector.toggleAutoDetection();
+    }
+    
+    setIsMonitoringActive(newState);
+  };
 
   // 섹션 변경 핸들러
   const handleSectionChange = (newSection: Section) => {
@@ -91,7 +120,12 @@ function App() {
         
         {/* 섹션 내용 표시 영역 */}
         <div className="section-content" role="main">
-          <SectionPanel section={activeSection} />
+          <SectionPanel 
+            section={activeSection} 
+            isMonitoringActive={isMonitoringActive}
+            toggleMonitoring={toggleMonitoring}
+            browserDetector={browserDetector}
+          />
         </div>
       </div>
     </div>

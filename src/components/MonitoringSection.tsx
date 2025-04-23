@@ -1,5 +1,4 @@
-import React, { useState, useEffect } from "react";
-import { useBrowserDetector } from "../hooks/useBrowserDetector";
+import React, { useState } from "react";
 import { BrowserInfo, AppType } from "../types";
 import { invoke } from "@tauri-apps/api/core";
 
@@ -69,25 +68,30 @@ const TabContent: React.FC<{ title: string, items: string[] }> = ({ items }) => 
   );
 };
 
+// 모니터링 섹션 컴포넌트 props 타입 정의
+interface MonitoringSectionProps {
+  isMonitoringActive?: boolean;
+  toggleMonitoring?: () => void;
+  browserDetector?: any;
+}
+
 /**
  * 모니터링 섹션 컴포넌트
  */
-const MonitoringSection: React.FC = () => {
-  const [isMonitoringActive, setIsMonitoringActive] = useState(false);
+const MonitoringSection: React.FC<MonitoringSectionProps> = ({ 
+  isMonitoringActive = false,
+  toggleMonitoring,
+  browserDetector
+}) => {
   const [activeTab, setActiveTab] = useState<'문서' | '오피스' | '코딩' | 'SNS'>('SNS');
   
-  // 브라우저 감지 훅 사용
+  // 상위 컴포넌트에서 전달받은 브라우저 감지 훅 사용
   const {
     allBrowserWindows,
     allApplications,
     error,
-    isAutoDetectionEnabled,
-    detectActiveBrowsers,
-    findAllBrowserWindows,
-    findAllApplications,
-    toggleAutoDetection,
     isAppRunning,
-  } = useBrowserDetector();
+  } = browserDetector || {};
   
   // 브라우저 이름 추출
   const getBrowserNameFromWindowTitle = (windowTitle: string) => {
@@ -101,7 +105,7 @@ const MonitoringSection: React.FC = () => {
   
   // 브라우저 이름 추출
   const extractBrowserName = (allWindows: BrowserInfo[]) => {
-    if (allWindows.length > 0 && isMonitoringActive) {
+    if (allWindows && allWindows.length > 0 && isMonitoringActive) {
       const firstWindow = allWindows[0];
       return firstWindow.name || getBrowserNameFromWindowTitle(firstWindow.window_title);
     }
@@ -109,9 +113,11 @@ const MonitoringSection: React.FC = () => {
   };
 
   // 현재 감지된 브라우저 정보
-  const currentBrowser = extractBrowserName(allBrowserWindows);
-  const currentWindow = allBrowserWindows.length > 0 && isMonitoringActive ? allBrowserWindows[0].window_title : "감지된 탭 없음";
-  const isGoogleDocDetected = allBrowserWindows.length > 0 && isMonitoringActive && 
+  const currentBrowser = extractBrowserName(allBrowserWindows || []);
+  const currentWindow = allBrowserWindows && allBrowserWindows.length > 0 && isMonitoringActive 
+    ? allBrowserWindows[0].window_title 
+    : "감지된 탭 없음";
+  const isGoogleDocDetected = allBrowserWindows && allBrowserWindows.length > 0 && isMonitoringActive && 
     (allBrowserWindows[0].window_title.includes("Google Docs") || 
      allBrowserWindows[0].window_title.includes("구글 문서"));
   
@@ -167,45 +173,16 @@ const MonitoringSection: React.FC = () => {
     }
   };
 
-  // 모니터링 시작/종료 토글 함수
-  const toggleMonitoring = () => {
-    setIsMonitoringActive(prev => {
-      const newState = !prev;
-      
-      // 모니터링 상태에 따라 브라우저 감지 설정
-      if (newState) {
-        // 모니터링 시작 시 브라우저 감지 실행
-        detectActiveBrowsers();
-        findAllBrowserWindows();
-        findAllApplications(); // 모든 애플리케이션도 감지
-        
-        // 자동 감지 설정 (아직 활성화되지 않았다면)
-        if (!isAutoDetectionEnabled) {
-          toggleAutoDetection();
-        }
-      } else if (!newState && isAutoDetectionEnabled) {
-        // 모니터링 종료 시 자동 감지 중단
-        toggleAutoDetection();
-      }
-      
-      return newState;
-    });
-  };
-
-  // 처음 마운트될 때 브라우저 정보 가져오는 코드 제거
-  // 모니터링 버튼 활성화 시에만 감지하도록 변경
-  useEffect(() => {
-    // 컴포넌트가 언마운트될 때 자동 감지 중단
-    return () => {
-      if (isAutoDetectionEnabled) {
-        toggleAutoDetection();
-      }
-    };
-  }, [isAutoDetectionEnabled, toggleAutoDetection]);
-
   // 탭 변경 핸들러
   const handleTabChange = (tab: '문서' | '오피스' | '코딩' | 'SNS') => {
     setActiveTab(tab);
+  };
+
+  // 로컬에서 정의된 함수가 아닌 prop으로 전달받은 함수 사용
+  const handleToggleMonitoring = () => {
+    if (toggleMonitoring) {
+      toggleMonitoring();
+    }
   };
 
   return (
@@ -215,7 +192,7 @@ const MonitoringSection: React.FC = () => {
         <h2 className="section-title">타이핑 모니터링</h2>
         <button 
           className={isMonitoringActive ? "monitoring-stop-btn" : "monitoring-start-btn"}
-          onClick={toggleMonitoring}
+          onClick={handleToggleMonitoring}
         >
           {isMonitoringActive ? '모니터링 종료' : '모니터링 시작'}
         </button>
@@ -264,11 +241,11 @@ const MonitoringSection: React.FC = () => {
               <div className="detection-header">
                 <h4 className="detection-subtitle">실행 중인 바로가기 앱</h4>
               </div>
-              {isMonitoringActive && allApplications.length > 0 ? (
+              {isMonitoringActive && allApplications && allApplications.length > 0 ? (
                 <div className="app-running-list">
                   {Object.entries(tabAppTypeMap).map(([category, apps]) => (
                     Object.entries(apps).map(([appName, appType]) => 
-                      isAppRunning(appType as AppType) && (
+                      isAppRunning && isAppRunning(appType as AppType) && (
                         <div key={appName} className="detection-item app-running">
                           <span className="app-indicator active"></span>
                           <span className="app-name">{appName}</span>
