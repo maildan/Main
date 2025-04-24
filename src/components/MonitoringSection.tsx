@@ -114,9 +114,6 @@ const MonitoringSection: React.FC<MonitoringSectionProps> = ({
 
   // 현재 감지된 브라우저 정보
   const currentBrowser = extractBrowserName(allBrowserWindows || []);
-  const currentWindow = allBrowserWindows && allBrowserWindows.length > 0 && isMonitoringActive 
-    ? allBrowserWindows[0].window_title 
-    : "감지된 탭 없음";
   const isGoogleDocDetected = allBrowserWindows && allBrowserWindows.length > 0 && isMonitoringActive && 
     (allBrowserWindows[0].window_title.includes("Google Docs") || 
      allBrowserWindows[0].window_title.includes("구글 문서"));
@@ -234,7 +231,23 @@ const MonitoringSection: React.FC<MonitoringSectionProps> = ({
               </div>
               <div className="detection-item">
                 <span className="detection-label">현재 창 감지:</span>
-                <span className="detection-value">{currentWindow}</span>
+                <span className="detection-value">
+                  {isMonitoringActive && browserDetector?.currentActiveApplication ? (
+                    <>
+                      <strong>{browserDetector.currentActiveApplication.name}</strong>
+                      {browserDetector.currentActiveApplication.window_title && (
+                        <>
+                          {" - "}
+                          <span className="window-title">
+                            {browserDetector.currentActiveApplication.window_title}
+                          </span>
+                        </>
+                      )}
+                    </>
+                  ) : (
+                    "감지된 창 없음"
+                  )}
+                </span>
               </div>
               
               {/* 실행 중인 애플리케이션 정보 표시 */}

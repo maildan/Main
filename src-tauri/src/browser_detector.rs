@@ -1,3 +1,6 @@
+use std::collections::HashMap;
+use std::sync::Mutex;
+use once_cell::sync::Lazy;
 use windows::{
     core::PWSTR,
     Win32::Foundation::*,
@@ -5,6 +8,26 @@ use windows::{
     Win32::UI::WindowsAndMessaging::*,
 };
 use serde::Serialize;
+
+// 프로세스 정보 캐시 - 성능 향상을 위해 한번 조회한 프로세스 정보를 저장
+static PROCESS_CACHE: Lazy<Mutex<HashMap<u32, ProcessInfo>>> = Lazy::new(|| {
+    Mutex::new(HashMap::new())
+});
+
+// 캐시를 주기적으로 초기화 (오래된 프로세스 정보 제거)
+#[allow(dead_code)]
+fn maybe_clear_cache() {
+    static COUNTER: Lazy<Mutex<u32>> = Lazy::new(|| Mutex::new(0));
+    
+    let mut counter = COUNTER.lock().unwrap();
+    *counter += 1;
+    
+    // 100회 호출마다 캐시 초기화 (임의 값이며 필요에 따라 조정 가능)
+    if *counter >= 100 {
+        *counter = 0;
+        PROCESS_CACHE.lock().unwrap().clear();
+    }
+}
 
 // 애플리케이션 유형을 나타내는 열거형 (웹앱 + 바로가기 앱 모두 포함)
 #[derive(Debug, Serialize, Clone, PartialEq)]
@@ -227,12 +250,23 @@ pub fn detect_active_browsers() -> Vec<BrowserInfo> {
 }
 
 // 프로세스 정보를 가져오는 함수
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct ProcessInfo {
     name: String,
 }
 
 fn get_process_info(process_id: u32) -> Option<ProcessInfo> {
+    // 주기적으로 캐시 초기화 확인
+    maybe_clear_cache();
+    
+    // 캐시에서 프로세스 정보 조회
+    {
+        let cache = PROCESS_CACHE.lock().unwrap();
+        if let Some(info) = cache.get(&process_id) {
+            return Some(info.clone());
+        }
+    }
+    
     unsafe {
         // 프로세스 핸들 열기
         let process_handle = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, false, process_id);
@@ -245,8 +279,13 @@ fn get_process_info(process_id: u32) -> Option<ProcessInfo> {
                 // UTF-16 버퍼를 문자열로 변환
                 let path = String::from_utf16_lossy(&buffer[..size as usize]);
                 
+                let info = ProcessInfo { name: path };
+                
+                // 캐시에 프로세스 정보 저장
+                PROCESS_CACHE.lock().unwrap().insert(process_id, info.clone());
+                
                 CloseHandle(process_handle);
-                return Some(ProcessInfo { name: path });
+                return Some(info);
             }
             CloseHandle(process_handle);
         }
@@ -396,15 +435,7 @@ unsafe extern "system" fn enum_all_apps_proc(hwnd: HWND, lparam: LPARAM) -> BOOL
                                     AppType::Eclipse => "Eclipse IDE",
                                     AppType::KakaoTalk => "KakaoTalk",
                                     AppType::Discord => "Discord",
-                                    _ => {
-                                        // 브라우저인 경우
-                                        if app_process == &"chrome.exe" { "Google Chrome" }
-                                        else if app_process == &"firefox.exe" { "Mozilla Firefox" }
-                                        else if app_process == &"msedge.exe" { "Microsoft Edge" }
-                                        else if app_process == &"brave.exe" { "Brave Browser" }
-                                        else if app_process == &"opera.exe" { "Opera Browser" }
-                                        else { "Unknown Application" }
-                                    }
+                                    _ => "Unknown Application",
                                 };
                                 
                                 break;
@@ -429,4 +460,88 @@ unsafe extern "system" fn enum_all_apps_proc(hwnd: HWND, lparam: LPARAM) -> BOOL
     }
     
     TRUE // 열거 계속
+}
+
+// 현재 활성화되어 있는 애플리케이션을 감지하는 함수 (브라우저 + 모든 앱)
+pub fn detect_active_application() -> Option<BrowserInfo> {
+    // 현재 포그라운드(foreground) 창의 핸들 가져오기
+    let foreground_window = unsafe { GetForegroundWindow() };
+    
+    // 활성화된 창이 없으면 None 반환
+    if foreground_window.0 == 0 {
+        return None;
+    }
+    
+    // 활성화된 창의 프로세스 ID 가져오기
+    let mut process_id = 0;
+    unsafe { GetWindowThreadProcessId(foreground_window, Some(&mut process_id)) };
+    
+    if process_id > 0 {
+        // 프로세스 정보 가져오기
+        if let Some(process_info) = get_process_info(process_id) {
+            // 프로세스 이름 확인
+            if let Some(process_name) = process_info.name.to_lowercase().split('\\').last() {
+                // Loop 앱 자체는 제외 (Loop.exe 또는 이와 유사한 이름)
+                if process_name.contains("loop.exe") {
+                    return None;
+                }
+                
+                // 창 제목 가져오기
+                let window_title = get_window_title(foreground_window);
+                
+                // 앱 타입과 이름 결정
+                let mut app_type = AppType::Other;
+                let mut app_name = "Unknown Application";
+                
+                // 브라우저인지 확인
+                if BROWSER_PROCESSES.iter().any(|&browser| process_name.contains(browser)) {
+                    // 브라우저 이름 결정
+                    app_name = match process_name {
+                        name if name.contains("chrome") => "Google Chrome",
+                        name if name.contains("firefox") => "Mozilla Firefox",
+                        name if name.contains("msedge") => "Microsoft Edge",
+                        name if name.contains("iexplore") => "Internet Explorer",
+                        name if name.contains("brave") => "Brave Browser",
+                        name if name.contains("opera") => "Opera Browser",
+                        _ => "Unknown Browser",
+                    };
+                    
+                    // 웹 애플리케이션 타입 감지 (구글 문서, Notion 등)
+                    app_type = detect_web_app_from_title(&window_title);
+                } else {
+                    // 알려진 애플리케이션인지 확인
+                    for (app_process, app_type_enum) in APP_PROCESSES.iter() {
+                        if process_name.contains(app_process) {
+                            app_type = app_type_enum.clone();
+                            
+                            // 앱 이름 설정
+                            app_name = match app_type {
+                                AppType::MicrosoftWord => "Microsoft Word",
+                                AppType::MicrosoftExcel => "Microsoft Excel",
+                                AppType::MicrosoftPowerPoint => "Microsoft PowerPoint",
+                                AppType::MicrosoftOneNote => "Microsoft OneNote",
+                                AppType::VSCode => "Visual Studio Code",
+                                AppType::IntelliJ => "IntelliJ IDEA",
+                                AppType::Eclipse => "Eclipse IDE",
+                                AppType::KakaoTalk => "KakaoTalk",
+                                AppType::Discord => "Discord",
+                                _ => "Unknown Application",
+                            };
+                            
+                            break;
+                        }
+                    }
+                }
+                
+                return Some(BrowserInfo {
+                    name: app_name.to_string(),
+                    process_id,
+                    window_title,
+                    web_app: app_type,
+                });
+            }
+        }
+    }
+    
+    None
 }

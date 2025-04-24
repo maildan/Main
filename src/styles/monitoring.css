@@ -371,3 +371,54 @@
   40% { content: ".."; }
   60%, 100% { content: "..."; }
 }
+
+.window-title {
+  font-style: italic;
+  opacity: 0.9;
+  max-width: 250px;
+  display: inline-block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: bottom;
+}
+
+/* 활성화된 앱 하이라이트 */
+.active-application {
+  background-color: #e8f5e9;
+  border-left: 3px solid #4caf50;
+  padding: 8px 12px;
+  margin-bottom: 8px;
+  border-radius: 4px;
+  transition: all 0.3s ease;
+}
+
+/* 앱 아이콘 스타일 */
+.app-icon {
+  margin-right: 8px;
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #eee;
+  border-radius: 3px;
+  font-size: 10px;
+}
+
+/* 강조 텍스트 애니메이션 */
+@keyframes highlightPulse {
+  0% { background-color: #f0f7ff; }
+  50% { background-color: #e3f2fd; }
+  100% { background-color: #f0f7ff; }
+}
+
+.highlight-pulse {
+  animation: highlightPulse 2s ease-in-out infinite;
+}
+
+/* 최근 포커싱된 애플리케이션 표시 */
+.current-focused-app {
+  font-weight: 600;
+  color: #2e7d32;
+}

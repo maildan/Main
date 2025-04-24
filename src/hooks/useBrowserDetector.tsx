@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { BrowserInfo, AppType } from '../types';
 
@@ -16,15 +16,19 @@ export function useBrowserDetector() {
   const [isAutoDetectionEnabled, setIsAutoDetectionEnabled] = useState<boolean>(false);
   const [detectionInterval, setDetectionInterval] = useState<number | null>(null);
   const [activeApp, setActiveApp] = useState<AppType>(AppType.None);
+  
+  // 현재 활성화된 애플리케이션 (브라우저 + 바로가기 앱)
+  const [currentActiveApplication, setCurrentActiveApplication] = useState<BrowserInfo | null>(null);
+  
+  // 성능 최적화를 위한 마지막 감지 시간 참조
+  const lastDetectionRef = useRef<number>(0);
+  const isProcessingRef = useRef<boolean>(false);
 
   /**
    * 현재 활성화된 브라우저 감지
    */
   const detectActiveBrowsers = useCallback(async () => {
     try {
-      setIsDetecting(true);
-      setError(null);
-      
       const browsers = await invoke<BrowserInfo[]>('detect_active_browsers');
       setActiveBrowsers(browsers || []);
       
@@ -33,11 +37,11 @@ export function useBrowserDetector() {
         setActiveApp(browsers[0].web_app);
         await invoke('log_browser_activity');
       }
+      return browsers;
     } catch (err) {
       console.error('브라우저 감지 중 오류 발생:', err);
       setError('브라우저 감지에 실패했습니다.');
-    } finally {
-      setIsDetecting(false);
+      return [];
     }
   }, []);
 
@@ -46,16 +50,13 @@ export function useBrowserDetector() {
    */
   const findAllBrowserWindows = useCallback(async () => {
     try {
-      setIsDetecting(true);
-      setError(null);
-      
       const browsers = await invoke<BrowserInfo[]>('find_all_browser_windows');
       setAllBrowserWindows(browsers || []);
+      return browsers;
     } catch (err) {
       console.error('브라우저 창 감지 중 오류 발생:', err);
       setError('브라우저 창 감지에 실패했습니다.');
-    } finally {
-      setIsDetecting(false);
+      return [];
     }
   }, []);
   
@@ -64,22 +65,62 @@ export function useBrowserDetector() {
    */
   const findAllApplications = useCallback(async () => {
     try {
-      setIsDetecting(true);
-      setError(null);
-      
       const apps = await invoke<BrowserInfo[]>('find_all_applications');
       setAllApplications(apps || []);
-      
-      // 전체 실행 중인 애플리케이션 목록 업데이트
       return apps || [];
     } catch (err) {
       console.error('애플리케이션 감지 중 오류 발생:', err);
       setError('애플리케이션 감지에 실패했습니다.');
       return [];
-    } finally {
-      setIsDetecting(false);
     }
   }, []);
+
+  /**
+   * 현재 활성화된 애플리케이션 감지 (브라우저 또는 바로가기 앱)
+   */
+  const detectActiveApplication = useCallback(async () => {
+    try {
+      const app = await invoke<BrowserInfo | null>('detect_active_application');
+      setCurrentActiveApplication(app);
+      return app;
+    } catch (err) {
+      console.error('활성 애플리케이션 감지 중 오류 발생:', err);
+      setError('활성 애플리케이션 감지에 실패했습니다.');
+      return null;
+    }
+  }, []);
+
+  /**
+   * 모든 감지 작업을 효율적으로 처리하는 통합 함수
+   */
+  const performDetection = useCallback(async () => {
+    // 이미 처리 중이면 중복 실행 방지
+    if (isProcessingRef.current) return;
+    
+    const now = Date.now();
+    // 마지막 감지 이후 300ms 이내라면 건너뛰기 (디바운싱)
+    if (now - lastDetectionRef.current < 300) return;
+    
+    isProcessingRef.current = true;
+    setIsDetecting(true);
+    
+    try {
+      // 애플리케이션 감지 먼저 수행 (가장 중요한 정보)
+      await findAllApplications();
+      
+      // 현재 활성화된 애플리케이션 감지 (새로 추가된 부분)
+      await detectActiveApplication();
+      
+      // 브라우저 감지도 순차적으로 수행
+      await detectActiveBrowsers();
+      await findAllBrowserWindows();
+      
+      lastDetectionRef.current = Date.now();
+    } finally {
+      setIsDetecting(false);
+      isProcessingRef.current = false;
+    }
+  }, [detectActiveBrowsers, findAllBrowserWindows, findAllApplications, detectActiveApplication]);
 
   /**
    * 자동 감지 활성화/비활성화 토글
@@ -93,17 +134,16 @@ export function useBrowserDetector() {
       }
       setIsAutoDetectionEnabled(false);
     } else {
-      // 자동 감지 활성화
-      const intervalId = window.setInterval(() => {
-        detectActiveBrowsers();
-        findAllBrowserWindows();
-        findAllApplications(); // 모든 애플리케이션도 감지
-      }, 3000); // 3초마다 감지
+      // 초기 감지 즉시 실행
+      performDetection();
+      
+      // 자동 감지 활성화 (500ms 간격으로 단축)
+      const intervalId = window.setInterval(performDetection, 500);
       
       setDetectionInterval(intervalId);
       setIsAutoDetectionEnabled(true);
     }
-  }, [isAutoDetectionEnabled, detectionInterval, detectActiveBrowsers, findAllBrowserWindows, findAllApplications]);
+  }, [isAutoDetectionEnabled, detectionInterval, performDetection]);
 
   // 컴포넌트가 언마운트될 때 자동 감지 정리
   useEffect(() => {
@@ -114,18 +154,12 @@ export function useBrowserDetector() {
     };
   }, [detectionInterval]);
 
-  /**
-   * 특정 애플리케이션이 실행 중인지 확인
-   * @param appType 검사할 애플리케이션 유형
-   * @returns 해당 애플리케이션이 실행 중인지 여부
-   */
+  // 특정 애플리케이션이 실행 중인지 확인
   const isAppRunning = useCallback((appType: AppType): boolean => {
     return allApplications.some(app => app.web_app === appType);
   }, [allApplications]);
 
-  /**
-   * 현재 활성화된 애플리케이션 이름 가져오기
-   */
+  // 현재 활성화된 애플리케이션 이름 가져오기
   const getActiveAppName = useCallback((): string => {
     switch (activeApp) {
       // 웹 애플리케이션
@@ -171,10 +205,6 @@ export function useBrowserDetector() {
         return "카카오톡";
       case AppType.Discord:
         return "Discord";
-      case AppType.Slack:
-        return "Slack";
-      case AppType.Telegram:
-        return "Telegram";
       
       // 기타
       case AppType.Other:
@@ -193,9 +223,11 @@ export function useBrowserDetector() {
     error,
     isAutoDetectionEnabled,
     activeApp,
+    currentActiveApplication,
     detectActiveBrowsers,
     findAllBrowserWindows,
     findAllApplications,
+    detectActiveApplication,
     toggleAutoDetection,
     isAppRunning,
     getActiveAppName

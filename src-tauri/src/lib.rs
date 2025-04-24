@@ -406,6 +406,13 @@ fn find_program_path(program_name: &str) -> Option<String> {
     None
 }
 
+// 현재 활성화된 애플리케이션 감지
+#[tauri::command]
+fn detect_active_application() -> Result<Option<browser_detector::BrowserInfo>, String> {
+    let active_app = browser_detector::detect_active_application();
+    Ok(active_app)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -423,7 +430,9 @@ pub fn run() {
             // 프로그램 실행 관련 함수 추가
             launch_program,
             // 모든 애플리케이션 찾기 함수 추가
-            find_all_applications
+            find_all_applications,
+            // 현재 활성화된 앱 감지 함수 추가
+            detect_active_application
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
