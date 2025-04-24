@@ -20,9 +20,35 @@ export function useBrowserDetector() {
   // 현재 활성화된 애플리케이션 (브라우저 + 바로가기 앱)
   const [currentActiveApplication, setCurrentActiveApplication] = useState<BrowserInfo | null>(null);
   
+  // 마지막으로 활성화된 애플리케이션이 변경된 타임스탬프
+  const [lastActiveAppUpdateTime, setLastActiveAppUpdateTime] = useState<number>(0);
+  
+  // 애플리케이션의 상태를 표시하기 위한 인디케이터
+  const [appActiveState, setAppActiveState] = useState<'active' | 'cached' | 'none'>('none');
+  
   // 성능 최적화를 위한 마지막 감지 시간 참조
   const lastDetectionRef = useRef<number>(0);
   const isProcessingRef = useRef<boolean>(false);
+  
+  // 마지막으로 감지된 앱의 실행 상태를 확인하는 타이머 ID
+  const appCheckTimerRef = useRef<number | null>(null);
+  
+  // 앱 상태 체크 간격 (밀리초)
+  const APP_CHECK_INTERVAL = 2000; // 2초마다 확인 (이전의 5초보다 더 자주 확인)
+  
+  // 감지된 앱의 프로세스 ID를 저장하는 ref
+  const lastProcessIdRef = useRef<number | null>(null);
+
+  // 앱 감지 상태 변경 시 로깅
+  useEffect(() => {
+    if (currentActiveApplication) {
+      lastProcessIdRef.current = currentActiveApplication.process_id;
+      console.log(`[App Detection] ${currentActiveApplication.name} (PID: ${currentActiveApplication.process_id}) - ${appActiveState}`);
+    } else {
+      console.log('[App Detection] No active application detected');
+      lastProcessIdRef.current = null;
+    }
+  }, [currentActiveApplication, appActiveState]);
 
   /**
    * 현재 활성화된 브라우저 감지
@@ -76,19 +102,93 @@ export function useBrowserDetector() {
   }, []);
 
   /**
+   * 특정 프로세스 ID의 앱이 여전히 실행중인지 확인
+   */
+  const checkAppStillRunning = useCallback(async (processId: number): Promise<boolean> => {
+    if (!processId) return false;
+    
+    try {
+      return await invoke<boolean>('is_process_running', { processId });
+    } catch (err) {
+      console.error('프로세스 상태 확인 중 오류 발생:', err);
+      return false;  // 오류 발생 시 실행 중이 아닌 것으로 간주
+    }
+  }, []);
+
+  /**
    * 현재 활성화된 애플리케이션 감지 (브라우저 또는 바로가기 앱)
    */
   const detectActiveApplication = useCallback(async () => {
     try {
       const app = await invoke<BrowserInfo | null>('detect_active_application');
-      setCurrentActiveApplication(app);
-      return app;
+      
+      // 앱이 감지된 경우
+      if (app) {
+        // 새로운 앱 정보 업데이트
+        setCurrentActiveApplication(app);
+        setLastActiveAppUpdateTime(Date.now());
+        setAppActiveState('active');
+        return app;
+      }
+      // 앱이 감지되지 않은 경우
+      else {
+        // 이전에 캐시된 앱 정보가 있는지 확인
+        if (currentActiveApplication) {
+          // 명시적으로 프로세스 상태 재확인
+          const isStillRunning = await checkAppStillRunning(currentActiveApplication.process_id);
+          
+          if (isStillRunning) {
+            // 여전히 실행 중이면 'cached' 상태 유지
+            setAppActiveState('cached');
+            return currentActiveApplication;
+          } else {
+            // 앱이 종료된 경우 정보 초기화
+            console.log(`[App Detection] App terminated: ${currentActiveApplication.name} (PID: ${currentActiveApplication.process_id})`);
+            setCurrentActiveApplication(null);
+            setAppActiveState('none');
+          }
+        }
+      }
+      
+      return null;
     } catch (err) {
       console.error('활성 애플리케이션 감지 중 오류 발생:', err);
       setError('활성 애플리케이션 감지에 실패했습니다.');
+      
+      // 오류 발생 시 현재 캐시된 앱이 여전히 실행 중인지 확인
+      if (currentActiveApplication) {
+        const isStillRunning = await checkAppStillRunning(currentActiveApplication.process_id);
+        if (!isStillRunning) {
+          setCurrentActiveApplication(null);
+          setAppActiveState('none');
+        }
+      }
+      
       return null;
     }
-  }, []);
+  }, [currentActiveApplication, checkAppStillRunning]);
+
+  /**
+   * 마지막으로 감지된 앱 프로세스 상태를 주기적으로 확인
+   */
+  const checkCurrentAppStatus = useCallback(async () => {
+    if (!currentActiveApplication) return;
+    
+    const processId = currentActiveApplication.process_id;
+    if (!processId) return;
+    
+    try {
+      const isRunning = await checkAppStillRunning(processId);
+      
+      if (!isRunning) {
+        console.log(`[App Status Check] App terminated: ${currentActiveApplication.name} (PID: ${processId})`);
+        setCurrentActiveApplication(null);
+        setAppActiveState('none');
+      }
+    } catch (err) {
+      console.error('앱 상태 확인 중 오류 발생:', err);
+    }
+  }, [currentActiveApplication, checkAppStillRunning]);
 
   /**
    * 모든 감지 작업을 효율적으로 처리하는 통합 함수
@@ -105,10 +205,19 @@ export function useBrowserDetector() {
     setIsDetecting(true);
     
     try {
+      // 현재 캐시된 앱이 있으면 먼저 상태 확인
+      if (currentActiveApplication) {
+        const isStillRunning = await checkAppStillRunning(currentActiveApplication.process_id);
+        if (!isStillRunning) {
+          setCurrentActiveApplication(null);
+          setAppActiveState('none');
+        }
+      }
+      
       // 애플리케이션 감지 먼저 수행 (가장 중요한 정보)
       await findAllApplications();
       
-      // 현재 활성화된 애플리케이션 감지 (새로 추가된 부분)
+      // 현재 활성화된 애플리케이션 감지
       await detectActiveApplication();
       
       // 브라우저 감지도 순차적으로 수행
@@ -120,7 +229,7 @@ export function useBrowserDetector() {
       setIsDetecting(false);
       isProcessingRef.current = false;
     }
-  }, [detectActiveBrowsers, findAllBrowserWindows, findAllApplications, detectActiveApplication]);
+  }, [detectActiveBrowsers, findAllBrowserWindows, findAllApplications, detectActiveApplication, currentActiveApplication, checkAppStillRunning]);
 
   /**
    * 자동 감지 활성화/비활성화 토글
@@ -132,6 +241,13 @@ export function useBrowserDetector() {
         clearInterval(detectionInterval);
         setDetectionInterval(null);
       }
+      
+      // 앱 상태 확인 타이머 정리
+      if (appCheckTimerRef.current !== null) {
+        clearInterval(appCheckTimerRef.current);
+        appCheckTimerRef.current = null;
+      }
+      
       setIsAutoDetectionEnabled(false);
     } else {
       // 초기 감지 즉시 실행
@@ -140,10 +256,13 @@ export function useBrowserDetector() {
       // 자동 감지 활성화 (500ms 간격으로 단축)
       const intervalId = window.setInterval(performDetection, 500);
       
+      // 앱 상태 확인 타이머 시작
+      appCheckTimerRef.current = window.setInterval(checkCurrentAppStatus, APP_CHECK_INTERVAL);
+      
       setDetectionInterval(intervalId);
       setIsAutoDetectionEnabled(true);
     }
-  }, [isAutoDetectionEnabled, detectionInterval, performDetection]);
+  }, [isAutoDetectionEnabled, detectionInterval, performDetection, checkCurrentAppStatus]);
 
   // 컴포넌트가 언마운트될 때 자동 감지 정리
   useEffect(() => {
@@ -151,8 +270,34 @@ export function useBrowserDetector() {
       if (detectionInterval !== null) {
         clearInterval(detectionInterval);
       }
+      if (appCheckTimerRef.current !== null) {
+        clearInterval(appCheckTimerRef.current);
+      }
     };
   }, [detectionInterval]);
+
+  // 모니터링이 활성화될 때 앱 상태 확인 타이머 설정
+  useEffect(() => {
+    if (isAutoDetectionEnabled) {
+      // 이미 타이머가 있으면 제거
+      if (appCheckTimerRef.current !== null) {
+        clearInterval(appCheckTimerRef.current);
+      }
+      
+      // 새 타이머 설정
+      appCheckTimerRef.current = window.setInterval(checkCurrentAppStatus, APP_CHECK_INTERVAL);
+      
+      // 초기 감지 즉시 실행
+      performDetection();
+    }
+    
+    return () => {
+      if (appCheckTimerRef.current !== null) {
+        clearInterval(appCheckTimerRef.current);
+        appCheckTimerRef.current = null;
+      }
+    };
+  }, [isAutoDetectionEnabled, checkCurrentAppStatus, performDetection]);
 
   // 특정 애플리케이션이 실행 중인지 확인
   const isAppRunning = useCallback((appType: AppType): boolean => {
@@ -224,6 +369,8 @@ export function useBrowserDetector() {
     isAutoDetectionEnabled,
     activeApp,
     currentActiveApplication,
+    appActiveState,
+    lastActiveAppUpdateTime,
     detectActiveBrowsers,
     findAllBrowserWindows,
     findAllApplications,

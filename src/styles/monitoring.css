@@ -422,3 +422,34 @@
   font-weight: 600;
   color: #2e7d32;
 }
+
+/* 캐시된 앱 정보 스타일 */
+.cached-app-info {
+  opacity: 0.8;
+  position: relative;
+  border-left: 2px dashed #4caf50;
+  padding-left: 8px;
+  background-color: rgba(229, 246, 253, 0.4);
+}
+
+.cached-indicator {
+  font-size: 11px;
+  color: #2196f3;
+  margin-left: 6px;
+  font-style: italic;
+  background-color: rgba(33, 150, 243, 0.1);
+  padding: 2px 5px;
+  border-radius: 3px;
+  vertical-align: middle;
+}
+
+/* 앱 정보 애니메이션 - 캐시된 정보가 표시될 때 */
+@keyframes fadeTransition {
+  0% { background-color: rgba(76, 175, 80, 0.1); }
+  50% { background-color: rgba(33, 150, 243, 0.1); }
+  100% { background-color: rgba(76, 175, 80, 0.1); }
+}
+
+.cached-app-info {
+  animation: fadeTransition 3s infinite;
+}

@@ -3,6 +3,49 @@ import { BrowserInfo, AppType } from "../types";
 import { invoke } from "@tauri-apps/api/core";
 
 /**
+ * 창 제목을 간결하게 표시하는 함수
+ * @param appName 앱 이름
+ * @param windowTitle 창 제목
+ * @returns 간결하게 처리된 창 제목
+ */
+const truncateWindowTitle = (appName: string, windowTitle: string): string => {
+  // 최대 길이 설정
+  const MAX_LENGTH = 40;
+  
+  // 앱 이름이 창 제목에 포함되어 있으면 중복 제거
+  let title = windowTitle;
+  if (appName && windowTitle.includes(appName)) {
+    title = windowTitle.replace(appName, '').trim();
+    // 앞뒤 특수문자 제거 (- : 등)
+    title = title.replace(/^[-–—:]+|[-–—:]+$/g, '').trim();
+  }
+  
+  // 특정 앱별 추가 처리
+  if (appName === "VS Code") {
+    // VS Code 제목에서 경로 부분만 간결하게 표시 (예: "file.tsx - project")
+    const matches = title.match(/(.+?)(\s-\s.+)?$/);
+    if (matches && matches[1]) {
+      const fileName = matches[1].trim();
+      const projectInfo = matches[2] ? matches[2] : '';
+      return fileName + (projectInfo.length > 20 ? projectInfo.substring(0, 17) + '...' : projectInfo);
+    }
+  } else if (appName === "Google Chrome" && title.includes("YouTube")) {
+    // YouTube 동영상 제목 간결화
+    if (title.includes(" - YouTube")) {
+      title = title.replace(" - YouTube", "");
+      return title.length > MAX_LENGTH ? title.substring(0, MAX_LENGTH - 3) + '...' : title;
+    }
+  }
+  
+  // 일반적인 제목 길이 제한
+  if (title.length > MAX_LENGTH) {
+    return title.substring(0, MAX_LENGTH - 3) + '...';
+  }
+  
+  return title;
+};
+
+/**
  * 바로가기 탭 아이템 컴포넌트
  */
 const TabContent: React.FC<{ title: string, items: string[] }> = ({ items }) => {
@@ -231,17 +274,20 @@ const MonitoringSection: React.FC<MonitoringSectionProps> = ({
               </div>
               <div className="detection-item">
                 <span className="detection-label">현재 창 감지:</span>
-                <span className="detection-value">
+                <span className={`detection-value ${browserDetector?.appActiveState === 'cached' ? 'cached-app-info' : ''}`}>
                   {isMonitoringActive && browserDetector?.currentActiveApplication ? (
                     <>
                       <strong>{browserDetector.currentActiveApplication.name}</strong>
                       {browserDetector.currentActiveApplication.window_title && (
                         <>
                           {" - "}
-                          <span className="window-title">
-                            {browserDetector.currentActiveApplication.window_title}
+                          <span className="window-title" title={browserDetector.currentActiveApplication.window_title}>
+                            {truncateWindowTitle(browserDetector.currentActiveApplication.name, browserDetector.currentActiveApplication.window_title)}
                           </span>
                         </>
+                      )}
+                      {browserDetector?.appActiveState === 'cached' && (
+                        <span className="cached-indicator">(마지막 감지됨)</span>
                       )}
                     </>
                   ) : (
@@ -267,6 +313,7 @@ const MonitoringSection: React.FC<MonitoringSectionProps> = ({
                       )
                     )
                   ))}
+
                 </div>
               ) : (
                 <div className="no-apps-running">

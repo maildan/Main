@@ -413,6 +413,11 @@ fn detect_active_application() -> Result<Option<browser_detector::BrowserInfo>, 
     Ok(active_app)
 }
 
+#[tauri::command]
+fn is_process_running(process_id: u32) -> Result<bool, String> {
+    Ok(browser_detector::is_process_running(process_id))
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -432,7 +437,9 @@ pub fn run() {
             // 모든 애플리케이션 찾기 함수 추가
             find_all_applications,
             // 현재 활성화된 앱 감지 함수 추가
-            detect_active_application
+            detect_active_application,
+            // 프로세스 실행 상태 확인 함수
+            is_process_running
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

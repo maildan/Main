@@ -14,6 +14,11 @@ static PROCESS_CACHE: Lazy<Mutex<HashMap<u32, ProcessInfo>>> = Lazy::new(|| {
     Mutex::new(HashMap::new())
 });
 
+// 마지막으로 감지된 애플리케이션 정보를 저장하는 전역 변수
+static LAST_DETECTED_APP: Lazy<Mutex<Option<BrowserInfo>>> = Lazy::new(|| {
+    Mutex::new(None)
+});
+
 // 캐시를 주기적으로 초기화 (오래된 프로세스 정보 제거)
 #[allow(dead_code)]
 fn maybe_clear_cache() {
@@ -129,7 +134,7 @@ impl std::fmt::Display for AppType {
     }
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Clone)]
 pub struct BrowserInfo {
     pub name: String,
     pub process_id: u32,
@@ -430,9 +435,9 @@ unsafe extern "system" fn enum_all_apps_proc(hwnd: HWND, lparam: LPARAM) -> BOOL
                                     AppType::MicrosoftExcel => "Microsoft Excel",
                                     AppType::MicrosoftPowerPoint => "Microsoft PowerPoint",
                                     AppType::MicrosoftOneNote => "Microsoft OneNote",
-                                    AppType::VSCode => "Visual Studio Code",
-                                    AppType::IntelliJ => "IntelliJ IDEA",
-                                    AppType::Eclipse => "Eclipse IDE",
+                                    AppType::VSCode => "VS Code",
+                                    AppType::IntelliJ => "IntelliJ",
+                                    AppType::Eclipse => "Eclipse",
                                     AppType::KakaoTalk => "KakaoTalk",
                                     AppType::Discord => "Discord",
                                     _ => "Unknown Application",
@@ -467,9 +472,9 @@ pub fn detect_active_application() -> Option<BrowserInfo> {
     // 현재 포그라운드(foreground) 창의 핸들 가져오기
     let foreground_window = unsafe { GetForegroundWindow() };
     
-    // 활성화된 창이 없으면 None 반환
+    // 활성화된 창이 없으면 마지막 감지된 앱 정보 반환
     if foreground_window.0 == 0 {
-        return None;
+        return check_last_app_still_running();
     }
     
     // 활성화된 창의 프로세스 ID 가져오기
@@ -481,9 +486,9 @@ pub fn detect_active_application() -> Option<BrowserInfo> {
         if let Some(process_info) = get_process_info(process_id) {
             // 프로세스 이름 확인
             if let Some(process_name) = process_info.name.to_lowercase().split('\\').last() {
-                // Loop 앱 자체는 제외 (Loop.exe 또는 이와 유사한 이름)
+                // Loop 앱 자체는 제외하고 마지막 감지된 앱 정보 반환
                 if process_name.contains("loop.exe") {
-                    return None;
+                    return check_last_app_still_running();
                 }
                 
                 // 창 제목 가져오기
@@ -520,9 +525,9 @@ pub fn detect_active_application() -> Option<BrowserInfo> {
                                 AppType::MicrosoftExcel => "Microsoft Excel",
                                 AppType::MicrosoftPowerPoint => "Microsoft PowerPoint",
                                 AppType::MicrosoftOneNote => "Microsoft OneNote",
-                                AppType::VSCode => "Visual Studio Code",
-                                AppType::IntelliJ => "IntelliJ IDEA",
-                                AppType::Eclipse => "Eclipse IDE",
+                                AppType::VSCode => "VS Code",
+                                AppType::IntelliJ => "IntelliJ",
+                                AppType::Eclipse => "Eclipse",
                                 AppType::KakaoTalk => "KakaoTalk",
                                 AppType::Discord => "Discord",
                                 _ => "Unknown Application",
@@ -533,15 +538,82 @@ pub fn detect_active_application() -> Option<BrowserInfo> {
                     }
                 }
                 
-                return Some(BrowserInfo {
+                // 새로 감지된 애플리케이션 정보 생성
+                let app_info = BrowserInfo {
                     name: app_name.to_string(),
                     process_id,
                     window_title,
                     web_app: app_type,
-                });
+                };
+                
+                // 마지막 감지된 앱 정보 업데이트
+                *LAST_DETECTED_APP.lock().unwrap() = Some(app_info.clone());
+                
+                return Some(app_info);
             }
         }
     }
     
+    // 기존에 감지된 앱 정보 없으면 None 반환
+    check_last_app_still_running()
+}
+
+// 마지막으로 감지된 앱이 여전히 실행 중인지 확인
+fn check_last_app_still_running() -> Option<BrowserInfo> {
+    let last_app = LAST_DETECTED_APP.lock().unwrap().clone();
+    
+    if let Some(app) = last_app {
+        // 프로세스 ID로 앱이 여전히 실행 중인지 확인
+        let process_id = app.process_id;
+        if process_still_running(process_id) {
+            return Some(app);
+        } else {
+            // 앱이 종료된 경우 캐시 정보 삭제
+            *LAST_DETECTED_APP.lock().unwrap() = None;
+        }
+    }
+    
     None
+}
+
+// 특정 프로세스가 여전히 실행 중인지 확인
+fn process_still_running(process_id: u32) -> bool {
+    // 특수 프로세스 ID 검사 (시스템 프로세스 등)
+    if process_id == 0 || process_id == 4 || process_id == 8 {
+        return false;
+    }
+
+    unsafe {
+        // 프로세스 핸들 열기 (종료 권한 없이)
+        let process_handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, process_id);
+        if let Ok(handle) = process_handle {
+            // 프로세스 종료 코드 조회
+            let mut exit_code = 0;
+            if GetExitCodeProcess(handle, &mut exit_code).as_bool() {
+                // STILL_ACTIVE 상수는 259 (프로세스가 아직 실행 중)
+                let is_running = exit_code == 259;
+                CloseHandle(handle);
+                
+                if !is_running {
+                    // 프로세스 캐시에서도 제거
+                    PROCESS_CACHE.lock().unwrap().remove(&process_id);
+                    println!("프로세스 {} 종료 감지됨", process_id);
+                }
+                
+                return is_running;
+            }
+            CloseHandle(handle);
+        }
+    }
+    
+    // 핸들을 얻지 못했거나 종료 코드를 확인할 수 없는 경우
+    // 프로세스가 이미 종료된 것으로 간주
+    // 프로세스 캐시에서도 제거
+    PROCESS_CACHE.lock().unwrap().remove(&process_id);
+    false
+}
+
+// 외부에서 프로세스 실행 상태를 확인할 수 있는 함수 (프론트엔드에서 호출)
+pub fn is_process_running(process_id: u32) -> bool {
+    process_still_running(process_id)
 }
