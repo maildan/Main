@@ -14,10 +14,34 @@ const truncateWindowTitle = (appName: string, windowTitle: string): string => {
   
   // 앱 이름이 창 제목에 포함되어 있으면 중복 제거
   let title = windowTitle;
-  if (appName && windowTitle.includes(appName)) {
-    title = windowTitle.replace(appName, '').trim();
-    // 앞뒤 특수문자 제거 (- : 등)
-    title = title.replace(/^[-–—:]+|[-–—:]+$/g, '').trim();
+  
+  if (appName && title) {
+    // VS Code 특별 처리
+    if (appName === "VS Code") {
+      // 마지막에 "- Visual Studio Code" 또는 "- VS Code" 가 있다면 제거
+      title = title.replace(/\s+-\s+Visual\s+Studio\s+Code\s*$/i, "");
+      title = title.replace(/\s+-\s+VS\s+Code\s*$/i, "");
+    }
+    
+    // 앞부분에서 앱 이름 중복 제거
+    if (title.includes(appName)) {
+      title = title.replace(appName, '').trim();
+      // 앞뒤 특수문자 제거 (- : 등)
+      title = title.replace(/^[-–—:]+|[-–—:]+$/g, '').trim();
+    }
+    
+    // 뒷부분에서 앱 이름 중복 제거 (예: "- Chrome" 같은 경우)
+    const appNameSimple = appName.replace(/Google |Microsoft /, '');
+    if (title.endsWith(`- ${appNameSimple}`)) {
+      title = title.replace(`- ${appNameSimple}`, '').trim();
+    }
+    
+    // Chrome 특별 처리
+    if (appName === "Google Chrome") {
+      if (title.endsWith("- Chrome")) {
+        title = title.replace("- Chrome", "").trim();
+      }
+    }
   }
   
   // 특정 앱별 추가 처리
@@ -111,17 +135,14 @@ const TabContent: React.FC<{ title: string, items: string[] }> = ({ items }) => 
   );
 };
 
-// 모니터링 섹션 컴포넌트 props 타입 정의
-interface MonitoringSectionProps {
-  isMonitoringActive?: boolean;
-  toggleMonitoring?: () => void;
-  browserDetector?: any;
-}
-
 /**
  * 모니터링 섹션 컴포넌트
  */
-const MonitoringSection: React.FC<MonitoringSectionProps> = ({ 
+const MonitoringSection: React.FC<{ 
+  isMonitoringActive?: boolean; 
+  toggleMonitoring?: () => void; 
+  browserDetector?: any 
+}> = ({ 
   isMonitoringActive = false,
   toggleMonitoring,
   browserDetector
