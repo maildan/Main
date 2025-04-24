@@ -63,6 +63,9 @@ pub enum AppType {
     // SNS 애플리케이션
     KakaoTalk,
     Discord,
+
+    // 문서 애플리케이션
+    Notepad,
     
     // 기타
     Other,
@@ -99,6 +102,9 @@ impl From<&str> for AppType {
             "KakaoTalk" => AppType::KakaoTalk,
             "Discord" => AppType::Discord,
             
+            // 문서 애플리케이션
+            "Notepad" | "notepad" => AppType::Notepad,
+            
             _ => AppType::Other,
         }
     }
@@ -127,6 +133,7 @@ impl std::fmt::Display for AppType {
             AppType::AndroidStudio => "Android Studio",
             AppType::KakaoTalk => "KakaoTalk",
             AppType::Discord => "Discord",
+            AppType::Notepad => "메모장",
             AppType::Other => "Other",
             AppType::None => "None",
         };
@@ -166,7 +173,7 @@ const WEB_APP_PATTERNS: [(AppType, &[&str]); 9] = [
 ];
 
 // 알려진 애플리케이션 프로세스 목록 (브라우저 외의 앱도 포함)
-const APP_PROCESSES: [(&str, AppType); 14] = [
+const APP_PROCESSES: [(&str, AppType); 15] = [
     // 브라우저
     ("chrome.exe", AppType::Other),
     ("firefox.exe", AppType::Other),
@@ -188,6 +195,9 @@ const APP_PROCESSES: [(&str, AppType); 14] = [
     // SNS 애플리케이션
     ("kakaotalk.exe", AppType::KakaoTalk),
     ("discord.exe", AppType::Discord),
+    
+    // 문서 애플리케이션
+    ("notepad.exe", AppType::Notepad),
 ];
 
 // 창 제목에서 애플리케이션 유형 감지 함수
@@ -440,6 +450,7 @@ unsafe extern "system" fn enum_all_apps_proc(hwnd: HWND, lparam: LPARAM) -> BOOL
                                     AppType::Eclipse => "Eclipse",
                                     AppType::KakaoTalk => "KakaoTalk",
                                     AppType::Discord => "Discord",
+                                    AppType::Notepad => "메모장",
                                     _ => "Unknown Application",
                                 };
                                 
@@ -530,6 +541,7 @@ pub fn detect_active_application() -> Option<BrowserInfo> {
                                 AppType::Eclipse => "Eclipse",
                                 AppType::KakaoTalk => "KakaoTalk",
                                 AppType::Discord => "Discord",
+                                AppType::Notepad => "메모장",
                                 _ => "Unknown Application",
                             };
                             

@@ -188,7 +188,8 @@ const MonitoringSection: React.FC<{
       '구글 문서',
       '구글 스프레드시트',
       '구글 프레젠테이션',
-      'Notion'
+      'Notion',
+      '메모장'
     ],
     '오피스': [
       '워드',
@@ -214,7 +215,8 @@ const MonitoringSection: React.FC<{
       '구글 문서': AppType.GoogleDocs,
       '구글 스프레드시트': AppType.GoogleSheets,
       '구글 프레젠테이션': AppType.GoogleSlides,
-      'Notion': AppType.Notion
+      'Notion': AppType.Notion,
+      '메모장': AppType.Notepad
     },
     '오피스': {
       '워드': AppType.MicrosoftWord,

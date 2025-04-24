@@ -32,6 +32,9 @@ export enum AppType {
   KakaoTalk = "KakaoTalk",
   Discord = "Discord",
   
+  // 문서 애플리케이션
+  Notepad = "Notepad",
+  
   // 기타
   Other = "Other",
   None = "None"

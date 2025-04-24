@@ -245,7 +245,7 @@ fn launch_program(program_name: &str) -> Result<String, String> {
         "구글 문서" => ("browser", "https://docs.google.com"),
         "구글 스프레드시트" => ("browser", "https://sheets.google.com"),
         "구글 프레젠테이션" => ("browser", "https://slides.google.com"),
-        "Notion" => ("browser", "notion://"),
+        "Notion" => ("native", "Notion.exe"),
         "인스타그램" => ("browser", "https://instagram.com"),
         
         "워드" => ("native", "WINWORD.EXE"),
@@ -259,6 +259,8 @@ fn launch_program(program_name: &str) -> Result<String, String> {
         
         "카카오톡" => ("native", "KakaoTalk.exe"),
         "디스코드" => ("native", "Discord.exe"),
+        
+        "메모장" => ("native", "notepad.exe"),
         
         _ => return Err(format!("알 수 없는 프로그램: {}", program_name)),
     };
