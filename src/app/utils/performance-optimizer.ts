@@ -4,10 +4,11 @@
  * 메모리와 CPU/GPU 사용을 최적화하여 애플리케이션 성능 개선
  */
 
-import { optimizeMemory } from './nativeModuleClient';
+import { optimizeMemory, forceGarbageCollection, getMemoryInfo } from './nativeModuleClient';
 import { setGpuAcceleration } from './gpu-acceleration';
-import { MemoryUsageLevel, SystemStatus, ProcessingMode, OptimizationLevel } from '@/types';
-import { useCallback, useEffect, useRef } from 'react';
+import { MemoryUsageLevel, SystemStatus, ProcessingMode } from '@/types';
+import { OptimizationLevel } from '@/types/native-module';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import React from 'react';
 import { getSystemStatus } from './system-monitor';
 
@@ -58,51 +59,33 @@ export async function analyzeAndOptimize(forced = false): Promise<boolean> {
 
     if (memoryPercentUsed >= currentSettings.memoryThreshold || forced) {
       // 메모리 레벨에 따른 최적화 수준 결정
-      let optimizationLevel = 0;
-      let emergency = false;
+      let optimizationLevel = OptimizationLevel.Normal;
 
       switch (status.memoryUsageLevel) {
         case MemoryUsageLevel.CRITICAL:
-          optimizationLevel = 4;
-          emergency = true;
+          optimizationLevel = OptimizationLevel.Critical;
           break;
         case MemoryUsageLevel.HIGH:
-          optimizationLevel = 3;
-          emergency = currentSettings.aggressiveMode;
+          optimizationLevel = OptimizationLevel.High;
           break;
         case MemoryUsageLevel.MEDIUM:
-          optimizationLevel = 2;
-          emergency = false;
+          optimizationLevel = OptimizationLevel.Medium;
           break;
         case MemoryUsageLevel.LOW:
         default:
-          optimizationLevel = forced ? 1 : 0;
-          emergency = false;
+          optimizationLevel = forced ? OptimizationLevel.Low : OptimizationLevel.Normal;
       }
 
       // 최적화 필요한 경우 수행
-      if (optimizationLevel > 0) {
-        console.log(`성능 최적화 수행 (레벨: ${optimizationLevel}, 긴급: ${emergency})`);
+      if (optimizationLevel > OptimizationLevel.Normal) {
+        console.log(`성능 최적화 수행 (레벨: ${optimizationLevel})`);
 
-        const result = await optimizeMemory(optimizationLevel, emergency);
-        return result.success;
+        const result = await optimizeMemory(optimizationLevel);
+        return result !== null;
       }
     }
 
-    // GPU 가속 여부 결정
-    if (currentSettings.switchToGpuIfAvailable) {
-      const shouldUseGpu =
-        status.memoryUsageLevel !== MemoryUsageLevel.CRITICAL &&
-        status.memoryUsageLevel !== MemoryUsageLevel.HIGH;
-
-      // 현재 GPU 상태와 다른 경우에만 변경
-      const gpuMode = status.processingMode === ProcessingMode.GPU_INTENSIVE;
-      if (shouldUseGpu !== gpuMode) {
-        await setGpuAcceleration(shouldUseGpu);
-      }
-    }
-
-    return true;
+    return false;
   } catch (error) {
     console.error('성능 최적화 오류:', error);
     return false;
@@ -116,31 +99,32 @@ export async function analyzeAndOptimize(forced = false): Promise<boolean> {
 export async function switchProcessingMode(mode: ProcessingMode): Promise<boolean> {
   try {
     // GPU 활성화 여부 결정
-    const enableGpu = mode === 'gpu-intensive';
+    const enableGpu = mode === ProcessingMode.GPU_INTENSIVE;
 
     // GPU 가속 설정 변경
     if (enableGpu) {
       await setGpuAcceleration(true);
-    } else if (mode === 'cpu-intensive') {
+    } else if (mode === ProcessingMode.CPU_INTENSIVE) {
       // CPU 집중 모드
       await setGpuAcceleration(false);
-    } else if (mode === 'memory-saving') {
+    } else if (mode === ProcessingMode.MEMORY_SAVING) {
       // 메모리 절약 모드
       await setGpuAcceleration(false);
-      await optimizeMemory(3, true);
-    } else if (mode === 'normal') {
+      const result = await optimizeMemory(OptimizationLevel.High);
+      return result !== null;
+    } else if (mode === ProcessingMode.NORMAL) {
       // normal 모드
       await setGpuAcceleration(true);
-    } else if (mode === 'auto') {
+    } else if (mode === ProcessingMode.AUTO) {
       // auto 모드
       await setGpuAcceleration(true);
     }
+
+    return true;
   } catch (error) {
     console.error('처리 모드 전환 오류:', error);
     return false;
   }
-
-  return true;
 }
 
 /**
@@ -207,10 +191,9 @@ export async function optimizeForBackground(): Promise<boolean> {
     // GPU 가속 비활성화
     await setGpuAcceleration(false);
 
-    // 메모리 최적화 수행 (레벨 3, 긴급 모드)
-    await optimizeMemory(3, true);
-
-    return true;
+    // 메모리 최적화 수행
+    const result = await optimizeMemory(OptimizationLevel.High);
+    return result !== null;
   } catch (error) {
     console.error('백그라운드 최적화 오류:', error);
     return false;
@@ -220,21 +203,18 @@ export async function optimizeForBackground(): Promise<boolean> {
 /**
  * 성능 최적화 수행
  * @param level 최적화 레벨
- * @param emergency 긴급 모드 여부
  */
 export async function optimizePerformance(
-  // 수정: OptimizationLevel 열거형 값 사용
-  level: number = OptimizationLevel.MEDIUM,
-  emergency: boolean = false
+  level: OptimizationLevel = OptimizationLevel.Medium
 ): Promise<boolean> {
   try {
-    console.log(`성능 최적화 시작 (레벨: ${level}, 긴급: ${emergency})`);
+    console.log(`성능 최적화 시작 (레벨: ${level})`);
 
     // 메모리 최적화 실행
-    await optimizeMemory(level, emergency);
+    const result = await optimizeMemory(level);
 
     console.log('성능 최적화 완료');
-    return true;
+    return result !== null;
   } catch (error) {
     console.error('성능 최적화 중 오류:', error);
     return false;
@@ -249,18 +229,38 @@ export async function optimizePerformance(
 const RENDER_DEBOUNCE_TIME = 16; // 약 60fps에 해당
 
 /**
- * 고비용 렌더링 디바운스 훅
- * @param callback 실행할 콜백 함수
- * @param delay 디바운스 지연 시간 (ms)
+ * 렌더링 디바운스 훅
+ * @param callback 콜백 함수
+ * @param delay 지연 시간 (ms)
  * @returns 디바운스된 콜백 함수
  */
 export function useRenderDebounce<T extends (...args: any[]) => any>(
   callback: T,
   delay: number = RENDER_DEBOUNCE_TIME
 ): T {
+  const callbackRef = useRef(callback);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // 클린업 함수
+  // 콜백 참조 업데이트
+  useEffect(() => {
+    callbackRef.current = callback;
+  }, [callback]);
+
+  // 디바운스 함수 생성
+  const debouncedCallback = useCallback(
+    (...args: Parameters<T>) => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+
+      timeoutRef.current = setTimeout(() => {
+        callbackRef.current(...args);
+      }, delay);
+    },
+    [delay]
+  ) as unknown as T;
+
+  // 클린업
   useEffect(() => {
     return () => {
       if (timeoutRef.current) {
@@ -269,33 +269,16 @@ export function useRenderDebounce<T extends (...args: any[]) => any>(
     };
   }, []);
 
-  return useCallback(
-    (...args: Parameters<T>) => {
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-      }
-
-      return new Promise<ReturnType<T>>(resolve => {
-        timeoutRef.current = setTimeout(() => {
-          const result = callback(...args);
-          resolve(result as ReturnType<T>);
-        }, delay);
-      });
-    },
-    [callback, delay]
-  ) as T;
+  return debouncedCallback;
 }
 
 /**
- * DOM 요소 가시성에 따른 렌더링 최적화
- * @param element DOM 요소
- * @returns 요소가 화면에 보이는지 여부
+ * 요소가 뷰포트 내에 있는지 확인
+ * @param element HTML 요소
+ * @returns 뷰포트 내 여부
  */
 export function isElementInViewport(element: HTMLElement): boolean {
-  if (!element) return false;
-
   const rect = element.getBoundingClientRect();
-
   return (
     rect.top >= 0 &&
     rect.left >= 0 &&
@@ -305,102 +288,168 @@ export function isElementInViewport(element: HTMLElement): boolean {
 }
 
 /**
- * 숨겨진 요소의 렌더링 최적화
+ * 숨겨진 요소 최적화
  */
 export function optimizeHiddenElements(): void {
-  if (typeof document === 'undefined') return;
+  // DOM 요소 선택 대상
+  const targets = [
+    document.querySelectorAll('.typing-chart'),
+    document.querySelectorAll('.stats-panel'),
+    document.querySelectorAll('.memory-monitor'),
+  ];
 
-  // 뷰포트 밖에 있는 큰 요소 최적화
-  const offscreenElements = document.querySelectorAll('[data-optimize-offscreen="true"]');
-  offscreenElements.forEach(element => {
-    if (element instanceof HTMLElement) {
-      if (!isElementInViewport(element)) {
-        // 화면 밖 요소는 DOM에서 렌더링 비용이 낮은 상태로 변경
-        element.style.visibility = 'hidden';
-        element.style.content = 'normal'; // CSS content 비우기
+  // 각 대상에 대해
+  targets.forEach(elements => {
+    elements.forEach(element => {
+      const htmlElement = element as HTMLElement;
+      if (!isElementInViewport(htmlElement)) {
+        // 뷰포트 밖의 요소는 렌더링 최적화
+        htmlElement.style.willChange = 'auto';
+        htmlElement.style.animationPlayState = 'paused';
       } else {
-        // 화면 안에 들어온 요소는 다시 표시
-        element.style.visibility = 'visible';
+        // 뷰포트 내의 요소는 일반 렌더링
+        htmlElement.style.willChange = '';
+        htmlElement.style.animationPlayState = '';
       }
-    }
+    });
   });
 }
 
 /**
- * 앱 성능 진단 및 최적화
- * @returns 성능 진단 결과
+ * 성능 진단 및 최적화
  */
 export async function diagnoseAndOptimizePerformance(): Promise<{
   optimized: boolean;
   memoryFreed: number;
 }> {
-  let memoryFreed = 0;
+  try {
+    // 현재 상태 확인
+    const status = await getSystemStatus(true);
+    const memoryBefore = status.memoryInfo?.heapUsed || 0;
 
-  // 현재 메모리 상태 확인
-  if (window.performance && (window.performance as any).memory) {
-    const memory = (window.performance as any).memory;
-    const usedRatio = memory.usedJSHeapSize / memory.jsHeapSizeLimit;
+    // 메모리 사용량에 따라 최적화 레벨 결정
+    let optimizationLevel = OptimizationLevel.Low;
+    let shouldOptimize = true;
 
-    // 메모리 사용량이 70% 이상인 경우 최적화 수행
-    if (usedRatio > 0.7) {
-      const result = await optimizeMemory(2, usedRatio > 0.9);
-
-      if (result && result.success && result.result) {
-        memoryFreed = result.result.freed_mb || 0;
-      }
-
-      // DOM 최적화
-      optimizeHiddenElements();
-
-      // 이벤트 핸들러 누수 감지 및 정리
-      cleanupEventListeners();
-
-      return { optimized: true, memoryFreed };
+    if (status.memoryUsageLevel === MemoryUsageLevel.HIGH) {
+      optimizationLevel = OptimizationLevel.High;
+    } else if (status.memoryUsageLevel === MemoryUsageLevel.CRITICAL) {
+      optimizationLevel = OptimizationLevel.Critical;
+    } else if (status.memoryUsageLevel === MemoryUsageLevel.MEDIUM) {
+      optimizationLevel = OptimizationLevel.Medium;
+    } else if (status.memoryUsageLevel === MemoryUsageLevel.LOW) {
+      shouldOptimize = false; // 낮은 메모리 사용량에서는 최적화 불필요
     }
+
+    // 최적화 필요 시 수행
+    if (shouldOptimize) {
+      const result = await optimizeMemory(optimizationLevel);
+
+      // 최적화 후 상태 확인
+      const afterStatus = await getSystemStatus(true);
+      const memoryAfter = afterStatus.memoryInfo?.heapUsed || 0;
+      const memoryFreed = Math.max(0, memoryBefore - memoryAfter);
+
+      return {
+        optimized: result !== null,
+        memoryFreed,
+      };
+    }
+
+    return {
+      optimized: false,
+      memoryFreed: 0,
+    };
+  } catch (error) {
+    console.error('성능 진단 중 오류:', error);
+    return {
+      optimized: false,
+      memoryFreed: 0,
+    };
   }
-
-  // 일반 최적화만 수행
-  optimizeHiddenElements();
-
-  return { optimized: false, memoryFreed };
 }
 
 /**
- * 이벤트 리스너 정리 (메모리 누수 방지)
+ * 이벤트 리스너 정리
  */
 function cleanupEventListeners(): void {
-  // 구현 힌트: DOM에 연결된 이벤트 리스너를 정리하는 로직
-  // 실제 구현은 애플리케이션 특성에 맞게 조정 필요
-  console.log('이벤트 리스너 정리 완료');
+  if (typeof window === 'undefined') return;
+
+  // 정리할 이벤트 타입
+  const eventTypes = ['resize', 'scroll', 'mousemove', 'touchmove'];
+
+  // 이벤트 캐시 초기화
+  (window as any).__eventCache = (window as any).__eventCache || {};
+
+  // 각 이벤트 타입에 대해
+  eventTypes.forEach(type => {
+    if ((window as any).__eventCache[type] > 20) {
+      console.warn(`이벤트 리스너(${type}) 수가 많습니다. 정리 필요.`);
+    }
+  });
 }
 
 /**
- * 컴포넌트에서 사용할 성능 최적화 래퍼
- * @param WrappedComponent 최적화할 React 컴포넌트
- * @returns 최적화된 컴포넌트
+ * 성능 최적화 HOC
  */
 export function withPerformanceOptimization<P extends object>(
   WrappedComponent: React.ComponentType<P>
 ): React.FC<P> {
-  const OptimizedComponent: React.FC<P> = props => {
+  const OptimizedComponent: React.FC<P> = (props) => {
+    const [isOptimizing, setIsOptimizing] = useState(false);
+    
     useEffect(() => {
-      // 컴포넌트 마운트 시 성능 최적화
-      const optimizeTimer = setTimeout(() => {
-        diagnoseAndOptimizePerformance();
-      }, 500);
-
+      // 컴포넌트 마운트 시 최적화 설정
+      const setup = async () => {
+        setIsOptimizing(true);
+        try {
+          const status = await getSystemStatus();
+          
+          // 메모리 상태에 따라 GPU 가속화 설정
+          if (status.memoryUsageLevel >= MemoryUsageLevel.HIGH) {
+            await setGpuAcceleration(false);
+          } else {
+            await setGpuAcceleration(true);
+          }
+          
+          // 필요한 경우 추가 최적화 수행
+          if (status.memoryUsageLevel >= MemoryUsageLevel.MEDIUM) {
+            const result = await optimizeMemory(OptimizationLevel.Low);
+            if (result === null) {
+              console.warn('메모리 최적화 실패');
+            }
+          }
+        } catch (error) {
+          console.error('성능 최적화 설정 오류:', error);
+        } finally {
+          setIsOptimizing(false);
+        }
+      };
+      
+      setup();
+      
+      // 주기적 최적화 검사
+      const optimizationInterval = setInterval(async () => {
+        const status = await getSystemStatus(false);
+        if (status.memoryUsageLevel >= MemoryUsageLevel.HIGH) {
+          await diagnoseAndOptimizePerformance();
+        }
+      }, 60000); // 1분마다 체크
+      
+      // 클린업 함수
       return () => {
-        clearTimeout(optimizeTimer);
+        clearInterval(optimizationInterval);
+        cleanupEventListeners();
       };
     }, []);
 
-    // 수정: props 전달 방식 변경, 불필요한 타입 캐스팅 제거
-    return React.createElement(WrappedComponent, props);
+    return React.createElement(WrappedComponent, { ...props });
   };
 
-  // 디버깅을 위한 표시 이름 설정
-  const displayName = WrappedComponent.displayName || WrappedComponent.name || 'Component';
-  OptimizedComponent.displayName = `WithPerformanceOptimization(${displayName})`;
+  // 디스플레이 이름 설정
+  OptimizedComponent.displayName = `WithPerformanceOptimization(${
+    WrappedComponent.displayName || WrappedComponent.name || 'Component'
+  })`;
 
   return OptimizedComponent;
 }

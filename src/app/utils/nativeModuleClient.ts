@@ -1,253 +1,284 @@
 /**
  * 네이티브 모듈 클라이언트 API
- * 
+ *
  * 프론트엔드에서 네이티브 모듈 기능을 사용하기 위한 래퍼 함수들을 제공합니다.
  */
 
-import type { 
-  MemoryInfo, 
-  OptimizationResult, 
-  GCResult, 
-  GpuInfo,
+import type {
+  MemoryInfo,
+  OptimizationResult,
+  GCResult,
   GpuComputationResult,
-  TaskResult
+  TaskResult,
 } from '@/types';
-import { OptimizationLevel } from '@/types/native-module';
+import { OptimizationLevel, NativeModuleStatus } from '@/types/native-module';
+
+// 윈도우 객체에 nativeModule 확장
+declare global {
+  interface Window {
+    nativeModule: {
+      getGpuInfo: () => Promise<NativeResponse<GpuInfo>>;
+      setGpuAcceleration: (enabled: boolean) => Promise<NativeResponse<boolean>>;
+      getMemoryInfo: () => Promise<NativeResponse<MemoryInfo>>;
+      optimizeMemory: (level?: OptimizationLevel) => Promise<NativeResponse<OptimizationResult>>;
+      forceGarbageCollection: () => Promise<NativeResponse<GCResult>>;
+      performGpuComputation: (
+        taskType: GpuTaskType,
+        params: Record<string, any>
+      ) => Promise<NativeResponse<any>>;
+    };
+  }
+}
+
+/**
+ * 네이티브 모듈 응답 인터페이스
+ */
+interface NativeResponse<T = any> {
+  success: boolean;
+  error?: string;
+  timestamp: number;
+  data?: T;
+}
+
+/**
+ * GPU 정보 인터페이스
+ */
+export interface GpuInfo {
+  name: string;
+  vendor: string;
+  renderer?: string;
+  driverInfo?: string;
+  deviceType?: string;
+  backend?: string;
+  available: boolean;
+  accelerationEnabled?: boolean;
+}
+
+/**
+ * GPU 가속 상태 인터페이스
+ */
+export interface GpuAccelerationStatus {
+  available: boolean;
+  enabled: boolean;
+  info?: GpuInfo;
+}
+
+/**
+ * GPU 작업 유형
+ */
+export enum GpuTaskType {
+  MatrixMultiplication = 'matrix',
+  TextAnalysis = 'text',
+  ImageProcessing = 'image',
+  DataAggregation = 'data',
+  PatternDetection = 'pattern',
+  TypingStatistics = 'typing',
+  Custom = 'custom',
+}
 
 // 상태 캐시
-let moduleStatusCache: any = null;
+let moduleStatusCache: NativeModuleStatus | null = null;
 let lastStatusCheck = 0;
 const STATUS_CACHE_TTL = 10000; // 10초
 
-// 브라우저 환경인지 확인 - 상수로 변경
-const isBrowser = typeof window !== 'undefined';
-
 /**
- * fetch 요청을 래핑하는 함수
+ * 메모리 정보 조회
+ * @returns 메모리 사용량 정보
  */
-async function enhancedFetch(url: string, options: RequestInit = {}): Promise<Response> {
+export const getMemoryInfo = async (): Promise<MemoryInfo | null> => {
   try {
-    const response = await fetch(url, {
-      ...options,
-      headers: {
-        'Content-Type': 'application/json',
-        ...options.headers,
-      },
-    });
-    
-    return response;
-  } catch (error) {
-    console.error(`Fetch 요청 실패 (${url}):`, error);
-    throw error;
-  }
-}
+    // 네이티브 모듈을 통해 메모리 정보 요청
+    const response = await window.nativeModule.getMemoryInfo();
 
-/**
- * 메모리 정보 가져오기
- */
-export async function getMemoryInfo() {
-  if (!isBrowser) {
-    return { success: false, error: 'Server environment', timestamp: Date.now() };
-  }
-  
-  try {
-    const response = await enhancedFetch('/api/native/memory');
-    
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+    if (!response.success || !response.data) {
+      console.error('메모리 정보를 가져오는 데 실패했습니다:', response.error);
+      return null;
     }
-    
-    return await response.json();
+
+    return response.data;
   } catch (error) {
-    console.error('메모리 정보 가져오기 실패:', error);
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : '알 수 없는 오류',
-    };
+    console.error('메모리 정보를 가져오는 중 오류 발생:', error);
+    return null;
   }
-}
+};
 
 /**
  * 메모리 최적화 수행
+ * @param level 최적화 레벨
+ * @returns 최적화 결과
  */
-export async function optimizeMemory(level = 2, emergency = false) {
+export const optimizeMemory = async (
+  level: OptimizationLevel = OptimizationLevel.Medium
+): Promise<OptimizationResult | null> => {
   try {
-    const response = await enhancedFetch('/api/native/memory', {
-      method: 'PUT',
-      body: JSON.stringify({
-        type: 'optimize',
-        level: level.toString(),
-        emergency
-      }),
-    });
-    
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+    // 네이티브 모듈을 통해 메모리 최적화 요청
+    const response = await window.nativeModule.optimizeMemory(level);
+
+    if (!response.success || !response.data) {
+      console.error('메모리 최적화에 실패했습니다:', response.error);
+      return null;
     }
-    
-    return await response.json();
+
+    return response.data;
   } catch (error) {
-    console.error('메모리 최적화 실패:', error);
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : '알 수 없는 오류',
-    };
+    console.error('메모리 최적화 중 오류 발생:', error);
+    return null;
   }
-}
+};
 
 /**
  * 가비지 컬렉션 강제 수행
+ * @returns GC 결과
  */
-export async function forceGarbageCollection() {
+export const forceGarbageCollection = async (): Promise<GCResult | null> => {
   try {
-    const response = await enhancedFetch('/api/native/memory', {
-      method: 'PUT',
-      body: JSON.stringify({
-        type: 'gc'
-      }),
-    });
-    
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+    // 네이티브 모듈을 통해 GC 요청
+    const response = await window.nativeModule.forceGarbageCollection();
+
+    if (!response.success || !response.data) {
+      console.error('가비지 컬렉션에 실패했습니다:', response.error);
+      return null;
     }
-    
-    return await response.json();
+
+    return response.data;
   } catch (error) {
-    console.error('가비지 컬렉션 실패:', error);
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : '알 수 없는 오류',
-    };
+    console.error('가비지 컬렉션 중 오류 발생:', error);
+    return null;
   }
-}
+};
+
+/**
+ * GPU 연산 작업 수행
+ * @param taskType 작업 유형
+ * @param params 작업 파라미터
+ * @returns 연산 결과
+ */
+export const performGpuComputation = async (
+  taskType: GpuTaskType,
+  params: Record<string, any>
+): Promise<any | null> => {
+  try {
+    // 네이티브 모듈을 통해 GPU 연산 요청
+    const response = await window.nativeModule.performGpuComputation(taskType, params);
+
+    if (!response.success || !response.data) {
+      console.error(`GPU 연산(${taskType})에 실패했습니다:`, response.error);
+      return null;
+    }
+
+    return response.data;
+  } catch (error) {
+    console.error(`GPU 연산(${taskType}) 중 오류 발생:`, error);
+    return null;
+  }
+};
 
 /**
  * GPU 정보 가져오기
+ * @returns GPU 정보
  */
-export async function getGpuInfo() {
+export const getGpuInfo = async (): Promise<GpuInfo | null> => {
   try {
-    const response = await enhancedFetch('/api/native/gpu');
-    
-    if (!response.ok) {
-      throw new Error(`GPU 정보 요청 실패: ${response.status}`);
+    // 네이티브 모듈을 통해 GPU 정보 가져오기
+    const response = await window.nativeModule.getGpuInfo();
+
+    if (!response.success || !response.data) {
+      console.error('GPU 정보를 가져오는 데 실패했습니다:', response.error);
+      return null;
     }
-    
-    return await response.json();
+
+    return response.data;
   } catch (error) {
-    console.error('GPU 정보 가져오기 오류:', error);
-    return {
-      success: false,
-      available: false,
-      gpuInfo: null,
-      error: error instanceof Error ? error.message : '알 수 없는 오류',
-      timestamp: Date.now()
-    };
+    console.error('GPU 정보를 가져오는 중 오류 발생:', error);
+    return null;
   }
-}
+};
 
 /**
- * GPU 가속 활성화/비활성화
- * @param enable 활성화 여부
+ * GPU 가속 설정
+ * @param enabled 활성화 여부
+ * @returns 설정 결과
  */
-export async function setGpuAcceleration(enable: boolean) {
+export const setGpuAcceleration = async (enabled: boolean): Promise<boolean> => {
   try {
-    // 요청 데이터 준비
-    const requestBody = JSON.stringify({
-      enable
-    });
-    
-    // 요청 보내기
-    const response = await enhancedFetch('/api/native/gpu/acceleration', {
-      method: 'PUT',
-      body: requestBody
-    });
-    
-    // 응답 처리
-    if (!response.ok) {
-      throw new Error(`GPU 가속 설정 요청 실패: ${response.status}`);
+    // 네이티브 모듈을 통해 GPU 가속 설정
+    const response = await window.nativeModule.setGpuAcceleration(enabled);
+
+    if (!response.success) {
+      console.error('GPU 가속 설정에 실패했습니다:', response.error);
+      return false;
     }
-    
-    return await response.json();
+
+    return response.data || false;
   } catch (error) {
-    console.error('GPU 가속 설정 오류:', error);
-    return {
-      success: false,
-      enabled: false,
-      result: false,
-      error: error instanceof Error ? error.message : '알 수 없는 오류',
-      timestamp: Date.now()
-    };
+    console.error('GPU 가속 설정 중 오류 발생:', error);
+    return false;
   }
-}
+};
 
 /**
- * GPU 계산 수행
- * @param data 계산에 사용할 데이터
- * @param computationType 계산 유형
+ * 네이티브 모듈 상태 조회
+ * @returns 네이티브 모듈 상태 정보
  */
-export async function performGpuComputation<T = unknown>(data: unknown, computationType: string) {
-  try {
-    // 요청 데이터 준비
-    const requestBody = JSON.stringify({
-      data,
-      computationType
-    });
-    
-    // 요청 보내기
-    const response = await enhancedFetch('/api/native/gpu', {
-      method: 'POST',
-      body: requestBody
-    });
-    
-    // 응답 처리
-    if (!response.ok) {
-      throw new Error(`GPU 계산 요청 실패: ${response.status}`);
-    }
-    
-    return await response.json();
-  } catch (error) {
-    console.error('GPU 계산 오류:', error);
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : '알 수 없는 오류',
-      timestamp: Date.now()
-    };
-  }
-}
-
-/**
- * 네이티브 모듈 상태 확인
- */
-export async function getNativeModuleStatus() {
-  if (!isBrowser) {
-    return { success: false, error: 'Server environment', timestamp: Date.now() };
-  }
-  
-  // 캐시된 상태가 있고 TTL 내라면 캐시된 값 반환
-  const now = Date.now();
-  if (moduleStatusCache && now - lastStatusCheck < STATUS_CACHE_TTL) {
+export async function getNativeModuleStatus(): Promise<NativeModuleStatus> {
+  // 캐시된 상태가 있으면 반환
+  if (moduleStatusCache && Date.now() - (moduleStatusCache.timestamp || 0) < 60000) {
     return moduleStatusCache;
   }
-  
+
   try {
-    const response = await enhancedFetch('/api/native/status');
-    
-    if (!response.ok) {
-      throw new Error(`네이티브 모듈 상태 요청 실패: ${response.status}`);
+    // GPU 정보 요청으로 네이티브 모듈 상태 확인
+    const gpuInfo = await getGpuInfo();
+
+    // 성공적으로 응답을 받았으면 모듈이 사용 가능함
+    if (gpuInfo) {
+      // NativeResponse 형식에서 NativeModuleStatus 형식으로 변환
+      const result: NativeModuleStatus = {
+        available: true,
+        fallbackMode: false,
+        version: '1.0.0', // 네이티브 모듈 버전
+        info: gpuInfo,
+        timestamp: Date.now(),
+      };
+
+      // 상태 캐싱
+      moduleStatusCache = result;
+      return result;
     }
-    
-    const result = await response.json();
-    
-    // 캐시 업데이트
-    moduleStatusCache = result;
-    lastStatusCheck = now;
-    
-    return result;
+
+    // 응답 실패 시 기본 오류 상태 반환
+    const errorStatus: NativeModuleStatus = {
+      available: false,
+      fallbackMode: true,
+      version: null,
+      info: null,
+      timestamp: Date.now(),
+      error: '네이티브 모듈을 사용할 수 없습니다.',
+    };
+
+    moduleStatusCache = errorStatus;
+    return errorStatus;
   } catch (error) {
-    console.error('네이티브 모듈 상태 확인 실패:', error);
-    return {
-      success: false,
+    console.error('네이티브 모듈 상태 조회 오류:', error);
+
+    const errorStatus: NativeModuleStatus = {
+      available: false,
+      fallbackMode: true,
+      version: null,
+      info: null,
+      timestamp: Date.now(),
       error: error instanceof Error ? error.message : '알 수 없는 오류',
     };
+
+    moduleStatusCache = errorStatus;
+    return errorStatus;
   }
+}
+
+/**
+ * 네이티브 모듈 사용 가능 여부 확인
+ * @returns 사용 가능 여부
+ */
+export function isNativeModuleAvailable(): boolean {
+  return typeof window !== 'undefined' && !!window.nativeModule;
 }

@@ -135,3 +135,166 @@ export function handleError(error: unknown, context = ''): string {
 export function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
+
+/**
+ * 의존성 그래프 생성 유틸리티
+ * 프로젝트의 모듈 간 의존성을 파악하기 위한 함수
+ */
+
+/**
+ * 모듈 의존성 관계를 표현하는 타입
+ */
+export interface ModuleDependency {
+  id: string;
+  name: string;
+  dependencies: string[];
+  dependents: string[];
+  type: 'core' | 'util' | 'component' | 'hook' | 'native' | 'other';
+  category?: string;
+  path: string;
+  weight: number; // 의존성 수에 따른 가중치
+}
+
+/**
+ * 모듈 간 연결 관계를 표현하는 타입
+ */
+export interface ModuleConnection {
+  source: string;
+  target: string;
+  strength: number;
+  type: 'direct' | 'indirect';
+}
+
+/**
+ * 모듈 의존성 그래프를 생성하는 함수
+ * 주의: 이 함수는 런타임이 아닌 빌드/분석 시에만 사용해야 함
+ * 
+ * @param modules 모듈 목록
+ * @returns 의존성 그래프 데이터
+ */
+export function createDependencyGraph(modules: ModuleDependency[]): {
+  nodes: ModuleDependency[];
+  edges: ModuleConnection[];
+} {
+  // 노드 매핑 생성
+  const nodeMap = new Map<string, ModuleDependency>();
+  modules.forEach(module => {
+    nodeMap.set(module.id, module);
+  });
+
+  // 엣지 생성
+  const edges: ModuleConnection[] = [];
+  modules.forEach(module => {
+    module.dependencies.forEach(depId => {
+      if (nodeMap.has(depId)) {
+        edges.push({
+          source: module.id,
+          target: depId,
+          strength: 1,
+          type: 'direct'
+        });
+      }
+    });
+  });
+
+  return {
+    nodes: Array.from(nodeMap.values()),
+    edges
+  };
+}
+
+/**
+ * 순환 의존성을 찾는 함수
+ * @param graph 의존성 그래프
+ * @returns 순환 의존성 목록
+ */
+export function findCircularDependencies(graph: {
+  nodes: ModuleDependency[];
+  edges: ModuleConnection[];
+}): string[][] {
+  const cycles: string[][] = [];
+  const nodeMap = new Map<string, ModuleDependency>();
+  
+  graph.nodes.forEach(node => {
+    nodeMap.set(node.id, node);
+  });
+
+  const visited = new Set<string>();
+  const stack = new Set<string>();
+
+  function dfs(nodeId: string, path: string[] = []): void {
+    if (stack.has(nodeId)) {
+      // 순환 의존성 발견
+      const cycleStart = path.indexOf(nodeId);
+      cycles.push(path.slice(cycleStart).concat(nodeId));
+      return;
+    }
+
+    if (visited.has(nodeId)) {
+      return;
+    }
+
+    visited.add(nodeId);
+    stack.add(nodeId);
+    path.push(nodeId);
+
+    const node = nodeMap.get(nodeId);
+    if (node) {
+      node.dependencies.forEach(depId => {
+        if (nodeMap.has(depId)) {
+          dfs(depId, [...path]);
+        }
+      });
+    }
+
+    stack.delete(nodeId);
+  }
+
+  graph.nodes.forEach(node => {
+    if (!visited.has(node.id)) {
+      dfs(node.id);
+    }
+  });
+
+  return cycles;
+}
+
+/**
+ * 모듈의 중심성(허브) 분석
+ * 중요한 모듈(허브)을 식별하는 함수
+ * 
+ * @param graph 의존성 그래프
+ * @returns 중요도 순으로 정렬된 모듈 목록
+ */
+export function analyzeModuleCentrality(graph: {
+  nodes: ModuleDependency[];
+  edges: ModuleConnection[];
+}): Array<{ id: string; name: string; score: number }> {
+  const inDegree = new Map<string, number>();
+  const outDegree = new Map<string, number>();
+
+  // 각 노드별 진입/진출 차수 계산
+  graph.nodes.forEach(node => {
+    inDegree.set(node.id, 0);
+    outDegree.set(node.id, 0);
+  });
+
+  graph.edges.forEach(edge => {
+    outDegree.set(edge.source, (outDegree.get(edge.source) || 0) + 1);
+    inDegree.set(edge.target, (inDegree.get(edge.target) || 0) + 1);
+  });
+
+  // 중심성 점수 계산 (진입 차수와 진출 차수의 합)
+  const result = graph.nodes.map(node => {
+    const inScore = inDegree.get(node.id) || 0;
+    const outScore = outDegree.get(node.id) || 0;
+    return {
+      id: node.id,
+      name: node.name,
+      score: inScore + outScore
+    };
+  });
+
+  // 점수 기준 내림차순 정렬
+  return result.sort((a, b) => b.score - a.score);
+}

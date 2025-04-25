@@ -1,11 +1,12 @@
+
 // 네이티브 모듈 로더
 const path = require('path');
 
 // 플랫폼별 파일 확장자
 const extension = {
-  win32: '.dll',
-  darwin: '.dylib',
-  linux: '.so',
+  'win32': '.dll',
+  'darwin': '.dylib',
+  'linux': '.so'
 }[process.platform];
 
 // 플랫폼별 접두사

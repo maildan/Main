@@ -151,7 +151,7 @@ export default function MemoryMonitor({
         // 메모리 상태 업데이트
         setCurrentMemory({
           heapUsed: memoryInfo.heap_used_mb || memoryInfo.heapUsedMB || 0,
-          heapTotal: (memoryInfo.heap_total || 0) / (1024 * 1024),
+          heapTotal: memoryInfo.heapTotal || 0,
           percentUsed: memoryInfo.percent_used || memoryInfo.percentUsed || 0,
           rss: memoryInfo.rss_mb || memoryInfo.rssMB,
           timestamp
@@ -167,7 +167,7 @@ export default function MemoryMonitor({
           // 새 데이터 포인트 추가
           const newLabels = [...prev.labels, formattedTime];
           const newUsed = [...prev.used, memoryInfo.heap_used_mb || memoryInfo.heapUsedMB || 0];
-          const newTotal = [...prev.total, (memoryInfo.heap_total || 0) / (1024 * 1024)];
+          const newTotal = [...prev.total, memoryInfo.heapTotal || 0];
           const newPercent = [...prev.percent, memoryInfo.percent_used || memoryInfo.percentUsed || 0];
           const newRSS = [...(prev.rss || []), memoryInfo.rss_mb || memoryInfo.rssMB || 0];
           

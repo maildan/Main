@@ -3,8 +3,8 @@
  * Rust 네이티브 모듈과 통신하는 함수들을 제공합니다.
  */
 
-import { GpuTaskType } from '@/types/native-module';
 import { performGpuComputation } from '../nativeModuleClient';
+import { GpuTaskType } from '../nativeModuleClient';
 
 /**
  * 행렬 곱셈 계산
@@ -21,8 +21,8 @@ export async function performMatrixMultiplication(
       size: options.size || 'medium'
     };
     
-    const result = await performGpuComputation(data, GpuTaskType.MatrixMultiplication);
-    return result.result;
+    const result = await performGpuComputation(GpuTaskType.MatrixMultiplication, data);
+    return result?.result;
   } catch (error) {
     console.error('행렬 곱셈 오류:', error);
     throw error;
@@ -42,8 +42,8 @@ export async function performTextAnalysis(
       size: options.size || 'medium'
     };
     
-    const result = await performGpuComputation(data, GpuTaskType.TextAnalysis);
-    return result.result;
+    const result = await performGpuComputation(GpuTaskType.TextAnalysis, data);
+    return result?.result;
   } catch (error) {
     console.error('텍스트 분석 오류:', error);
     throw error;
@@ -63,8 +63,8 @@ export async function performPatternDetection(
       timestamps
     };
     
-    const result = await performGpuComputation(data, GpuTaskType.PatternDetection);
-    return result.result;
+    const result = await performGpuComputation(GpuTaskType.PatternDetection, data);
+    return result?.result;
   } catch (error) {
     console.error('패턴 감지 오류:', error);
     throw error;
@@ -88,8 +88,8 @@ export async function calculateTypingStatistics(
       content
     };
     
-    const result = await performGpuComputation(data, GpuTaskType.TypingStatistics);
-    return result.result;
+    const result = await performGpuComputation(GpuTaskType.TypingStatistics, data);
+    return result?.result;
   } catch (error) {
     console.error('타이핑 통계 계산 오류:', error);
     throw error;
@@ -115,8 +115,8 @@ export async function checkGpuCapabilities() {
     
     return {
       available: true,
-      computationTime: result.computation_time_ms,
-      gpuInfo: result.gpu_info
+      computationTime: result?.computation_time_ms,
+      gpuInfo: result?.gpu_info
     };
   } catch (error) {
     console.warn('GPU 기능 테스트 실패:', error);

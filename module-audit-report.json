@@ -1,0 +1,409 @@
+{
+  "timestamp": "2025-04-24T15:22:36.742Z",
+  "summary": {
+    "totalModules": 247,
+    "unusedModules": 0,
+    "largeModules": 0,
+    "deepDependencies": 0,
+    "fixableIssues": 65,
+    "circularDependencies": 0,
+    "totalSize": 0,
+    "totalSizeFormatted": "0 MB"
+  },
+  "unusedModules": [],
+  "largeModules": [],
+  "deepDependencyChains": [],
+  "fixableIssues": [
+    {
+      "file": "C:\\Users\\user\\Desktop\\loop\\src\\app\\api\\getLogs\\route.ts",
+      "type": "unused-import",
+      "message": "'LogEntry' is defined but never used. Allowed unused vars must match /^_/u.",
+      "fixable": true
+    },
+    {
+      "file": "C:\\Users\\user\\Desktop\\loop\\src\\app\\api\\logs\\save\\route.ts",
+      "type": "unused-import",
+      "message": "'error' is defined but never used.",
+      "fixable": true
+    },
+    {
+      "file": "C:\\Users\\user\\Desktop\\loop\\src\\app\\api\\native\\gpu\\acceleration\\route.ts",
+      "type": "unused-import",
+      "message": "'setGpuAcceleration' is defined but never used. Allowed unused vars must match /^_/u.",
+      "fixable": true
+    },
+    {
+      "file": "C:\\Users\\user\\Desktop\\loop\\src\\app\\api\\native\\gpu\\settings\\route.ts",
+      "type": "unused-import",
+      "message": "'request' is defined but never used. Allowed unused args must match /^_/u.",
+      "fixable": true
+    },
+    {
+      "file": "C:\\Users\\user\\Desktop\\loop\\src\\app\\api\\native\\memory\\settings\\route.ts",
+      "type": "unused-import",
+      "message": "'request' is defined but never used. Allowed unused args must match /^_/u.",
+      "fixable": true
+    },
+    {
+      "file": "C:\\Users\\user\\Desktop\\loop\\src\\app\\api\\native\\worker\\route.ts",
+      "type": "unused-import",
+      "message": "'threadCount' is assigned a value but never used. Allowed unused args must match /^_/u.",
+      "fixable": true
+    },
+    {
+      "file": "C:\\Users\\user\\Desktop\\loop\\src\\app\\api\\native\\worker\\route.ts",
+      "type": "unused-import",
+      "message": "'taskType' is defined but never used. Allowed unused args must match /^_/u.",
+      "fixable": true
+    },
+    {
+      "file": "C:\\Users\\user\\Desktop\\loop\\src\\app\\api\\native\\worker\\route.ts",
+      "type": "unused-import",
+      "message": "'data' is defined but never used. Allowed unused args must match /^_/u.",
+      "fixable": true
+    },
+    {
+      "file": "C:\\Users\\user\\Desktop\\loop\\src\\app\\api\\test\\route.ts",
+      "type": "unused-import",
+      "message": "'request' is defined but never used. Allowed unused args must match /^_/u.",
+      "fixable": true
+    },
+    {
+      "file": "C:\\Users\\user\\Desktop\\loop\\src\\app\\api\\test\\route.ts",
+      "type": "unused-import",
+      "message": "'e' is defined but never used.",
+      "fixable": true
+    },
+    {
+      "file": "C:\\Users\\user\\Desktop\\loop\\src\\app\\components\\ClientSideControls.tsx",
+      "type": "unused-import",
+      "message": "'props' is defined but never used. Allowed unused args must match /^_/u.",
+      "fixable": true
+    },
+    {
+      "file": "C:\\Users\\user\\Desktop\\loop\\src\\app\\components\\LogAnalysisPanel.tsx",
+      "type": "unused-import",
+      "message": "'learningStatusRef' is assigned a value but never used. Allowed unused vars must match /^_/u.",
+      "fixable": true
+    },
+    {
+      "file": "C:\\Users\\user\\Desktop\\loop\\src\\app\\components\\MemorySettingsPanel.tsx",
+      "type": "unused-import",
+      "message": "'logger' is defined but never used. Allowed unused vars must match /^_/u.",
+      "fixable": true
+    },
+    {
+      "file": "C:\\Users\\user\\Desktop\\loop\\src\\app\\components\\MemorySettingsPanel.tsx",
+      "type": "unused-import",
+      "message": "'getMemoryInfo' is defined but never used. Allowed unused vars must match /^_/u.",
+      "fixable": true
+    },
+    {
+      "file": "C:\\Users\\user\\Desktop\\loop\\src\\app\\components\\MemorySettingsPanel.tsx",
+      "type": "unused-import",
+      "message": "'Switch' is assigned a value but never used. Allowed unused vars must match /^_/u.",
+      "fixable": true
+    },
+    {
+      "file": "C:\\Users\\user\\Desktop\\loop\\src\\app\\components\\MemorySettingsPanel.tsx",
+      "type": "unused-import",
+      "message": "'Slider' is assigned a value but never used. Allowed unused vars must match /^_/u.",
+      "fixable": true
+    },
+    {
+      "file": "C:\\Users\\user\\Desktop\\loop\\src\\app\\components\\MemorySettingsPanel.tsx",
+      "type": "unused-import",
+      "message": "'Button' is assigned a value but never used. Allowed unused vars must match /^_/u.",
+      "fixable": true
+    },
+    {
+      "file": "C:\\Users\\user\\Desktop\\loop\\src\\app\\components\\MiniView.tsx",
+      "type": "unused-import",
+      "message": "'useCallback' is defined but never used. Allowed unused vars must match /^_/u.",
+      "fixable": true
+    },
+    {
+      "file": "C:\\Users\\user\\Desktop\\loop\\src\\app\\components\\NativeModuleTest.tsx",
+      "type": "unused-import",
+      "message": "'data' is assigned a value but never used. Allowed unused vars must match /^_/u.",
+      "fixable": true
+    },
+    {
+      "file": "C:\\Users\\user\\Desktop\\loop\\src\\app\\components\\RestartLoading.tsx",
+      "type": "unused-import",
+      "message": "'onClose' is defined but never used. Allowed unused args must match /^_/u.",
+      "fixable": true
+    },
+    {
+      "file": "C:\\Users\\user\\Desktop\\loop\\src\\app\\components\\SelfLearningSystem.tsx",
+      "type": "unused-import",
+      "message": "'LogType' is defined but never used. Allowed unused vars must match /^_/u.",
+      "fixable": true
+    },
+    {
+      "file": "C:\\Users\\user\\Desktop\\loop\\src\\app\\components\\ToastContext.tsx",
+      "type": "unused-import",
+      "message": "'type' is defined but never used. Allowed unused args must match /^_/u.",
+      "fixable": true
+    },
+    {
+      "file": "C:\\Users\\user\\Desktop\\loop\\src\\app\\components\\TypingChart.tsx",
+      "type": "unused-import",
+      "message": "'e' is defined but never used.",
+      "fixable": true
+    },
+    {
+      "file": "C:\\Users\\user\\Desktop\\loop\\src\\app\\hooks\\useMemoryManagement.ts",
+      "type": "unused-import",
+      "message": "'MemoryInfo' is defined but never used. Allowed unused vars must match /^_/u.",
+      "fixable": true
+    },
+    {
+      "file": "C:\\Users\\user\\Desktop\\loop\\src\\app\\hooks\\useMemoryManagement.ts",
+      "type": "unused-import",
+      "message": "'e' is defined but never used.",
+      "fixable": true
+    },
+    {
+      "file": "C:\\Users\\user\\Desktop\\loop\\src\\app\\hooks\\useMemoryManagement.ts",
+      "type": "unused-import",
+      "message": "'e' is defined but never used.",
+      "fixable": true
+    },
+    {
+      "file": "C:\\Users\\user\\Desktop\\loop\\src\\app\\hooks\\useMemoryOptimizer.ts",
+      "type": "unused-import",
+      "message": "'MemoryOptimizer' is defined but never used. Allowed unused vars must match /^_/u.",
+      "fixable": true
+    },
+    {
+      "file": "C:\\Users\\user\\Desktop\\loop\\src\\app\\hooks\\useTabNavigation.ts",
+      "type": "unused-import",
+      "message": "'electronAPI' is defined but never used. Allowed unused args must match /^_/u.",
+      "fixable": true
+    },
+    {
+      "file": "C:\\Users\\user\\Desktop\\loop\\src\\app\\hooks\\useTypingStats.ts",
+      "type": "unused-import",
+      "message": "'e' is defined but never used.",
+      "fixable": true
+    },
+    {
+      "file": "C:\\Users\\user\\Desktop\\loop\\src\\app\\utils\\gpu-settings-manager.ts",
+      "type": "unused-import",
+      "message": "'settings' is defined but never used. Allowed unused args must match /^_/u.",
+      "fixable": true
+    },
+    {
+      "file": "C:\\Users\\user\\Desktop\\loop\\src\\app\\utils\\log-learning.ts",
+      "type": "unused-import",
+      "message": "'_' is defined but never used.",
+      "fixable": true
+    },
+    {
+      "file": "C:\\Users\\user\\Desktop\\loop\\src\\app\\utils\\log-utils.ts",
+      "type": "unused-import",
+      "message": "'MemoryLogLevel' is defined but never used. Allowed unused vars must match /^_/u.",
+      "fixable": true
+    },
+    {
+      "file": "C:\\Users\\user\\Desktop\\loop\\src\\app\\utils\\memory-management.ts",
+      "type": "unused-import",
+      "message": "'cleanAllCaches' is defined but never used. Allowed unused vars must match /^_/u.",
+      "fixable": true
+    },
+    {
+      "file": "C:\\Users\\user\\Desktop\\loop\\src\\app\\utils\\memory-management.ts",
+      "type": "unused-import",
+      "message": "'suggestGarbageCollection' is defined but never used. Allowed unused vars must match /^_/u.",
+      "fixable": true
+    },
+    {
+      "file": "C:\\Users\\user\\Desktop\\loop\\src\\app\\utils\\memory-management.ts",
+      "type": "unused-import",
+      "message": "'recordOptimization' is defined but never used. Allowed unused vars must match /^_/u.",
+      "fixable": true
+    },
+    {
+      "file": "C:\\Users\\user\\Desktop\\loop\\src\\app\\utils\\memory-optimizer.ts",
+      "type": "unused-import",
+      "message": "'memoryUsage' is assigned a value but never used. Allowed unused vars must match /^_/u.",
+      "fixable": true
+    },
+    {
+      "file": "C:\\Users\\user\\Desktop\\loop\\src\\app\\utils\\memory\\gc-utils.ts",
+      "type": "unused-import",
+      "message": "'emergency' is defined but never used. Allowed unused args must match /^_/u.",
+      "fixable": true
+    },
+    {
+      "file": "C:\\Users\\user\\Desktop\\loop\\src\\app\\utils\\memory\\gc-utils.ts",
+      "type": "unused-import",
+      "message": "'defaultRequestGC' is defined but never used. Allowed unused vars must match /^_/u.",
+      "fixable": true
+    },
+    {
+      "file": "C:\\Users\\user\\Desktop\\loop\\src\\app\\utils\\memory\\gc\\cache-optimizer.ts",
+      "type": "unused-import",
+      "message": "'_e' is defined but never used.",
+      "fixable": true
+    },
+    {
+      "file": "C:\\Users\\user\\Desktop\\loop\\src\\app\\utils\\memory\\gc\\cache-optimizer.ts",
+      "type": "unused-import",
+      "message": "'e' is defined but never used.",
+      "fixable": true
+    },
+    {
+      "file": "C:\\Users\\user\\Desktop\\loop\\src\\app\\utils\\memory\\gc\\emergency-recovery.ts",
+      "type": "unused-import",
+      "message": "'_err' is defined but never used.",
+      "fixable": true
+    },
+    {
+      "file": "C:\\Users\\user\\Desktop\\loop\\src\\app\\utils\\memory\\gc\\emergency-recovery.ts",
+      "type": "unused-import",
+      "message": "'force' is assigned a value but never used. Allowed unused args must match /^_/u.",
+      "fixable": true
+    },
+    {
+      "file": "C:\\Users\\user\\Desktop\\loop\\src\\app\\utils\\memory\\gc\\event-optimizer.ts",
+      "type": "unused-import",
+      "message": "'EventHandler' is defined but never used. Allowed unused vars must match /^_/u.",
+      "fixable": true
+    },
+    {
+      "file": "C:\\Users\\user\\Desktop\\loop\\src\\app\\utils\\memory\\gc\\event-optimizer.ts",
+      "type": "unused-import",
+      "message": "'_' is defined but never used.",
+      "fixable": true
+    },
+    {
+      "file": "C:\\Users\\user\\Desktop\\loop\\src\\app\\utils\\memory\\gc\\garbage-collector.ts",
+      "type": "unused-import",
+      "message": "'e' is defined but never used.",
+      "fixable": true
+    },
+    {
+      "file": "C:\\Users\\user\\Desktop\\loop\\src\\app\\utils\\memory\\gc\\garbage-collector.ts",
+      "type": "unused-import",
+      "message": "'arr' is assigned a value but never used. Allowed unused vars must match /^_/u.",
+      "fixable": true
+    },
+    {
+      "file": "C:\\Users\\user\\Desktop\\loop\\src\\app\\utils\\memory\\gc\\optimization-controller.ts",
+      "type": "unused-import",
+      "message": "'emergency' is assigned a value but never used. Allowed unused args must match /^_/u.",
+      "fixable": true
+    },
+    {
+      "file": "C:\\Users\\user\\Desktop\\loop\\src\\app\\utils\\memory\\gc\\resource-optimizer.ts",
+      "type": "unused-import",
+      "message": "'_e' is defined but never used.",
+      "fixable": true
+    },
+    {
+      "file": "C:\\Users\\user\\Desktop\\loop\\src\\app\\utils\\memory\\gc\\resource-optimizer.ts",
+      "type": "unused-import",
+      "message": "'e' is defined but never used.",
+      "fixable": true
+    },
+    {
+      "file": "C:\\Users\\user\\Desktop\\loop\\src\\app\\utils\\memory\\gc\\resource-optimizer.ts",
+      "type": "unused-import",
+      "message": "'e' is defined but never used.",
+      "fixable": true
+    },
+    {
+      "file": "C:\\Users\\user\\Desktop\\loop\\src\\app\\utils\\memory\\optimizer.ts",
+      "type": "unused-import",
+      "message": "'NativeOptimizationLevel' is defined but never used. Allowed unused vars must match /^_/u.",
+      "fixable": true
+    },
+    {
+      "file": "C:\\Users\\user\\Desktop\\loop\\src\\app\\utils\\memory\\utils.ts",
+      "type": "unused-import",
+      "message": "'OptimizationLevel' is defined but never used. Allowed unused vars must match /^_/u.",
+      "fixable": true
+    },
+    {
+      "file": "C:\\Users\\user\\Desktop\\loop\\src\\app\\utils\\memory\\utils.ts",
+      "type": "unused-import",
+      "message": "'_e' is defined but never used.",
+      "fixable": true
+    },
+    {
+      "file": "C:\\Users\\user\\Desktop\\loop\\src\\app\\utils\\memory\\utils.ts",
+      "type": "unused-import",
+      "message": "'_e' is defined but never used.",
+      "fixable": true
+    },
+    {
+      "file": "C:\\Users\\user\\Desktop\\loop\\src\\app\\utils\\memory\\utils.ts",
+      "type": "unused-import",
+      "message": "'_e' is defined but never used.",
+      "fixable": true
+    },
+    {
+      "file": "C:\\Users\\user\\Desktop\\loop\\src\\app\\utils\\nativeModuleClient.ts",
+      "type": "unused-import",
+      "message": "'GpuComputationResult' is defined but never used. Allowed unused vars must match /^_/u.",
+      "fixable": true
+    },
+    {
+      "file": "C:\\Users\\user\\Desktop\\loop\\src\\app\\utils\\nativeModuleClient.ts",
+      "type": "unused-import",
+      "message": "'TaskResult' is defined but never used. Allowed unused vars must match /^_/u.",
+      "fixable": true
+    },
+    {
+      "file": "C:\\Users\\user\\Desktop\\loop\\src\\app\\utils\\nativeModuleClient.ts",
+      "type": "unused-import",
+      "message": "'lastStatusCheck' is assigned a value but never used. Allowed unused vars must match /^_/u.",
+      "fixable": true
+    },
+    {
+      "file": "C:\\Users\\user\\Desktop\\loop\\src\\app\\utils\\nativeModuleClient.ts",
+      "type": "unused-import",
+      "message": "'STATUS_CACHE_TTL' is assigned a value but never used. Allowed unused vars must match /^_/u.",
+      "fixable": true
+    },
+    {
+      "file": "C:\\Users\\user\\Desktop\\loop\\src\\app\\utils\\performance-optimizer.ts",
+      "type": "unused-import",
+      "message": "'forceGarbageCollection' is defined but never used. Allowed unused vars must match /^_/u.",
+      "fixable": true
+    },
+    {
+      "file": "C:\\Users\\user\\Desktop\\loop\\src\\app\\utils\\performance-optimizer.ts",
+      "type": "unused-import",
+      "message": "'getMemoryInfo' is defined but never used. Allowed unused vars must match /^_/u.",
+      "fixable": true
+    },
+    {
+      "file": "C:\\Users\\user\\Desktop\\loop\\src\\app\\utils\\performance-optimizer.ts",
+      "type": "unused-import",
+      "message": "'SystemStatus' is defined but never used. Allowed unused vars must match /^_/u.",
+      "fixable": true
+    },
+    {
+      "file": "C:\\Users\\user\\Desktop\\loop\\src\\app\\utils\\performance-optimizer.ts",
+      "type": "unused-import",
+      "message": "'isOptimizing' is assigned a value but never used. Allowed unused vars must match /^_/u.",
+      "fixable": true
+    },
+    {
+      "file": "C:\\Users\\user\\Desktop\\loop\\src\\app\\utils\\request-utils.ts",
+      "type": "unused-import",
+      "message": "'e' is defined but never used.",
+      "fixable": true
+    },
+    {
+      "file": "C:\\Users\\user\\Desktop\\loop\\src\\app\\utils\\system-monitor.ts",
+      "type": "unused-import",
+      "message": "'MemoryInfo' is defined but never used. Allowed unused vars must match /^_/u.",
+      "fixable": true
+    }
+  ],
+  "circularDependencies": []
+}

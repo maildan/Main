@@ -32,15 +32,14 @@ export default function Home() {
       <div className={styles.container}>
         <h1 className={styles.title}>Loop</h1>
         <p className={styles.description}>
-          Next.js와 Rust 네이티브 모듈 통합 테스트
+          타이핑 및 시스템 사용 패턴 분석
         </p>
 
         {/* 네이티브 모듈 테스트 컴포넌트 */}
         <NativeModuleTest />
 
-        {/* 기존 내용 유지 */}
+        {/* 메인 콘텐츠 */}
         <HomeContent />
-        <TypingAnalyzerWrapper />
       </div>
     </main>
   );

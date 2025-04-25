@@ -1,74 +1,74 @@
 'use client';
 
-import React, { memo } from 'react';
-import styles from '../page.module.css';
+import React, { useCallback } from 'react';
+import styles from './TabNavigation.module.css';
 
 interface TabNavigationProps {
   activeTab: string;
   onTabChange: (tab: string) => void;
-  onDebugToggle: () => void;
-  debugMode: boolean;
+  onDebugToggle?: () => void;
+  debugMode?: boolean;
 }
 
-export const TabNavigation = memo(function TabNavigation({
-  activeTab,
-  onTabChange,
-  onDebugToggle,
-  debugMode
-}: TabNavigationProps) {
+export const TabNavigation: React.FC<TabNavigationProps> = ({ 
+  activeTab, 
+  onTabChange, 
+  onDebugToggle, 
+  debugMode = false
+}) => {
+  const handleTabChange = useCallback((tab: string) => {
+    if (tab !== activeTab) {
+      onTabChange(tab);
+    }
+  }, [activeTab, onTabChange]);
+
   return (
-    <div className={styles.appTabs} style={{ pointerEvents: 'auto' }}>
-      <button 
-        className={`${styles.tabButton} ${activeTab === 'monitor' ? styles.activeTab : ''}`}
-        onClick={() => onTabChange('monitor')}
-        style={{ pointerEvents: 'auto' }}
-      >
-        모니터링
-      </button>
-      
-      <button 
-        className={`${styles.tabButton} ${activeTab === 'history' ? styles.activeTab : ''}`}
-        onClick={() => onTabChange('history')}
-        style={{ pointerEvents: 'auto' }}
-      >
-        히스토리
-      </button>
-      
-      <button 
-        className={`${styles.tabButton} ${activeTab === 'stats' ? styles.activeTab : ''}`}
-        onClick={() => onTabChange('stats')}
-        style={{ pointerEvents: 'auto' }}
-      >
-        통계
-      </button>
-      
-      <button 
-        className={`${styles.tabButton} ${activeTab === 'chart' ? styles.activeTab : ''}`}
-        onClick={() => onTabChange('chart')}
-        style={{ pointerEvents: 'auto' }}
-      >
-        차트
-      </button>
-      
-      <button 
-        className={`${styles.tabButton} ${activeTab === 'settings' ? styles.activeTab : ''}`}
-        onClick={() => onTabChange('settings')}
-        style={{ pointerEvents: 'auto' }}
-      >
-        설정
-      </button>
-      
-      {/* 디버그 모드 토글 버튼 */}
-      <button 
-        className={`${styles.tabButton} ${styles.debugButton} ${debugMode ? styles.debugActive : ''}`}
-        onClick={onDebugToggle}
-        title="디버그 모드 토글"
-        style={{ pointerEvents: 'auto' }}
-      >
-        🐞
-      </button>
+    <div className={styles.tabContainer}>
+      <div className={styles.tabs}>
+        <button
+          className={`${styles.tabButton} ${activeTab === 'chatlog' ? styles.active : ''}`}
+          onClick={() => handleTabChange('chatlog')}
+          aria-selected={activeTab === 'chatlog'}
+        >
+          채팅 로그
+        </button>
+        
+        <button
+          className={`${styles.tabButton} ${activeTab === 'stats' ? styles.active : ''}`}
+          onClick={() => handleTabChange('stats')}
+          aria-selected={activeTab === 'stats'}
+        >
+          통계 분석
+        </button>
+        
+        <button
+          className={`${styles.tabButton} ${activeTab === 'apps' ? styles.active : ''}`}
+          onClick={() => handleTabChange('apps')}
+          aria-selected={activeTab === 'apps'}
+        >
+          앱 연결
+        </button>
+        
+        <button
+          className={`${styles.tabButton} ${activeTab === 'settings' ? styles.active : ''}`}
+          onClick={() => handleTabChange('settings')}
+          aria-selected={activeTab === 'settings'}
+        >
+          설정
+        </button>
+      </div>
+
+      {onDebugToggle && (
+        <button
+          className={`${styles.debugButton} ${debugMode ? styles.debugActive : ''}`}
+          onClick={onDebugToggle}
+          aria-pressed={debugMode}
+        >
+          디버그 모드
+        </button>
+      )}
     </div>
   );
-});
+};
 
 export default TabNavigation;

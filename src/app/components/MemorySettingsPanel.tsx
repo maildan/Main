@@ -147,7 +147,8 @@ const MemorySettingsPanel: React.FC<MemorySettingsPanelProps> = ({
         configureAutoOptimization({ enabled: true }); // 주석 해제하고 함수 정상 호출
 
         // 네이티브 모듈 상태 확인
-        const { available } = await getNativeModuleStatus();
+        const moduleStatus = await getNativeModuleStatus();
+        const { available } = moduleStatus;
         setIsNativeAvailable(available);
 
         // 메모리 설정 로딩

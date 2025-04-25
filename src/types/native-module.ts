@@ -133,27 +133,20 @@ export interface GpuAccelerationStatus {
 
 // 메모리 정보 인터페이스
 export interface MemoryInfo {
-  heap_used: number;
-  heap_total: number;
-  heap_limit: number;
-  heap_used_mb: number;
-  rss: number;
-  rss_mb: number;
-  percent_used: number;
-  external: number;
-  timestamp: number;
+  totalMemory: number;
+  freeMemory: number;
+  usedMemory: number;
+  memoryUsagePercent: number;
+  usageLevel: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
 }
 
 // 최적화 결과 인터페이스
 export interface OptimizationResult {
   success: boolean;
-  optimization_level: number;
-  freed_memory?: number;
-  freed_mb?: number;
-  memory_before?: MemoryInfo;
-  memory_after?: MemoryInfo;
+  memoryBefore?: number;
+  memoryAfter?: number;
+  memoryFreed?: number;
   duration?: number;
-  timestamp: number;
   error?: string;
 }
 
@@ -164,4 +157,83 @@ export interface GCResult {
   freed_mb?: number;
   timestamp: number;
   error?: string;
+}
+
+/**
+ * 네이티브 모듈 인터페이스
+ */
+export interface NativeMemoryModule {
+  /**
+   * 메모리 상태 얻기
+   */
+  getMemoryStatus(): Promise<MemoryInfo>;
+  
+  /**
+   * 메모리 최적화 실행
+   * @param level 최적화 강도 (1-10)
+   */
+  optimizeMemory(level?: number): Promise<OptimizationResult>;
+  
+  /**
+   * 가비지 컬렉션 실행
+   */
+  forceGarbageCollection(): Promise<OptimizationResult>;
+  
+  /**
+   * 사용 가능한 실행 환경 확인
+   */
+  isNativeImplementationAvailable(): Promise<boolean>;
+}
+
+export interface NativeGPUModule {
+  /**
+   * GPU 가속 설정
+   * @param enabled 활성화 여부
+   */
+  setGpuAcceleration(enabled: boolean): Promise<boolean>;
+  
+  /**
+   * GPU 정보 얻기
+   */
+  getGpuInfo(): Promise<{
+    available: boolean;
+    vendor?: string;
+    renderer?: string;
+    version?: string;
+    memorySize?: number;
+    isHardwareAccelerated: boolean;
+  }>;
+  
+  /**
+   * 하드웨어 가속 활성화 여부 확인
+   */
+  isHardwareAccelerationEnabled(): Promise<boolean>;
+}
+
+export interface NativeUtils {
+  /**
+   * 시스템 환경 확인
+   */
+  getEnvironmentInfo(): Promise<{
+    platform: string;
+    architecture: string;
+    cpuCores: number;
+    totalMemory: number;
+    freeMemory: number;
+  }>;
+  
+  /**
+   * 작업 실행 시간 측정
+   * @param callback 측정할 작업
+   */
+  measurePerformance<T>(callback: () => T): Promise<{
+    result: T;
+    duration: number;
+  }>;
+}
+
+export interface NativeModules {
+  memory: NativeMemoryModule;
+  gpu: NativeGPUModule;
+  utils: NativeUtils;
 }

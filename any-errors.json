@@ -1,0 +1,39 @@
+{
+  "emptyModules": [
+    {
+      "file": "src/main/gpu-utils.js",
+      "status": "fixed",
+      "description": "GPU 가속 및 배터리 최적화 관련 유틸리티 모듈이 비어 있었으나 수정되었습니다."
+    },
+    {
+      "file": "any-errors.json",
+      "status": "fixed",
+      "description": "에러 목록 파일이 비어 있었으나 수정되었습니다."
+    },
+    {
+      "file": "src/app/gpu-test/page.tsx",
+      "status": "fixed",
+      "description": "GPU 테스트 페이지가 비어 있었으나 수정되었습니다."
+    },
+    {
+      "file": "src/app/utils/common-types.ts",
+      "status": "fixed",
+      "description": "공통 타입 정의 파일이 비어 있었으나 수정되었습니다."
+    },
+    {
+      "file": "src/app/utils/electron.ts",
+      "status": "fixed",
+      "description": "Electron IPC 통신 유틸리티 파일이 비어 있었으나 수정되었습니다."
+    },
+    {
+      "file": "src/app/utils/error-utils.ts",
+      "status": "fixed",
+      "description": "에러 처리 유틸리티 파일이 비어 있었으나 수정되었습니다."
+    }
+  ],
+  "lastCheck": {
+    "date": "2023-05-26",
+    "timestamp": 1685116800000
+  }
+}
+

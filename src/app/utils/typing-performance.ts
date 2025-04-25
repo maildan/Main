@@ -1,4 +1,4 @@
-import { performGpuComputation } from './nativeModuleClient';
+import { performGpuComputation, GpuTaskType } from './nativeModuleClient';
 
 /**
  * 타이핑 데이터 인터페이스
@@ -40,14 +40,11 @@ export interface TypingStatistics {
 export async function calculateTypingStatistics(data: TypingData): Promise<TypingStatistics> {
   try {
     // GPU 계산 호출
-    const response = await performGpuComputation(data, 'typing');
+    const result = await performGpuComputation(GpuTaskType.TypingStatistics, data);
     
-    if (!response.success || !response.result) {
+    if (!result) {
       return calculateTypingStatisticsFallback(data);
     }
-    
-    // 결과 추출
-    const result = response.result;
     
     return {
       wpm: result.wpm || 0,
@@ -64,7 +61,7 @@ export async function calculateTypingStatistics(data: TypingData): Promise<Typin
         intensityFactor: result.fatigue_analysis?.intensity_factor || 0,
         recommendation: result.fatigue_analysis?.recommendation || '데이터가 부족합니다',
       },
-      accelerated: result.accelerated || false
+      accelerated: true
     };
   } catch (error) {
     console.error('GPU 가속 타이핑 통계 계산 오류:', error);
@@ -145,16 +142,22 @@ function getFatigueRecommendation(score: number): string {
 export async function analyzeTypingPattern(keyIntervals: number[]): Promise<any> {
   try {
     // GPU 계산 호출
-    const response = await performGpuComputation({
-      keyIntervals,
-      size: 'medium'
-    }, 'pattern');
+    const result = await performGpuComputation(
+      GpuTaskType.PatternDetection, 
+      {
+        keyIntervals,
+        size: 'medium'
+      }
+    );
     
-    if (!response.success || !response.result) {
+    if (!result) {
       return analyzeTypingPatternFallback(keyIntervals);
     }
     
-    return response.result;
+    return {
+      ...result,
+      accelerated: true
+    };
   } catch (error) {
     console.error('GPU 가속 타이핑 패턴 분석 오류:', error);
     return analyzeTypingPatternFallback(keyIntervals);

@@ -6,7 +6,7 @@
 
 import { getMemoryInfo } from './nativeModuleClient';
 import { getGpuInformation } from './gpu-acceleration';
-import { SystemStatus, ProcessingMode, MemoryUsageLevel as AppMemoryUsageLevel } from '@/types';
+import { SystemStatus, ProcessingMode, MemoryUsageLevel as AppMemoryUsageLevel, MemoryInfo } from '@/types';
 import { getMemoryUsageLevel } from './enum-converters';
 
 // 모니터링 상태
@@ -61,16 +61,15 @@ export function stopSystemMonitoring() {
  */
 async function checkSystemStatus() {
   try {
-    const memoryResponse = await getMemoryInfo();
+    const memoryInfo = await getMemoryInfo();
     const gpuInfo = await getGpuInformation();
 
-    if (!memoryResponse.success) {
-      console.error('메모리 정보를 가져오는 데 실패했습니다:', memoryResponse.error);
+    if (!memoryInfo) {
+      console.error('메모리 정보를 가져오는 데 실패했습니다');
       return;
     }
 
-    const memoryInfo = memoryResponse.memoryInfo;
-    const percentUsed = memoryInfo.percentUsed;
+    const percentUsed = memoryInfo.percentUsed || memoryInfo.percent_used || 0;
 
     // getMemoryUsageLevel 함수는 enum-converters.ts의 값을 반환하므로
     // 애플리케이션 레벨의 MemoryUsageLevel로 변환합니다.
@@ -198,13 +197,12 @@ export async function getSystemStatus(forceRefresh = false): Promise<SystemStatu
       cpuUsage: 0,
       memoryInfo: {
         timestamp: Date.now(),
-        heap_used: 0,
-        heap_total: 0,
-        heap_limit: 0,
+        heapUsed: 0,
+        heapTotal: 0,
         rss: 0,
-        heap_used_mb: 0,
-        rss_mb: 0,
-        percent_used: 0,
+        heapUsedMB: 0,
+        rssMB: 0,
+        percentUsed: 0,
       },
       processingMode: ProcessingMode.NORMAL,
       timestamp: now,
@@ -251,17 +249,9 @@ export function getNetworkStatus(): any {
     return null;
   }
 
-  // 타입 안전하게 접근
-  const connection = (navigator as any).connection;
-  if (!connection) {
-    return { online: navigator.onLine };
-  }
-
   return {
     online: navigator.onLine,
-    effectiveType: connection.effectiveType,
-    downlink: connection.downlink,
-    rtt: connection.rtt,
-    saveData: connection.saveData,
+    type: (navigator as any).connection ? (navigator as any).connection.type : 'unknown',
+    effectiveType: (navigator as any).connection ? (navigator as any).connection.effectiveType : 'unknown',
   };
 }

@@ -2,9 +2,11 @@ import { useState, useEffect, useCallback } from 'react';
 import { 
   getGpuInfo, 
   setGpuAcceleration,
-  performGpuComputation
+  performGpuComputation,
+  GpuTaskType,
+  GpuInfo
 } from '../utils/nativeModuleClient';
-import type { GpuInfo, GpuComputationResult } from '@/types/native-module';
+import type { GpuComputationResult } from '@/types/native-module';
 
 /**
  * 네이티브 GPU 가속 훅
@@ -26,16 +28,20 @@ export function useNativeGpu() {
     try {
       const response = await getGpuInfo();
       
-      if (response.success) {
-        setGpuInfo(response.gpuInfo || null);
+      if (response) {
+        setGpuInfo(response);
         setAvailable(response.available);
-        setEnabled(response.gpuInfo?.acceleration_enabled || false);
+        setEnabled(response.accelerationEnabled || false);
       } else {
         setError('GPU 정보를 가져오는데 실패했습니다.');
+        setAvailable(false);
+        setEnabled(false);
       }
     } catch (err) {
       console.error('GPU 정보 가져오기 오류:', err);
       setError(err instanceof Error ? err.message : '알 수 없는 오류');
+      setAvailable(false);
+      setEnabled(false);
     } finally {
       setLoading(false);
     }
@@ -47,15 +53,14 @@ export function useNativeGpu() {
     setError(null);
     
     try {
-      const response = await setGpuAcceleration(enable);
+      const success = await setGpuAcceleration(enable);
       
-      if (response.success) {
-        setEnabled(response.enabled);
-        // GPU 정보 업데이트
+      if (success) {
+        setEnabled(enable);
         await fetchGpuInfo();
-        return response.result;
+        return true;
       } else {
-        setError(response.error || 'GPU 가속 설정 변경 실패');
+        setError('GPU 가속 설정 변경 실패');
         return false;
       }
     } catch (err) {
@@ -67,19 +72,24 @@ export function useNativeGpu() {
     }
   }, [fetchGpuInfo]);
 
-  // GPU 계산 수행
-  const computeWithGpu = useCallback(async <T = any>(data: any, computationType: string) => {
+  // GPU 계산 수행 (제네릭 타입 제거)
+  const computeWithGpu = useCallback(async (taskType: GpuTaskType, data: Record<string, any>) => {
     setLoading(true);
     setError(null);
     
     try {
-      const response = await performGpuComputation<T>(data, computationType);
+      const result = await performGpuComputation(taskType, data);
       
-      if (response.success && response.result) {
-        setLastComputationResult(response.result);
-        return response.result;
+      if (result) {
+        setLastComputationResult({
+          computation_type: taskType,
+          duration_ms: result.duration_ms || 0,
+          result: result.result,
+          timestamp: Date.now()
+        } as GpuComputationResult);
+        return result.result;
       } else {
-        setError(response.error || 'GPU 계산 실패');
+        setError('GPU 계산 실패');
         return null;
       }
     } catch (err) {

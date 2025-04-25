@@ -29,7 +29,6 @@
       "@/*": [
         "./src/*"
       ],
-      "@/types": ["./src/types"],
       "@/types/*": ["./src/types/*"]
     },
     "downlevelIteration": true  // Set 이터레이션 지원을 위해 추가
@@ -38,6 +37,9 @@
     "next-env.d.ts",
     "**/*.ts",
     "**/*.tsx",
+    "src/**/*.ts", 
+    "src/**/*.tsx",
+    "src/app/utils/performance-optimizer.tsx",
     ".next/types/**/*.ts",
     "dist/types/**/*.ts"
   ],

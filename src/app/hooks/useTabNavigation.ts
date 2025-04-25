@@ -1,34 +1,38 @@
-import { useState, useCallback, useEffect } from 'react';
-import { ElectronAPI } from '../types/electron';
+import { useState, useCallback } from 'react';
+import { Tab } from '../types/tabs';
 
-// API 인터페이스 정의 수정 - ElectronAPI와 호환되도록 변경
-interface TabNavigationAPI extends Partial<ElectronAPI> {
-  // ElectronAPI의 모든 속성을 선택적으로 상속
+interface ElectronAPI {
+  setDebugMode?: (enabled: boolean) => Promise<void>;
 }
 
-interface UseTabNavigationProps {
-  initialTab: string;
-  electronAPI?: TabNavigationAPI | null; // 옵셔널로 변경
+interface UseTabNavigationOptions {
+  initialTab?: Tab;
+  electronAPI?: ElectronAPI | null;
 }
 
-export function useTabNavigation({ initialTab, electronAPI }: UseTabNavigationProps) {
-  const [activeTab, setActiveTab] = useState(initialTab);
+export function useTabNavigation({ 
+  initialTab = 'chatlog', 
+  electronAPI = null 
+}: UseTabNavigationOptions = {}) {
+  const [activeTab, setActiveTab] = useState<Tab>(initialTab);
   const [debugMode, setDebugMode] = useState(false);
 
-  // 탭 변경 핸들러
   const handleTabChange = useCallback((tab: string) => {
-    setActiveTab(tab);
+    setActiveTab(tab as Tab);
   }, []);
 
-  // 디버그 모드 토글
-  const toggleDebugMode = useCallback(() => {
-    setDebugMode(prev => !prev);
-  }, []);
-
-  // 컴포넌트 마운트 시 실행할 코드
-  useEffect(() => {
-    // 여기에 필요한 초기화 로직 추가
-  }, []);
+  const toggleDebugMode = useCallback(async () => {
+    const newState = !debugMode;
+    setDebugMode(newState);
+    
+    if (electronAPI && electronAPI.setDebugMode) {
+      try {
+        await electronAPI.setDebugMode(newState);
+      } catch (err) {
+        console.error('디버그 모드 설정 오류:', err);
+      }
+    }
+  }, [debugMode, electronAPI]);
 
   return {
     activeTab,

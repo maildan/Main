@@ -1,0 +1,126 @@
+.tabContainer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--border-color);
+  background-color: var(--bg-color-secondary);
+  padding: 0 15px;
+  height: 50px;
+  width: 100%;
+}
+
+.tabs {
+  display: flex;
+  height: 100%;
+  gap: 4px;
+}
+
+.tabButton {
+  background: transparent;
+  border: none;
+  color: var(--text-color-secondary);
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  padding: 0 16px;
+  height: 100%;
+  position: relative;
+  transition: all 0.2s ease;
+}
+
+.tabButton:hover {
+  color: var(--text-color-primary);
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+.tabButton.active {
+  color: var(--primary-color);
+  font-weight: 600;
+}
+
+.tabButton.active::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  background-color: var(--primary-color);
+}
+
+.debugButton {
+  background-color: transparent;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  color: var(--text-color-secondary);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 4px 8px;
+  transition: all 0.2s ease;
+}
+
+.debugButton:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+.debugActive {
+  background-color: rgba(var(--primary-color-rgb), 0.1);
+  color: var(--primary-color);
+  border-color: var(--primary-color);
+}
+
+/* 다크 모드 스타일 */
+:global(.dark-mode) .tabButton {
+  color: var(--dark-text-secondary);
+}
+
+:global(.dark-mode) .tabButton:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+  color: var(--dark-text-primary);
+}
+
+:global(.dark-mode) .tabButton.active {
+  background-color: var(--dark-primary-color);
+  color: var(--dark-text-on-primary);
+}
+
+:global(.dark-mode) .debugButton {
+  color: var(--dark-text-secondary);
+  border-color: var(--dark-border-color);
+}
+
+:global(.dark-mode) .debugActive {
+  background-color: var(--dark-warning-color);
+  color: var(--dark-text-on-warning);
+  border-color: var(--dark-warning-color);
+}
+
+/* 반응형 스타일 */
+@media (max-width: 768px) {
+  .tabContainer {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  
+  .tabs {
+    width: 100%;
+    justify-content: center;
+  }
+  
+  .tabButton {
+    padding: 0.5rem 1rem;
+    font-size: 0.8rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .tabs {
+    flex-direction: column;
+    width: 100%;
+  }
+  
+  .tabButton {
+    width: 100%;
+    text-align: center;
+  }
+} 

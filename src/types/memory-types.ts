@@ -6,23 +6,25 @@
  * 메모리 사용량 정보를 나타내는 인터페이스
  */
 export interface MemoryInfo {
-  // 바이트 단위 속성 (snake_case)
-  heap_used: number;
-  heap_total: number;
-  heap_limit: number;
+  // 바이트 단위 속성 (camelCase - 필수)
+  heapUsed: number;
+  heapTotal: number;
   rss: number;
-  rss_mb: number;
-  heap_used_mb: number;
-  percent_used: number;
+  heapUsedMB: number;
+  rssMB: number;
+  percentUsed: number;
   timestamp: number;
 
-  // 바이트 단위 속성 (camelCase - 호환성)
-  heapUsed?: number;
-  heapTotal?: number;
+  // 바이트 단위 속성 (snake_case - 옵셔널, 하위 호환성)
+  heap_used?: number;
+  heap_total?: number;
+  heap_limit?: number;
+  rss_mb?: number;
+  heap_used_mb?: number;
+  percent_used?: number;
+  
+  // 추가 옵셔널 속성
   heapLimit?: number;
-  heapUsedMB?: number;
-  rssMB?: number;
-  percentUsed?: number;
   external?: number;
 }
 

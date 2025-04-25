@@ -90,17 +90,24 @@ export function bytesToMB(bytes: number): number {
  * @returns 표준화된 메모리 정보
  */
 export function normalizeMemoryInfo(info: Partial<MemoryInfo>): MemoryInfo {
-  // MemoryInfo 인터페이스와 일치하는 속성 사용
+  const defaults = {
+    timestamp: Date.now(),
+    heapUsed: 0,
+    heapTotal: 0,
+    rss: 0,
+    heapUsedMB: 0,
+    rssMB: 0,
+    percentUsed: 0,
+  };
+
   return {
-    heap_used: info.heap_used || info.heapUsed || 0,
-    heap_total: info.heap_total || info.heapTotal || 0,
-    heap_limit: info.heap_limit || info.heapLimit || 0,
-    heap_used_mb: info.heap_used_mb || info.heapUsedMB || 0,
-    percent_used: info.percent_used || info.percentUsed || 0,
-    rss: info.rss || 0,
-    rss_mb: info.rss_mb || info.rssMB || 0,
-    external: info.external || 0,
-    timestamp: info.timestamp || Date.now()
+    timestamp: info.timestamp ?? defaults.timestamp,
+    heapUsed: info.heapUsed ?? defaults.heapUsed,
+    heapTotal: info.heapTotal ?? defaults.heapTotal,
+    rss: info.rss ?? defaults.rss,
+    heapUsedMB: info.heapUsedMB ?? defaults.heapUsedMB,
+    rssMB: info.rssMB ?? defaults.rssMB,
+    percentUsed: info.percentUsed ?? defaults.percentUsed,
   };
 }
 

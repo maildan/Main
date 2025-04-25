@@ -1,6 +1,7 @@
-'use client';
+y'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { performGpuComputation, GpuTaskType } from '../utils/nativeModuleClient';
 import { useNativeGpu } from '../hooks/useNativeGpu';
 import styles from './TypingAnalyzer.module.css';
 
@@ -48,10 +49,10 @@ export function TypingAnalyzer({ stats, _isTracking }: {
     try {
       if (useGpuAcceleration && enabled) {
         // GPU 가속 분석
-        const computeResult = await computeWithGpu<TypingAnalysisResult>(safeStats, 'typing');
+        const computeResult = await computeWithGpu(GpuTaskType.TypingStatistics, safeStats);
         
-        if (computeResult && computeResult.result_summary) {
-          setResult(computeResult.result_summary);
+        if (computeResult && computeResult.result) {
+          setResult(computeResult.result as TypingAnalysisResult);
         }
       } else {
         // 자바스크립트로 분석 (폴백)

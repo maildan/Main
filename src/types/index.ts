@@ -3,7 +3,7 @@
  */
 
 /**
- * 메모리 사용 단계 열거형
+ * 메모리 사용 수준 열거형
  */
 export enum MemoryUsageLevel {
   NORMAL = 0,
@@ -43,35 +43,27 @@ export enum AppOptimizationLevel {
  * 메모리 정보 인터페이스
  */
 export interface MemoryInfo {
-  timestamp: number;
-  heap_used: number;
-  heap_total: number;
-  heap_limit: number;
-  rss: number;
-  external?: number;
-  array_buffers?: number;
-  heap_used_mb: number;
-  rss_mb: number;
-  percent_used: number;
-
-  // 선택적 별칭 추가 - 코드 호환성을 위함
   heapUsed?: number;
   heapTotal?: number;
-  heapLimit?: number;
-  heapUsedMB?: number;
+  rss?: number;
   percentUsed?: number;
+  percent_used?: number; // 네이티브 모듈 응답과 호환
+  heapUsedMB?: number;
+  heap_used_mb?: number; // 네이티브 모듈 응답과 호환
   rssMB?: number;
+  rss_mb?: number; // 네이티브 모듈 응답과 호환
+  timestamp: number;
 }
 
 /**
- * 가비지 컬렉션 결과 인터페이스 (missing type 추가)
+ * 가비지 컬렉션 결과 인터페이스
  */
 export interface GCResult {
   success: boolean;
   timestamp: number;
-  freedMemory: number;
-  freedMB: number;
-  duration?: number;
+  freedMemory?: number;
+  freedMB?: number;
+  duration: number;
   error?: string;
 }
 
@@ -80,17 +72,15 @@ export interface GCResult {
  */
 export interface OptimizationResult {
   success: boolean;
-  optimizationLevel: OptimizationLevel | string | number;
+  optimizationLevel?: number;
+  optimization_level?: number; // 네이티브 모듈 응답과 호환
   timestamp: number;
-  freedMemory: number; // 모든 속성 일관되게 필수로 변경
+  freedMemory?: number;
+  freed_memory?: number; // 네이티브 모듈 응답과 호환
   freedMB?: number;
+  freed_mb?: number; // 네이티브 모듈 응답과 호환
   duration?: number;
   error?: string;
-
-  // 하위 호환성을 위한 snake_case 버전
-  optimization_level?: string | number;
-  freed_memory?: number;
-  freed_mb?: number;
 }
 
 /**
@@ -101,7 +91,7 @@ export enum ProcessingMode {
   NORMAL = 'normal',
   CPU_INTENSIVE = 'cpu-intensive',
   GPU_INTENSIVE = 'gpu-intensive',
-  MEMORY_SAVING = 'memory-saving',
+  MEMORY_SAVING = 'memory-saving'
 }
 
 /**
@@ -247,15 +237,25 @@ export enum GpuTaskType {
 }
 
 /**
- * 시스템 상태 인터페이스 (missing type 추가)
+ * 시스템 상태 인터페이스
  */
 export interface SystemStatus {
+  memoryInfo?: {
+    heapUsed?: number;
+    heapTotal?: number;
+    rss?: number;
+    percentUsed?: number;
+    heapUsedMB?: number;
+    rssMB?: number;
+    timestamp?: number;
+  };
+  cpuUsage?: number;
+  batteryLevel?: number;
+  isCharging?: boolean;
   memoryUsageLevel: MemoryUsageLevel;
-  cpuUsage: number;
-  memoryInfo: MemoryInfo;
   processingMode: ProcessingMode;
   timestamp: number;
-  optimizationCount: number;
+  optimizationCount?: number;
   lastOptimization?: number;
 }
 
@@ -293,7 +293,7 @@ export interface TaskResult {
 }
 
 /**
- * 메모리 설정 인터페이스 (missing type 추가)
+ * 메모리 설정 인터페이스
  */
 export interface MemorySettings {
   preferNativeImplementation: boolean;

@@ -15,5 +15,5 @@
   "enableMiniView": true,
   "useHardwareAcceleration": true,
   "processingMode": "cpu-intensive",
-  "maxMemoryThreshold": 100
+  "maxMemoryThreshold": 73
 }

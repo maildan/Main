@@ -7,7 +7,33 @@ import TypingStats from '../components/TypingStats';
 import { useAutoMemoryOptimization as useMemoryOptimizer } from '../utils/memory/hooks';
 import { detectGpuCapabilities } from '../utils/gpu-detection';
 import styles from './page.module.css';
-import { StatsData, GPUInfo } from '@/types';
+
+// TypingStats 컴포넌트에 맞는 데이터 타입 정의
+interface StatsData {
+  totalKeyCount: number;
+  totalTypingTime: number;
+  averageSpeed: number;
+  averageAccuracy: number;
+  totalSessions: number;
+  lastSession?: {
+    timestamp: string;
+    keyCount: number;
+    typingTime: number;
+    accuracy?: number;
+  };
+  recentStats?: Array<{
+    date: string;
+    keyCount: number;
+    typingTime: number;
+  }>;
+}
+
+interface GPUInfo {
+  vendor: string;
+  renderer: string;
+  hardwareAccelerated: boolean;
+  gpuTier: number;
+}
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -92,7 +118,7 @@ export default function DashboardPage() {
   // 긴급 최적화 처리
   function handleEmergencyOptimize() {
     // 긴급 최적화 모드로 호출
-    optimizeMemory(true); // 긴급 모드 파라미터 추가
+    optimizeMemory();
   }
 
   return (
@@ -182,7 +208,7 @@ export default function DashboardPage() {
             <span className={styles.statusValue}>{isOptimizing ? '최적화 중...' : '준비됨'}</span>
             {lastOptimization && (
               <span className={styles.lastOptimized}>
-                마지막 최적화: {new Date(lastOptimization).toLocaleTimeString()}
+                마지막 최적화: {new Date(lastOptimization.timestamp).toLocaleTimeString()}
               </span>
             )}
           </div>
@@ -190,7 +216,7 @@ export default function DashboardPage() {
           <div className={styles.memoryActions}>
             <button
               className={styles.optimizeButton}
-              onClick={() => optimizeMemory(false)}
+              onClick={() => optimizeMemory()}
               disabled={isOptimizing}
             >
               메모리 최적화
