@@ -28,6 +28,7 @@ export default [
       // 추가로 무시할 특정 오류 파일들
       'src/types/global.d.ts',
       'src/types/native-module.d.ts',
+      'src/app/utils/performance-optimizer.tsx',
     
       '**/*.d.ts',
     ],

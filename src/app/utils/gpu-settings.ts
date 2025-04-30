@@ -105,10 +105,10 @@ declare global {
  */
 export async function getGpuInformation(): Promise<any | null> {
   try {
-    const response = await getGpuInfo();
+    const gpuInfo = await getGpuInfo();
     
-    if (response.success && response.gpuInfo) {
-      return response.gpuInfo;
+    if (gpuInfo) {
+      return gpuInfo;
     }
     
     return null;
@@ -183,7 +183,7 @@ export async function getRecommendedGpuSettings(): Promise<Partial<GpuSettings>>
     }
     
     // GPU 유형에 따른 설정 추천
-    const deviceType = gpuInfo.device_type || '';
+    const deviceType = gpuInfo.deviceType || '';
     const isIntegrated = deviceType.includes('Integrated');
     const isDiscrete = deviceType.includes('Discrete');
     

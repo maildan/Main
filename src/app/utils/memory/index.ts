@@ -6,7 +6,7 @@
 export {
     getMemoryInfo,
     getMemoryUsage,
-    convertNativeMemoryInfo,
+    normalizeMemoryInfo,
     assessMemoryState
 } from './memory-info';
 
@@ -37,7 +37,7 @@ export {
 } from './gc-utils';
 
 // 타입 내보내기 - 명시적으로 이름 변경하여 모호성 해결
-export { OptimizationLevel as MemoryOptimizationLevel } from '@/types';
+export { OptimizationLevel as MemoryOptimizationLevel } from '@/types/native-module';
 export type { ExtendedGCResult as EnhancedGCResult } from './types-extended';
 export * from './types';
 

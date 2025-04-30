@@ -1,4 +1,4 @@
-// File: C:\Users\user\Desktop\loop\src\app\mini-view\page.tsx
+// File: /Users/user/loop/loop_3/src/app/mini-view/page.tsx
 import * as entry from '../../../../src/app/mini-view/page.js'
 import type { ResolvingMetadata, ResolvingViewport } from 'next/dist/lib/metadata/types/metadata-interface.js'
 

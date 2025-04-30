@@ -44,15 +44,15 @@ export function useMemory(options: UseMemoryOptions = {}) {
   const fetchMemoryInfo = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await getMemoryInfo();
+      const info = await getMemoryInfo();
 
-      if (response.success && response.memoryInfo) {
-        setMemoryInfo(response.memoryInfo);
+      if (info) {
+        setMemoryInfo(info);
         setLastUpdate(Date.now());
         setError(null);
-        return response.memoryInfo;
+        return info;
       } else {
-        setError(response.error || 'Failed to fetch memory info');
+        setError('메모리 정보를 가져오는데 실패했습니다');
         return null;
       }
     } catch (err) {
@@ -73,18 +73,19 @@ export function useMemory(options: UseMemoryOptions = {}) {
         const optimizeLvl = level !== undefined ? level : optimizationLevel;
 
         // 메모리 최적화 수행
-        const response = await optimizeMemory(optimizeLvl);
+        const result = await optimizeMemory(optimizeLvl);
 
-        if (response.success) {
+        if (result) {
           // 최적화 후 메모리 정보 갱신
           await fetchMemoryInfo();
 
-          // 알림 표시 (옵션에 따라) - showToast의 인수 타입 수정
-          showToast(`Memory Optimized: Freed ${response.result?.freed_mb.toFixed(2)} MB of memory`);
+          // 알림 표시 (옵션에 따라)
+          const freedMB = result.freedMB || 0;
+          showToast(`Memory Optimized: Freed ${freedMB.toFixed(2)} MB of memory`);
 
-          return response.result;
+          return result;
         } else {
-          setError(response.error || 'Optimization failed');
+          setError('Optimization failed');
           return null;
         }
       } catch (err) {
@@ -101,7 +102,7 @@ export function useMemory(options: UseMemoryOptions = {}) {
   const checkAndOptimizeIfNeeded = useCallback(async () => {
     const info = await fetchMemoryInfo();
 
-    if (info && autoOptimize && info.percentUsed > threshold) {
+    if (info && autoOptimize && (info.percent_used ?? info.percentUsed ?? 0) > threshold) {
       await runMemoryOptimization();
     }
   }, [autoOptimize, fetchMemoryInfo, threshold, runMemoryOptimization]);
@@ -274,25 +275,23 @@ export function useAutoMemoryOptimization(
       // 현재 메모리 정보 가져오기
       const memoryResponse = await getMemoryInfo();
 
-      if (!memoryResponse.success) {
-        throw new Error(memoryResponse.error || 'Failed to get memory info');
+      if (!memoryResponse) {
+        throw new Error('Failed to get memory info');
       }
 
-      const memInfo = memoryResponse.memoryInfo;
-
       // 임계값을 초과하는지 확인
-      if (memInfo && memInfo.percentUsed > threshold) {
+      if (memoryResponse.percentUsed && memoryResponse.percentUsed > threshold) {
         // 최적화 수행
-        const optimizationLevel = memInfo.percentUsed > 90 ? 3 : memInfo.percentUsed > 80 ? 2 : 1;
+        const optimizationLevel = memoryResponse.percentUsed > 90 ? 3 : memoryResponse.percentUsed > 80 ? 2 : 1;
 
-        const optimizationResponse = await optimizeMemory(optimizationLevel);
+        const optimizationResult = await optimizeMemory(optimizationLevel);
 
-        if (optimizationResponse?.success && optimizationResponse?.result) {
-          setLastOptimization(optimizationResponse.result);
+        if (optimizationResult) {
+          setLastOptimization(optimizationResult);
 
           // 알림 표시 (옵션에 따라)
           if (showNotifications) {
-            const freedMB = optimizationResponse.result?.freed_mb || 0;
+            const freedMB = optimizationResult.freedMB || 0;
             // 문자열로 변경
             showToast(`Memory Optimized: Freed ${freedMB.toFixed(2)} MB of memory`);
           }
@@ -402,4 +401,30 @@ export function useMemoryStatus(
     isWarning: status === 'warning',
     isCritical: status === 'critical',
   };
+}
+
+export async function optimizeMemoryIfNeeded(
+  memoryInfo: MemoryInfo | null,
+  threshold: number = 80,
+  level: number = 2
+): Promise<OptimizationResult | null> {
+  if (!memoryInfo) return null;
+
+  try {
+    // 임계값 초과 시 최적화 수행
+    if ((memoryInfo.percent_used ?? memoryInfo.percentUsed ?? 0) > threshold) {
+      const result = await optimizeMemory(level);
+      
+      if (result) {
+        // 최적화 성공 시 로그 출력
+        const freedMB = result.freedMB || 0;
+        console.log(`[Memory Optimizer] Freed ${freedMB.toFixed(2)} MB of memory`);
+        return result;
+      }
+    }
+    return null;
+  } catch (error) {
+    console.error('Memory optimization error:', error);
+    return null;
+  }
 }

@@ -3,6 +3,11 @@
  */
 
 import { MemoryInfo, OptimizationResult, OptimizationLevel, GCResult } from '@/types';
+import {
+  optimizeMemory,
+  forceGarbageCollection,
+  getMemoryInfo as fetchMemoryInfo,
+} from './nativeModuleClient';
 
 /**
  * 최적화 레벨 값을 안전하게 처리하는 함수
@@ -42,12 +47,6 @@ export async function requestNativeMemoryInfo(): Promise<MemoryInfo | null> {
   }
 }
 
-import {
-  optimizeMemory,
-  forceGarbageCollection,
-  getMemoryInfo as fetchMemoryInfo,
-} from './nativeModuleClient';
-
 // 브리지 상태
 const bridgeState = {
   isInitialized: false,
@@ -61,7 +60,7 @@ const bridgeState = {
  * 에러 처리 래퍼 함수
  */
 async function withErrorHandling<T>(
-  operation: () => Promise<T>, // 타입 오류 수정
+  operation: () => Promise<T | null>,
   fallback: () => Promise<T> | T | null,
   operationName: string
 ): Promise<T | null> {
@@ -105,12 +104,12 @@ async function checkBridgeAvailability(): Promise<boolean> {
     // 메모리 정보 가져오기 시도로 가용성 확인
     const response = await fetchMemoryInfo();
 
-    bridgeState.isAvailable = response.success;
+    bridgeState.isAvailable = !!response;
     bridgeState.isInitialized = true;
     bridgeState.lastCheck = now;
 
-    if (!response.success) {
-      bridgeState.lastError = new Error(response.error || 'Unknown error in native bridge');
+    if (!response) {
+      bridgeState.lastError = new Error('Unknown error in native bridge');
     } else {
       bridgeState.lastError = null;
     }
@@ -133,11 +132,11 @@ export async function requestNativeGarbageCollection(): Promise<GCResult | null>
     async () => {
       const response = await forceGarbageCollection();
 
-      if (response.success && response.result) {
-        return response.result;
+      if (!response) {
+        throw new Error('가비지 컬렉션을 수행할 수 없습니다');
       }
 
-      throw new Error(response.error || '가비지 컬렉션을 수행할 수 없습니다');
+      return response;
     },
     () => ({
       success: false,
@@ -156,20 +155,20 @@ export async function requestNativeGarbageCollection(): Promise<GCResult | null>
  */
 export async function requestNativeMemoryOptimization(
   level: number,
-  emergency = false
+  _emergency = false
 ): Promise<OptimizationResult | null> {
   // 올바른 레벨 값 확보
   const safeLevel = safeOptimizationLevel(level);
 
   return withErrorHandling(
     async () => {
-      const response = await optimizeMemory(safeLevel, emergency);
+      const response = await optimizeMemory(safeLevel);
 
-      if (response.success && response.result) {
-        return response.result;
+      if (!response) {
+        throw new Error('메모리 최적화를 수행할 수 없습니다');
       }
 
-      throw new Error(response.error || '메모리 최적화를 수행할 수 없습니다');
+      return response;
     },
     () => ({
       success: false,
@@ -202,6 +201,15 @@ export async function checkNativeBridgeStatus(): Promise<{
     errorCount: bridgeState.errorCount,
     lastError: bridgeState.lastError?.message || null,
   };
+}
+
+/**
+ * 비상 최적화 트리거 (일반 함수로 정의)
+ */
+export function triggerEmergencyOptimization() {
+  console.warn('[Memory Bridge] Triggering emergency optimization...');
+  // 실제 비상 최적화 로직 호출 (예: requestNativeMemoryOptimization)
+  requestNativeMemoryOptimization(OptimizationLevel.CRITICAL, true);
 }
 
 /**

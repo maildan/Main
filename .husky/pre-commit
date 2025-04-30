@@ -1,5 +1,0 @@
-#!/usr/bin/env sh
-. "$(dirname -- "$0")/_/husky.sh"
-
-# lint-staged를 사용하여 스테이징된 파일만 린트 검사
-npx lint-staged

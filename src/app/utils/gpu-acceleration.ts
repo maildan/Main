@@ -6,9 +6,7 @@
  * 리합니다.
  */
 
-import { getGpuInfo, performGpuComputation } from './nativeModuleClient';
-import { setGpuAcceleration as remoteSetGpuAcceleration } from './nativeModuleClient';
-import { GpuTaskType } from '@/types';
+import { getGpuInfo, performGpuComputation, setGpuAcceleration as remoteSetGpuAcceleration, GpuTaskType } from './nativeModuleClient';
 
 /**
  * GPU 정보 인터페이스
@@ -16,11 +14,12 @@ import { GpuTaskType } from '@/types';
 interface GpuInfo {
   available: boolean;
   accelerationEnabled: boolean;
-  driverVersion: string;
-  deviceName: string;
-  deviceType: string;
+  driverVersion?: string;
+  deviceName?: string;
+  deviceType?: string;
   vendor: string;
-  timestamp: number;
+  name: string;
+  timestamp?: number;
 }
 
 // GpuAccelerationResponse 인터페이스는 파일 내에서 사용되지 않지만
@@ -66,17 +65,27 @@ export async function getGpuInformation(): Promise<GpuInfo | null> {
 
   try {
     // 새로운 정보 가져오기
-    const response = await getGpuInfo();
+    const gpuInfo = await getGpuInfo();
     
-    if (!response.success || !response.gpuInfo) {
+    if (!gpuInfo) {
       return null;
     }
     
-    // 캐시 업데이트
-    gpuInfoCache = response.gpuInfo;
+    // 응답을 GpuInfo 형식으로 변환하고 캐시 업데이트
+    const convertedInfo: GpuInfo = {
+      available: gpuInfo.available,
+      accelerationEnabled: gpuInfo.accelerationEnabled || false,
+      driverVersion: gpuInfo.driverInfo,
+      deviceName: gpuInfo.name,
+      deviceType: gpuInfo.deviceType,
+      vendor: gpuInfo.vendor,
+      name: gpuInfo.name
+    };
+    
+    gpuInfoCache = convertedInfo;
     gpuInfoExpiration = now + GPU_INFO_TTL;
     
-    return response.gpuInfo;
+    return convertedInfo;
   } catch (error) {
     console.error('GPU 정보 가져오기 오류:', error);
     return null;
@@ -90,9 +99,9 @@ export async function getGpuInformation(): Promise<GpuInfo | null> {
  */
 export async function toggleGpuAcceleration(enable: boolean): Promise<boolean> {
   try {
-    const response = await remoteSetGpuAcceleration(enable);
+    const success = await remoteSetGpuAcceleration(enable);
     
-    if (response && response.success) {
+    if (success) {
       // 캐시 무효화
       gpuInfoCache = null;
       return true;
@@ -168,7 +177,7 @@ export async function evaluateGpuPerformance(): Promise<number> {
  * @returns 계산 결과
  */
 export async function executeGpuTask<T = unknown>(
-  taskType: GpuTaskType | string, 
+  taskType: string,  // string으로 변경하여 타입 호환성 문제 해결
   data: unknown
 ): Promise<T | null> {
   try {
@@ -179,15 +188,13 @@ export async function executeGpuTask<T = unknown>(
       return null;
     }
     
-    // GPU 작업 실행
-    const response = await performGpuComputation<T>(data, taskType.toString());
+    // GPU 작업 실행 - 문자열로 변환하여 전달
+    const result = await performGpuComputation(
+      taskType as GpuTaskType,
+      typeof data === 'object' ? data as Record<string, any> : { data }
+    );
     
-    if (!response.success) {
-      console.error('GPU 작업 실패:', response.error);
-      return null;
-    }
-    
-    return response.result as T;
+    return result as T | null;
   } catch (error) {
     console.error('GPU 작업 실행 오류:', error);
     return null;
@@ -210,9 +217,20 @@ export async function disableGpuAcceleration(): Promise<boolean> {
   return toggleGpuAcceleration(false);
 }
 
-// 간단한 전역 API 설정
+// Window에 간단한 전역 API 설정
+type _GpuAcceleratorAPI = {
+  isGpuAccelerationEnabled: typeof isGpuAccelerationEnabled;
+  getGpuInformation: typeof getGpuInformation;
+  toggleGpuAcceleration: typeof toggleGpuAcceleration;
+  enableGpuAcceleration: typeof enableGpuAcceleration;
+  disableGpuAcceleration: typeof disableGpuAcceleration;
+  evaluateGpuPerformance: typeof evaluateGpuPerformance;
+  executeGpuTask: typeof executeGpuTask;
+};
+
+// Window 인터페이스 확장 방식 변경
 if (typeof window !== 'undefined') {
-  window.__gpuAccelerator = {
+  (window as any).__gpuAccelerator = {
     isGpuAccelerationEnabled,
     getGpuInformation,
     toggleGpuAcceleration,
