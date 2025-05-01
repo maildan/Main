@@ -7,14 +7,10 @@
  * @module NativeModuleWrapper
  */
 
-import path from 'path';
-import fs from 'fs';
-import { performance } from 'perf_hooks';
-import { createLogger } from './utils/logger.js';
-import { createRequire } from 'module';
-
-// node require 생성 (필요시 네이티브 모듈 로드용)
-const require = createRequire(import.meta.url);
+const path = require('path');
+const fs = require('fs');
+const { performance } = require('perf_hooks');
+const { createLogger } = require('./utils/logger');
 
 // 로거 인스턴스 생성
 const logger = createLogger('native-module');
@@ -61,7 +57,7 @@ function resolveNativeModulePath() {
   // 프로덕션 환경에서는 배포된 위치에서 로드
   return [
     // 현재 디렉토리 내 네이티브 모듈
-    path.join(path.dirname(new URL(import.meta.url).pathname), 'typing_stats_native.node'),
+    path.join(__dirname, 'typing_stats_native.node'),
     // 대체 위치 - Node.js 확장 디렉토리
     path.join(process.cwd(), 'node_modules', '.native-modules', 'typing_stats_native.node')
   ];
@@ -87,7 +83,7 @@ async function loadNativeModule() {
     if (fs.existsSync(modulePath)) {
       try {
         logger.info(`네이티브 모듈 발견: ${modulePath}`);
-        // .node 파일은 require로 로드 (ESM에서는 직접 import 불가)
+        // .node 파일은 require로 로드
         moduleState.nativeModule = require(modulePath);
         moduleState.isAvailable = true;
         moduleState.isFallback = false;
@@ -121,10 +117,10 @@ async function loadNativeModule() {
   // 네이티브 모듈 로드 실패 시 폴백 모듈 로드
   if (!moduleState.isAvailable) {
     try {
-      const fallbackPath = path.join(path.dirname(new URL(import.meta.url).pathname), 'fallback', 'index.js');
+      const fallbackPath = path.join(__dirname, 'fallback', 'index.js');
       if (fs.existsSync(fallbackPath)) {
         logger.info(`폴백 모듈 로드: ${fallbackPath}`);
-        const fallbackModule = await import(fallbackPath);
+        const fallbackModule = require(fallbackPath);
         moduleState.nativeModule = fallbackModule.default || fallbackModule;
         moduleState.isAvailable = true;
         moduleState.isFallback = true;
@@ -455,7 +451,7 @@ const fallbacks = {
  */
 function isNativeModuleAvailable() {
   try {
-    return nativeModule !== null && !moduleState.isFallback;
+    return moduleState.nativeModule !== null && !moduleState.isFallback;
   } catch (error) {
     logError('네이티브 모듈 가용성 확인 오류', { error: error.message });
     return false;
@@ -463,68 +459,70 @@ function isNativeModuleAvailable() {
 }
 
 /**
- * 폴백 모듈 사용 가능 여부 확인
+ * 폴백 모듈이 사용 가능한지 확인 (중복 함수명 해결)
  * @returns {boolean} 폴백 모듈 사용 가능 여부
  */
-function isFallbackModuleAvailable() {
-  return fallbackModule !== null;
+function checkFallbackModuleAvailability() {
+  return moduleState.isAvailable && moduleState.isFallback;
 }
 
+/**
+ * 네이티브 폴백 모듈 가져오기
+ * @returns {Promise<Object>} 폴백 모듈
+ */
 async function getNativeFallback() {
-  // 캐싱된 모듈이 있으면 반환
-  if (fallbackModule !== null) {
-    return fallbackModule;
-  }
-
-  // 폴백 모듈 경로 - 경로 형식 수정
-  const possibleFallbackPaths = [
-    // 상대 경로 방식으로 수정
-    path.join(__dirname, 'fallback', 'index.js'),
-    path.join(__dirname, 'fallback.js'),
-    // 절대 경로는 정확한 형식으로 수정
-    path.join(process.cwd(), 'src', 'server', 'native', 'fallback', 'index.js'),
-    path.join(process.cwd(), 'dist', 'server', 'native', 'fallback', 'index.js')
-  ];
-
-  // 로그에 모든 시도 경로 기록
-  loggerInfo('폴백 모듈 로드 시도', { paths: possibleFallbackPaths });
-
-  // 각 경로 시도
-  for (const fallbackPath of possibleFallbackPaths) {
-    try {
-      if (fs.existsSync(fallbackPath)) {
-        // CommonJS 모듈 로드 방식 시도 (Next.js 환경 호환성)
-        if (typeof require !== 'undefined') {
-          try {
-            fallbackModule = require(fallbackPath);
-            loggerInfo(`폴백 모듈 로드(CommonJS): ${fallbackPath}`);
-            return fallbackModule;
-          } catch (requireError) {
-            logWarning(`폴백 모듈 CommonJS 로드 실패: ${fallbackPath}`, { error: requireError.message });
-            // CommonJS 실패 시 ESM 시도
-          }
-        }
-
-        // ESM 방식 로드 시도
-        try {
-          const loadedModule = await import(fallbackPath);
-          fallbackModule = loadedModule.default || loadedModule;
-          loggerInfo(`폴백 모듈 로드(ESM): ${fallbackPath}`);
-          return fallbackModule;
-        } catch (importError) {
-          logWarning(`폴백 모듈 ESM 로드 실패: ${fallbackPath}`, { error: importError.message });
-        }
-      }
-    } catch (error) {
-      logWarning(`폴백 모듈 접근 실패: ${fallbackPath}`, { error: error.message });
+  try {
+    const fallbackPath = path.join(__dirname, 'fallback', 'index.js');
+    logger.info(`폴백 모듈 경로: ${fallbackPath}`);
+    
+    if (fs.existsSync(fallbackPath)) {
+      logger.info('폴백 모듈 로드 중');
+      const fallbackModule = require(fallbackPath);
+      return fallbackModule.default || fallbackModule;
+    } else {
+      logger.warning('폴백 모듈을 찾을 수 없음');
+      return null;
     }
+  } catch (error) {
+    logger.error('폴백 모듈 로드 오류', { error: error.message });
+    return null;
   }
+}
 
-  logError('폴백 모듈을 찾을 수 없음, 인라인 폴백 생성');
-
-  // 인라인 폴백 생성
-  fallbackModule = createInlineFallback();
-  return fallbackModule;
+/**
+ * 백업 폴백 모듈 가져오기
+ * @returns {Promise<Object>} 백업 폴백 모듈
+ */
+async function getBackupNativeFallback() {
+  try {
+    // 이미 로드된 모듈 확인
+    if (moduleState.nativeModule) {
+      return moduleState.nativeModule;
+    }
+    
+    // 폴백 모듈 로드
+    try {
+      const fallbackPath = path.join(__dirname, 'fallback', 'index.js');
+      const fallbackExists = fs.existsSync(fallbackPath);
+      
+      if (fallbackExists) {
+        const importedModule = require(fallbackPath);
+        moduleState.nativeModule = importedModule.default || importedModule;
+        moduleState.isAvailable = true;
+        moduleState.isFallback = true;
+        
+        return moduleState.nativeModule;
+      }
+    } catch (fallbackError) {
+      logError('백업 폴백 모듈 로드 오류', { error: fallbackError.message });
+    }
+    
+    // 기본 인라인 구현
+    return createInlineFallback();
+  } catch (error) {
+    logError('백업 폴백 모듈 가져오기 실패', { error: error.message });
+    return createInlineFallback();
+  }
 }
 
 // 누락된 getMemoryInfo 함수 정의 추가
@@ -665,73 +663,14 @@ async function requestGarbageCollection(emergency = false) {
 function isGpuAccelerationAvailable() {
   try {
     // 네이티브 모듈 있으면 해당 함수 사용
-    if (nativeModule && typeof nativeModule.is_gpu_acceleration_available === 'function') {
-      return nativeModule.is_gpu_acceleration_available();
+    if (moduleState.nativeModule && typeof moduleState.nativeModule.is_gpu_acceleration_available === 'function') {
+      return moduleState.nativeModule.is_gpu_acceleration_available();
     }
     return false; // 기본값은 지원 안함
   } catch (error) {
     logError('GPU 가속 지원 확인 오류', { error: error.message });
     return false;
   }
-}
-
-// 폴백 모듈 경로 수정 부분
-
-async function getNativeFallback() {
-  // 캐싱된 모듈이 있으면 반환
-  if (fallbackModule !== null) {
-    return fallbackModule;
-  }
-
-  // 폴백 모듈 경로 - 여러 가능한 경로 시도
-  const possibleFallbackPaths = [
-    // 상대 경로 방식으로 수정
-    path.join(__dirname, 'fallback', 'index.js'),
-    path.join(__dirname, 'fallback.js'),
-    // 절대 경로는 그대로 유지
-    path.join(process.cwd(), 'src', 'server', 'native', 'fallback', 'index.js'),
-    path.join(process.cwd(), 'dist', 'server', 'native', 'fallback', 'index.js')
-  ];
-
-  // 로그에 모든 시도 경로 기록
-  loggerInfo('폴백 모듈 로드 시도', { paths: possibleFallbackPaths });
-
-  // 각 경로 시도
-  for (const fallbackPath of possibleFallbackPaths) {
-    try {
-      if (fs.existsSync(fallbackPath)) {
-        // CommonJS 모듈 로드 방식 시도 (Next.js 환경 호환성)
-        if (require) {
-          try {
-            fallbackModule = require(fallbackPath);
-            loggerInfo(`폴백 모듈 로드(CommonJS): ${fallbackPath}`);
-            return fallbackModule;
-          } catch (requireError) {
-            logWarning(`폴백 모듈 CommonJS 로드 실패: ${fallbackPath}`, { error: requireError.message });
-            // CommonJS 실패 시 ESM 시도
-          }
-        }
-
-        // ESM 방식 로드 시도
-        try {
-          const loadedModule = await import(fallbackPath);
-          fallbackModule = loadedModule.default || loadedModule;
-          loggerInfo(`폴백 모듈 로드(ESM): ${fallbackPath}`);
-          return fallbackModule;
-        } catch (importError) {
-          logWarning(`폴백 모듈 ESM 로드 실패: ${fallbackPath}`, { error: importError.message });
-        }
-      }
-    } catch (error) {
-      logWarning(`폴백 모듈 접근 실패: ${fallbackPath}`, { error: error.message });
-    }
-  }
-
-  logError('폴백 모듈을 찾을 수 없음, 인라인 폴백 생성');
-
-  // 인라인 폴백 생성
-  fallbackModule = createInlineFallback();
-  return fallbackModule;
 }
 
 /**
@@ -1295,14 +1234,6 @@ async function getNativeModule() {
 }
 
 /**
- * 폴백 모듈 사용 가능 여부 확인
- * @returns {boolean} 폴백 모듈 사용 가능 여부
- */
-function isFallbackModuleAvailable() {
-  return fallbackModule !== null;
-}
-
-/**
  * 네이티브 모듈 정보 가져오기
  * @returns {Promise<Object>} 네이티브 모듈 정보
  */
@@ -1420,7 +1351,7 @@ const combinedExports = {
   getNativeModuleInfo,
   callNativeFunction,
   isNativeModuleAvailable,
-  isFallbackModuleAvailable,
+  checkFallbackModuleAvailability,
 
   // 보다 간편한 사용을 위한 일반적인 함수들
   getMemoryInfo: async () => {
@@ -1490,10 +1421,5 @@ const combinedExports = {
   getNativeModuleInfo
 };
 
-// 마지막에 CommonJS 호환성 추가
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = combinedExports;
-}
-
-// 단일 default export 사용
-export default combinedExports;
+// CommonJS 모듈로 내보내기
+module.exports = combinedExports;

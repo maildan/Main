@@ -4,14 +4,81 @@
  * 이 모듈은 Rust 네이티브 모듈을 사용하여 메모리 관리 기능을 제공합니다.
  * Rust 네이티브 모듈을 사용할 수 없는 경우 기본 JavaScript 구현으로 폴백합니다.
  */
-const { 
-  isNativeModuleAvailable, 
-  getMemoryInfo, 
-  optimizeMemory,
-  forceGarbageCollection,
-  determineOptimizationLevel
-} = require('../server/native');
+const path = require('path');
 const { debugLog } = require('./utils');
+
+// 네이티브 모듈 가져오기
+let nativeModule = null;
+try {
+  nativeModule = require('../server/native/index.cjs');
+  debugLog('네이티브 모듈 로드 성공:', '../server/native/index.cjs');
+} catch (error) {
+  debugLog('모듈 로드 실패: ../server/native/index.cjs');
+  try {
+    nativeModule = require('../server/native/fallback/index.js');
+    debugLog('폴백 모듈 로드 성공:', '../server/native/fallback/index.js');
+  } catch (fallbackError) {
+    debugLog('폴백 모듈 로드 실패:', fallbackError.message);
+    nativeModule = null;
+  }
+}
+
+// 안전한 네이티브 모듈 함수 참조
+const { 
+  isNativeModuleAvailable = () => false, 
+  getMemoryInfo = () => ({}), 
+  optimizeMemory = () => ({}),
+  forceGarbageCollection = () => ({}),
+  determineOptimizationLevel = () => 0
+} = nativeModule || {};
+
+// 네이티브 모듈 관련 상태
+const nativeModuleState = {
+  initialized: false,
+  lastInitAttempt: 0,
+  initAttempts: 0,
+  lastUsedTime: 0,
+  lastError: null,
+  isAvailable: false
+};
+
+/**
+ * 네이티브 모듈 초기화
+ * @returns {boolean} 초기화 성공 여부
+ */
+function initializeNativeModule() {
+  try {
+    nativeModuleState.lastInitAttempt = Date.now();
+    nativeModuleState.initAttempts++;
+    
+    // 이미 초기화되었거나 네이티브 모듈을 사용할 수 없는 경우
+    if (nativeModuleState.initialized || nativeModuleState.initAttempts > 3) {
+      return nativeModuleState.isAvailable;
+    }
+    
+    // 네이티브 모듈 사용 가능 여부 확인
+    if (nativeModule && typeof isNativeModuleAvailable === 'function') {
+      nativeModuleState.isAvailable = isNativeModuleAvailable();
+    } else {
+      nativeModuleState.isAvailable = false;
+    }
+    
+    nativeModuleState.initialized = true;
+    
+    if (nativeModuleState.isAvailable) {
+      debugLog('네이티브 모듈 초기화 성공');
+    } else {
+      debugLog('네이티브 모듈 사용 불가, 폴백 모듈로 초기화 완료');
+    }
+    
+    return nativeModuleState.isAvailable;
+  } catch (error) {
+    console.error('네이티브 모듈 초기화 오류:', error);
+    nativeModuleState.lastError = error;
+    nativeModuleState.isAvailable = false;
+    return false;
+  }
+}
 
 /**
  * 네이티브 모듈을 통한 메모리 정보 가져오기
@@ -283,63 +350,6 @@ async function performAutoMemoryManagement() {
   return null;
 }
 
-module.exports = {
-  getNativeMemoryInfo,
-  getFallbackMemoryInfo,
-  performNativeGC,
-  performMemoryOptimization,
-  getOptimizationLevel,
-  performAutoMemoryManagement,
-};
-
-/**
- * 네이티브 메모리 관리 모듈
- * 
- * Rust 네이티브 모듈과 직접 상호작용하는 기능을 제공합니다.
- */
-
-const path = require('path');
-
-// 네이티브 모듈 관련 상태
-const nativeModuleState = {
-  initialized: false,
-  lastInitAttempt: 0,
-  initAttempts: 0,
-  lastUsedTime: 0,
-  lastError: null,
-  isAvailable: false
-};
-
-/**
- * 네이티브 모듈 초기화
- * @returns {boolean} 초기화 성공 여부
- */
-function initializeNativeModule() {
-  try {
-    nativeModuleState.lastInitAttempt = Date.now();
-    nativeModuleState.initAttempts++;
-    
-    // 이미 초기화되었거나 네이티브 모듈을 사용할 수 없는 경우
-    if (nativeModuleState.initialized || nativeModuleState.initAttempts > 3) {
-      return nativeModuleState.isAvailable;
-    }
-    
-    // 네이티브 모듈 사용 가능 여부 확인 - 폴백 모드 사용
-    nativeModuleState.isAvailable = true;
-    nativeModuleState.initialized = true;
-    
-    // 폴백 모듈 사용 로깅
-    console.log('네이티브 모듈 사용 불가, 폴백 모듈로 초기화 완료');
-    
-    return true;
-  } catch (error) {
-    console.error('네이티브 모듈 초기화 오류:', error);
-    nativeModuleState.lastError = error;
-    nativeModuleState.isAvailable = false;
-    return false;
-  }
-}
-
 /**
  * 네이티브 메모리 최적화 수행
  * @param {number} level 최적화 레벨 (0-4)
@@ -426,5 +436,11 @@ module.exports = {
   optimizeMemoryNative,
   performGarbageCollectionNative,
   getMemoryInfoNative,
-  getNativeModuleState
+  getNativeModuleState,
+  getNativeMemoryInfo,
+  getFallbackMemoryInfo,
+  performNativeGC,
+  performMemoryOptimization,
+  getOptimizationLevel,
+  performAutoMemoryManagement
 };

@@ -30,30 +30,6 @@
         "x-next-revalidate-tag-token"
       ]
     },
-    "/pages/analysis": {
-      "experimentalBypassFor": [
-        {
-          "type": "header",
-          "key": "Next-Action"
-        },
-        {
-          "type": "header",
-          "key": "content-type",
-          "value": "multipart/form-data;.*"
-        }
-      ],
-      "initialRevalidateSeconds": false,
-      "srcRoute": "/pages/analysis",
-      "dataRoute": "/pages/analysis.rsc",
-      "allowHeader": [
-        "host",
-        "x-matched-path",
-        "x-prerender-revalidate",
-        "x-prerender-revalidate-if-generated",
-        "x-next-revalidated-tags",
-        "x-next-revalidate-tag-token"
-      ]
-    },
     "/gpu-test": {
       "experimentalBypassFor": [
         {
@@ -69,30 +45,6 @@
       "initialRevalidateSeconds": false,
       "srcRoute": "/gpu-test",
       "dataRoute": "/gpu-test.rsc",
-      "allowHeader": [
-        "host",
-        "x-matched-path",
-        "x-prerender-revalidate",
-        "x-prerender-revalidate-if-generated",
-        "x-next-revalidated-tags",
-        "x-next-revalidate-tag-token"
-      ]
-    },
-    "/mini-view": {
-      "experimentalBypassFor": [
-        {
-          "type": "header",
-          "key": "Next-Action"
-        },
-        {
-          "type": "header",
-          "key": "content-type",
-          "value": "multipart/form-data;.*"
-        }
-      ],
-      "initialRevalidateSeconds": false,
-      "srcRoute": "/mini-view",
-      "dataRoute": "/mini-view.rsc",
       "allowHeader": [
         "host",
         "x-matched-path",
@@ -150,6 +102,54 @@
         "x-next-revalidate-tag-token"
       ]
     },
+    "/pages/analysis": {
+      "experimentalBypassFor": [
+        {
+          "type": "header",
+          "key": "Next-Action"
+        },
+        {
+          "type": "header",
+          "key": "content-type",
+          "value": "multipart/form-data;.*"
+        }
+      ],
+      "initialRevalidateSeconds": false,
+      "srcRoute": "/pages/analysis",
+      "dataRoute": "/pages/analysis.rsc",
+      "allowHeader": [
+        "host",
+        "x-matched-path",
+        "x-prerender-revalidate",
+        "x-prerender-revalidate-if-generated",
+        "x-next-revalidated-tags",
+        "x-next-revalidate-tag-token"
+      ]
+    },
+    "/mini-view": {
+      "experimentalBypassFor": [
+        {
+          "type": "header",
+          "key": "Next-Action"
+        },
+        {
+          "type": "header",
+          "key": "content-type",
+          "value": "multipart/form-data;.*"
+        }
+      ],
+      "initialRevalidateSeconds": false,
+      "srcRoute": "/mini-view",
+      "dataRoute": "/mini-view.rsc",
+      "allowHeader": [
+        "host",
+        "x-matched-path",
+        "x-prerender-revalidate",
+        "x-prerender-revalidate-if-generated",
+        "x-next-revalidated-tags",
+        "x-next-revalidate-tag-token"
+      ]
+    },
     "/": {
       "experimentalBypassFor": [
         {
@@ -178,8 +178,8 @@
   "dynamicRoutes": {},
   "notFoundRoutes": [],
   "preview": {
-    "previewModeId": "55dd34a9b0e60c2653dab1e5b2c5df0f",
-    "previewModeSigningKey": "915ea3f63ec7a4b7695b215f66dfb6ab7b89a6686595b0505bb4894ade9a8437",
-    "previewModeEncryptionKey": "61e18bbb91e38341b2ed0078fc8afa8e2ce26f7a508fb770a7b05f8a8763b924"
+    "previewModeId": "c43be7553b68fdef9e31b3036923dd08",
+    "previewModeSigningKey": "720937105b13e1caa4cc332a3ea613df0e5474a23e847f3d48eaa36591329fbe",
+    "previewModeEncryptionKey": "cb17f918a3b13264374e9b2c46465cb2c00fec0d4801d3161c83fba71c4b00e0"
   }
 }

@@ -241,9 +241,9 @@ function freeUpMemoryResources(aggressive = false) {
 }
 
 /**
- * 주기적인 메모리 최적화 설정
- * 설정에 따라 주기적으로 메모리 최적화 수행
- * @param {Object} settings 메모리 최적화 설정
+ * 메모리 모니터링 설정 함수
+ * main.js에서 직접 접근할 수 있도록 함수 추가/수정
+ * @param {Object} options 초기화 옵션
  */
 function setupMemoryMonitoring(settings = {}) {
   const {
@@ -521,6 +521,7 @@ if (typeof module !== 'undefined' && module.exports) {
     freeUpMemoryResources,
     forceMemoryOptimization,
     stopMemoryMonitoring,
+    setupMemoryMonitoring,
     // 추가 필요한 함수들 여기에 포함
   };
 }

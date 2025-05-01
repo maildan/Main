@@ -1,0 +1,107 @@
+{
+  "name": "VS Code MCP Servers Collection",
+  "version": "1.0.0",
+  "description": "VS Code용 MCP 서버 모음",
+  "servers": [
+    {
+      "id": "fs-server",
+      "name": "Filesystem Server",
+      "description": "파일 시스템 접근 (파일 읽기, 쓰기, 삭제, 이동 등)",
+      "transport": {
+        "type": "http",
+        "url": "http://localhost:8001/mcp"
+      },
+      "capabilities": {
+        "resources": true,
+        "tools": true,
+        "prompts": true
+      }
+    },
+    {
+      "id": "seq-server",
+      "name": "Sequential Thinking Server",
+      "description": "복잡한 문제를 단계별로 분석하는 구조적 사고 서버",
+      "transport": {
+        "type": "http",
+        "url": "http://localhost:8002/mcp"
+      },
+      "capabilities": {
+        "resources": true,
+        "tools": true,
+        "prompts": true
+      }
+    },
+    {
+      "id": "browser-server",
+      "name": "Browser MCP Server",
+      "description": "웹 브라우저 기능 연동 서버",
+      "transport": {
+        "type": "http",
+        "url": "http://localhost:8003/mcp"
+      },
+      "capabilities": {
+        "resources": true,
+        "tools": true,
+        "prompts": true
+      }
+    },
+    {
+      "id": "browser-tools-server",
+      "name": "Browser Tools Server",
+      "description": "웹 브라우저와 상호작용 (콘솔 로그, 네트워크 요청, 스크린샷 등)",
+      "transport": {
+        "type": "http",
+        "url": "http://localhost:8004"
+      },
+      "capabilities": {
+        "resources": true,
+        "tools": true,
+        "prompts": true
+      }
+    },
+    {
+      "id": "figma-server",
+      "name": "Figma Server",
+      "description": "Figma 디자인 파일 접근 및 상호작용",
+      "transport": {
+        "type": "http",
+        "url": "http://localhost:8005/mcp"
+      },
+      "capabilities": {
+        "resources": true,
+        "tools": true,
+        "prompts": true
+      }
+    },
+    {
+      "id": "desktop-server",
+      "name": "Desktop Commander",
+      "description": "터미널 명령 실행 및 파일 편집을 위한 서버",
+      "transport": {
+        "type": "http", 
+        "url": "http://localhost:8006/mcp"
+      },
+      "capabilities": {
+        "resources": true,
+        "tools": true,
+        "prompts": true
+      }
+    },
+    {
+      "id": "smithery-server",
+      "name": "Smithery Toolbox",
+      "description": "다양한 MCP 도구들을 동적으로 연결해주는 메타 서버",
+      "transport": {
+        "type": "http",
+        "url": "http://localhost:8007/mcp"
+      },
+      "capabilities": {
+        "resources": true,
+        "tools": true,
+        "prompts": true
+      }
+    }
+  ],
+  "autoStartServers": true,
+  "default": "fs-server"
+}

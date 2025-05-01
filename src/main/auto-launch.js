@@ -28,6 +28,7 @@ const getExecutablePath = () => {
   }
 };
 
+
 // 자동 시작 설정 객체
 let autoLauncher = null;
 

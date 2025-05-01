@@ -1,1 +1,1 @@
-require('./src/main/main.cjs');
+require('./src/main/main.js');

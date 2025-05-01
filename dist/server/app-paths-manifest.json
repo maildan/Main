@@ -1,10 +1,10 @@
 {
-  "/_not-found/page": "app/_not-found/page.js",
   "/api/db-test/route": "app/api/db-test/route.js",
+  "/_not-found/page": "app/_not-found/page.js",
   "/api/init-db/route": "app/api/init-db/route.js",
   "/api/logs/learn/route": "app/api/logs/learn/route.js",
-  "/api/logs/save/route": "app/api/logs/save/route.js",
   "/api/logs/search/route": "app/api/logs/search/route.js",
+  "/api/logs/save/route": "app/api/logs/save/route.js",
   "/api/native/gpu/acceleration/route": "app/api/native/gpu/acceleration/route.js",
   "/api/native/gpu/route": "app/api/native/gpu/route.js",
   "/api/native/gpu/settings/route": "app/api/native/gpu/settings/route.js",
@@ -20,10 +20,10 @@
   "/api/test/route": "app/api/test/route.js",
   "/favicon.ico/route": "app/favicon.ico/route.js",
   "/api/getLogs/route": "app/api/getLogs/route.js",
-  "/dashboard/page": "app/dashboard/page.js",
-  "/gpu-test/page": "app/gpu-test/page.js",
   "/page": "app/page.js",
   "/pages/analysis/page": "app/pages/analysis/page.js",
+  "/dashboard/page": "app/dashboard/page.js",
   "/restart/page": "app/restart/page.js",
+  "/gpu-test/page": "app/gpu-test/page.js",
   "/mini-view/page": "app/mini-view/page.js"
 }

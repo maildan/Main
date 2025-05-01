@@ -1,10 +1,80 @@
 const { app } = require('electron');
 const path = require('path');
-const { setupAppEventListeners } = require('./app-lifecycle');
-const { debugLog } = require('./utils');
-const { createWindow, getMainWindow } = require('./window');
+const { debugLog, safeRequire } = require('./utils');
 const fs = require('fs');
 const http = require('http');
+
+// 핵심 모듈들
+const { setupAppEventListeners } = safeRequire('./app-lifecycle', { setupAppEventListeners: () => debugLog('앱 이벤트 리스너 기본 구현 사용') });
+const { createWindow, getMainWindow } = safeRequire('./window', { createWindow: () => debugLog('창 생성 기본 구현 사용'), getMainWindow: () => null });
+
+// 추가 모듈 안전하게 import
+const memoryManager = safeRequire('./memory-manager', {});
+const memoryManagerNative = safeRequire('./memory-manager-native', {});
+const keyboard = safeRequire('./keyboard', {});
+const ipcHandlers = safeRequire('./ipc-handlers', {});
+const settings = safeRequire('./settings', {});
+const constants = safeRequire('./constants', { appState: {} });
+
+// 필요한 함수 참조 추출
+const setupMemoryMonitoring = memoryManager.setupMemoryMonitoring || (() => debugLog('메모리 모니터링 기본 구현 사용'));
+const initializeNativeModule = () => {
+  try {
+    const { isNativeModuleAvailable, initializeMemorySettings } = require('../server/native/index.cjs');
+    
+    // 네이티브 모듈 상태 초기화
+    let moduleStatus = false;
+    
+    try {
+      moduleStatus = isNativeModuleAvailable();
+    } catch (error) {
+      console.error('네이티브 모듈 가용성 확인 오류:', error);
+    }
+    
+    if (moduleStatus) {
+      // 네이티브 모듈 사용 가능
+      console.debug('네이티브 메모리 모듈 초기화 성공');
+      
+      // 여기에 추가 초기화 로직 구현
+      if (typeof initializeMemorySettings === 'function') {
+        try {
+          initializeMemorySettings({
+            gcInterval: 60000,
+            memoryLimit: 512,
+            emergency: false
+          });
+        } catch (initError) {
+          console.error('메모리 설정 초기화 오류:', initError);
+        }
+      }
+    } else {
+      console.debug('JavaScript 기반 메모리 관리로 폴백');
+    }
+    
+    return moduleStatus;
+  } catch (error) {
+    console.error('네이티브 메모리 모듈 초기화 오류:', error);
+    return false;
+  }
+};
+const setupKeyboardListener = keyboard.setupKeyboardListener || (() => debugLog('키보드 리스너 기본 구현 사용'));
+const setupIpcHandlers = ipcHandlers.setupIpcHandlers || (() => debugLog('IPC 핸들러 기본 구현 사용'));
+const loadSettings = settings.loadSettings || (() => debugLog('설정 로드 기본 구현 사용'));
+const appState = constants.appState || {};
+
+// 모듈 로드 상태 출력
+debugLog('모듈 로드 결과:');
+debugLog('- app-lifecycle:', !!setupAppEventListeners);
+debugLog('- window:', !!createWindow && !!getMainWindow);
+debugLog('- memory-manager:', !!memoryManager.setupMemoryMonitoring);
+debugLog('- memory-manager-native:', !!initializeNativeModule);
+debugLog('- keyboard:', !!keyboard.setupKeyboardListener);
+debugLog('- ipc-handlers:', !!ipcHandlers.setupIpcHandlers);
+debugLog('- settings:', !!settings.loadSettings);
+debugLog('- constants:', !!constants.appState);
+
+// 이미 setupAppEventListeners가 호출되었는지 추적하는 플래그 추가
+let appEventListenersSetup = false;
 
 // Next.js 서버가 준비되었는지 확인하는 함수
 function checkIfNextServerReady() {
@@ -83,15 +153,15 @@ if (!gotSingleInstanceLock) {
       
       // 메인 프로세스 초기화 시간 확보
       debugLog('메인 프로세스 초기화 대기 중...');
-      setTimeout(() => {
-        // 앱 이벤트 리스너 설정
-        setupAppEventListeners();
-        debugLog('앱 이벤트 리스너 설정 완료');
-      }, 100);
+      // appEventListenersSetup 플래그를 사용하여 중복 호출 방지
+      if (!appEventListenersSetup) {
+        setTimeout(() => {
+          debugLog('앱 이벤트 리스너 설정 예약됨 (setupAppConfig)');
+        }, 100);
+      }
     } catch (error) {
       console.error('앱 설정 초기화 중 오류:', error);
       // 오류 발생해도 앱은 계속 실행
-      setupAppEventListeners();
     }
   }
   
@@ -102,10 +172,29 @@ if (!gotSingleInstanceLock) {
     try {
       debugLog('앱 준비됨, Next.js 서버 확인 중...');
       
+      // 초기화 상태 로깅
+      debugLog('모듈 로드 상태:');
+      debugLog('- createWindow: ' + (typeof createWindow === 'function' ? '로드됨' : '로드 실패'));
+      debugLog('- setupAppEventListeners: ' + (typeof setupAppEventListeners === 'function' ? '로드됨' : '로드 실패'));
+      debugLog('- setupKeyboardListener: ' + (typeof setupKeyboardListener === 'function' ? '로드됨' : '로드 실패'));
+      debugLog('- setupIpcHandlers: ' + (typeof setupIpcHandlers === 'function' ? '로드됨' : '로드 실패'));
+      debugLog('- loadSettings: ' + (typeof loadSettings === 'function' ? '로드됨' : '로드 실패'));
+      debugLog('- initializeNativeModule: ' + (typeof initializeNativeModule === 'function' ? '로드됨' : '로드 실패'));
+      
+      // 앱 이벤트 리스너가 아직 설정되지 않았다면 설정
+      if (!appEventListenersSetup) {
+        setupAppEventListeners();
+        appEventListenersSetup = true;
+        debugLog('앱 이벤트 리스너 설정 완료 (main.js)');
+      }
+      
       // 개발 모드에서는 Next.js 서버 준비 상태 확인
       if (process.env.NODE_ENV === 'development') {
         await checkIfNextServerReady();
       }
+      
+      // 앱 초기화 실행
+      await initializeApp();
       
       // 창 생성
       createWindow();
@@ -179,12 +268,30 @@ function setupGpuAcceleration() {
  */
 async function initializeApp() {
   try {
-    
+    // 기존 코드
     // 창 생성 전에 메모리 설정 초기화
     setupMemoryManagement();
     
     // 메모리 최적화를 위한 이벤트 리스너 설정
     setupMemoryOptimizationEvents();
+    
+    // 추가된 초기화 코드
+    // 설정 로드
+    await loadSettings();
+    
+    // 키보드 리스너 설정
+    setupKeyboardListener();
+    
+    // IPC 핸들러 설정
+    setupIpcHandlers();
+    
+    // 메모리 모니터링 시작
+    setupMemoryMonitoring();
+    
+    // 네이티브 모듈 초기화
+    initializeNativeModule();
+    
+    debugLog('모든 모듈 초기화 완료');
   } catch (error) {
     console.error('앱 초기화 중 오류:', error);
     app.quit();
@@ -208,7 +315,7 @@ function setupMemoryManagement() {
   
   try {
     // 네이티브 메모리 모듈 초기화
-    const { isNativeModuleAvailable, initializeMemorySettings } = require('../server/native');
+    const { isNativeModuleAvailable, initializeMemorySettings } = require('../server/native/index.cjs');
     
     // 네이티브 모듈이 사용 가능한 경우 설정 초기화
     if (isNativeModuleAvailable()) {
@@ -244,7 +351,7 @@ function setupMemoryManagement() {
  */
 function setupMemoryOptimizationEvents() {
   const { app, ipcMain } = require('electron');
-  const { isNativeModuleAvailable, optimizeMemory, forceGarbageCollection } = require('../server/native');
+  const { isNativeModuleAvailable, optimizeMemory, forceGarbageCollection } = require('../server/native/index.cjs');
   
   // 메모리 사용량 모니터링 타이머
   let memoryMonitorTimer = null;

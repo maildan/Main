@@ -44,5 +44,13 @@
   },
   "[rust]": {
     "editor.defaultFormatter": "rust-lang.rust-analyzer"
-  }
+  },
+  
+  // Cursor MCP 설정은 사용하지 않음
+  "chat.mcp.discovery.enabled": false,
+  "chat.mcp.enabled": false,
+  
+  // VS Code MCP 설정 (Loop 프로젝트 내 mcp 사용)
+  "vscode.mcp.enabled": true,
+  "vscode.mcp.path": "/Users/user/loop/loop_3/mcp.json"
 }

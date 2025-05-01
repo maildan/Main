@@ -1,0 +1,29 @@
+{
+  "name": "vscode-mcp-servers",
+  "version": "1.0.0",
+  "description": "VS Code MCP 서버 모음",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "start:fs": "npx @mcp/server-filesystem",
+    "start:seq": "npx @mcp/server-sequential-thinking",
+    "start:browser": "npx @browsermcp/mcp@latest",
+    "start:tools": "npx @agentdeskai/browser-tools-server",
+    "start:figma": "npx @figmamcp/mcp",
+    "start:desktop": "npx @mcp/desktop-commander",
+    "start:smithery": "npx @smithery/toolbox",
+    "start:all": "node start-all-servers.js"
+  },
+  "dependencies": {
+    "@agentdeskai/browser-tools-server": "latest",
+    "@browsermcp/mcp": "latest",
+    "@mcp/server-filesystem": "latest",
+    "@mcp/server-sequential-thinking": "latest", 
+    "@figmamcp/mcp": "latest",
+    "@mcp/desktop-commander": "latest",
+    "@smithery/toolbox": "latest",
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "body-parser": "^1.20.2"
+  }
+}

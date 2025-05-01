@@ -194,3 +194,45 @@
 [2025-04-02T15:24:22.350Z][ERROR][native-module] 폴백 모듈을 찾을 수 없음 {"path":"\\C:\\Users\\user\\Desktop\\loop\\src\\server\\native\\fallback\\index.js"}
 [2025-04-02T15:24:31.193Z][INFO][native-module] 네이티브 모듈 로드 시도 {"paths":["C:\\Users\\user\\Desktop\\loop\\native-modules\\target\\debug\\typing_stats_native.node","C:\\Users\\user\\Desktop\\loop\\native-modules\\target\\release\\typing_stats_native.node"]}
 [2025-04-02T15:24:31.195Z][ERROR][native-module] 폴백 모듈을 찾을 수 없음 {"path":"\\C:\\Users\\user\\Desktop\\loop\\src\\server\\native\\fallback\\index.js"}
+[2025-05-01T08:59:14.797Z][INFO][native-module] 네이티브 모듈 로드 시도 {"paths":["/Users/user/loop/loop_3/native-modules/target/debug/typing_stats_native.node","/Users/user/loop/loop_3/native-modules/target/release/typing_stats_native.node"]}
+[2025-05-01T08:59:14.798Z][INFO][native-module] 폴백 모듈 로드: /Users/user/loop/loop_3/src/server/native/fallback/index.js 
+[2025-05-01T09:00:59.651Z][INFO][native-module] 네이티브 모듈 로드 시도 {"paths":["/Users/user/loop/loop_3/native-modules/target/debug/typing_stats_native.node","/Users/user/loop/loop_3/native-modules/target/release/typing_stats_native.node"]}
+[2025-05-01T09:00:59.651Z][INFO][native-module] 폴백 모듈 로드: /Users/user/loop/loop_3/src/server/native/fallback/index.js 
+[2025-05-01T09:10:32.019Z][INFO][native-module] 네이티브 모듈 로드 시도 {"paths":["/Users/user/loop/loop_3/native-modules/target/debug/typing_stats_native.node","/Users/user/loop/loop_3/native-modules/target/release/typing_stats_native.node"]}
+[2025-05-01T09:10:32.020Z][INFO][native-module] 폴백 모듈 로드: /Users/user/loop/loop_3/src/server/native/fallback/index.js 
+[2025-05-01T09:10:36.436Z][INFO][native-module] 네이티브 모듈 로드 시도 {"paths":["/Users/user/loop/loop_3/native-modules/target/debug/typing_stats_native.node","/Users/user/loop/loop_3/native-modules/target/release/typing_stats_native.node"]}
+[2025-05-01T09:10:36.436Z][INFO][native-module] 폴백 모듈 로드: /Users/user/loop/loop_3/src/server/native/fallback/index.js 
+[2025-05-01T09:10:36.437Z][INFO][native-module] 네이티브 모듈 로드 시도 {"paths":["/Users/user/loop/loop_3/native-modules/target/debug/typing_stats_native.node","/Users/user/loop/loop_3/native-modules/target/release/typing_stats_native.node"]}
+[2025-05-01T09:10:36.437Z][INFO][native-module] 폴백 모듈 로드: /Users/user/loop/loop_3/src/server/native/fallback/index.js 
+[2025-05-01T13:49:42.483Z][INFO][native-module] 네이티브 모듈 로드 시도 {"paths":["/Users/user/loop/loop_3/native-modules/target/debug/typing_stats_native.node","/Users/user/loop/loop_3/native-modules/target/release/typing_stats_native.node"]}
+[2025-05-01T13:49:42.483Z][INFO][native-module] 폴백 모듈 로드: /Users/user/loop/loop_3/src/server/native/fallback/index.js 
+[2025-05-01T13:49:47.111Z][INFO][native-module] 네이티브 모듈 로드 시도 {"paths":["/Users/user/loop/loop_3/native-modules/target/debug/typing_stats_native.node","/Users/user/loop/loop_3/native-modules/target/release/typing_stats_native.node"]}
+[2025-05-01T13:49:47.111Z][INFO][native-module] 폴백 모듈 로드: /Users/user/loop/loop_3/src/server/native/fallback/index.js 
+[2025-05-01T13:49:47.113Z][INFO][native-module] 네이티브 모듈 로드 시도 {"paths":["/Users/user/loop/loop_3/native-modules/target/debug/typing_stats_native.node","/Users/user/loop/loop_3/native-modules/target/release/typing_stats_native.node"]}
+[2025-05-01T13:49:47.113Z][INFO][native-module] 폴백 모듈 로드: /Users/user/loop/loop_3/src/server/native/fallback/index.js 
+[2025-05-01T13:51:36.489Z][INFO][native-module] 네이티브 모듈 로드 시도 {"paths":["/Users/user/loop/loop_3/native-modules/target/debug/typing_stats_native.node","/Users/user/loop/loop_3/native-modules/target/release/typing_stats_native.node"]}
+[2025-05-01T13:51:36.489Z][INFO][native-module] 폴백 모듈 로드: /Users/user/loop/loop_3/src/server/native/fallback/index.js 
+[2025-05-01T13:51:41.915Z][INFO][native-module] 네이티브 모듈 로드 시도 {"paths":["/Users/user/loop/loop_3/native-modules/target/debug/typing_stats_native.node","/Users/user/loop/loop_3/native-modules/target/release/typing_stats_native.node"]}
+[2025-05-01T13:51:41.915Z][INFO][native-module] 폴백 모듈 로드: /Users/user/loop/loop_3/src/server/native/fallback/index.js 
+[2025-05-01T13:51:41.917Z][INFO][native-module] 네이티브 모듈 로드 시도 {"paths":["/Users/user/loop/loop_3/native-modules/target/debug/typing_stats_native.node","/Users/user/loop/loop_3/native-modules/target/release/typing_stats_native.node"]}
+[2025-05-01T13:51:41.917Z][INFO][native-module] 폴백 모듈 로드: /Users/user/loop/loop_3/src/server/native/fallback/index.js 
+[2025-05-01T13:53:35.436Z][INFO][native-module] 네이티브 모듈 로드 시도 {"paths":["/Users/user/loop/loop_3/native-modules/target/debug/typing_stats_native.node","/Users/user/loop/loop_3/native-modules/target/release/typing_stats_native.node"]}
+[2025-05-01T13:53:35.437Z][INFO][native-module] 폴백 모듈 로드: /Users/user/loop/loop_3/src/server/native/fallback/index.js 
+[2025-05-01T13:59:09.351Z][INFO][native-module] 네이티브 모듈 로드 시도 {"paths":["/Users/user/loop/loop_3/native-modules/target/debug/typing_stats_native.node","/Users/user/loop/loop_3/native-modules/target/release/typing_stats_native.node"]}
+[2025-05-01T13:59:09.352Z][INFO][native-module] 폴백 모듈 로드: /Users/user/loop/loop_3/src/server/native/fallback/index.js 
+[2025-05-01T13:59:14.208Z][INFO][native-module] 네이티브 모듈 로드 시도 {"paths":["/Users/user/loop/loop_3/native-modules/target/debug/typing_stats_native.node","/Users/user/loop/loop_3/native-modules/target/release/typing_stats_native.node"]}
+[2025-05-01T13:59:14.208Z][INFO][native-module] 폴백 모듈 로드: /Users/user/loop/loop_3/src/server/native/fallback/index.js 
+[2025-05-01T13:59:14.209Z][INFO][native-module] 네이티브 모듈 로드 시도 {"paths":["/Users/user/loop/loop_3/native-modules/target/debug/typing_stats_native.node","/Users/user/loop/loop_3/native-modules/target/release/typing_stats_native.node"]}
+[2025-05-01T13:59:14.209Z][INFO][native-module] 폴백 모듈 로드: /Users/user/loop/loop_3/src/server/native/fallback/index.js 
+[2025-05-01T14:00:10.891Z][INFO][native-module] 네이티브 모듈 로드 시도 {"paths":["/Users/user/loop/loop_3/native-modules/target/debug/typing_stats_native.node","/Users/user/loop/loop_3/native-modules/target/release/typing_stats_native.node"]}
+[2025-05-01T14:00:10.891Z][INFO][native-module] 폴백 모듈 로드: /Users/user/loop/loop_3/src/server/native/fallback/index.js 
+[2025-05-01T14:00:15.929Z][INFO][native-module] 네이티브 모듈 로드 시도 {"paths":["/Users/user/loop/loop_3/native-modules/target/debug/typing_stats_native.node","/Users/user/loop/loop_3/native-modules/target/release/typing_stats_native.node"]}
+[2025-05-01T14:00:15.929Z][INFO][native-module] 폴백 모듈 로드: /Users/user/loop/loop_3/src/server/native/fallback/index.js 
+[2025-05-01T14:00:15.931Z][INFO][native-module] 네이티브 모듈 로드 시도 {"paths":["/Users/user/loop/loop_3/native-modules/target/debug/typing_stats_native.node","/Users/user/loop/loop_3/native-modules/target/release/typing_stats_native.node"]}
+[2025-05-01T14:00:15.931Z][INFO][native-module] 폴백 모듈 로드: /Users/user/loop/loop_3/src/server/native/fallback/index.js 
+[2025-05-01T14:11:09.688Z][INFO][native-module] 네이티브 모듈 로드 시도 {"paths":["/Users/user/loop/loop_3/native-modules/target/debug/typing_stats_native.node","/Users/user/loop/loop_3/native-modules/target/release/typing_stats_native.node"]}
+[2025-05-01T14:11:09.689Z][INFO][native-module] 폴백 모듈 로드: /Users/user/loop/loop_3/src/server/native/fallback/index.js 
+[2025-05-01T14:11:14.936Z][INFO][native-module] 네이티브 모듈 로드 시도 {"paths":["/Users/user/loop/loop_3/native-modules/target/debug/typing_stats_native.node","/Users/user/loop/loop_3/native-modules/target/release/typing_stats_native.node"]}
+[2025-05-01T14:11:14.936Z][INFO][native-module] 폴백 모듈 로드: /Users/user/loop/loop_3/src/server/native/fallback/index.js 
+[2025-05-01T14:11:14.938Z][INFO][native-module] 네이티브 모듈 로드 시도 {"paths":["/Users/user/loop/loop_3/native-modules/target/debug/typing_stats_native.node","/Users/user/loop/loop_3/native-modules/target/release/typing_stats_native.node"]}
+[2025-05-01T14:11:14.938Z][INFO][native-module] 폴백 모듈 로드: /Users/user/loop/loop_3/src/server/native/fallback/index.js 

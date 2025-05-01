@@ -1,10 +1,10 @@
 {
-  "/_not-found/page": "/_not-found",
   "/api/db-test/route": "/api/db-test",
+  "/_not-found/page": "/_not-found",
   "/api/init-db/route": "/api/init-db",
   "/api/logs/learn/route": "/api/logs/learn",
-  "/api/logs/save/route": "/api/logs/save",
   "/api/logs/search/route": "/api/logs/search",
+  "/api/logs/save/route": "/api/logs/save",
   "/api/native/gpu/acceleration/route": "/api/native/gpu/acceleration",
   "/api/native/gpu/route": "/api/native/gpu",
   "/api/native/gpu/settings/route": "/api/native/gpu/settings",
@@ -20,10 +20,10 @@
   "/api/test/route": "/api/test",
   "/favicon.ico/route": "/favicon.ico",
   "/api/getLogs/route": "/api/getLogs",
-  "/dashboard/page": "/dashboard",
-  "/gpu-test/page": "/gpu-test",
   "/page": "/",
   "/pages/analysis/page": "/pages/analysis",
+  "/dashboard/page": "/dashboard",
   "/restart/page": "/restart",
+  "/gpu-test/page": "/gpu-test",
   "/mini-view/page": "/mini-view"
 }
