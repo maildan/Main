@@ -8,9 +8,6 @@ use tauri::AppHandle;
 use std::sync::atomic::{AtomicBool, Ordering};
 use lazy_static::lazy_static;
 
-// 브라우저 감지 모듈 추가
-pub mod browser_detector;
-
 // 키보드 트래킹 활성화 상태를 저장하는 전역 변수
 lazy_static! {
     static ref TRACKING_ENABLED: AtomicBool = AtomicBool::new(false);
@@ -71,82 +68,6 @@ fn set_tracking_enabled(enabled: bool) -> Result<bool, String> {
 #[tauri::command]
 fn get_tracking_status() -> bool {
     TRACKING_ENABLED.load(Ordering::SeqCst)
-}
-
-// 현재 활성화된 브라우저 감지
-#[tauri::command]
-fn detect_active_browsers() -> Result<Vec<browser_detector::BrowserInfo>, String> {
-    let browsers = browser_detector::detect_active_browsers();
-    Ok(browsers)
-}
-
-// 모든 브라우저 창 찾기
-#[tauri::command]
-fn find_all_browser_windows() -> Result<Vec<browser_detector::BrowserInfo>, String> {
-    let browsers = browser_detector::find_all_browser_windows();
-    Ok(browsers)
-}
-
-// 모든 애플리케이션 찾기
-#[tauri::command]
-fn find_all_applications() -> Result<Vec<browser_detector::BrowserInfo>, String> {
-    let applications = browser_detector::find_all_applications();
-    Ok(applications)
-}
-
-// 브라우저와 현재 URL 정보 로깅
-#[tauri::command]
-fn log_browser_activity(_app_handle: AppHandle) -> Result<(), String> {
-    // 트래킹이 비활성화되어 있으면 저장하지 않음
-    if !TRACKING_ENABLED.load(Ordering::SeqCst) {
-        return Ok(());
-    }
-
-    let browsers = browser_detector::detect_active_browsers();
-    if !browsers.is_empty() {
-        // 첫 번째 감지된 브라우저 정보 사용
-        let browser = &browsers[0];
-        
-        // 브라우저 활동 로그 저장
-        let data = serde_json::json!({
-            "timestamp": Local::now().to_rfc3339(),
-            "browser_name": browser.name,
-            "window_title": browser.window_title,
-        });
-        
-        let mut log_path = get_log_directory();
-        log_path.push("browser_activity_logs.json");
-
-        // 기존 로그 파일이 있다면 읽기
-        let mut logs = Vec::new();
-        if log_path.exists() {
-            let mut file = OpenOptions::new()
-                .read(true)
-                .open(&log_path)
-                .map_err(|e| e.to_string())?;
-            let mut contents = String::new();
-            file.read_to_string(&mut contents).map_err(|e| e.to_string())?;
-            if !contents.is_empty() {
-                logs = serde_json::from_str(&contents).unwrap_or_else(|_| Vec::new());
-            }
-        }
-        
-        // 새 로그 추가
-        logs.push(data);
-        
-        // 로그를 파일에 저장
-        let mut file = OpenOptions::new()
-            .write(true)
-            .create(true)
-            .truncate(true)
-            .open(&log_path)
-            .map_err(|e| e.to_string())?;
-        
-        let json_string = serde_json::to_string_pretty(&logs).map_err(|e| e.to_string())?;
-        file.write_all(json_string.as_bytes()).map_err(|e| e.to_string())?;
-    }
-    
-    Ok(())
 }
 
 #[tauri::command]
@@ -408,18 +329,6 @@ fn find_program_path(program_name: &str) -> Option<String> {
     None
 }
 
-// 현재 활성화된 애플리케이션 감지
-#[tauri::command]
-fn detect_active_application() -> Result<Option<browser_detector::BrowserInfo>, String> {
-    let active_app = browser_detector::detect_active_application();
-    Ok(active_app)
-}
-
-#[tauri::command]
-fn is_process_running(process_id: u32) -> Result<bool, String> {
-    Ok(browser_detector::is_process_running(process_id))
-}
-
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -430,18 +339,8 @@ pub fn run() {
             log_sentence,
             set_tracking_enabled,
             get_tracking_status,
-            // 브라우저 감지 관련 함수들 추가
-            detect_active_browsers,
-            find_all_browser_windows,
-            log_browser_activity,
             // 프로그램 실행 관련 함수 추가
-            launch_program,
-            // 모든 애플리케이션 찾기 함수 추가
-            find_all_applications,
-            // 현재 활성화된 앱 감지 함수 추가
-            detect_active_application,
-            // 프로세스 실행 상태 확인 함수
-            is_process_running
+            launch_program
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

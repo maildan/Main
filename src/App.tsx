@@ -2,7 +2,6 @@ import { useState } from "react";
 
 // 훅 및 타입 임포트
 import { useTracking } from "./hooks/useTracking";
-import { useBrowserDetector } from "./hooks/useBrowserDetector";
 import { Section } from "./types";
 
 // 컴포넌트 임포트
@@ -41,9 +40,6 @@ function App() {
     handleInputChange
   } = useTracking();
   
-  // 브라우저 감지 기능 훅
-  const browserDetector = useBrowserDetector();
-  
   // 모니터링 활성화 상태를 앱 수준으로 관리
   const [isMonitoringActive, setIsMonitoringActive] = useState(false);
   
@@ -54,22 +50,6 @@ function App() {
   // 모니터링 토글 함수
   const toggleMonitoring = () => {
     const newState = !isMonitoringActive;
-    
-    if (newState) {
-      // 모니터링 시작 시 브라우저 감지 실행
-      browserDetector.detectActiveBrowsers();
-      browserDetector.findAllBrowserWindows();
-      browserDetector.findAllApplications();
-      
-      // 자동 감지 설정
-      if (!browserDetector.isAutoDetectionEnabled) {
-        browserDetector.toggleAutoDetection();
-      }
-    } else if (!newState && browserDetector.isAutoDetectionEnabled) {
-      // 모니터링 종료 시 자동 감지 중단
-      browserDetector.toggleAutoDetection();
-    }
-    
     setIsMonitoringActive(newState);
   };
 
@@ -124,7 +104,6 @@ function App() {
             section={activeSection} 
             isMonitoringActive={isMonitoringActive}
             toggleMonitoring={toggleMonitoring}
-            browserDetector={browserDetector}
           />
         </div>
       </div>

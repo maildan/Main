@@ -8,8 +8,7 @@ import MonitoringSection from "./MonitoringSection";
 const SectionPanel: React.FC<SectionPanelProps> = ({ 
   section, 
   isMonitoringActive,
-  toggleMonitoring,
-  browserDetector
+  toggleMonitoring
 }) => {
   // 현재 선택된 섹션에 따라 다른 컴포넌트 렌더링
   const renderSection = () => {
@@ -18,7 +17,6 @@ const SectionPanel: React.FC<SectionPanelProps> = ({
         return <MonitoringSection 
           isMonitoringActive={isMonitoringActive} 
           toggleMonitoring={toggleMonitoring}
-          browserDetector={browserDetector}
         />;
       default:
         return (
