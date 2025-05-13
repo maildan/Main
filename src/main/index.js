@@ -10,6 +10,8 @@ const { initializeWorkerPool, shutdownWorkerPool } = require('./workers');
 const { initializeAppLifecycle } = require('./app-lifecycle');
 const { registerAllIpcHandlers } = require('./ipc-handlers');
 const { initializeNativeModule } = require('./memory-manager-native');
+const { setupKeyboardListener, registerGlobalShortcuts } = require('./keyboard');
+const { debugLog } = require('./utils');
 
 // 앱 상태 저장소
 global.appState = {
@@ -21,114 +23,187 @@ global.appState = {
   memoryThreshold: {
     high: 150,
     critical: 225
-  }
+  },
+  isTracking: false,
+  keyboardListener: null,
+  keyboardInitialized: false
 };
 
-// 앱이 준비되었을 때 실행
-app.whenReady().then(() => {
-  console.log('앱 초기화 시작...');
-  
-  // 설정 로드
-  loadSettings();
-  
-  // IPC 핸들러 등록
-  registerAllIpcHandlers();
-  
-  // 네이티브 모듈 초기화 시도
-  const nativeAvailable = initializeNativeModule();
-  console.log(`네이티브 모듈 초기화 ${nativeAvailable ? '성공' : '실패'}`);
-  
-  // 앱 생명주기 초기화
-  initializeAppLifecycle(global.appState.settings);
-  
-  // 메인 창 생성
-  createMainWindow();
-});
+// 앱 설정
+const APP_CONFIG = {
+  defaultWidth: 1024,
+  defaultHeight: 768,
+  minWidth: 800,
+  minHeight: 600,
+  backgroundColor: '#f5f5f5',
+  title: 'Loop',
+  appUrl: process.env.NODE_ENV === 'development' 
+    ? 'http://localhost:3000' 
+    : `file://${path.join(__dirname, '../dist/index.html')}`,
+  icon: path.join(__dirname, '../public/icon.png')
+};
 
-// 설정 로드 함수
-function loadSettings() {
-  try {
-    // TODO: 실제 설정 로드 로직 구현
-    global.appState.settings = {
-      reduceMemoryInBackground: true,
-      maxMemoryThreshold: 150,
-      useHardwareAcceleration: true,
-      processingMode: 'auto'
-    };
-  } catch (error) {
-    console.error('설정 로드 중 오류:', error);
-    
-    // 기본 설정 사용
-    global.appState.settings = {
-      reduceMemoryInBackground: true,
-      maxMemoryThreshold: 150,
-      useHardwareAcceleration: true,
-      processingMode: 'auto'
-    };
-  }
-}
-
-// 메인 창 생성 함수
+/**
+ * 메인 윈도우 생성 함수
+ */
 function createMainWindow() {
-  // BrowserWindow 인스턴스 생성
-  global.appState.mainWindow = new BrowserWindow({
+  // 기존 메인 윈도우 정리
+  if (global.appState.mainWindow && !global.appState.mainWindow.isDestroyed()) {
+    global.appState.mainWindow.close();
+  }
+  
+  // 새 메인 윈도우 생성
+  const mainWindow = new BrowserWindow({
     width: APP_CONFIG.defaultWidth,
     height: APP_CONFIG.defaultHeight,
     minWidth: APP_CONFIG.minWidth,
     minHeight: APP_CONFIG.minHeight,
     backgroundColor: APP_CONFIG.backgroundColor,
     title: APP_CONFIG.title,
+    icon: APP_CONFIG.icon,
     webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
       contextIsolation: true,
-      sandbox: true
-    },
-    show: false // 준비될 때까지 표시하지 않음
+      preload: path.join(__dirname, '../../preload.js'),
+      spellcheck: false,
+      devTools: process.env.NODE_ENV === 'development'
+    }
   });
-
+  
+  // appState에 메인 윈도우 저장
+  global.appState.mainWindow = mainWindow;
+  
   // 앱 URL 로드
-  global.appState.mainWindow.loadURL(APP_CONFIG.appUrl);
-
-  // 개발 모드에서는 개발자 도구 자동 열기
-  if (global.appState.isDevelopment) {
-    global.appState.mainWindow.webContents.openDevTools();
+  mainWindow.loadURL(APP_CONFIG.appUrl);
+  
+  // 개발 환경에서 개발자 도구 열기
+  if (process.env.NODE_ENV === 'development') {
+    mainWindow.webContents.openDevTools();
   }
-
-  // 창이 준비되면 표시
-  global.appState.mainWindow.once('ready-to-show', () => {
-    global.appState.mainWindow.show();
-  });
-
-  // 창이 닫힐 때 이벤트 처리
-  global.appState.mainWindow.on('closed', () => {
+  
+  // 윈도우 닫힐 때 정리 작업
+  mainWindow.on('closed', () => {
     global.appState.mainWindow = null;
   });
-
-  // 메모리 모니터링 시작
-  setupMemoryMonitoring(global.appState.mainWindow);
-
-  // 워커 풀 초기화
-  initializeWorkerPool();
-
-  return global.appState.mainWindow;
+  
+  // 윈도우 로드 완료 시 이벤트
+  mainWindow.webContents.on('did-finish-load', () => {
+    debugLog('메인 윈도우 로드 완료');
+    
+    // 키보드 리스너가 아직 초기화되지 않았다면 초기화
+    if (!global.appState.keyboardInitialized) {
+      initializeKeyboardListener();
+    }
+  });
+  
+  return mainWindow;
 }
 
 /**
- * 모든 창이 닫히면 앱 종료 (Windows & Linux)
+ * 키보드 리스너 초기화 함수
  */
+function initializeKeyboardListener() {
+  try {
+    debugLog('키보드 리스너 초기화 시작');
+    
+    // 이미 초기화된 경우 기존 리스너 정리
+    if (global.appState.keyboardListener) {
+      if (typeof global.appState.keyboardListener.dispose === 'function') {
+        global.appState.keyboardListener.dispose();
+      }
+      global.appState.keyboardListener = null;
+    }
+    
+    // 키보드 리스너 새로 설정
+    global.appState.keyboardListener = setupKeyboardListener();
+    
+    // 전역 단축키 등록
+    const registered = registerGlobalShortcuts();
+    
+    // 초기화 상태 저장
+    global.appState.keyboardInitialized = !!global.appState.keyboardListener;
+    
+    debugLog(`키보드 리스너 초기화 ${global.appState.keyboardInitialized ? '성공' : '실패'}`);
+    return global.appState.keyboardInitialized;
+  } catch (error) {
+    console.error('키보드 리스너 초기화 오류:', error);
+    return false;
+  }
+}
+
+/**
+ * 앱 초기화 함수
+ */
+async function initialize() {
+  debugLog('앱 초기화 시작');
+  
+  // 네이티브 모듈 초기화
+  initializeNativeModule();
+  
+  // IPC 핸들러 등록
+  registerAllIpcHandlers();
+  
+  // 앱 생명주기 이벤트 설정
+  initializeAppLifecycle();
+  
+  // 메모리 모니터링 설정
+  setupMemoryMonitoring();
+  
+  // 키보드 리스너 초기화
+  initializeKeyboardListener();
+  
+  // 개발 환경에서는 자동으로 추적 시작 (옵션)
+  if (process.env.NODE_ENV === 'development' &&
+      global.appState.settings?.autoStartTracking) {
+    debugLog('자동 모니터링 시작 설정 감지됨');
+    global.appState.isTracking = true;
+    
+    // 키 입력 초기화 (stats.js)
+    try {
+      const stats = require('./stats');
+      if (typeof stats.startTracking === 'function') {
+        stats.startTracking();
+      }
+    } catch (error) {
+      console.error('통계 모듈 초기화 오류:', error);
+    }
+  }
+  
+  debugLog('앱 초기화 완료');
+}
+
+/**
+ * 앱 시작 함수
+ */
+app.whenReady().then(() => {
+  createMainWindow();
+  initialize();
+  
+  // macOS에서 앱 활성화 시 윈도우가 없으면 새로 생성
+  app.on('activate', () => {
+    if (BrowserWindow.getAllWindows().length === 0) {
+      createMainWindow();
+    }
+  });
+});
+
+// 모든 창이 닫히면 앱 종료 (macOS 제외)
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
-    // 워커 풀 종료
-    shutdownWorkerPool();
     app.quit();
   }
 });
 
-/**
- * 앱 종료 전 정리
- */
+// 앱 종료 전 정리 작업
 app.on('before-quit', () => {
+  global.appState.isQuitting = true;
+  
+  // 키보드 리스너 정리
+  if (global.appState.keyboardListener && 
+      typeof global.appState.keyboardListener.dispose === 'function') {
+    global.appState.keyboardListener.dispose();
+  }
+  
   // 워커 풀 종료
   shutdownWorkerPool();
 });
@@ -149,6 +224,22 @@ ipcMain.handle('optimize-memory', async (event, aggressive) => {
 });
 
 /**
+ * 키보드 모니터링 제어 IPC 핸들러
+ */
+ipcMain.handle('toggle-keyboard-monitoring', (event, enabled) => {
+  global.appState.isTracking = enabled;
+  console.log(`키보드 모니터링 ${enabled ? '활성화' : '비활성화'}`);
+  return { success: true, trackingState: global.appState.isTracking };
+});
+
+ipcMain.handle('get-keyboard-status', () => {
+  return { 
+    isTracking: global.appState.isTracking,
+    listenerActive: !!global.appState.keyboardListener
+  };
+});
+
+/**
  * 앱 정보 반환
  */
 ipcMain.handle('get-app-info', () => {
@@ -163,13 +254,4 @@ ipcMain.handle('get-app-info', () => {
     freeMemory: os.freemem(),
     cpuCount: os.cpus().length
   };
-});
-
-/**
- * macOS에서 앱 활성화 시 윈도우가 없으면 새로 생성
- */
-app.on('activate', () => {
-  if (BrowserWindow.getAllWindows().length === 0) {
-    createMainWindow();
-  }
 });

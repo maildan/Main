@@ -11,10 +11,11 @@ const { createWindow, getMainWindow } = safeRequire('./window', { createWindow: 
 // 추가 모듈 안전하게 import
 const memoryManager = safeRequire('./memory-manager', {});
 const memoryManagerNative = safeRequire('./memory-manager-native', {});
-const keyboard = safeRequire('./keyboard', {});
+const keyboard = safeRequire('./keyboard', { setupKeyboardListener: null, registerGlobalShortcuts: null });
 const ipcHandlers = safeRequire('./ipc-handlers', {});
 const settings = safeRequire('./settings', {});
 const constants = safeRequire('./constants', { appState: {} });
+const platform = safeRequire('./platform', {});
 
 // 필요한 함수 참조 추출
 const setupMemoryMonitoring = memoryManager.setupMemoryMonitoring || (() => debugLog('메모리 모니터링 기본 구현 사용'));
@@ -57,7 +58,20 @@ const initializeNativeModule = () => {
     return false;
   }
 };
-const setupKeyboardListener = keyboard.setupKeyboardListener || (() => debugLog('키보드 리스너 기본 구현 사용'));
+const setupKeyboardListener = keyboard.setupKeyboardListener || (() => {
+  debugLog('키보드 리스너 기본 구현 사용 - 별도로 키보드 패키지를 로드합니다');
+  // 기본 구현으로 직접 로드 시도
+  try {
+    const keyboardModule = require('./keyboard');
+    if (keyboardModule && typeof keyboardModule.setupKeyboardListener === 'function') {
+      debugLog('키보드 모듈 직접 로드 성공');
+      return keyboardModule.setupKeyboardListener();
+    }
+  } catch (e) {
+    console.error('키보드 모듈 직접 로드 실패:', e);
+  }
+  return null;
+});
 const setupIpcHandlers = ipcHandlers.setupIpcHandlers || (() => debugLog('IPC 핸들러 기본 구현 사용'));
 const loadSettings = settings.loadSettings || (() => debugLog('설정 로드 기본 구현 사용'));
 const appState = constants.appState || {};
@@ -72,9 +86,12 @@ debugLog('- keyboard:', !!keyboard.setupKeyboardListener);
 debugLog('- ipc-handlers:', !!ipcHandlers.setupIpcHandlers);
 debugLog('- settings:', !!settings.loadSettings);
 debugLog('- constants:', !!constants.appState);
+debugLog('- platform:', !!platform.getCurrentPlatform);
 
 // 이미 setupAppEventListeners가 호출되었는지 추적하는 플래그 추가
 let appEventListenersSetup = false;
+let keyboardListenerActive = false;
+let keyboardListenerInstance = null;
 
 // Next.js 서버가 준비되었는지 확인하는 함수
 function checkIfNextServerReady() {
@@ -279,8 +296,40 @@ async function initializeApp() {
     // 설정 로드
     await loadSettings();
     
-    // 키보드 리스너 설정
-    setupKeyboardListener();
+    // 키보드 리스너 설정 (이전 인스턴스가 있으면 정리)
+    if (keyboardListenerInstance) {
+      try {
+        if (typeof keyboardListenerInstance.dispose === 'function') {
+          keyboardListenerInstance.dispose();
+        }
+      } catch (e) {
+        console.error('기존 키보드 리스너 정리 중 오류:', e);
+      }
+      keyboardListenerInstance = null;
+    }
+    
+    // 새 키보드 리스너 설정
+    try {
+      debugLog('키보드 리스너 초기화 시작');
+      keyboardListenerInstance = setupKeyboardListener();
+      
+      if (keyboardListenerInstance) {
+        keyboardListenerActive = true;
+        debugLog('키보드 리스너 초기화 성공');
+      } else {
+        debugLog('키보드 리스너 초기화 실패 - 별도 메서드로 재시도');
+        // 직접 모듈 로드 시도
+        const keyboardModule = require('./keyboard');
+        if (keyboardModule && typeof keyboardModule.setupKeyboardListener === 'function') {
+          keyboardListenerInstance = keyboardModule.setupKeyboardListener();
+          keyboardListenerActive = !!keyboardListenerInstance;
+          debugLog('키보드 리스너 직접 초기화: ' + (keyboardListenerActive ? '성공' : '실패'));
+        }
+      }
+    } catch (keyboardError) {
+      console.error('키보드 리스너 설정 중 오류:', keyboardError);
+      keyboardListenerActive = false;
+    }
     
     // IPC 핸들러 설정
     setupIpcHandlers();
@@ -292,6 +341,16 @@ async function initializeApp() {
     initializeNativeModule();
     
     debugLog('모든 모듈 초기화 완료');
+    
+    // 모듈 상태 확인 및 로그
+    debugLog('----------------');
+    debugLog('모듈 활성화 상태:');
+    debugLog('- 키보드 리스너 활성화:', keyboardListenerActive);
+    debugLog('- 메모리 관리 활성화:', !!memoryManager.isMemoryMonitoringActive);
+    debugLog('- 네이티브 모듈 활성화:', !!initializeNativeModule());
+    debugLog('- 설정 로드 활성화:', !!appState.settings);
+    debugLog('----------------');
+    
   } catch (error) {
     console.error('앱 초기화 중 오류:', error);
     app.quit();

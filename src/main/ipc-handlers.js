@@ -787,6 +787,28 @@ function setupIpcHandlers() {
     return appState.settings?.darkMode || false;
   });
 
+  // 키보드 테스트 입력 처리
+  ipcMain.handle('test-keyboard-input', async (event, key) => {
+    try {
+      debugLog(`키보드 테스트 입력 요청: ${key}`);
+      
+      // keyboard 모듈 가져오기
+      const keyboard = require('./keyboard');
+      
+      // 시뮬레이션 함수 호출
+      if (typeof keyboard.simulateKeyPress === 'function') {
+        const result = keyboard.simulateKeyPress(key);
+        return { success: true, result };
+      } else {
+        debugLog('키보드 시뮬레이션 함수를 찾을 수 없음');
+        return { success: false, error: 'simulateKeyPress 함수를 찾을 수 없음' };
+      }
+    } catch (error) {
+      console.error('키보드 테스트 입력 처리 오류:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
   debugLog('IPC 핸들러 설정 완료');
 }
 

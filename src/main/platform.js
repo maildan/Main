@@ -9,7 +9,7 @@ const { app, nativeTheme } = require('electron');
 const os = require('os');
 const path = require('path');
 const fs = require('fs');
-const log = require('electron-log');
+const { debugLog } = require('./utils');
 
 // 플랫폼 식별자
 const PLATFORMS = {
@@ -123,7 +123,7 @@ function getOSInfo() {
       appVersion: app.getVersion(),
     };
   } catch (error) {
-    log.error('OS 정보 수집 오류:', error);
+    debugLog('OS 정보 수집 오류:', error);
     return {
       platform: getCurrentPlatform(),
       appVersion: app.getVersion(),
@@ -140,7 +140,7 @@ function getSystemLanguage() {
     const locale = app.getLocale() || 'en';
     return locale.split('-')[0]; // en-US -> en
   } catch (error) {
-    log.error('시스템 언어 감지 오류:', error);
+    debugLog('시스템 언어 감지 오류:', error);
     return 'en';
   }
 }
@@ -193,7 +193,7 @@ function getResourcePath(resourcePath = '') {
     const resourcesPath = process.resourcesPath;
     return path.join(resourcesPath, resourcePath);
   } catch (error) {
-    log.error('리소스 경로 계산 오류:', error);
+    debugLog('리소스 경로 계산 오류:', error);
     return '';
   }
 }
@@ -247,14 +247,8 @@ function getIconPath(iconName, extension) {
 
     return iconPath;
   } catch (error) {
-    log.error('아이콘 경로 계산 오류:', error);
-
-    // 앱 아이콘 경로 반환 (최후의 대안)
-    if (app.isPackaged) {
-      return process.execPath;
-    } else {
-      return '';
-    }
+    debugLog('아이콘 경로 계산 오류:', error);
+    return '';
   }
 }
 
@@ -328,9 +322,9 @@ function setAppDarkMode(mode) {
       nativeTheme.themeSource = 'system';
     }
 
-    log.info(`다크 모드 설정: ${nativeTheme.themeSource}`);
+    debugLog(`다크 모드 설정: ${nativeTheme.themeSource}`);
   } catch (error) {
-    log.error('다크 모드 설정 오류:', error);
+    debugLog('다크 모드 설정 오류:', error);
   }
 }
 

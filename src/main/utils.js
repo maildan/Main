@@ -1,12 +1,48 @@
 const { isDev } = require('./constants.js');
 const http = require('http');
+const fs = require('fs');
+const path = require('path');
+const { app } = require('electron');
+
+// 로그 파일 경로 설정
+const LOG_DIR = isDev
+  ? path.join(__dirname, '../../logs')
+  : path.join(app.getPath('userData'), 'logs');
+
+// 로그 파일이 저장될 디렉터리 생성
+try {
+  if (!fs.existsSync(LOG_DIR)) {
+    fs.mkdirSync(LOG_DIR, { recursive: true });
+  }
+} catch (error) {
+  console.error('로그 디렉터리 생성 오류:', error);
+}
+
+// 로그 파일 경로
+const LOG_FILE = path.join(LOG_DIR, `app-${new Date().toISOString().split('T')[0]}.log`);
 
 /**
- * 디버깅 로그 출력
+ * 디버깅 로그 출력 및 파일 저장
  */
 function debugLog(...args) {
   const timestamp = new Date().toISOString();
-  console.log(`[${timestamp}] DEBUG:`, ...args);
+  const logMessage = `[${timestamp}] DEBUG: ${args.map(arg => 
+    typeof arg === 'object' ? JSON.stringify(arg) : arg
+  ).join(' ')}`;
+  
+  // 콘솔에 출력
+  console.log(logMessage);
+  
+  // 로그 파일에 저장 (비동기)
+  try {
+    fs.appendFile(LOG_FILE, logMessage + '\n', (err) => {
+      if (err) {
+        console.error('로그 파일 쓰기 오류:', err);
+      }
+    });
+  } catch (error) {
+    console.error('로그 저장 오류:', error);
+  }
 }
 
 /**
@@ -49,6 +85,12 @@ function safeRequire(modulePath, fallbackModule = {}) {
     return module;
   } catch (error) {
     debugLog(`모듈 '${modulePath}' 로드 실패: ${error.message}`);
+    
+    // 스택 트레이스 로깅 (디버깅용)
+    if (error.stack) {
+      debugLog(`Require stack:\n${error.stack}`);
+    }
+    
     return fallbackModule;
   }
 }

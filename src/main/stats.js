@@ -385,11 +385,12 @@ function updateTypingPattern(result) {
 }
 
 /**
- * 키 입력 처리
+ * 키 입력 처리 함수
  * @param {string} windowTitle - 현재 활성 창 제목
- * @param {string} browserName - 감지된 브라우저 이름
+ * @param {string} browserName - 브라우저 이름
+ * @param {Object} keyData - 키 입력 데이터 (옵션)
  */
-function processKeyInput(windowTitle, browserName) {
+function processKeyInput(windowTitle, browserName, keyData = null) {
   const now = Date.now();
   
   // 창 전환 감지
@@ -402,8 +403,59 @@ function processKeyInput(windowTitle, browserName) {
     });
   }
 
-  // 타자 수 증가
-  appState.currentStats.keyCount++;
+  // 디버그 로그 추가
+  if (keyData) {
+    debugLog(`키 입력 처리: ${JSON.stringify({
+      type: keyData.type || 'keyDown',
+      key: keyData.key || '정보 없음',
+      text: keyData.text || '',
+      timestamp: now
+    })}`);
+  }
+
+  // 타자 수 증가 처리 로직
+  if (!keyData) {
+    // 키 데이터가 없는 경우 간단히 카운트 증가
+    appState.currentStats.keyCount++;
+    debugLog(`일반 키 입력: 카운트=${appState.currentStats.keyCount}`);
+  } else if (keyData.type === 'compositionend' && keyData.text) {
+    // 한글 조합 완료: 텍스트 길이만큼 카운트 증가
+    const textLength = keyData.text.length;
+    appState.currentStats.keyCount += textLength;
+    
+    // 현재 문자열 추가 (통계 계산용)
+    if (!appState.currentContent) appState.currentContent = '';
+    appState.currentContent += keyData.text;
+    
+    debugLog(`한글 입력 완료: "${keyData.text}" (${textLength}자), 누적=${appState.currentStats.keyCount}`);
+  } else if (keyData.type === 'compositionupdate') {
+    // 한글 조합 중: 카운트는 증가시키지 않고 로그만 남김
+    debugLog(`한글 조합 중: "${keyData.text || ''}"`);
+  } else if (keyData.type === 'keyDown' && keyData.key && keyData.key.length === 1) {
+    // 일반 키 입력 (영문, 숫자, 특수문자 등)
+    appState.currentStats.keyCount++;
+    
+    // 현재 문자열 추가 (통계 계산용)
+    if (!appState.currentContent) appState.currentContent = '';
+    appState.currentContent += keyData.key;
+    
+    debugLog(`일반 문자 입력: "${keyData.key}", 누적=${appState.currentStats.keyCount}`);
+  } else if (keyData.type === 'keyDown') {
+    // 특수 키 입력 (Enter, Tab, Space 등)
+    appState.currentStats.keyCount++;
+    
+    // 현재 문자열에 공백 추가 (Enter, Tab, Space 등은 공백으로 처리)
+    if (keyData.key === 'Enter' || keyData.key === 'Tab' || keyData.key === ' ' || keyData.key === 'Space') {
+      if (!appState.currentContent) appState.currentContent = '';
+      appState.currentContent += ' ';
+    }
+    
+    debugLog(`특수 키 입력: ${keyData.key}, 누적=${appState.currentStats.keyCount}`);
+  } else if (keyData.simulated) {
+    // 시뮬레이션된 키 입력 (테스트용)
+    appState.currentStats.keyCount++;
+    debugLog(`시뮬레이션 키 입력: ${keyData.key || '정보 없음'}, 누적=${appState.currentStats.keyCount}`);
+  }
   
   // 첫 키 입력이거나 일정 시간 이후 입력인 경우
   if (!appState.currentStats.startTime || (now - appState.currentStats.lastActiveTime) > IDLE_TIMEOUT) {
@@ -411,7 +463,7 @@ function processKeyInput(windowTitle, browserName) {
       appState.currentStats.startTime = now;
       debugLog('타이핑 세션 시작');
     } else {
-      debugLog('타이핑 세션 재개 (일정 시간 후)');
+      debugLog(`타이핑 세션 재개 (비활성 시간: ${formatTime(Math.floor((now - appState.currentStats.lastActiveTime) / 1000))})`);
     }
   }
   
