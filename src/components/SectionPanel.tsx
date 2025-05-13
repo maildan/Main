@@ -1,23 +1,21 @@
 import React from "react";
-import { SectionPanelProps } from "../types";
-import MonitoringSection from "./MonitoringSection";
+import { Section } from "../types";
 
 /**
  * 각 섹션의 내용을 표시하는 컴포넌트
  */
-const SectionPanel: React.FC<SectionPanelProps> = ({ 
-  section, 
-  isMonitoringActive,
-  toggleMonitoring
+const SectionPanel: React.FC<{section: Section}> = ({ 
+  section
 }) => {
   // 현재 선택된 섹션에 따라 다른 컴포넌트 렌더링
   const renderSection = () => {
     switch (section) {
       case "모니터링":
-        return <MonitoringSection 
-          isMonitoringActive={isMonitoringActive} 
-          toggleMonitoring={toggleMonitoring}
-        />;
+        return (
+          <div className="empty-content">
+            모니터링 섹션
+          </div>
+        );
       default:
         return (
           <div className="empty-content">

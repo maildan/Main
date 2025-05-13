@@ -10,35 +10,9 @@ export interface ErrorMessageProps {
   isError?: boolean;
 }
 
-// 트래킹 컨트롤 관련 prop 타입
-export interface TrackingControlProps {
-  isEnabled: boolean;
-  onToggle: () => void;
-}
-
 // 네비게이션 관련 prop 타입
 export interface NavigationProps {
   sections: Section[];
   activeSection: Section;
   onSectionChange: (section: Section) => void;
-}
-
-// 섹션 패널 관련 prop 타입
-export interface SectionPanelProps {
-  section: Section;
-  // 모니터링 관련 속성 추가
-  isMonitoringActive?: boolean;
-  toggleMonitoring?: () => void;
-}
-
-// 타이핑 입력 관련 prop 타입
-export interface TypingInputProps {
-  currentLine: string;
-  isEnabled: boolean;
-  isComposing: boolean;
-  inputRef: React.RefObject<HTMLInputElement>;
-  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void;
-  onCompositionStart: () => void;
-  onCompositionEnd: (e: React.CompositionEvent<HTMLInputElement>) => void;
 }
