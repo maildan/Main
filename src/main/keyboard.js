@@ -1,9 +1,10 @@
 const { globalShortcut, app, BrowserWindow, ipcMain } = require('electron');
 const activeWin = require('active-win');
-const { appState, SPECIAL_KEYS } = require('./constants');
-const { detectBrowserName } = require('./browser');
+const { appState, SPECIAL_KEYS, SUPPORTED_WEBSITES } = require('./constants');
+const { detectBrowserName, isGoogleDocsWindow } = require('./browser');
 const { processKeyInput } = require('./stats');
 const { debugLog } = require('./utils');
+const { getSettings } = require('./settings');
 
 // platform 모듈 로드 에러 방지
 let isMacOS = () => process.platform === 'darwin';
@@ -40,7 +41,8 @@ const PLATFORM_KEY_CONFIGS = {
 const HANGUL_STATUS = {
   isComposing: false,
   lastComposedText: '',
-  composeStartTime: 0
+  composeStartTime: 0,
+  intermediateChars: '' // 중간 자모음 저장
 };
 
 // 키 입력 상태 추적을 위한 변수
@@ -89,6 +91,41 @@ function setupKeyboardListener() {
       return null;
     };
 
+    /**
+     * 카테고리 활성화 여부 확인
+     * @param {string} url - 현재 URL
+     * @param {string} title - 창 제목
+     * @returns {boolean} - 활성화 여부
+     */
+    const isCategoryEnabled = (url, title) => {
+      const settings = getSettings();
+      const enabledCategories = settings.enabledCategories || appState.settings?.enabledCategories;
+      
+      if (!enabledCategories) return true; // 설정이 없으면 기본적으로 활성화
+      
+      // 웹사이트 URL 기반 카테고리 확인
+      for (const categoryName in SUPPORTED_WEBSITES) {
+        // 해당 카테고리가 비활성화되어 있으면 스킵
+        if (!enabledCategories[categoryName]) continue;
+        
+        // 해당 카테고리의 사이트 패턴과 매칭되는지 확인
+        const sites = SUPPORTED_WEBSITES[categoryName] || [];
+        for (const site of sites) {
+          if (url && url.includes(site.pattern)) {
+            return true; // 활성화된 카테고리의 사이트
+          }
+          
+          // URL이 없는 경우, 창 제목으로도 확인
+          if (title && site.pattern && title.toLowerCase().includes(site.pattern.toLowerCase())) {
+            return true;
+          }
+        }
+      }
+      
+      // 일반 앱 카테고리 (브라우저 외 앱은 기본적으로 허용)
+      return true;
+    };
+
     // 정규 입력 처리 함수
     const handleRegularInput = async (keyData = null) => {
       if (!appState.isTracking) return;
@@ -103,11 +140,22 @@ function setupKeyboardListener() {
         // 브라우저 감지
         const browserName = detectBrowserName(activeWindowInfo);
         
+        // URL 또는 창 제목 가져오기
+        const url = activeWindowInfo.url || '';
+        const title = activeWindowInfo.title || '';
+        
+        // 활성화된 카테고리 확인
+        const isEnabled = isCategoryEnabled(url, title);
+        if (!isEnabled) {
+          debugLog(`비활성화된 카테고리: URL=${url}, 제목=${title}`);
+          return;
+        }
+        
         // 윈도우 제목 로그 (디버깅용)
         debugLog(`활성 창 정보: ${JSON.stringify({
-          title: activeWindowInfo.title, 
+          title: title, 
           process: activeWindowInfo.owner?.name || '알 수 없음',
-          url: browserName ? '브라우저' : '(URL 없음)'
+          url: url || '(URL 없음)'
         })}`);
 
         // 키 데이터 로깅 (디버깅용)
@@ -117,10 +165,10 @@ function setupKeyboardListener() {
 
         // 브라우저가 감지되면 처리 (특정 브라우저로 한정하지 않음)
         if (browserName) {
-          processKeyInput(activeWindowInfo.title, browserName, keyData);
+          processKeyInput(title, browserName, keyData);
         } else {
           // 브라우저가 아닌 경우에도 처리 (기본 앱 타이핑 처리)
-          processKeyInput(activeWindowInfo.title || activeWindowInfo.owner?.name || '알 수 없음', '앱', keyData);
+          processKeyInput(title || activeWindowInfo.owner?.name || '알 수 없음', '앱', keyData);
         }
         
         // 마지막 이벤트 시간 업데이트
@@ -142,36 +190,75 @@ function setupKeyboardListener() {
       // 큐에 있는 모든 키 이벤트에 대해 로깅
       debugLog(`키 이벤트 처리: ${keyEventQueue.length}개 이벤트 처리 중...`);
       
-      // 큐의 모든 이벤트를
-      for (const event of keyEventQueue) {
-        debugLog(`큐에서 이벤트 처리: ${JSON.stringify(event)}`);
-      }
+      // 한글 자모음 조합 처리 개선
+      const compositionEvents = keyEventQueue.filter(e => 
+        e.type === 'compositionstart' || 
+        e.type === 'compositionupdate' || 
+        e.type === 'compositionend'
+      );
       
-      // 마지막 키 이벤트 정보 추출
-      const lastKeyEvent = keyEventQueue[keyEventQueue.length - 1];
-      
-      // 한글 자모음 조합 처리
-      if (HANGUL_STATUS.isComposing) {
-        // 조합 중인 상태에서 Enter 등이 입력되면 조합 완료로 처리
-        if (lastKeyEvent.key === 'Enter' || lastKeyEvent.key === 'Tab' || 
-            lastKeyEvent.key === 'Escape') {
+      // 조합 이벤트가 있으면 한글 처리 로직 적용
+      if (compositionEvents.length > 0) {
+        debugLog(`한글 조합 이벤트 감지: ${compositionEvents.length}개`);
+        
+        // 마지막 이벤트가 compositionend인 경우 완성된 문자로 처리
+        const lastCompEvent = compositionEvents[compositionEvents.length - 1];
+        if (lastCompEvent.type === 'compositionend' && lastCompEvent.text) {
+          debugLog(`한글 조합 완료: "${lastCompEvent.text}"`);
           HANGUL_STATUS.isComposing = false;
-          debugLog(`한글 조합 완료: ${HANGUL_STATUS.lastComposedText}`);
+          HANGUL_STATUS.lastComposedText = lastCompEvent.text;
           
-          // 조합 완료된 텍스트 처리
-          if (HANGUL_STATUS.lastComposedText) {
-            handleRegularInput({
-              type: 'compositionend',
-              text: HANGUL_STATUS.lastComposedText,
-              timestamp: Date.now()
-            });
-            HANGUL_STATUS.lastComposedText = '';
-          }
+          // 완성된 한글 처리
+          handleRegularInput({
+            type: 'compositionend',
+            text: lastCompEvent.text,
+            timestamp: Date.now()
+          });
+          
+          // 처리 완료 후 큐 비우기
+          keyEventQueue = [];
+          return;
+        } 
+        // 조합 중인 경우
+        else if (lastCompEvent.type === 'compositionupdate') {
+          HANGUL_STATUS.isComposing = true;
+          HANGUL_STATUS.intermediateChars = lastCompEvent.text || '';
+          debugLog(`한글 조합 중: "${HANGUL_STATUS.intermediateChars}"`);
+          
+          // 조합 중이면 다른 키 이벤트는 처리하지 않음
+          keyEventQueue = [];
+          return;
         }
       }
       
-      // 키 이벤트 처리
-      handleRegularInput(lastKeyEvent);
+      // 일반 키 이벤트 처리
+      const keyDownEvents = keyEventQueue.filter(e => e.type === 'keyDown');
+      if (keyDownEvents.length > 0) {
+        // 마지막 이벤트 처리
+        const lastKeyEvent = keyDownEvents[keyDownEvents.length - 1];
+        
+        // 한글 조합 완료 후 엔터 등 특수키 처리
+        if (HANGUL_STATUS.isComposing) {
+          if (lastKeyEvent.key === 'Enter' || lastKeyEvent.key === 'Tab' || 
+              lastKeyEvent.key === 'Escape' || lastKeyEvent.key === ' ') {
+            HANGUL_STATUS.isComposing = false;
+            
+            // 중간 조합 문자가 있으면 처리
+            if (HANGUL_STATUS.intermediateChars) {
+              debugLog(`한글 조합 강제 완료: "${HANGUL_STATUS.intermediateChars}"`);
+              handleRegularInput({
+                type: 'compositionend',
+                text: HANGUL_STATUS.intermediateChars,
+                timestamp: Date.now()
+              });
+              HANGUL_STATUS.intermediateChars = '';
+            }
+          }
+        }
+        
+        // 일반 키 입력 처리
+        handleRegularInput(lastKeyEvent);
+      }
       
       // 큐 비우기
       keyEventQueue = [];
@@ -199,6 +286,7 @@ function setupKeyboardListener() {
           debugLog('장시간 미사용으로 한글 조합 상태 초기화');
           HANGUL_STATUS.isComposing = false;
           HANGUL_STATUS.lastComposedText = '';
+          HANGUL_STATUS.intermediateChars = '';
         }
       }
     };
@@ -240,7 +328,7 @@ function setupKeyboardListener() {
         }
 
         // 기능 키, 방향키, 기타 특수키 필터링
-        if (SPECIAL_KEYS.includes(input.key.toUpperCase())) {
+        if (SPECIAL_KEYS.includes(input.key)) {
           debugLog(`특수키 무시: ${input.key}`);
           return;
         }
@@ -263,7 +351,16 @@ function setupKeyboardListener() {
 
       // 직접 DOM 이벤트를 통한 키 입력 캡처 (보조 방법)
       mainWindow.webContents.executeJavaScript(`
-        document.addEventListener('keydown', (e) => {
+        // 이미 설정된 이벤트 리스너 제거
+        if (window._loopKeyHandlersSet) {
+          document.removeEventListener('keydown', window._loopKeydownHandler);
+          document.removeEventListener('compositionstart', window._loopCompositionStartHandler);
+          document.removeEventListener('compositionupdate', window._loopCompositionUpdateHandler);
+          document.removeEventListener('compositionend', window._loopCompositionEndHandler);
+        }
+        
+        // 키 입력 이벤트 핸들러 정의
+        window._loopKeydownHandler = (e) => {
           window.electronAPI.sendKeyboardEvent({
             key: e.key,
             code: e.code,
@@ -273,28 +370,37 @@ function setupKeyboardListener() {
             metaKey: e.metaKey,
             shiftKey: e.shiftKey
           });
-        });
+        };
         
-        // 한글 입력 이벤트 처리
-        document.addEventListener('compositionstart', (e) => {
+        // 한글 조합 이벤트 핸들러 정의
+        window._loopCompositionStartHandler = (e) => {
           window.electronAPI.sendKeyboardEvent({
             type: 'compositionstart'
           });
-        });
+        };
         
-        document.addEventListener('compositionupdate', (e) => {
+        window._loopCompositionUpdateHandler = (e) => {
           window.electronAPI.sendKeyboardEvent({
             type: 'compositionupdate',
             text: e.data
           });
-        });
+        };
         
-        document.addEventListener('compositionend', (e) => {
+        window._loopCompositionEndHandler = (e) => {
           window.electronAPI.sendKeyboardEvent({
             type: 'compositionend',
             text: e.data
           });
-        });
+        };
+        
+        // 이벤트 리스너 등록
+        document.addEventListener('keydown', window._loopKeydownHandler);
+        document.addEventListener('compositionstart', window._loopCompositionStartHandler);
+        document.addEventListener('compositionupdate', window._loopCompositionUpdateHandler);
+        document.addEventListener('compositionend', window._loopCompositionEndHandler);
+        
+        // 플래그 설정
+        window._loopKeyHandlersSet = true;
         
         console.log('DOM 키보드 이벤트 핸들러 설정 완료');
         true;
@@ -308,6 +414,7 @@ function setupKeyboardListener() {
         HANGUL_STATUS.isComposing = true;
         HANGUL_STATUS.composeStartTime = Date.now();
         HANGUL_STATUS.lastComposedText = '';
+        HANGUL_STATUS.intermediateChars = '';
         
         // 한글 조합 시작 이벤트를 큐에 추가
         keyEventQueue.push({
@@ -323,6 +430,7 @@ function setupKeyboardListener() {
       mainWindow.webContents.on('composition-update', (event, text) => {
         debugLog(`한글 조합 업데이트: ${text}`);
         HANGUL_STATUS.lastComposedText = text;
+        HANGUL_STATUS.intermediateChars = text;
         
         // 조합 업데이트 이벤트를 큐에 추가
         keyEventQueue.push({
@@ -340,6 +448,7 @@ function setupKeyboardListener() {
         debugLog(`한글 조합 완료: ${text}`);
         HANGUL_STATUS.isComposing = false;
         HANGUL_STATUS.lastComposedText = text;
+        HANGUL_STATUS.intermediateChars = '';
         
         // 조합 완료 이벤트를 큐에 추가
         keyEventQueue.push({
@@ -383,8 +492,11 @@ function setupKeyboardListener() {
       
       // 추가: MacOS에서 input-event 이벤트도 사용
       window.webContents.on('input-event', (event, inputEvent) => {
+        // mouseMove 이벤트는 무시 (성능 향상을 위해)
+        if (inputEvent.type === 'mouseMove') return;
+        
         debugLog(`MacOS input-event: ${JSON.stringify(inputEvent)}`);
-        if (inputEvent.type === 'keyDown' && !SPECIAL_KEYS.includes(inputEvent.key?.toUpperCase())) {
+        if (inputEvent.type === 'keyDown' && !SPECIAL_KEYS.includes(inputEvent.key)) {
           keyEventQueue.push({
             key: inputEvent.key || 'Unknown',
             code: inputEvent.code || 'Unknown',
@@ -455,7 +567,8 @@ function setupKeyboardListener() {
     ipcMain.handle('get-hangul-status', () => {
       return { 
         isComposing: HANGUL_STATUS.isComposing,
-        lastComposedText: HANGUL_STATUS.lastComposedText
+        lastComposedText: HANGUL_STATUS.lastComposedText,
+        intermediateChars: HANGUL_STATUS.intermediateChars
       };
     });
 

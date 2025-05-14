@@ -2,7 +2,7 @@ const { ipcMain, app } = require('electron');
 const activeWin = require('active-win');
 const { appState, HIGH_MEMORY_THRESHOLD } = require('./constants');
 const { detectBrowserName, isGoogleDocsWindow } = require('./browser');
-const { startTracking, stopTracking, saveStats, resetStats } = require('./stats');
+const { startTracking, stopTracking, saveStats, resetStats, processKeyInput } = require('./stats');
 const { debugLog } = require('./utils');
 const { applyWindowMode } = require('./settings');
 const { saveSettings, getSettings, loadSettings } = require('./settings');
@@ -808,6 +808,107 @@ function setupIpcHandlers() {
       return { success: false, error: error.message };
     }
   });
+
+  // 한글 입력 테스트 핸들러
+  ipcMain.handle('test-hangul-input', async (event, text) => {
+    try {
+      debugLog(`한글 입력 테스트 요청: "${text}"`);
+      
+      if (!text) {
+        return { success: false, error: '입력 텍스트가 없습니다' };
+      }
+      
+      // 타이핑 테스트 시작 시간 저장
+      const testStartTime = Date.now();
+      let keyPressCount = 0;
+      let errorCount = 0;
+      
+      // 한글 조합 시작 이벤트 시뮬레이션
+      processKeyInput('테스트 창', '테스트 앱', {
+        type: 'compositionstart',
+        timestamp: Date.now()
+      });
+      
+      // 텍스트의 각 글자를 순차적으로 처리
+      for (let i = 0; i < text.length; i++) {
+        // 현재 글자 추출
+        const currentChar = text[i];
+        
+        // 자모 분해 (시뮬레이션 목적)
+        const jamoCount = getJamoCount(currentChar);
+        keyPressCount += jamoCount; // 실제 키 입력 수 반영
+        
+        // 중간 조합 상태 시뮬레이션
+        const partialText = text.substring(0, i + 1);
+        processKeyInput('테스트 창', '테스트 앱', {
+          type: 'compositionupdate',
+          text: partialText,
+          timestamp: Date.now()
+        });
+        
+        // 약간의 지연을 두어 실제처럼 보이게 함
+        await new Promise(resolve => setTimeout(resolve, 50));
+      }
+      
+      // 최종 조합 완료 이벤트 시뮬레이션
+      processKeyInput('테스트 창', '테스트 앱', {
+        type: 'compositionend',
+        text: text,
+        timestamp: Date.now()
+      });
+      
+      // 테스트 완료 시간 측정
+      const testEndTime = Date.now();
+      const typingTimeMs = testEndTime - testStartTime;
+      const typingTimeSec = typingTimeMs / 1000;
+      
+      // WPM 계산 (분당 단어 수)
+      // 산업 표준: 1분에 입력한 문자 수 / 5
+      const minutes = typingTimeSec / 60;
+      const grossWPM = Math.round((keyPressCount / 5) / minutes);
+      
+      // 정확도 계산 (에러 없이 테스트용이므로 100%)
+      const accuracy = 100;
+      
+      debugLog(`한글 입력 테스트 완료: "${text}", WPM: ${grossWPM}, 정확도: ${accuracy}%`);
+      return { 
+        success: true, 
+        text, 
+        stats: {
+          keyPressCount,
+          typingTimeMs,
+          typingTimeSec,
+          wpm: grossWPM,
+          accuracy,
+          errorCount
+        }
+      };
+    } catch (error) {
+      console.error('한글 입력 테스트 처리 오류:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  /**
+   * 한글 자모 수 계산 헬퍼 함수
+   * @param {string} char - 한글 문자
+   * @returns {number} - 자모 수
+   */
+  function getJamoCount(char) {
+    // 한글이 아닌 경우 1로 처리
+    if (!/^[가-힣]$/.test(char)) {
+      return 1;
+    }
+    
+    // 유니코드 범위에서 한글 코드 추출
+    const code = char.charCodeAt(0) - 0xAC00;
+    
+    // 종성 여부 확인
+    const jong = code % 28;
+    
+    // 종성이 있으면 3, 없으면 2 반환
+    return jong > 0 ? 3 : 2;
+  }
 
   debugLog('IPC 핸들러 설정 완료');
 }

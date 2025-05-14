@@ -3,6 +3,7 @@ const path = require('path');
 const { appState, BROWSER_DISPLAY_NAMES, IDLE_TIMEOUT, HIGH_MEMORY_THRESHOLD } = require('./constants');
 const { debugLog, formatTime } = require('./utils');
 const { saveStats: saveStatsToDb, getStatById } = require('./database');
+const { getSettings } = require('./settings');
 
 // 워커 인스턴스 관리
 let statWorker = null;
@@ -14,6 +15,13 @@ let pendingTasks = [];
 // 메모리 사용량 임계치 및 처리 모드 상태
 const MEMORY_THRESHOLD = 100 * 1024 * 1024; // 100MB
 let processingMode = 'normal'; // 'normal', 'cpu-intensive', 'gpu-intensive'
+
+// 한글 입력 관련 상태
+const hangulState = {
+  isComposing: false,
+  lastComposedText: '',
+  composingBuffer: ''
+};
 
 /**
  * 워커 초기화 - CPU 집약적 계산을 위한 별도 스레드
@@ -393,6 +401,22 @@ function updateTypingPattern(result) {
 function processKeyInput(windowTitle, browserName, keyData = null) {
   const now = Date.now();
   
+  // 설정에서 활성화된 카테고리만 처리
+  const settings = getSettings();
+  const enabledCategories = settings.enabledCategories || {};
+  
+  // 기본 웹 카테고리가 비활성화되어 있고 브라우저인 경우 처리하지 않음
+  if (browserName !== '앱' && enabledCategories.web === false) {
+    debugLog(`웹 카테고리 비활성화: ${browserName}, ${windowTitle}`);
+    return;
+  }
+  
+  // 기본 앱 카테고리가 비활성화되어 있고 앱인 경우 처리하지 않음
+  if (browserName === '앱' && enabledCategories.apps === false) {
+    debugLog(`앱 카테고리 비활성화: ${windowTitle}`);
+    return;
+  }
+  
   // 창 전환 감지
   if (appState.currentStats.currentWindow !== windowTitle) {
     appState.currentStats.currentWindow = windowTitle;
@@ -418,39 +442,74 @@ function processKeyInput(windowTitle, browserName, keyData = null) {
     // 키 데이터가 없는 경우 간단히 카운트 증가
     appState.currentStats.keyCount++;
     debugLog(`일반 키 입력: 카운트=${appState.currentStats.keyCount}`);
+  } else if (keyData.type === 'compositionstart') {
+    // 한글 조합 시작 - 상태만 변경하고 카운트는 증가시키지 않음
+    hangulState.isComposing = true;
+    hangulState.composingBuffer = '';
+    debugLog('한글 조합 시작');
+  } else if (keyData.type === 'compositionupdate') {
+    // 한글 조합 중 - 상태 업데이트만 하고 카운트는 증가시키지 않음
+    hangulState.composingBuffer = keyData.text || '';
+    debugLog(`한글 조합 업데이트: "${hangulState.composingBuffer}"`);
   } else if (keyData.type === 'compositionend' && keyData.text) {
     // 한글 조합 완료: 텍스트 길이만큼 카운트 증가
     const textLength = keyData.text.length;
     appState.currentStats.keyCount += textLength;
+    
+    // 한글 조합 상태 초기화
+    hangulState.isComposing = false;
+    hangulState.lastComposedText = keyData.text;
+    hangulState.composingBuffer = '';
     
     // 현재 문자열 추가 (통계 계산용)
     if (!appState.currentContent) appState.currentContent = '';
     appState.currentContent += keyData.text;
     
     debugLog(`한글 입력 완료: "${keyData.text}" (${textLength}자), 누적=${appState.currentStats.keyCount}`);
-  } else if (keyData.type === 'compositionupdate') {
-    // 한글 조합 중: 카운트는 증가시키지 않고 로그만 남김
-    debugLog(`한글 조합 중: "${keyData.text || ''}"`);
   } else if (keyData.type === 'keyDown' && keyData.key && keyData.key.length === 1) {
-    // 일반 키 입력 (영문, 숫자, 특수문자 등)
-    appState.currentStats.keyCount++;
-    
-    // 현재 문자열 추가 (통계 계산용)
-    if (!appState.currentContent) appState.currentContent = '';
-    appState.currentContent += keyData.key;
-    
-    debugLog(`일반 문자 입력: "${keyData.key}", 누적=${appState.currentStats.keyCount}`);
-  } else if (keyData.type === 'keyDown') {
-    // 특수 키 입력 (Enter, Tab, Space 등)
-    appState.currentStats.keyCount++;
-    
-    // 현재 문자열에 공백 추가 (Enter, Tab, Space 등은 공백으로 처리)
-    if (keyData.key === 'Enter' || keyData.key === 'Tab' || keyData.key === ' ' || keyData.key === 'Space') {
+    // 일반 키 입력 (영문, 숫자, 특수문자 등) - 한글 조합 중이 아닐 때만 처리
+    if (!hangulState.isComposing) {
+      appState.currentStats.keyCount++;
+      
+      // 현재 문자열 추가 (통계 계산용)
       if (!appState.currentContent) appState.currentContent = '';
-      appState.currentContent += ' ';
+      appState.currentContent += keyData.key;
+      
+      debugLog(`일반 문자 입력: "${keyData.key}", 누적=${appState.currentStats.keyCount}`);
+    } else {
+      debugLog(`한글 조합 중 키 무시: ${keyData.key}`);
     }
-    
-    debugLog(`특수 키 입력: ${keyData.key}, 누적=${appState.currentStats.keyCount}`);
+  } else if (keyData.type === 'keyDown') {
+    // 특수 키 입력 (Enter, Tab, Space 등) - 한글 조합 중이 아닐 때만 처리
+    if (!hangulState.isComposing) {
+      appState.currentStats.keyCount++;
+      
+      // 현재 문자열에 공백 추가 (Enter, Tab, Space 등은 공백으로 처리)
+      if (keyData.key === 'Enter' || keyData.key === 'Tab' || keyData.key === ' ' || keyData.key === 'Space') {
+        if (!appState.currentContent) appState.currentContent = '';
+        appState.currentContent += ' ';
+      }
+      
+      debugLog(`특수 키 입력: ${keyData.key}, 누적=${appState.currentStats.keyCount}`);
+    } else {
+      // 한글 조합 중 특수키 입력 - 조합 강제 완료 처리
+      if (keyData.key === 'Enter' || keyData.key === 'Tab' || keyData.key === 'Escape') {
+        if (hangulState.composingBuffer) {
+          debugLog(`한글 조합 강제 완료: "${hangulState.composingBuffer}"`);
+          
+          // 현재 조합 중인 텍스트를 완성된 것으로 처리
+          appState.currentStats.keyCount += hangulState.composingBuffer.length;
+          
+          if (!appState.currentContent) appState.currentContent = '';
+          appState.currentContent += hangulState.composingBuffer;
+          
+          // 한글 조합 상태 초기화
+          hangulState.isComposing = false;
+          hangulState.lastComposedText = hangulState.composingBuffer;
+          hangulState.composingBuffer = '';
+        }
+      }
+    }
   } else if (keyData.simulated) {
     // 시뮬레이션된 키 입력 (테스트용)
     appState.currentStats.keyCount++;
@@ -542,6 +601,15 @@ function updateCalculatedStatsLite() {
   appState.currentStats.totalChars = keyCount;
   appState.currentStats.pages = keyCount / 1800;
   appState.currentStats.accuracy = 100;
+  
+  // WPM 계산 추가 - 경량 모드에서도 필요한 통계임
+  const minutes = typingTime > 0 ? typingTime / 60 : 0.001; // 0으로 나누기 방지
+  appState.currentStats.wpm = Math.round((keyCount / 5) / minutes);
+  
+  // 디버그 로그 추가
+  if (appState.currentStats.wpm > 0) {
+    debugLog('경량 WPM 계산:', appState.currentStats.wpm);
+  }
 }
 
 /**
@@ -612,13 +680,39 @@ function restartWorker() {
  * 메모리 최적화: 필수 계산만 수행
  */
 function updateCalculatedStatsMain() {
-  const { keyCount } = appState.currentStats;
+  const { keyCount, typingTime } = appState.currentStats;
+  const currentContent = appState.currentContent || '';
   
-  // 간단한 추정
-  appState.currentStats.totalWords = Math.round(keyCount / 5);
-  appState.currentStats.totalChars = keyCount;
+  // 글자 수 계산 (NFC 정규화된 완성형 코드포인트 기준)
+  const normalizedContent = currentContent.normalize('NFC');
+  appState.currentStats.totalChars = normalizedContent.length;
+  
+  // 공백 제외 글자 수 계산
+  appState.currentStats.totalCharsNoSpace = normalizedContent.replace(/\s/g, '').length;
+  
+  // 단어 수 계산 (화이트스페이스와 구두점 기준)
+  const words = normalizedContent.trim().split(/[\s.,;:!?()[\]{}'"<>\/\\|~`@#$%^&*_+=\-]+/).filter(word => word.length > 0);
+  appState.currentStats.totalWords = words.length;
+  
+  // WPM(분당 단어 수) 계산 - 표준 공식 사용
+  // 1 word = 5 keystrokes 기준 (공백/구두점 포함)
+  const minutes = typingTime > 0 ? typingTime / 60 : 0.001; // 0으로 나누기 방지
+  const grossWPM = Math.round((keyCount / 5) / minutes);
+  appState.currentStats.wpm = grossWPM;
+  
+  // 페이지 수 계산 (1800자 기준)
   appState.currentStats.pages = keyCount / 1800;
-  appState.currentStats.accuracy = 100; // 기본값
+  
+  // 기본 정확도 계산 (실제 오류 검출이 없는 경우)
+  appState.currentStats.accuracy = 100;
+  
+  // 디버그 로그
+  debugLog('통계 계산 완료 (메인 스레드):', {
+    chars: appState.currentStats.totalChars,
+    words: appState.currentStats.totalWords,
+    wpm: appState.currentStats.wpm,
+    pages: appState.currentStats.pages
+  });
 }
 
 /**
@@ -652,6 +746,10 @@ function updateAndSendStats() {
   
   appState.currentStats.pages = appState.currentStats.totalChars / 1800;
   
+  // WPM 계산 (추가)
+  const minutes = typingTime > 0 ? typingTime / 60 : 0.001; // 0으로 나누기 방지
+  appState.currentStats.wpm = Math.round((appState.currentStats.keyCount / 5) / minutes);
+  
   // UI에 통계 전송 (불필요한 속성 제외)
   if (appState.mainWindow.webContents) {
     appState.mainWindow.webContents.send('typing-stats-update', {
@@ -661,8 +759,10 @@ function updateAndSendStats() {
       browserName: appState.currentStats.currentBrowser,
       totalChars: appState.currentStats.totalChars,
       totalWords: appState.currentStats.totalWords,
+      totalCharsNoSpace: appState.currentStats.totalCharsNoSpace,
       pages: appState.currentStats.pages,
-      accuracy: appState.currentStats.accuracy
+      accuracy: appState.currentStats.accuracy,
+      wpm: appState.currentStats.wpm // WPM 추가
     });
   }
   
@@ -874,5 +974,6 @@ module.exports = {
   // 새로운 함수 내보내기
   switchToLowMemoryMode,
   restoreNormalMode,
-  getProcessingMode: () => processingMode
+  getProcessingMode: () => processingMode,
+  getHangulState: () => ({ ...hangulState })
 };
