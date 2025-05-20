@@ -11,6 +11,9 @@ import {
   combineRecommendations
 } from '@/app/utils/log-learning';
 
+// output: 'export'를 사용할 때 필요한 설정
+export const dynamic = 'force-static';
+
 /**
  * 로그 데이터에서 학습을 수행합니다.
  * 

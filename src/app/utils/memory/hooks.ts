@@ -102,7 +102,7 @@ export function useMemory(options: UseMemoryOptions = {}) {
   const checkAndOptimizeIfNeeded = useCallback(async () => {
     const info = await fetchMemoryInfo();
 
-    if (info && autoOptimize && (info.percent_used ?? info.percentUsed ?? 0) > threshold) {
+    if (info && autoOptimize && (info.percentUsed ?? 0) > threshold) {
       await runMemoryOptimization();
     }
   }, [autoOptimize, fetchMemoryInfo, threshold, runMemoryOptimization]);
@@ -412,7 +412,7 @@ export async function optimizeMemoryIfNeeded(
 
   try {
     // 임계값 초과 시 최적화 수행
-    if ((memoryInfo.percent_used ?? memoryInfo.percentUsed ?? 0) > threshold) {
+    if ((memoryInfo.percentUsed ?? 0) > threshold) {
       const result = await optimizeMemory(level);
       
       if (result) {

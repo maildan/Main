@@ -325,7 +325,7 @@ export async function diagnoseAndOptimizePerformance(): Promise<{
   try {
     // 현재 상태 확인
     const status = await getSystemStatus(true);
-    const memoryBefore = status.memoryInfo?.heap_used || 0;
+    const memoryBefore = status.memoryInfo?.heapUsed || 0;
 
     // 메모리 사용량에 따라 최적화 레벨 결정
     let optimizationLevel = OptimizationLevel.Low;
@@ -347,7 +347,7 @@ export async function diagnoseAndOptimizePerformance(): Promise<{
 
       // 최적화 후 상태 확인
       const afterStatus = await getSystemStatus(true);
-      const memoryAfter = afterStatus.memoryInfo?.heap_used || 0;
+      const memoryAfter = afterStatus.memoryInfo?.heapUsed || 0;
       const memoryFreed = Math.max(0, memoryBefore - memoryAfter);
 
       return {

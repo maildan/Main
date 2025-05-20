@@ -106,10 +106,31 @@ export const TypingMonitor = React.memo(function TypingMonitor({
   const handleToggleTracking = useCallback(() => {
     if (isTracking) {
       onStopTracking();
+      setLastAction('모니터링 중지됨');
+      
+      // 상태 표시
+      setTimeout(() => {
+        setLastAction('');
+      }, 2000);
     } else {
       onStartTracking();
+      setLastAction('모니터링 시작됨');
+      
+      // 상태 표시
+      setTimeout(() => {
+        setLastAction('키보드 입력 감지 중...');
+      }, 2000);
+      
+      // 타이핑 시작 메시지 표시를 위해 5초 후 메시지 업데이트
+      setTimeout(() => {
+        if (stats.keyCount > 0) {
+          setLastAction('타이핑 감지됨');
+        } else {
+          setLastAction('키보드 입력 대기 중...');
+        }
+      }, 5000);
     }
-  }, [isTracking, onStartTracking, onStopTracking]);
+  }, [isTracking, onStartTracking, onStopTracking, stats.keyCount]);
 
   const handleWebsiteTabChange = useCallback((tab: string) => {
     setActiveWebsiteTab(tab);

@@ -4,64 +4,41 @@ import {
   disableGpuAcceleration,
   setGpuAcceleration // checkGpuAcceleration -> setGpuAcceleration 으로 변경
 } from '@/app/utils/gpu-acceleration';
+import { getGpuStatus } from '@/app/utils/gpu-settings-manager';
 
-export async function GET(_request: NextRequest) {
+// output: 'export'를 사용할 때 필요한 설정
+export const dynamic = 'force-static';
+
+/**
+ * GPU 상태 정보 조회
+ */
+export async function GET() {
   try {
-    let isEnabled: boolean;
-    try {
-      isEnabled = await enableGpuAcceleration();
-    } catch (e) {
-      isEnabled = false;
-      console.warn('enableGpuAcceleration failed, assuming disabled', e);
-    }
-
-    return NextResponse.json({
-      success: true,
-      enabled: isEnabled,
-    });
+    const status = await getGpuStatus();
+    return NextResponse.json(status);
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-
-    return NextResponse.json({
-      success: false,
-      enabled: false,
-      error: errorMessage
-    }, { status: 500 });
+    console.error('GPU 상태 조회 오류:', error);
+    return NextResponse.json(
+      { error: 'Failed to get GPU status' },
+      { status: 500 }
+    );
   }
 }
 
+/**
+ * GPU 가속 설정 변경
+ */
 export async function POST(request: NextRequest) {
   try {
-    const requestData = await request.json();
-    const enableAcceleration = requestData.enable === true;
-    
-    let result;
-    if (enableAcceleration) {
-      const success = await enableGpuAcceleration();
-      result = {
-        enabled: success,
-        message: success ? 'GPU 가속이 활성화되었습니다.' : 'GPU 가속 활성화에 실패했습니다.'
-      };
-    } else {
-      const success = await disableGpuAcceleration();
-      result = {
-        enabled: false,
-        message: success ? 'GPU 가속이 비활성화되었습니다.' : 'GPU 가속 비활성화에 실패했습니다.'
-      };
-    }
-    
-    return NextResponse.json({
-      success: true,
-      enabled: result.enabled,
-      message: result.message || null
-    });
+    const { enabled } = await request.json();
+    const result = await setGpuAcceleration(enabled);
+    return NextResponse.json(result);
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    
-    return NextResponse.json({
-      success: false,
-      error: errorMessage
-    }, { status: 500 });
+    console.error('GPU 가속 설정 변경 오류:', error);
+    return NextResponse.json(
+      { error: 'Failed to update GPU acceleration setting' },
+      { status: 500 }
+    );
   }
 }
 

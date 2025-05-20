@@ -1,24 +1,80 @@
-const { app } = require('electron');
+const { app, ipcMain } = require('electron');
 const path = require('path');
 const { debugLog, safeRequire } = require('./utils');
 const fs = require('fs');
 const http = require('http');
 
-// 핵심 모듈들
+// 기본 설정 및 상태 관리
+const constants = safeRequire('./constants', { appState: {} });
+const appState = constants.appState || {};
+
+// 핵심 모듈 로드
+const settings = safeRequire('./settings', {});
+const stats = safeRequire('./stats', {}); // stats.js 먼저 로드
 const { setupAppEventListeners } = safeRequire('./app-lifecycle', { setupAppEventListeners: () => debugLog('앱 이벤트 리스너 기본 구현 사용') });
 const { createWindow, getMainWindow } = safeRequire('./window', { createWindow: () => debugLog('창 생성 기본 구현 사용'), getMainWindow: () => null });
-
-// 추가 모듈 안전하게 import
 const memoryManager = safeRequire('./memory-manager', {});
 const memoryManagerNative = safeRequire('./memory-manager-native', {});
 const keyboard = safeRequire('./keyboard', { setupKeyboardListener: null, registerGlobalShortcuts: null });
 const ipcHandlers = safeRequire('./ipc-handlers', {});
-const settings = safeRequire('./settings', {});
-const constants = safeRequire('./constants', { appState: {} });
 const platform = safeRequire('./platform', {});
+const browser = safeRequire('./browser', {});
+
+// 추가 모듈 로드 (전체 main 폴더 내 모듈)
+const security = safeRequire('./security-checks', {});
+const powerMonitor = safeRequire('./power-monitor', {});
+const gpuUtils = safeRequire('./gpu-utils', {});
+const screenshot = safeRequire('./screenshot', {});
+const clipboardWatcher = safeRequire('./clipboard-watcher', {});
+const crashReporter = safeRequire('./crash-reporter', {});
+const menu = safeRequire('./menu', {});
+const protocols = safeRequire('./protocols', {});
+const safeStorage = safeRequire('./safe-storage', {});
+const screens = safeRequire('./screens', {});
+const shortcuts = safeRequire('./shortcuts', {});
+const store = safeRequire('./store', {});
+const systemEvents = safeRequire('./system-events', {});
+const trayMenu = safeRequire('./tray-menu', {});
+const tray = safeRequire('./tray', {});
+const updates = safeRequire('./updates', {});
+const webContentsHandlers = safeRequire('./web-contents-handlers', {});
+const database = safeRequire('./database', {});
+const dialogs = safeRequire('./dialogs', {});
+const electronConfig = safeRequire('./electron-config', {});
+const autoLaunch = safeRequire('./auto-launch', {});
+
+// 데이터 동기화 모듈 가져오기
+const dataSync = require('./data-sync');
 
 // 필요한 함수 참조 추출
 const setupMemoryMonitoring = memoryManager.setupMemoryMonitoring || (() => debugLog('메모리 모니터링 기본 구현 사용'));
+const startTracking = stats.startTracking || (() => debugLog('통계 추적 기본 구현 사용'));
+
+// processKeyInput 함수 로드 여부 확인
+debugLog('- stats.processKeyInput 로드됨:', !!stats.processKeyInput);
+
+// 모듈 로드 상태 출력
+debugLog('모듈 로드 결과:');
+debugLog('- app-lifecycle:', !!setupAppEventListeners);
+debugLog('- window:', !!createWindow && !!getMainWindow);
+debugLog('- memory-manager:', !!memoryManager.setupMemoryMonitoring);
+debugLog('- memory-manager-native:', !!memoryManagerNative);
+debugLog('- keyboard:', !!keyboard.setupKeyboardListener);
+debugLog('- ipc-handlers:', !!ipcHandlers.setupIpcHandlers);
+debugLog('- settings:', !!settings.loadSettings);
+debugLog('- constants:', !!constants.appState);
+debugLog('- platform:', !!platform.getCurrentPlatform);
+debugLog('- stats:', !!stats.processKeyInput);
+debugLog('- browser:', !!browser.detectBrowserName);
+debugLog('- power-monitor:', !!powerMonitor);
+debugLog('- gpu-utils:', !!gpuUtils);
+debugLog('- system-events:', !!systemEvents);
+debugLog('- database:', !!database);
+debugLog('- tray:', !!tray);
+debugLog('- menu:', !!menu);
+debugLog('- auto-launch:', !!autoLaunch);
+
+// 추가 모듈 안전하게 import (stats.js 다음에 keyboard.js를 로드)
 const initializeNativeModule = () => {
   try {
     const { isNativeModuleAvailable, initializeMemorySettings } = require('../server/native/index.cjs');
@@ -74,19 +130,6 @@ const setupKeyboardListener = keyboard.setupKeyboardListener || (() => {
 });
 const setupIpcHandlers = ipcHandlers.setupIpcHandlers || (() => debugLog('IPC 핸들러 기본 구현 사용'));
 const loadSettings = settings.loadSettings || (() => debugLog('설정 로드 기본 구현 사용'));
-const appState = constants.appState || {};
-
-// 모듈 로드 상태 출력
-debugLog('모듈 로드 결과:');
-debugLog('- app-lifecycle:', !!setupAppEventListeners);
-debugLog('- window:', !!createWindow && !!getMainWindow);
-debugLog('- memory-manager:', !!memoryManager.setupMemoryMonitoring);
-debugLog('- memory-manager-native:', !!initializeNativeModule);
-debugLog('- keyboard:', !!keyboard.setupKeyboardListener);
-debugLog('- ipc-handlers:', !!ipcHandlers.setupIpcHandlers);
-debugLog('- settings:', !!settings.loadSettings);
-debugLog('- constants:', !!constants.appState);
-debugLog('- platform:', !!platform.getCurrentPlatform);
 
 // 이미 setupAppEventListeners가 호출되었는지 추적하는 플래그 추가
 let appEventListenersSetup = false;
@@ -215,6 +258,17 @@ if (!gotSingleInstanceLock) {
       
       // 창 생성
       createWindow();
+      
+      // 데이터베이스 초기화
+      database.initializeDatabase();
+      
+      // MongoDB 및 Supabase 데이터 동기화 초기화
+      try {
+        await dataSync.initialize();
+        debugLog('데이터 동기화 모듈 초기화 성공');
+      } catch (error) {
+        console.error('데이터 동기화 모듈 초기화 실패:', error);
+      }
     } catch (error) {
       debugLog('시작 오류:', error);
     }
@@ -296,40 +350,10 @@ async function initializeApp() {
     // 설정 로드
     await loadSettings();
     
-    // 키보드 리스너 설정 (이전 인스턴스가 있으면 정리)
-    if (keyboardListenerInstance) {
-      try {
-        if (typeof keyboardListenerInstance.dispose === 'function') {
-          keyboardListenerInstance.dispose();
-        }
-      } catch (e) {
-        console.error('기존 키보드 리스너 정리 중 오류:', e);
-      }
-      keyboardListenerInstance = null;
-    }
-    
-    // 새 키보드 리스너 설정
-    try {
-      debugLog('키보드 리스너 초기화 시작');
-      keyboardListenerInstance = setupKeyboardListener();
-      
-      if (keyboardListenerInstance) {
-        keyboardListenerActive = true;
-        debugLog('키보드 리스너 초기화 성공');
-      } else {
-        debugLog('키보드 리스너 초기화 실패 - 별도 메서드로 재시도');
-        // 직접 모듈 로드 시도
-        const keyboardModule = require('./keyboard');
-        if (keyboardModule && typeof keyboardModule.setupKeyboardListener === 'function') {
-          keyboardListenerInstance = keyboardModule.setupKeyboardListener();
-          keyboardListenerActive = !!keyboardListenerInstance;
-          debugLog('키보드 리스너 직접 초기화: ' + (keyboardListenerActive ? '성공' : '실패'));
-        }
-      }
-    } catch (keyboardError) {
-      console.error('키보드 리스너 설정 중 오류:', keyboardError);
-      keyboardListenerActive = false;
-    }
+    // 키보드 리스너는 모니터링 시작 시 설정하도록 변경
+    // 기존 코드 제거:
+    // keyboardListenerInstance = setupKeyboardListener();
+    // keyboardListenerActive = !!keyboardListenerInstance;
     
     // IPC 핸들러 설정
     setupIpcHandlers();
@@ -345,11 +369,16 @@ async function initializeApp() {
     // 모듈 상태 확인 및 로그
     debugLog('----------------');
     debugLog('모듈 활성화 상태:');
-    debugLog('- 키보드 리스너 활성화:', keyboardListenerActive);
+    debugLog('- 키보드 리스너 활성화: 모니터링 시작 시 활성화됨');
     debugLog('- 메모리 관리 활성화:', !!memoryManager.isMemoryMonitoringActive);
     debugLog('- 네이티브 모듈 활성화:', !!initializeNativeModule());
     debugLog('- 설정 로드 활성화:', !!appState.settings);
     debugLog('----------------');
+    
+    // 글로벌 단축키 등록 (모니터링 시작/중지 단축키)
+    if (keyboard.registerGlobalShortcuts) {
+      keyboard.registerGlobalShortcuts();
+    }
     
   } catch (error) {
     console.error('앱 초기화 중 오류:', error);
@@ -525,3 +554,67 @@ function setupMemoryOptimizationEvents() {
   
   console.log(`메모리 최적화 이벤트 리스너 설정 완료 (모니터링 간격: ${appState.memoryMonitorInterval}ms)`);
 }
+
+// 전역 상태 설정
+let keyboardListenerHandler = null;
+
+// IPC 이벤트 핸들러 - 모니터링 시작
+ipcMain.on('start-tracking', () => {
+  if (!appState.isTracking) {
+    console.log('모니터링 시작');
+    appState.isTracking = true;
+    
+    // 모니터링 시작 시 키보드 리스너 설정
+    if (!keyboardListenerHandler) {
+      console.log('키보드 리스너 설정 중...');
+      keyboardListenerHandler = setupKeyboardListener();
+      
+      if (keyboardListenerHandler) {
+        console.log('키보드 리스너 설정 완료');
+        
+        // 메인 윈도우에 모니터링 상태 알림
+        if (appState.mainWindow && !appState.mainWindow.isDestroyed()) {
+          appState.mainWindow.webContents.send('tracking-status-changed', { 
+            isTracking: true,
+            keyboardActive: true
+          });
+        }
+      } else {
+        console.error('키보드 리스너 설정 실패');
+      }
+    }
+  }
+});
+
+// IPC 이벤트 핸들러 - 모니터링 중지
+ipcMain.on('stop-tracking', () => {
+  if (appState.isTracking) {
+    console.log('모니터링 중지');
+    appState.isTracking = false;
+    
+    // 모니터링 중지 시 키보드 리스너 해제
+    if (keyboardListenerHandler) {
+      console.log('키보드 리스너 해제 중...');
+      keyboardListenerHandler.dispose();
+      keyboardListenerHandler = null;
+      
+      // 메인 윈도우에 모니터링 상태 알림
+      if (appState.mainWindow && !appState.mainWindow.isDestroyed()) {
+        appState.mainWindow.webContents.send('tracking-status-changed', { 
+          isTracking: false,
+          keyboardActive: false
+        });
+      }
+    }
+  }
+});
+
+// 앱 종료 전 정리 작업
+app.on('before-quit', async (event) => {
+  // ... existing code ...
+  
+  // 데이터베이스 연결 종료
+  database.closeDatabase();
+  
+  // ... existing code ...
+});

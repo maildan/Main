@@ -60,18 +60,12 @@ export function camelToSnake<T extends Record<string, any>>(obj: T): Record<stri
 export function convertNativeMemoryInfo(nativeInfo: any): MemoryInfo {
   // null 병합 연산자로 undefined 값 처리
   return {
-    heap_used: nativeInfo.heap_used ?? 0,
     heapUsed: nativeInfo.heap_used ?? 0,
-    heap_total: nativeInfo.heap_total ?? 0,
     heapTotal: nativeInfo.heap_total ?? 0,
-    heap_limit: nativeInfo.heap_limit ?? 0,
     heapLimit: nativeInfo.heap_limit ?? 0,
-    heap_used_mb: nativeInfo.heap_used_mb ?? 0,
     heapUsedMB: nativeInfo.heap_used_mb ?? 0,
     rss: nativeInfo.rss ?? 0,
-    rss_mb: nativeInfo.rss_mb ?? 0,
     rssMB: nativeInfo.rss_mb ?? 0,
-    percent_used: nativeInfo.percent_used ?? 0,
     percentUsed: nativeInfo.percent_used ?? 0,
     external: nativeInfo.external ?? 0,
     timestamp: nativeInfo.timestamp || Date.now(),
@@ -112,6 +106,7 @@ export function convertNativeGCResult(nativeResult: any): GCResult {
     timestamp: nativeResult.timestamp || Date.now(),
     error: nativeResult.error,
     freedMB: nativeResult.freedMB || nativeResult.freed_mb || 0,
+    duration: nativeResult.duration || 0,
   };
 
   return result;

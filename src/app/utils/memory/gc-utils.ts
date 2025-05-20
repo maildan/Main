@@ -33,6 +33,7 @@ export async function requestGC(_emergency: boolean = false): Promise<GCResult |
       error: error instanceof Error ? error.message : '알 수 없는 오류',
       freedMemory: 0,
       freedMB: 0,
+      duration: 0,
     };
   }
 }

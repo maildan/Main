@@ -4,6 +4,7 @@ const { appState, BROWSER_DISPLAY_NAMES, IDLE_TIMEOUT, HIGH_MEMORY_THRESHOLD } =
 const { debugLog, formatTime } = require('./utils');
 const { saveStats: saveStatsToDb, getStatById } = require('./database');
 const { getSettings } = require('./settings');
+const dataSync = require('./data-sync');
 
 // 워커 인스턴스 관리
 let statWorker = null;
@@ -393,520 +394,232 @@ function updateTypingPattern(result) {
 }
 
 /**
- * 키 입력 처리 함수
- * @param {string} windowTitle - 현재 활성 창 제목
- * @param {string} browserName - 브라우저 이름
- * @param {Object} keyData - 키 입력 데이터 (옵션)
- */
-function processKeyInput(windowTitle, browserName, keyData = null) {
-  const now = Date.now();
-  
-  // 설정에서 활성화된 카테고리만 처리
-  const settings = getSettings();
-  const enabledCategories = settings.enabledCategories || {};
-  
-  // 기본 웹 카테고리가 비활성화되어 있고 브라우저인 경우 처리하지 않음
-  if (browserName !== '앱' && enabledCategories.web === false) {
-    debugLog(`웹 카테고리 비활성화: ${browserName}, ${windowTitle}`);
-    return;
-  }
-  
-  // 기본 앱 카테고리가 비활성화되어 있고 앱인 경우 처리하지 않음
-  if (browserName === '앱' && enabledCategories.apps === false) {
-    debugLog(`앱 카테고리 비활성화: ${windowTitle}`);
-    return;
-  }
-  
-  // 창 전환 감지
-  if (appState.currentStats.currentWindow !== windowTitle) {
-    appState.currentStats.currentWindow = windowTitle;
-    appState.currentStats.currentBrowser = BROWSER_DISPLAY_NAMES[browserName] || browserName;
-    debugLog('창 전환 감지:', {
-      title: windowTitle,
-      browser: appState.currentStats.currentBrowser
-    });
-  }
-
-  // 디버그 로그 추가
-  if (keyData) {
-    debugLog(`키 입력 처리: ${JSON.stringify({
-      type: keyData.type || 'keyDown',
-      key: keyData.key || '정보 없음',
-      text: keyData.text || '',
-      timestamp: now
-    })}`);
-  }
-
-  // 타자 수 증가 처리 로직
-  if (!keyData) {
-    // 키 데이터가 없는 경우 간단히 카운트 증가
-    appState.currentStats.keyCount++;
-    debugLog(`일반 키 입력: 카운트=${appState.currentStats.keyCount}`);
-  } else if (keyData.type === 'compositionstart') {
-    // 한글 조합 시작 - 상태만 변경하고 카운트는 증가시키지 않음
-    hangulState.isComposing = true;
-    hangulState.composingBuffer = '';
-    debugLog('한글 조합 시작');
-  } else if (keyData.type === 'compositionupdate') {
-    // 한글 조합 중 - 상태 업데이트만 하고 카운트는 증가시키지 않음
-    hangulState.composingBuffer = keyData.text || '';
-    debugLog(`한글 조합 업데이트: "${hangulState.composingBuffer}"`);
-  } else if (keyData.type === 'compositionend' && keyData.text) {
-    // 한글 조합 완료: 텍스트 길이만큼 카운트 증가
-    const textLength = keyData.text.length;
-    appState.currentStats.keyCount += textLength;
-    
-    // 한글 조합 상태 초기화
-    hangulState.isComposing = false;
-    hangulState.lastComposedText = keyData.text;
-    hangulState.composingBuffer = '';
-    
-    // 현재 문자열 추가 (통계 계산용)
-    if (!appState.currentContent) appState.currentContent = '';
-    appState.currentContent += keyData.text;
-    
-    debugLog(`한글 입력 완료: "${keyData.text}" (${textLength}자), 누적=${appState.currentStats.keyCount}`);
-  } else if (keyData.type === 'keyDown' && keyData.key && keyData.key.length === 1) {
-    // 일반 키 입력 (영문, 숫자, 특수문자 등) - 한글 조합 중이 아닐 때만 처리
-    if (!hangulState.isComposing) {
-      appState.currentStats.keyCount++;
-      
-      // 현재 문자열 추가 (통계 계산용)
-      if (!appState.currentContent) appState.currentContent = '';
-      appState.currentContent += keyData.key;
-      
-      debugLog(`일반 문자 입력: "${keyData.key}", 누적=${appState.currentStats.keyCount}`);
-    } else {
-      debugLog(`한글 조합 중 키 무시: ${keyData.key}`);
-    }
-  } else if (keyData.type === 'keyDown') {
-    // 특수 키 입력 (Enter, Tab, Space 등) - 한글 조합 중이 아닐 때만 처리
-    if (!hangulState.isComposing) {
-      appState.currentStats.keyCount++;
-      
-      // 현재 문자열에 공백 추가 (Enter, Tab, Space 등은 공백으로 처리)
-      if (keyData.key === 'Enter' || keyData.key === 'Tab' || keyData.key === ' ' || keyData.key === 'Space') {
-        if (!appState.currentContent) appState.currentContent = '';
-        appState.currentContent += ' ';
-      }
-      
-      debugLog(`특수 키 입력: ${keyData.key}, 누적=${appState.currentStats.keyCount}`);
-    } else {
-      // 한글 조합 중 특수키 입력 - 조합 강제 완료 처리
-      if (keyData.key === 'Enter' || keyData.key === 'Tab' || keyData.key === 'Escape') {
-        if (hangulState.composingBuffer) {
-          debugLog(`한글 조합 강제 완료: "${hangulState.composingBuffer}"`);
-          
-          // 현재 조합 중인 텍스트를 완성된 것으로 처리
-          appState.currentStats.keyCount += hangulState.composingBuffer.length;
-          
-          if (!appState.currentContent) appState.currentContent = '';
-          appState.currentContent += hangulState.composingBuffer;
-          
-          // 한글 조합 상태 초기화
-          hangulState.isComposing = false;
-          hangulState.lastComposedText = hangulState.composingBuffer;
-          hangulState.composingBuffer = '';
-        }
-      }
-    }
-  } else if (keyData.simulated) {
-    // 시뮬레이션된 키 입력 (테스트용)
-    appState.currentStats.keyCount++;
-    debugLog(`시뮬레이션 키 입력: ${keyData.key || '정보 없음'}, 누적=${appState.currentStats.keyCount}`);
-  }
-  
-  // 첫 키 입력이거나 일정 시간 이후 입력인 경우
-  if (!appState.currentStats.startTime || (now - appState.currentStats.lastActiveTime) > IDLE_TIMEOUT) {
-    if (!appState.currentStats.startTime) {
-      appState.currentStats.startTime = now;
-      debugLog('타이핑 세션 시작');
-    } else {
-      debugLog(`타이핑 세션 재개 (비활성 시간: ${formatTime(Math.floor((now - appState.currentStats.lastActiveTime) / 1000))})`);
-    }
-  }
-  
-  appState.currentStats.lastActiveTime = now;
-  
-  // 현재 통계 업데이트 및 UI에 전송
-  updateAndSendStats();
-  
-  // 일정 키 입력마다 별도 스레드에서 고급 통계 계산
-  if (appState.currentStats.keyCount % 20 === 0) {
-    calculateStatsInWorker();
-  }
-}
-
-/**
- * 워커를 사용하여 통계 계산
- * 메모리 최적화: CPU 집약적 작업을 별도 스레드로 분리
- */
-function calculateStatsInWorker() {
-  // 워커가 아직 초기화되지 않은 경우 초기화
-  if (!statWorker) {
-    initializeWorker();
-  }
-  
-  const message = {
-    action: 'calculate-stats',
-    data: {
-      keyCount: appState.currentStats.keyCount,
-      typingTime: appState.currentStats.typingTime,
-      content: appState.currentContent || '',
-      errors: appState.currentStats.errors || 0,
-      processingMode: processingMode // 현재 처리 모드 전달
-    }
-  };
-  
-  if (statWorker && workerInitialized) {
-    // 워커가 준비된 경우 메시지 전송
-    try {
-      statWorker.postMessage(message);
-    } catch (error) {
-      console.error('워커 메시지 전송 오류:', error);
-      
-      // 오류 발생 시 대안 처리
-      try {
-        // 메모리 사용량 초과 여부에 따라 처리 방식 선택
-        const memoryUsage = process.memoryUsage();
-        if (memoryUsage.heapUsed > MEMORY_THRESHOLD) {
-          // 메모리 사용량이 높은 경우 경량화된 계산 수행
-          updateCalculatedStatsLite();
-          debugLog('메모리 사용량 초과: 경량화된 계산 수행');
-        } else {
-          // 일반적인 경우 표준 계산 수행
-          updateCalculatedStatsMain();
-        }
-      } catch (fallbackError) {
-        console.error('폴백 계산 중 오류:', fallbackError);
-        // 최소한의 상태 업데이트
-        updateCalculatedStatsMinimal();
-      }
-    }
-  } else {
-    // 워커가 준비되지 않은 경우 표준 계산으로 폴백
-    debugLog('워커 사용 불가: 메인 스레드에서 계산');
-    updateCalculatedStatsMain();
-  }
-}
-
-/**
- * 경량화된 통계 계산 (메모리 사용량 최소화)
- */
-function updateCalculatedStatsLite() {
-  const { keyCount, typingTime } = appState.currentStats;
-  
-  // 최소한의 필수 계산만 수행
-  appState.currentStats.totalWords = Math.round(keyCount / 5);
-  appState.currentStats.totalChars = keyCount;
-  appState.currentStats.pages = keyCount / 1800;
-  appState.currentStats.accuracy = 100;
-  
-  // WPM 계산 추가 - 경량 모드에서도 필요한 통계임
-  const minutes = typingTime > 0 ? typingTime / 60 : 0.001; // 0으로 나누기 방지
-  appState.currentStats.wpm = Math.round((keyCount / 5) / minutes);
-  
-  // 디버그 로그 추가
-  if (appState.currentStats.wpm > 0) {
-    debugLog('경량 WPM 계산:', appState.currentStats.wpm);
-  }
-}
-
-/**
- * 최소한의 통계 계산 (긴급 상황용)
- */
-function updateCalculatedStatsMinimal() {
-  // 메모리 사용을 최소화하기 위해 가장 기본적인 계산만 수행
-  appState.currentStats.totalWords = Math.round(appState.currentStats.keyCount / 5);
-  appState.currentStats.totalChars = appState.currentStats.keyCount;
-}
-
-/**
- * 워커 상태 확인 및 필요시 재시작
- */
-function checkWorkerStatus() {
-  lastWorkerCheck = Date.now();
-  
-  // 워커가 없거나 초기화되지 않은 경우 재시작
-  if (!statWorker) {
-    debugLog('워커 없음, 재초기화');
-    initializeWorker();
-    return;
-  }
-  
-  // 메모리 사용량이 너무 높은 경우 워커 재시작
-  if (workerMemoryUsage.heapUsed > HIGH_MEMORY_THRESHOLD * 2) {
-    debugLog('워커 메모리 사용량 과다, 재시작');
-    restartWorker();
-    return;
-  }
-  
-  // 워커 메모리 최적화 요청 (일반 모드)
-  optimizeWorkerMemory(false);
-}
-
-/**
- * 워커 재시작
- */
-function restartWorker() {
-  if (statWorker) {
-    debugLog('워커 재시작');
-    try {
-      // 기존 워커 종료
-      statWorker.terminate();
-      statWorker = null;
-      workerInitialized = false;
-      
-      // 메모리 정리
-      if (global.gc) {
-        global.gc();
-      }
-      
-      // 새 워커 시작
-      setTimeout(() => {
-        initializeWorker();
-      }, 500); // 약간의 지연 후 재시작
-      
-    } catch (error) {
-      console.error('워커 재시작 중 오류:', error);
-    }
-  } else {
-    initializeWorker();
-  }
-}
-
-/**
- * 워커 없이 메인 스레드에서 간단한 통계 계산 (폴백)
- * 메모리 최적화: 필수 계산만 수행
- */
-function updateCalculatedStatsMain() {
-  const { keyCount, typingTime } = appState.currentStats;
-  const currentContent = appState.currentContent || '';
-  
-  // 글자 수 계산 (NFC 정규화된 완성형 코드포인트 기준)
-  const normalizedContent = currentContent.normalize('NFC');
-  appState.currentStats.totalChars = normalizedContent.length;
-  
-  // 공백 제외 글자 수 계산
-  appState.currentStats.totalCharsNoSpace = normalizedContent.replace(/\s/g, '').length;
-  
-  // 단어 수 계산 (화이트스페이스와 구두점 기준)
-  const words = normalizedContent.trim().split(/[\s.,;:!?()[\]{}'"<>\/\\|~`@#$%^&*_+=\-]+/).filter(word => word.length > 0);
-  appState.currentStats.totalWords = words.length;
-  
-  // WPM(분당 단어 수) 계산 - 표준 공식 사용
-  // 1 word = 5 keystrokes 기준 (공백/구두점 포함)
-  const minutes = typingTime > 0 ? typingTime / 60 : 0.001; // 0으로 나누기 방지
-  const grossWPM = Math.round((keyCount / 5) / minutes);
-  appState.currentStats.wpm = grossWPM;
-  
-  // 페이지 수 계산 (1800자 기준)
-  appState.currentStats.pages = keyCount / 1800;
-  
-  // 기본 정확도 계산 (실제 오류 검출이 없는 경우)
-  appState.currentStats.accuracy = 100;
-  
-  // 디버그 로그
-  debugLog('통계 계산 완료 (메인 스레드):', {
-    chars: appState.currentStats.totalChars,
-    words: appState.currentStats.totalWords,
-    wpm: appState.currentStats.wpm,
-    pages: appState.currentStats.pages
-  });
-}
-
-/**
  * 통계 업데이트 및 UI로 전송
- * 메모리 최적화: 객체 복제 최소화
  */
 function updateAndSendStats() {
-  if (!appState.mainWindow) return;
-  
-  // 현재 시간 기준으로 타이핑 시간 계산
-  const now = Date.now();
-  const typingTime = appState.currentStats.startTime 
-    ? Math.floor((now - appState.currentStats.startTime) / 1000) 
-    : 0;
-    
-  // 타이핑 시간 업데이트
-  appState.currentStats.typingTime = typingTime;
-  
-  // 필요한 통계 계산 (객체 복제 없이)
-  if (!appState.currentStats.totalWords) {
-    appState.currentStats.totalWords = Math.round(appState.currentStats.keyCount / 5);
-  }
-  
-  if (!appState.currentStats.totalChars) {
-    appState.currentStats.totalChars = appState.currentStats.keyCount;
-  }
-  
-  if (!appState.currentStats.totalCharsNoSpace) {
-    appState.currentStats.totalCharsNoSpace = Math.round(appState.currentStats.keyCount * 0.8);
-  }
-  
-  appState.currentStats.pages = appState.currentStats.totalChars / 1800;
-  
-  // WPM 계산 (추가)
-  const minutes = typingTime > 0 ? typingTime / 60 : 0.001; // 0으로 나누기 방지
-  appState.currentStats.wpm = Math.round((appState.currentStats.keyCount / 5) / minutes);
-  
-  // UI에 통계 전송 (불필요한 속성 제외)
-  if (appState.mainWindow.webContents) {
-    appState.mainWindow.webContents.send('typing-stats-update', {
-      keyCount: appState.currentStats.keyCount,
-      typingTime: appState.currentStats.typingTime,
-      windowTitle: appState.currentStats.currentWindow,
-      browserName: appState.currentStats.currentBrowser,
-      totalChars: appState.currentStats.totalChars,
-      totalWords: appState.currentStats.totalWords,
-      totalCharsNoSpace: appState.currentStats.totalCharsNoSpace,
-      pages: appState.currentStats.pages,
-      accuracy: appState.currentStats.accuracy,
-      wpm: appState.currentStats.wpm // WPM 추가
-    });
-  }
-  
-  // 트레이 메뉴 갱신
-  const { updateTrayMenu } = require('./tray');
-  if (typeof updateTrayMenu === 'function') {
-    updateTrayMenu();
-  }
-  
-  // 미니뷰가 있다면 미니뷰 업데이트
-  updateMiniViewStats();
-  
-  // 주기적 메모리 사용량 체크 (50회 간격)
-  if (appState.currentStats.keyCount % 50 === 0) {
-    const { checkMemoryUsage } = require('./memory-manager');
-    checkMemoryUsage();
-  }
-  
-  // 디버깅용 로그 (필수적인 경우만)
-  const isDev = process.env.NODE_ENV === 'development';
-  if (isDev && appState.currentStats.keyCount % 200 === 0) {
-    debugLog('통계 업데이트:', {
-      keyCount: appState.currentStats.keyCount,
-      typingTime: formatTime(typingTime),
-      window: appState.currentStats.currentWindow?.substring(0, 30)
-    });
-  }
-}
-
-/**
- * 미니뷰 통계 업데이트
- */
-function updateMiniViewStats() {
-  // 미니뷰 창이 있고 표시 중인 경우에만 업데이트
-  if (appState.miniViewWindow && !appState.miniViewWindow.isDestroyed() && appState.miniViewWindow.isVisible()) {
-    appState.miniViewWindow.webContents.send('mini-view-stats-update', {
-      keyCount: appState.currentStats.keyCount,
-      typingTime: appState.currentStats.typingTime,
-      windowTitle: appState.currentStats.currentWindow,
-      browserName: appState.currentStats.currentBrowser,
-      totalChars: appState.currentStats.totalChars,
-      totalWords: appState.currentStats.totalWords,
-      accuracy: appState.currentStats.accuracy,
-      isTracking: appState.isTracking
-    });
-  }
-}
-
-/**
- * 타이핑 패턴 분석 요청
- */
-function analyzeTypingPattern() {
-  if (!statWorker || !workerInitialized) {
-    if (!statWorker) {
-      initializeWorker();
-    }
-    return;
-  }
-  
-  // 최소 100회 이상의 키 입력이 있는 경우에만 분석 수행
-  if (appState.keyPresses && appState.keyPresses.length >= 100) {
-    try {
-      // 필요한 데이터만 복사하여 메모리 사용 최적화
-      const keyPresses = appState.keyPresses.slice(-1000); // 최대 1000개만 사용
-      const timestamps = appState.keyTimestamps.slice(-1000); // 최대 1000개만 사용
-      
-      statWorker.postMessage({
-        action: 'analyze-typing-pattern',
-        data: {
-          keyPresses,
-          timestamps
-        }
-      });
-    } catch (error) {
-      console.error('타이핑 패턴 분석 요청 중 오류:', error);
-    }
-  }
-}
-
-/**
- * 통계 저장 처리
- * @param {string} content - 저장할 내용 설명
- * @returns {object} 저장된 통계 데이터
- */
-function saveStats(content) {
-  if (!appState.mainWindow) return null;
-  
   try {
-    // 메모리 최적화: 필요한 데이터만 포함
-    const stats = {
-      content,
-      key_count: appState.currentStats.keyCount,
-      typing_time: appState.currentStats.typingTime,
-      timestamp: new Date().toISOString(),
-      window_title: appState.currentStats.currentWindow,
-      browser_name: appState.currentStats.currentBrowser,
-      total_chars: appState.currentStats.totalChars,
-      total_words: appState.currentStats.totalWords,
-      pages: appState.currentStats.pages,
-      accuracy: appState.currentStats.accuracy
-    };
+    if (!appState.mainWindow || !appState.currentStats) return;
     
-    debugLog('저장할 통계 데이터:', stats);
+    // 마지막 업데이트로부터 너무 짧은 시간이 지났으면 스킵 (과도한 업데이트 방지)
+    const now = Date.now();
+    appState.lastStatsUpdateTime = appState.lastStatsUpdateTime || 0;
     
-    // SQLite 데이터베이스에 저장
-    const savedId = saveStatsToDb(stats);
+    // 실시간 기본 통계 최소 계산 (CPU 부하 감소)
+    updateCalculatedStatsMinimal();
     
-    // 메모리 사용량 최적화를 위한 통계 초기화
-    resetStats();
+    // 메인 윈도우로 통계 전송
+    appState.mainWindow.webContents.send('update-current-stats', appState.currentStats);
     
-    // 저장된 데이터 반환
-    return getStatById(savedId) || stats;
+    // 미니뷰 창이 있으면 미니뷰도 업데이트
+    if (appState.miniViewWindow && !appState.miniViewWindow.isDestroyed()) {
+      appState.miniViewWindow.webContents.send('update-mini-stats', {
+        keyCount: appState.currentStats.keyCount,
+        wpm: appState.currentStats.wpm || 0,
+        accuracy: appState.currentStats.accuracy || 100,
+        typingTime: appState.currentStats.typingTime || 0
+      });
+    }
+    
+    // 마지막 업데이트 시간 저장
+    appState.lastStatsUpdateTime = now;
+    
+    return true;
   } catch (error) {
-    console.error('통계 저장 중 오류:', error);
-    
-    // 오류 발생 시에도 통계 초기화
-    resetStats();
-    return null;
+    console.error('통계 업데이트 및 전송 중 오류:', error);
+    return false;
   }
 }
 
 /**
- * 통계 초기화
- * 메모리 최적화: 객체 재생성 대신 속성만 초기화
+ * 키 입력 처리 함수
+ * @param {Object} event - 키 이벤트 객체
+ * @returns {boolean} - 처리 성공 여부
  */
-function resetStats() {
-  // 기존 객체의 참조는 유지하면서 내부 값만 초기화
-  const stats = appState.currentStats;
-  stats.keyCount = 0;
-  stats.typingTime = 0;
-  stats.startTime = null;
-  stats.lastActiveTime = null;
-  stats.totalChars = 0;
-  stats.totalWords = 0;
-  stats.totalCharsNoSpace = 0;
-  stats.pages = 0;
-  stats.accuracy = 100;
-  
-  // 창 정보는 유지 (불필요한 문자열 재생성 방지)
-  debugLog('통계 초기화 완료');
-  
-  // 메모리 정리
-  if (global.gc && appState.currentStats.keyCount > 1000) {
-    global.gc();
+function processKeyInput(event) {
+  try {
+    // 추적 중이 아니면 처리하지 않음
+    if (!appState.isTracking) {
+      debugLog('모니터링이 꺼져 있어 키 입력을 처리하지 않음');
+      return false;
+    }
+    
+    // 이벤트 객체 검증
+    if (!event || typeof event !== 'object') {
+      debugLog('잘못된 이벤트 객체가 전달됨');
+      return false;
+    }
+    
+    // VirtualTyping 이벤트 처리 (앱 전환 시 가상 타이핑)
+    if (event.key === 'VirtualTyping') {
+      // 앱 전환 시 가상 타이핑 처리
+      const appName = event.appName || 'Unknown App';
+      const windowTitle = event.windowTitle || 'Unknown Window';
+      const url = event.url || '';
+      
+      debugLog(`화면 전환에 의한 가상 타이핑 이벤트 처리: ${appName} - ${windowTitle}`);
+      
+      // 현재 통계 업데이트
+      if (!appState.currentStats) {
+        appState.currentStats = {};
+      }
+      
+      // 현재 윈도우 정보 업데이트
+      appState.currentStats.currentWindow = windowTitle;
+      appState.currentStats.currentBrowser = appName;
+      
+      // settings.json에 정의된 앱/웹사이트인지 확인
+      let isMonitoredApp = false;
+      let isMonitoredWebsite = false;
+      
+      try {
+        const { getSettings } = require('./settings');
+        const settings = getSettings();
+        
+        // 모니터링할 앱/웹사이트 목록 가져오기
+        const monitoredApps = settings.monitoredApps || [];
+        const monitoredWebsites = settings.monitoredWebsites || [];
+        
+        // 앱 이름이 모니터링 목록에 있는지 확인
+        isMonitoredApp = monitoredApps.some(app => 
+          appName.toLowerCase().includes(app.toLowerCase())
+        );
+        
+        // URL이 있으면 웹사이트 모니터링 확인
+        if (url) {
+          isMonitoredWebsite = monitoredWebsites.some(site => 
+            url.toLowerCase().includes(site.toLowerCase())
+          );
+        }
+        
+        if (isMonitoredApp || isMonitoredWebsite) {
+          debugLog(`모니터링 대상 앱/웹사이트 감지됨: ${appName} - ${url || windowTitle}`);
+          
+          // 타이핑 통계 업데이트
+          // 값이 주어지지 않은 경우 기본값은 1개의 문자와 10ms의 타이핑 시간
+          const charCount = event.charCount || 1;
+          const typingTime = event.typingTime || 10;
+          
+          // 타이핑 통계 누적 업데이트
+          appState.currentStats.keyCount += charCount;
+          appState.currentStats.typingTime += typingTime;
+          appState.currentStats.totalChars += charCount;
+          
+          // 단어 수 계산 (평균적으로 5자당 1단어)
+          const wordIncrement = Math.max(1, Math.floor(charCount / 5));
+          appState.currentStats.totalWords += wordIncrement;
+          
+          // 공백을 제외한 문자 수 (약 75% 정도로 추정)
+          appState.currentStats.totalCharsNoSpace += Math.ceil(charCount * 0.75);
+          
+          // 마지막 활동 시간 업데이트
+          appState.currentStats.lastActiveTime = Date.now();
+          
+          // 메인 창에 통계 업데이트 전달
+          sendStatsUpdate();
+          
+          return true;
+        } else {
+          debugLog(`모니터링 제외 앱/웹사이트: ${appName} - ${url || windowTitle}`);
+        }
+      } catch (error) {
+        console.error('앱/웹사이트 확인 중 오류:', error);
+      }
+      
+      return false;
+    }
+    
+    // 일반 키 입력 처리 (기존 로직 유지)
+    const { key } = event;
+    
+    // 특수 키 필터링 (사용자 입력이 아닌 키)
+    if (SPECIAL_KEYS.includes(key)) {
+      return false;
+    }
+    
+    // 입력 처리 (일반 키)
+    if (!appState.currentStats) {
+      appState.currentStats = {};
+    }
+    
+    // 키 카운터 증가
+    appState.currentStats.keyCount = (appState.currentStats.keyCount || 0) + 1;
+    
+    // 타이핑 시간 증가 (평균 타이핑 시간 기준으로 가중치 적용)
+    const averageKeyPressTime = 50; // ms 단위 - 평균 키 입력 시간
+    appState.currentStats.typingTime = (appState.currentStats.typingTime || 0) + averageKeyPressTime;
+    
+    // 전체 문자 수 증가
+    appState.currentStats.totalChars = (appState.currentStats.totalChars || 0) + 1;
+    
+    // 공백이 아닌 경우만 공백 제외 문자 수 증가
+    if (key !== ' ') {
+      appState.currentStats.totalCharsNoSpace = (appState.currentStats.totalCharsNoSpace || 0) + 1;
+    }
+    
+    // 공백이나 구두점이면 단어 수 증가
+    if (key === ' ' || key === '.' || key === ',' || key === '!' || key === '?' || key === ';') {
+      appState.currentStats.totalWords = (appState.currentStats.totalWords || 0) + 1;
+    }
+    
+    // 마지막 활동 시간 업데이트
+    appState.currentStats.lastActiveTime = Date.now();
+    
+    // 메인 창에 통계 업데이트 전달
+    sendStatsUpdate();
+    
+    return true;
+  } catch (error) {
+    console.error('키 입력 처리 오류:', error);
+    return false;
+  }
+}
+
+/**
+ * WPM 계산 함수 (실시간)
+ */
+function calculateWPM() {
+  try {
+    const stats = appState.currentStats;
+    if (!stats || !stats.startTime || !stats.lastActiveTime) return 0;
+    
+    // 경과 시간 계산 (분 단위)
+    const now = Date.now();
+    const elapsedMs = stats.lastActiveTime - stats.startTime;
+    const elapsedMinutes = elapsedMs / 60000;
+    
+    // 너무 짧은 시간이면 계산하지 않음
+    if (elapsedMinutes < 0.05) { // 3초 이하
+      stats.wpm = 0;
+      return 0;
+    }
+    
+    // 타이핑 시간 기준으로 계산 (분 단위)
+    const typingMinutes = Math.max(stats.typingTime / 60000, 0.05);
+    
+    // WPM 계산 (표준: 5타 = 1단어)
+    const standardWords = stats.totalChars / 5;
+    const calculatedWPM = Math.round(standardWords / typingMinutes);
+    
+    // 현실적인 범위로 제한 (0-300 WPM)
+    stats.wpm = Math.min(Math.max(calculatedWPM, 0), 300);
+    
+    return stats.wpm;
+  } catch (error) {
+    console.error('WPM 계산 중 오류:', error);
+    return 0;
+  }
+}
+
+/**
+ * 최소한의 통계만 계산 (실시간 업데이트용)
+ */
+function updateCalculatedStatsMinimal() {
+  try {
+    calculateWPM();
+    return true;
+  } catch (error) {
+    console.error('최소 통계 계산 중 오류:', error);
+    return false;
   }
 }
 
@@ -958,6 +671,112 @@ function cleanup() {
   
   // 참조 정리
   appState.currentContent = null;
+}
+
+/**
+ * 출력 가능한 키인지 확인
+ * @param {string} key - 키 문자
+ * @returns {boolean} - 출력 가능 여부
+ */
+function isPrintableKey(key) {
+  if (!key || key.length === 0) return false;
+  
+  // 특수키 목록 (출력 불가능한 키)
+  const nonPrintableKeys = [
+    'Shift', 'Control', 'Alt', 'Meta', 'Command', 'CapsLock',
+    'Tab', 'Escape', 'Enter', 'Backspace', 'Delete',
+    'Home', 'End', 'PageUp', 'PageDown',
+    'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight',
+    'F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8', 'F9', 'F10', 'F11', 'F12'
+  ];
+  
+  // 특수키는 출력 불가능
+  if (nonPrintableKeys.includes(key)) return false;
+  
+  // 길이가 1보다 크고 특수키 이름이 아니면 출력 가능 (예: "A", "1", "+")
+  if (key.length === 1) return true;
+  
+  // 기능키 형태 확인 (길이가 1보다 큰 경우)
+  return !key.includes('Arrow') && 
+         !key.includes('Page') && 
+         !key.startsWith('F') && 
+         !['Shift', 'Control', 'Alt', 'Meta', 'Command'].includes(key);
+}
+
+/**
+ * 한글 문자인지 확인
+ * @param {string} char - 검사할 문자
+ * @returns {boolean} - 한글 여부
+ */
+function isHangul(char) {
+  if (!char || typeof char !== 'string') return false;
+  
+  // 한글 유니코드 범위 (AC00-D7AF: 완성형 한글)
+  const hangulComplete = /[\uAC00-\uD7AF]/;
+  
+  // 한글 자모 (1100-11FF: 한글 자모)
+  const hangulJamo = /[\u1100-\u11FF]/;
+  
+  // 결합 자모 (3130-318F: 한글 호환 자모)
+  const hangulCompatJamo = /[\u3130-\u318F]/;
+  
+  return hangulComplete.test(char) || 
+         hangulJamo.test(char) || 
+         hangulCompatJamo.test(char);
+}
+
+/**
+ * 정확도 업데이트 (기본값: 100%)
+ */
+function updateAccuracy(isCorrect) {
+  // 간단한 정확도 계산 (백스페이스 비율로 추정)
+  if (appState.currentStats.keyCount > 0 && appState.currentStats.errorCount > 0) {
+    const correctKeys = appState.currentStats.keyCount - appState.currentStats.errorCount;
+    appState.currentStats.accuracy = Math.round((correctKeys / appState.currentStats.keyCount) * 100);
+    
+    // 정확도가 너무 낮으면 최소값 설정
+    if (appState.currentStats.accuracy < 20) {
+      appState.currentStats.accuracy = 20;
+    }
+  } else {
+    // 오류가 없거나 키 입력이 없는 경우 100%
+    appState.currentStats.accuracy = 100;
+  }
+  
+  // 오류 처리
+  if (!isCorrect) {
+    appState.currentStats.errorCount = (appState.currentStats.errorCount || 0) + 1;
+  }
+}
+
+/**
+ * 통계 데이터 저장
+ * @param {Object} stats - 저장할 통계 데이터
+ * @returns {Object|null} 저장된 데이터 또는 null
+ */
+function saveStats(stats) {
+  try {
+    // 로컬 SQLite에 저장
+    const savedToLocal = database.saveStats(stats);
+    
+    // MongoDB/Supabase 동기화 (비동기 처리)
+    dataSync.saveAndSyncStats(stats)
+      .then(result => {
+        if (result.success) {
+          debugLog(`클라우드 동기화 성공: ${result.id}`);
+        } else {
+          console.error('클라우드 동기화 실패:', result.error);
+        }
+      })
+      .catch(error => {
+        console.error('클라우드 동기화 오류:', error);
+      });
+    
+    return savedToLocal;
+  } catch (error) {
+    console.error('통계 저장 오류:', error);
+    return null;
+  }
 }
 
 module.exports = {

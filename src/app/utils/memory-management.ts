@@ -157,14 +157,12 @@ export function formatMemoryInfo(info: MemoryInfo): Record<string, string> {
   const heapUsedMB =
     info.heapUsed !== undefined
       ? Math.round((info.heapUsed / (1024 * 1024)) * 10) / 10
-      : info.heap_used_mb || 0;
+      : info.heapUsedMB || 0;
 
   const heapTotalMB =
     info.heapTotal !== undefined
       ? Math.round((info.heapTotal / (1024 * 1024)) * 10) / 10
-      : info.heap_total
-        ? Math.round((info.heap_total / (1024 * 1024)) * 10) / 10
-        : 0;
+      : 0;
 
   const percent =
     info.percentUsed !== undefined
@@ -243,22 +241,14 @@ export function evaluateMemoryStatus(info: MemoryInfo): {
  */
 export function createEmptyMemoryInfo(): MemoryInfo {
   return {
-    // camelCase 속성들
     heapUsed: 0,
     heapTotal: 0,
     rss: 0,
     heapUsedMB: 0,
     rssMB: 0,
     percentUsed: 0,
+    heapLimit: 0,
     timestamp: Date.now(),
-
-    // snake_case 속성들 (Rust 호환)
-    heap_used: 0,
-    heap_total: 0,
-    heap_used_mb: 0,
-    rss_mb: 0,
-    percent_used: 0,
-    heap_limit: 0,
   };
 }
 
@@ -269,7 +259,6 @@ export function convertNativeMemoryInfo(nativeInfo: Record<string, unknown>): Me
   if (!nativeInfo) {
     return createEmptyMemoryInfo();
   }
-
   return {
     timestamp: (nativeInfo.timestamp as number) || Date.now(),
 
@@ -278,16 +267,9 @@ export function convertNativeMemoryInfo(nativeInfo: Record<string, unknown>): Me
     heapTotal: (nativeInfo.heap_total as number) || (nativeInfo.heapTotal as number) || 0,
     rss: (nativeInfo.rss as number) || 0,
     heapUsedMB: (nativeInfo.heap_used_mb as number) || (nativeInfo.heapUsedMB as number) || 0,
-    heap_used_mb: (nativeInfo.heap_used_mb as number) || (nativeInfo.heapUsedMB as number) || 0,
-    rss_mb: (nativeInfo.rss_mb as number) || (nativeInfo.rssMB as number) || 0,
-    percent_used: (nativeInfo.percent_used as number) || (nativeInfo.percentUsed as number) || 0,
-    heap_limit: (nativeInfo.heap_limit as number) || 0,
-
-    // 선택적 필드 지정
-    heap_used: (nativeInfo.heap_used as number) || (nativeInfo.heapUsed as number) || 0,
-    heap_total: (nativeInfo.heap_total as number) || (nativeInfo.heapTotal as number) || 0,
-    percentUsed: (nativeInfo.percent_used as number) || (nativeInfo.percentUsed as number) || 0,
     rssMB: (nativeInfo.rss_mb as number) || (nativeInfo.rssMB as number) || 0,
-    heapLimit: (nativeInfo.heap_limit as number) || 0,
+    percentUsed: (nativeInfo.percent_used as number) || (nativeInfo.percentUsed as number) || 0,
+    heapLimit: (nativeInfo.heap_limit as number) || (nativeInfo.heapLimit as number) || 0,
+    external: (nativeInfo.external as number) || 0,
   };
 }

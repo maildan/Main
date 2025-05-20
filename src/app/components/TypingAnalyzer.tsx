@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNativeGpu } from '../hooks/useNativeGpu';
 import styles from './TypingAnalyzer.module.css';
+import { GpuTaskType } from '../utils/nativeModuleClient';
 
 interface TypingData {
   keyCount: number;
@@ -13,12 +14,12 @@ interface TypingData {
 interface TypingAnalysisResult {
   wpm: number;
   accuracy: number;
-  performance_index: number;
-  consistency_score: number;
-  fatigue_analysis: {
+  performanceIndex: number;
+  consistencyScore: number;
+  fatigueAnalysis: {
     score: number;
-    time_factor: number;
-    intensity_factor: number;
+    timeFactor: number;
+    intensityFactor: number;
     recommendation: string;
   };
 }
@@ -48,7 +49,7 @@ export function TypingAnalyzer({ stats, _isTracking }: {
     try {
       if (useGpuAcceleration && enabled) {
         // GPU 가속 분석
-        const computeResult = await computeWithGpu<TypingAnalysisResult>(safeStats, 'typing');
+        const computeResult = await computeWithGpu(GpuTaskType.TypingStatistics, safeStats);
         
         if (computeResult && computeResult.result_summary) {
           setResult(computeResult.result_summary);
@@ -121,12 +122,12 @@ export function TypingAnalyzer({ stats, _isTracking }: {
           
           <div className={styles.stat}>
             <span className={styles.label}>성능 지수</span>
-            <span className={styles.value}>{result.performance_index.toFixed(1)}</span>
+            <span className={styles.value}>{result.performanceIndex.toFixed(1)}</span>
           </div>
           
           <div className={styles.stat}>
             <span className={styles.label}>일관성</span>
-            <span className={styles.value}>{result.consistency_score.toFixed(1)}</span>
+            <span className={styles.value}>{result.consistencyScore.toFixed(1)}</span>
           </div>
           
           <div className={styles.fatigue}>
@@ -134,11 +135,11 @@ export function TypingAnalyzer({ stats, _isTracking }: {
             <div className={styles.fatigueMeter}>
               <div 
                 className={styles.fatigueIndicator} 
-                style={{ width: `${result.fatigue_analysis.score}%` }}
+                style={{ width: `${result.fatigueAnalysis.score}%` }}
               />
             </div>
             <p className={styles.recommendation}>
-              {result.fatigue_analysis.recommendation}
+              {result.fatigueAnalysis.recommendation}
             </p>
           </div>
         </div>
@@ -161,8 +162,8 @@ function analyzeTypingWithJS(data: TypingData): TypingAnalysisResult {
   // 피로도 계산
   const fatigue = {
     score: Math.min(100, (minutes * 10) + (wpm / 10)),
-    time_factor: minutes,
-    intensity_factor: wpm / 100,
+    timeFactor: minutes,
+    intensityFactor: wpm / 100,
     recommendation: minutes > 30 
       ? '휴식이 필요합니다' 
       : minutes > 15 
@@ -173,8 +174,8 @@ function analyzeTypingWithJS(data: TypingData): TypingAnalysisResult {
   return {
     wpm,
     accuracy,
-    performance_index: (wpm * accuracy / 100),
-    consistency_score: consistency,
-    fatigue_analysis: fatigue
+    performanceIndex: (wpm * accuracy / 100),
+    consistencyScore: consistency,
+    fatigueAnalysis: fatigue
   };
 }

@@ -29,22 +29,22 @@ export async function getMemoryUsage(): Promise<MemoryInfo | null> {
       throw new Error('브라우저 메모리 API를 사용할 수 없습니다.');
     }
 
-    const heap_used = memory.usedJSHeapSize;
-    const heap_total = memory.totalJSHeapSize;
-    const heap_limit = memory.jsHeapSizeLimit;
-    const percent_used = (heap_used / heap_total) * 100;
+    const heapUsed = memory.usedJSHeapSize;
+    const heapTotal = memory.totalJSHeapSize;
+    const heapLimit = memory.jsHeapSizeLimit;
+    const percentUsed = (heapUsed / heapTotal) * 100;
 
     // RSS 추정 (정확한 값을 얻을 수 없으므로 힙 크기의 1.5배로 추정)
-    const rss = Math.round(heap_total * 1.5);
+    const rss = Math.round(heapTotal * 1.5);
 
     return {
-      heap_used,
-      heap_total,
-      heap_limit,
-      heap_used_mb: heap_used / (1024 * 1024),
-      percent_used,
+      heapUsed,
+      heapTotal,
+      heapLimit,
+      heapUsedMB: heapUsed / (1024 * 1024),
+      percentUsed,
       rss,
-      rss_mb: rss / (1024 * 1024),
+      rssMB: rss / (1024 * 1024),
       timestamp: Date.now(),
     };
   } catch (err) {
@@ -65,13 +65,13 @@ function createEstimatedMemoryInfo(): MemoryInfo {
   const estimatedRss = Math.round(estimatedHeapTotal * 1.5);
 
   return {
-    heap_used: estimatedHeapUsed,
-    heap_total: estimatedHeapTotal,
-    heap_limit: estimatedHeapLimit,
-    heap_used_mb: Math.round((estimatedHeapUsed / (1024 * 1024)) * 10) / 10,
+    heapUsed: estimatedHeapUsed,
+    heapTotal: estimatedHeapTotal,
+    heapLimit: estimatedHeapLimit,
+    heapUsedMB: Math.round((estimatedHeapUsed / (1024 * 1024)) * 10) / 10,
     rss: estimatedRss,
-    rss_mb: Math.round((estimatedRss / (1024 * 1024)) * 10) / 10,
-    percent_used: 50,
+    rssMB: Math.round((estimatedRss / (1024 * 1024)) * 10) / 10,
+    percentUsed: 50,
     timestamp: Date.now(),
   };
 }
@@ -143,9 +143,9 @@ export async function getMemoryInfo(): Promise<MemoryInfo> {
 export function formatMemoryInfo(info: MemoryInfo): string {
   if (!info) return 'Memory info not available';
 
-  const usedMB = info.heap_used_mb.toFixed(1);
-  const totalMB = (info.heap_total / (1024 * 1024)).toFixed(1);
-  const percent = info.percent_used.toFixed(1);
+  const usedMB = (info.heapUsedMB || 0).toFixed(1);
+  const totalMB = ((info.heapTotal || 0) / (1024 * 1024)).toFixed(1);
+  const percent = (info.percentUsed || 0).toFixed(1);
 
   return `Memory: ${usedMB}MB / ${totalMB}MB (${percent}%)`;
 }
@@ -154,7 +154,7 @@ export function formatMemoryInfo(info: MemoryInfo): string {
  * 메모리 상태 평가
  */
 export function assessMemoryState(memoryInfo: MemoryInfo): 'normal' | 'warning' | 'critical' {
-  const percentUsed = memoryInfo.percent_used;
+  const percentUsed = memoryInfo.percentUsed || 0;
 
   if (percentUsed > 85) {
     return 'critical';
@@ -175,18 +175,13 @@ export function normalizeMemoryInfo(info: any): MemoryInfo {
 
   // 기존 키가 없는 경우 대체값 제공
   return {
-    heap_used: info.heapUsed || info.heap_used || 0,
-    heapUsed: info.heapUsed || info.heap_used || 0,
-    heap_total: info.heapTotal || info.heap_total || 0,
-    heapTotal: info.heapTotal || info.heap_total || 0,
-    heap_used_mb: info.heapUsedMB || info.heap_used_mb || 0,
-    heapUsedMB: info.heapUsedMB || info.heap_used_mb || 0,
+    heapUsed: info.heapUsed || info.heapUsed || 0,
+    heapTotal: info.heapTotal || info.heapTotal || 0,
+    heapLimit: info.heapLimit || info.heapLimit || 0,
+    heapUsedMB: info.heapUsedMB || info.heapUsedMB || 0,
+    percentUsed: info.percentUsed || info.percentUsed || 0,
     rss: info.rss || 0,
-    rss_mb: info.rssMB || info.rss_mb || 0,
-    rssMB: info.rssMB || info.rss_mb || 0,
-    percent_used: info.percentUsed || info.percent_used || 0,
-    percentUsed: info.percentUsed || info.percent_used || 0,
-    heap_limit: info.heapLimit || info.heap_limit || 0,
+    rssMB: info.rssMB || info.rssMB || 0,
     timestamp: info.timestamp || Date.now(),
   };
 }

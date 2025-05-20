@@ -179,6 +179,18 @@ export const performGpuComputation = async (
  */
 export const getGpuInfo = async (): Promise<GpuInfo | null> => {
   try {
+    // 네이티브 모듈 존재 확인
+    if (!window.nativeModule || !window.nativeModule.getGpuInfo) {
+      console.warn('네이티브 GPU 모듈을 사용할 수 없어 기본값을 반환합니다.');
+      return {
+        name: 'Default GPU',
+        vendor: 'Unknown',
+        renderer: 'Software Renderer',
+        available: false,
+        accelerationEnabled: false
+      };
+    }
+
     // 네이티브 모듈을 통해 GPU 정보 가져오기
     const response = await window.nativeModule.getGpuInfo();
 

@@ -65,6 +65,106 @@ contextBridge.exposeInMainWorld('electronAPI', {
     return () => ipcRenderer.removeListener('stats-saved', handler);
   },
 
+  // 키보드 이벤트 전송 API
+  sendKeyboardEvent: (eventData) => {
+    console.log('키보드 이벤트 전송:', eventData);
+    return ipcRenderer.invoke('sendKeyboardEvent', eventData);
+  },
+  
+  // 한글 자모음 조합 상태 확인
+  getHangulStatus: () => {
+    return ipcRenderer.invoke('get-hangul-status');
+  },
+  
+  // 키보드 이벤트 직접 테스트 (디버깅용)
+  testKeyboardInput: (key) => {
+    console.log('키보드 입력 테스트:', key);
+    return ipcRenderer.invoke('test-keyboard-input', key);
+  },
+  
+  // 한글 입력 테스트
+  testHangulInput: async (text) => {
+    console.log('한글 입력 테스트:', text);
+    
+    // 테스트 설정
+    const testOptions = {
+      text: text || '안녕하세요', // 테스트할 텍스트
+      durationSec: 5,            // 테스트 기간 (초)
+      measureWpm: true,          // WPM 측정 여부
+      measureAccuracy: true      // 정확도 측정 여부
+    };
+    
+    try {
+      // 한글 입력 테스트 요청
+      const result = await ipcRenderer.invoke('test-hangul-input', testOptions);
+      
+      if (result.success) {
+        console.log('한글 입력 테스트 성공:', result);
+        return {
+          success: true,
+          keystrokes: result.keystrokes,
+          duration: result.duration,
+          wpm: result.wpm,
+          accuracy: result.accuracy
+        };
+      } else {
+        console.error('한글 입력 테스트 실패:', result.error);
+        return {
+          success: false,
+          error: result.error
+        };
+      }
+    } catch (error) {
+      console.error('한글 입력 테스트 오류:', error);
+      return {
+        success: false,
+        error: error.message || '알 수 없는 오류'
+      };
+    }
+  },
+
+  // 한글 자모 분해 헬퍼 함수
+  decomposeHangul: (char) => {
+    // 한글 유니코드 범위 체크
+    if (!/^[가-힣]$/.test(char)) {
+      return [char]; // 한글이 아니면 그대로 반환
+    }
+    
+    // 한글 유니코드 값 계산
+    const code = char.charCodeAt(0) - 0xAC00;
+    
+    // 초성, 중성, 종성 추출
+    const jong = code % 28;
+    const jung = ((code - jong) / 28) % 21;
+    const cho = Math.floor((code / 28) / 21);
+    
+    // 자모음 배열
+    const choList = ['ㄱ', 'ㄲ', 'ㄴ', 'ㄷ', 'ㄸ', 'ㄹ', 'ㅁ', 'ㅂ', 'ㅃ', 'ㅅ', 'ㅆ', 'ㅇ', 'ㅈ', 'ㅉ', 'ㅊ', 'ㅋ', 'ㅌ', 'ㅍ', 'ㅎ'];
+    const jungList = ['ㅏ', 'ㅐ', 'ㅑ', 'ㅒ', 'ㅓ', 'ㅔ', 'ㅕ', 'ㅖ', 'ㅗ', 'ㅘ', 'ㅙ', 'ㅚ', 'ㅛ', 'ㅜ', 'ㅝ', 'ㅞ', 'ㅟ', 'ㅠ', 'ㅡ', 'ㅢ', 'ㅣ'];
+    const jongList = ['', 'ㄱ', 'ㄲ', 'ㄳ', 'ㄴ', 'ㄵ', 'ㄶ', 'ㄷ', 'ㄹ', 'ㄺ', 'ㄻ', 'ㄼ', 'ㄽ', 'ㄾ', 'ㄿ', 'ㅀ', 'ㅁ', 'ㅂ', 'ㅄ', 'ㅅ', 'ㅆ', 'ㅇ', 'ㅈ', 'ㅊ', 'ㅋ', 'ㅌ', 'ㅍ', 'ㅎ'];
+    
+    // 디버그용 출력
+    console.log(`한글 분해: ${char} → 초성: ${choList[cho]}, 중성: ${jungList[jung]}, 종성: ${jongList[jong]}`);
+    
+    // 중간 조합 과정용 배열 반환
+    const result = [];
+    
+    // 초성만 있는 상태
+    result.push(choList[cho]);
+    
+    // 초성+중성 있는 상태
+    const choJung = String.fromCharCode(0xAC00 + cho * 21 * 28 + jung * 28);
+    result.push(choJung);
+    
+    // 종성이 있으면 추가
+    if (jong > 0) {
+      const complete = char;
+      result.push(complete);
+    }
+    
+    return result;
+  },
+
   // 설정 관련 API
   saveSettings: (settings) => {
     console.log('설정 저장 요청:', settings);
@@ -137,7 +237,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   
   windowControl: (command) => {
-    if (!['minimize', 'maximize', 'close'].includes(command)) {
+    const validCommands = ['minimize', 'maximize', 'close', 'showHeader', 'hideHeader'];
+    if (!validCommands.includes(command)) {
       console.error('유효하지 않은 창 제어 명령:', command);
       return;
     }

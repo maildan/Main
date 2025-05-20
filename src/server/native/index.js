@@ -474,8 +474,8 @@ async function getNativeFallback() {
   try {
     const fallbackPath = path.join(__dirname, 'fallback', 'index.js');
     logger.info(`폴백 모듈 경로: ${fallbackPath}`);
-    
-    if (fs.existsSync(fallbackPath)) {
+
+      if (fs.existsSync(fallbackPath)) {
       logger.info('폴백 모듈 로드 중');
       const fallbackModule = require(fallbackPath);
       return fallbackModule.default || fallbackModule;
@@ -498,10 +498,10 @@ async function getBackupNativeFallback() {
     // 이미 로드된 모듈 확인
     if (moduleState.nativeModule) {
       return moduleState.nativeModule;
-    }
-    
+        }
+
     // 폴백 모듈 로드
-    try {
+        try {
       const fallbackPath = path.join(__dirname, 'fallback', 'index.js');
       const fallbackExists = fs.existsSync(fallbackPath);
       
@@ -515,11 +515,11 @@ async function getBackupNativeFallback() {
       }
     } catch (fallbackError) {
       logError('백업 폴백 모듈 로드 오류', { error: fallbackError.message });
-    }
+        }
     
     // 기본 인라인 구현
     return createInlineFallback();
-  } catch (error) {
+    } catch (error) {
     logError('백업 폴백 모듈 가져오기 실패', { error: error.message });
     return createInlineFallback();
   }
@@ -1422,4 +1422,4 @@ const combinedExports = {
 };
 
 // CommonJS 모듈로 내보내기
-module.exports = combinedExports;
+  module.exports = combinedExports;

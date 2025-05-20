@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import nativeModule from '../../../../server/native';
 
+// output: 'export'를 사용할 때 필요한 설정
+export const dynamic = 'force-static';
+
 export async function GET() {
   try {
     // GPU 가속 가능 여부 확인

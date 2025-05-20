@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/lib/mysql';
 
+// output: 'export'를 사용할 때 필요한 설정
+export const dynamic = 'force-static';
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();

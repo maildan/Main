@@ -15,6 +15,9 @@ interface LogEntry {
   website?: string;
 }
 
+// output: 'export'를 사용할 때 필요한 설정
+export const dynamic = 'force-static';
+
 // "force-dynamic" 제거 - electron 환경에서는 필요하지 않음
 // export const dynamic = 'force-dynamic'; 
 

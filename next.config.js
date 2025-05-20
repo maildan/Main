@@ -1,5 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  output: 'export',
   reactStrictMode: true,
   productionBrowserSourceMaps: true,
   // 추가 설정
@@ -24,7 +25,10 @@ const nextConfig = {
     unoptimized: true // Electron 환경에서 이미지 최적화 비활성화
   },
   // 개발 환경에서는 distDir 설정 비활성화
-  distDir: process.env.NODE_ENV === 'development' ? '.next' : 'dist'
+  distDir: process.env.NODE_ENV === 'development' ? '.next' : 'dist',
+  experimental: {
+    esmExternals: false, // webpack ESM 모듈 처리 문제 해결을 위한 설정
+  },
 };
 
 // 명확한 CommonJS 형식으로 내보내기

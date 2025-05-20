@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import nativeModule from '../../../../server/native';
 
+// output: 'export'를 사용할 때 필요한 설정
+export const dynamic = 'force-static';
+
 // 네이티브 모듈 상태 조회
 export async function GET() {
   try {

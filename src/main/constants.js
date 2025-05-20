@@ -22,6 +22,7 @@ const appState = {
   updateInterval: null, // 통계 업데이트 인터벌 참조
   lastGcTime: Date.now(), // 마지막 GC 실행 시간
   idleTime: 0, // 사용자 마지막 활동 이후 경과 시간
+  lastActiveWindowInfo: null, // 마지막으로 알려진 활성 창 정보
   memoryUsage: {
     lastCheck: Date.now(),
     heapUsed: 0,
@@ -92,12 +93,16 @@ const SPECIAL_KEYS = [
   'NumpadSubtract', 'NumpadAdd', 'NumpadDecimal'
 ];
 
-// 브라우저 프로세스 이름 목록
-const BROWSER_PROCESS_NAMES = [
-  'chrome', 'firefox', 'msedge', 'edge', 'safari', 'opera', 'operagx', 'operaair',
-  'brave', 'vivaldi', 'arc', 'zenbrowser', 'zen', 'yandex', 
-  'maxthon', 'chromium', 'dragon', 'iron', 'torch', 'whale', 'naver'
-];
+// 브라우저 프로세스 이름 정의
+const BROWSER_PROCESS_NAMES = {
+  'Chrome': ['chrome', 'google chrome', 'chromium'],
+  'Firefox': ['firefox', 'mozilla firefox'],
+  'Safari': ['safari', 'webkit'],
+  'Edge': ['edge', 'msedge', 'microsoft edge'],
+  'Opera': ['opera'],
+  'Brave': ['brave'],
+  'Vivaldi': ['vivaldi']
+};
 
 // 브라우저 표시 이름 매핑
 const BROWSER_DISPLAY_NAMES = {
@@ -166,23 +171,27 @@ const SUPPORTED_WEBSITES = {
   ],
 };
 
-// 웹사이트 URL 패턴 목록 (모든 카테고리 통합)
-const WEBSITE_URL_PATTERNS = Object.values(SUPPORTED_WEBSITES).flat().map(site => site.pattern);
+// 웹사이트 URL 패턴 정의
+const WEBSITE_URL_PATTERNS = {
+  'docs': ['docs.google.com', 'sheets.google.com', 'slides.google.com'],
+  'office': ['office.com', 'microsoft365.com', 'onedrive.com', 'sharepoint.com'],
+  'coding': ['github.com', 'stackoverflow.com', 'gitlab.com', 'bitbucket.org'],
+  'sns': ['facebook.com', 'twitter.com', 'instagram.com', 'linkedin.com']
+};
 
 // Google Docs URL 패턴
 const GOOGLE_DOCS_URL_PATTERNS = [
   'docs.google.com/document',
   'docs.google.com/spreadsheets',
-  'docs.google.com/presentation',
-  'docs.google.com/forms',
-  'docs.google.com/drawings'
+  'docs.google.com/presentation'
 ];
 
-// Google Docs 창 제목 패턴
+// Google Docs 제목 패턴
 const GOOGLE_DOCS_TITLE_PATTERNS = [
-  'google docs', '구글 문서', '구글 스프레드시트', 'google sheets',
-  'google slides', '구글 프레젠테이션', 'google forms', '구글 설문지',
-  'google drawings', '구글 그림', '.gdoc', '.gsheet', '.gslides'
+  'google docs',
+  'google 문서',
+  'google 스프레드시트',
+  'google 프레젠테이션'
 ];
 
 // 설정 파일 경로
@@ -193,23 +202,28 @@ const userDataPath = process.env.NODE_ENV === 'development'
 const settingsPath = path.join(userDataPath, 'settings.json');
 const userDataPathExport = userDataPath;
 
+// 통계 데이터 경로 정의 (없어서 추가)
+const statsDataPath = path.join(userDataPath, 'stats.json');
+const statsExportPath = path.join(userDataPath, 'exports');
+
 // 모든 상수를 한 번에 내보냄
 module.exports = {
   appState,
-  isDev,
-  IDLE_TIMEOUT,
-  SPECIAL_KEYS,
+  settingsPath,
+  statsDataPath,
+  statsExportPath,
   BROWSER_PROCESS_NAMES,
-  BROWSER_DISPLAY_NAMES,
-  SUPPORTED_WEBSITES,
   WEBSITE_URL_PATTERNS,
   GOOGLE_DOCS_URL_PATTERNS,
   GOOGLE_DOCS_TITLE_PATTERNS,
-  settingsPath,
   userDataPath: userDataPathExport,
   MEMORY_CHECK_INTERVAL,
   BACKGROUND_ACTIVITY_INTERVAL,
   LOW_MEMORY_THRESHOLD,
   HIGH_MEMORY_THRESHOLD,
-  CRITICAL_MEMORY_THRESHOLD
+  CRITICAL_MEMORY_THRESHOLD,
+  SPECIAL_KEYS,
+  SUPPORTED_WEBSITES,
+  BROWSER_DISPLAY_NAMES,
+  IDLE_TIMEOUT
 };

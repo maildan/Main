@@ -2,9 +2,28 @@ const { globalShortcut, app, BrowserWindow, ipcMain } = require('electron');
 const activeWin = require('active-win');
 const { appState, SPECIAL_KEYS, SUPPORTED_WEBSITES } = require('./constants');
 const { detectBrowserName, isGoogleDocsWindow } = require('./browser');
-const { processKeyInput } = require('./stats');
+// 순환 참조 방지: processKeyInput을 직접 불러오지 않고 필요할 때 동적으로 로드
+// const { processKeyInput } = require('./stats');
 const { debugLog } = require('./utils');
 const { getSettings } = require('./settings');
+const fs = require('fs');
+const path = require('path');
+
+// 키 입력 처리 함수 - 동적 로드
+let processKeyInput = null;
+function getProcessKeyInput() {
+  if (!processKeyInput) {
+    try {
+      const stats = require('./stats');
+      processKeyInput = stats.processKeyInput;
+    } catch (error) {
+      console.error('stats 모듈 로드 오류:', error);
+      // 임시 대체 함수 사용
+      processKeyInput = () => false;
+    }
+  }
+  return processKeyInput;
+}
 
 // platform 모듈 로드 에러 방지
 let isMacOS = () => process.platform === 'darwin';
@@ -42,18 +61,121 @@ const HANGUL_STATUS = {
   isComposing: false,
   lastComposedText: '',
   composeStartTime: 0,
-  intermediateChars: '' // 중간 자모음 저장
+  intermediateChars: '', // 중간 자모음 저장
+  completeChar: '',      // 완성된 글자
+  useNativeIME: true,    // 네이티브 IME 사용 여부
+  isHangul: false        // 현재 한글 입력 모드인지 여부
 };
 
-// 키 입력 상태 추적을 위한 변수
-let lastKeyPressed = null;
+// 전역 변수 및 상수
+let keyboardInitialized = false;
 let keyPressCount = 0;
+let lastKeyPressed = '';
+let lastKeyEventTime = Date.now();
+let keyEventQueue = [];
+let keyEventProcessTimer = null;
+let lastActiveApp = '';
+let lastWindowTitle = '';
+let isAppSwitching = false;
+
+// 디바운스 시간 최적화 (100ms에서 30ms로 감소)
+const DEBOUNCE_TIME = 30;
+
+// 프레임 드롭을 최소화하기 위한 최대 큐 크기
+const MAX_QUEUE_SIZE = 20;
 
 // 기본 설정 가져오기 (현재 OS에 맞게)
 const currentOSConfig = PLATFORM_KEY_CONFIGS[process.platform] || PLATFORM_KEY_CONFIGS.win32;
 
 /**
- * 키보드 이벤트 감지 설정
+ * settings.json에서 앱 설정 가져오기
+ * @returns {Object} 설정 객체
+ */
+function loadSettingsFromFile() {
+  try {
+    const settingsPath = path.join(app.getPath('userData'), 'settings.json');
+    if (fs.existsSync(settingsPath)) {
+      const settingsData = fs.readFileSync(settingsPath, 'utf8');
+      return JSON.parse(settingsData);
+    }
+  } catch (error) {
+    console.error('설정 파일 로드 오류:', error);
+  }
+  return {};
+}
+
+/**
+ * 앱/웹사이트 타이핑 통계 업데이트
+ * @param {string} appName - 앱 이름
+ * @param {string} windowTitle - 창 제목
+ * @param {string} url - 웹사이트 URL (있는 경우)
+ * @param {number} typingCount - 타이핑 수
+ * @param {number} typingTime - 타이핑 시간 (ms)
+ */
+function updateAppTypingStats(appName, windowTitle, url, typingCount = 1, typingTime = 100) {
+  if (!appState.isTracking) return;
+  
+  try {
+    // 설정에서 모니터링할 앱/웹사이트 목록 가져오기
+    const settings = loadSettingsFromFile();
+    const monitoredApps = settings.monitoredApps || [];
+    const monitoredWebsites = settings.monitoredWebsites || [];
+    
+    // 앱 이름 또는 URL이 모니터링 목록에 있는지 확인
+    let isMonitored = monitoredApps.some(app => 
+      appName.toLowerCase().includes(app.toLowerCase())
+    );
+    
+    // URL이 있으면 웹사이트 모니터링 확인
+    if (url && !isMonitored) {
+      isMonitored = monitoredWebsites.some(site => 
+        url.toLowerCase().includes(site.toLowerCase())
+      );
+    }
+    
+    // 모니터링 대상이면 타이핑 통계 업데이트
+    if (isMonitored) {
+      debugLog(`모니터링 대상 앱/웹사이트 타이핑 감지: ${appName}, ${url || windowTitle}`);
+      
+      // stats 모듈의 processKeyInput 함수 호출
+      const processKeyInputFn = getProcessKeyInput();
+      if (processKeyInputFn) {
+        // 타이핑 수와 시간을 증가시키기 위해 여러 번 호출
+        for (let i = 0; i < typingCount; i++) {
+          processKeyInputFn({
+            key: 'VirtualTyping',
+            isComposing: false,
+            windowTitle: windowTitle,
+            appName: appName,
+            url: url || '',
+            timestamp: Date.now()
+          });
+        }
+        
+        // 메인 윈도우가 있으면 현재 감지된 앱 정보 전송
+        if (appState.mainWindow && !appState.mainWindow.isDestroyed()) {
+          appState.mainWindow.webContents.send('active-app-changed', {
+            appName,
+            windowTitle,
+            url: url || '',
+            timestamp: Date.now(),
+            isMonitored: true
+          });
+        }
+      }
+    } else {
+      debugLog(`모니터링 제외 앱/웹사이트: ${appName}, ${url || windowTitle}`);
+    }
+  } catch (error) {
+    console.error('앱 타이핑 통계 업데이트 오류:', error);
+  }
+}
+
+/**
+ * 키보드 이벤트 감지 로직 개선
+ * - 중복 키 입력 처리 로직 추가
+ * - 특수 문자 구분 처리 (ex: /와 ? 구분)
+ * - Command+Tab / Alt+Tab 감지 개선
  */
 function setupKeyboardListener() {
   try {
@@ -63,24 +185,46 @@ function setupKeyboardListener() {
     // 이미 등록된 단축키가 있으면 해제
     globalShortcut.unregisterAll();
 
-    // 현재 눌린 특수 키 추적
+    // 현재 눌린 특수 키 추적 (개선된 버전)
     const pressedModifiers = {
       alt: false,
       ctrl: false,
       shift: false,
       meta: false, // Command (macOS) 또는 Windows 키
+      lastPressTime: {} // 각 키별 마지막 입력 시간 추적
     };
 
     // 키 입력 이벤트 큐 (빠른 연속 입력 처리 최적화)
-    let keyEventQueue = [];
-    let keyEventProcessTimer = null;
-    const DEBOUNCE_TIME = 10; // 10ms 디바운스 (더 빠른 반응을 위해 조정)
+    keyEventQueue = [];
+    keyEventProcessTimer = null;
+    
+    // 디바운스 시간 최적화 (중복 키 입력 방지)
+    const DEBOUNCE_TIME = 10; // 10ms 디바운스
+    const KEY_PRESS_COOLDOWN = 50; // 같은 키 재입력 대기 시간 (ms)
 
     // 마지막 키 이벤트 타임스탬프
-    let lastKeyEventTime = Date.now();
+    lastKeyEventTime = Date.now();
     
     // 활성 상태 체크 타이머
     let activeCheckTimer = null;
+    
+    // 앱 전환 감지 변수
+    lastActiveApp = '';
+    lastWindowTitle = '';
+    isAppSwitching = false;
+    let appSwitchTimer = null;
+    
+    // 처리된 키 추적을 위한 맵 (중복 방지)
+    const processedKeys = new Map();
+    
+    // 한글 자모음 조합 상태 추적 개선
+    const hangulState = {
+      isComposing: false,
+      buffer: '',
+      startTime: 0,
+      lastChar: '',
+      composingKeys: new Set()
+    };
 
     // 플랫폼별 키 매핑 구성
     const getModifierKeyByPlatform = (key) => {
@@ -92,202 +236,208 @@ function setupKeyboardListener() {
     };
 
     /**
-     * 카테고리 활성화 여부 확인
-     * @param {string} url - 현재 URL
-     * @param {string} title - 창 제목
-     * @returns {boolean} - 활성화 여부
+     * 앱 전환 감지 함수 (개선된 버전)
+     * @param {string} key - 입력된 키
+     * @param {Object} modifiers - 수정자 키 상태
+     * @returns {boolean} - 앱 전환 여부
      */
-    const isCategoryEnabled = (url, title) => {
-      const settings = getSettings();
-      const enabledCategories = settings.enabledCategories || appState.settings?.enabledCategories;
-      
-      if (!enabledCategories) return true; // 설정이 없으면 기본적으로 활성화
-      
-      // 웹사이트 URL 기반 카테고리 확인
-      for (const categoryName in SUPPORTED_WEBSITES) {
-        // 해당 카테고리가 비활성화되어 있으면 스킵
-        if (!enabledCategories[categoryName]) continue;
-        
-        // 해당 카테고리의 사이트 패턴과 매칭되는지 확인
-        const sites = SUPPORTED_WEBSITES[categoryName] || [];
-        for (const site of sites) {
-          if (url && url.includes(site.pattern)) {
-            return true; // 활성화된 카테고리의 사이트
-          }
-          
-          // URL이 없는 경우, 창 제목으로도 확인
-          if (title && site.pattern && title.toLowerCase().includes(site.pattern.toLowerCase())) {
-            return true;
-          }
-        }
-      }
-      
-      // 일반 앱 카테고리 (브라우저 외 앱은 기본적으로 허용)
-      return true;
-    };
-
-    // 정규 입력 처리 함수
-    const handleRegularInput = async (keyData = null) => {
-      if (!appState.isTracking) return;
-
+    const detectAppSwitching = (key, modifiers) => {
       try {
-        const activeWindowInfo = await activeWin();
-        if (!activeWindowInfo) {
-          debugLog('활성 창 정보를 가져올 수 없음');
-          return;
+        // Command+Tab (macOS) 또는 Alt+Tab (Windows/Linux) 감지
+        const isMac = process.platform === 'darwin';
+        const isAppSwitchingCombo = (
+          (isMac && key === 'Tab' && modifiers.meta) || 
+          (!isMac && key === 'Tab' && modifiers.alt)
+        );
+        
+        if (isAppSwitchingCombo) {
+          // 앱 전환 상태 설정 및 로깅
+          isAppSwitching = true;
+          
+          // 디버깅 메시지 추가 (화면 전환 감지)
+          debugLog(`화면 전환 감지: ${isMac ? 'Command+Tab' : 'Alt+Tab'} 조합이 눌렸습니다.`);
+          
+          // 앱 전환 타이머 설정 (이전 타이머가 있으면 제거)
+          if (appSwitchTimer) {
+            clearTimeout(appSwitchTimer);
+          }
+          
+          // 앱 전환 후 일정 시간 후에 새 앱의 정보를 가져옴
+          appSwitchTimer = setTimeout(async () => {
+            try {
+              // 활성 창 정보 가져오기
+              const activeWindowInfo = await activeWin();
+              
+              if (activeWindowInfo) {
+                const newAppName = activeWindowInfo.owner?.name || 'Unknown App';
+                const newWindowTitle = activeWindowInfo.title || 'Unknown Window';
+                
+                // 앱이 실제로 변경되었는지 확인
+                if (newAppName !== lastActiveApp || newWindowTitle !== lastWindowTitle) {
+                  debugLog(`화면 전환 완료: ${lastActiveApp || 'Unknown'} -> ${newAppName}`);
+                  debugLog(`새 창 제목: ${newWindowTitle}`);
+                  
+                  // 브라우저 감지 시도
+                  const browserName = detectBrowserName(activeWindowInfo);
+                  const url = activeWindowInfo.url || '';
+                  
+                  // URL 정보 출력 (디버깅)
+                  if (browserName) {
+                    debugLog(`감지된 브라우저: ${browserName}, URL: ${url || 'N/A'}`);
+                  }
+                  
+                  // 앱/웹사이트 통계 업데이트
+                  updateAppTypingStats(
+                    newAppName,
+                    newWindowTitle,
+                    url,
+                    5, // 가상 타이핑 수 증가
+                    200 // 타이핑 시간 (ms)
+                  );
+                  
+                  // 마지막 감지된 앱 정보 업데이트
+                  lastActiveApp = newAppName;
+                  lastWindowTitle = newWindowTitle;
+                } else {
+                  debugLog('화면 전환 감지되었으나 동일한 앱/창으로 전환됨');
+                }
+              } else {
+                debugLog('활성 창 정보를 가져올 수 없음');
+              }
+              
+              // 앱 전환 상태 초기화
+              isAppSwitching = false;
+            } catch (error) {
+              console.error('앱 전환 처리 오류:', error);
+              isAppSwitching = false;
+            }
+          }, 300); // 앱 전환이 완료될 때까지 300ms 대기
+          
+          return true;
         }
-
-        // 브라우저 감지
-        const browserName = detectBrowserName(activeWindowInfo);
         
-        // URL 또는 창 제목 가져오기
-        const url = activeWindowInfo.url || '';
-        const title = activeWindowInfo.title || '';
-        
-        // 활성화된 카테고리 확인
-        const isEnabled = isCategoryEnabled(url, title);
-        if (!isEnabled) {
-          debugLog(`비활성화된 카테고리: URL=${url}, 제목=${title}`);
-          return;
-        }
-        
-        // 윈도우 제목 로그 (디버깅용)
-        debugLog(`활성 창 정보: ${JSON.stringify({
-          title: title, 
-          process: activeWindowInfo.owner?.name || '알 수 없음',
-          url: url || '(URL 없음)'
-        })}`);
-
-        // 키 데이터 로깅 (디버깅용)
-        if (keyData) {
-          debugLog(`키 입력 데이터: ${JSON.stringify(keyData)}`);
-        }
-
-        // 브라우저가 감지되면 처리 (특정 브라우저로 한정하지 않음)
-        if (browserName) {
-          processKeyInput(title, browserName, keyData);
-        } else {
-          // 브라우저가 아닌 경우에도 처리 (기본 앱 타이핑 처리)
-          processKeyInput(title || activeWindowInfo.owner?.name || '알 수 없음', '앱', keyData);
-        }
-        
-        // 마지막 이벤트 시간 업데이트
-        lastKeyEventTime = Date.now();
-        
-        // 키 입력 카운트 증가 (디버깅용)
-        keyPressCount++;
-        lastKeyPressed = keyData ? keyData.key : 'unknown';
-        debugLog(`총 키 입력 수: ${keyPressCount}, 마지막 키: ${lastKeyPressed}`);
+        return false;
       } catch (error) {
-        console.error('활성 창 확인 오류:', error);
+        console.error('앱 전환 감지 오류:', error);
+        return false;
       }
     };
 
-    // 키 이벤트 큐 처리 함수
+    /**
+     * 키 이벤트 큐 처리 함수 (개선된 버전)
+     */
     const processKeyEventQueue = () => {
-      if (keyEventQueue.length === 0) return;
-      
-      // 큐에 있는 모든 키 이벤트에 대해 로깅
-      debugLog(`키 이벤트 처리: ${keyEventQueue.length}개 이벤트 처리 중...`);
-      
-      // 한글 자모음 조합 처리 개선
-      const compositionEvents = keyEventQueue.filter(e => 
-        e.type === 'compositionstart' || 
-        e.type === 'compositionupdate' || 
-        e.type === 'compositionend'
-      );
-      
-      // 조합 이벤트가 있으면 한글 처리 로직 적용
-      if (compositionEvents.length > 0) {
-        debugLog(`한글 조합 이벤트 감지: ${compositionEvents.length}개`);
+      try {
+        if (keyEventQueue.length === 0) return;
         
-        // 마지막 이벤트가 compositionend인 경우 완성된 문자로 처리
-        const lastCompEvent = compositionEvents[compositionEvents.length - 1];
-        if (lastCompEvent.type === 'compositionend' && lastCompEvent.text) {
-          debugLog(`한글 조합 완료: "${lastCompEvent.text}"`);
-          HANGUL_STATUS.isComposing = false;
-          HANGUL_STATUS.lastComposedText = lastCompEvent.text;
+        // 현재 처리할 이벤트만 가져오고 큐에서 제거 (메모리 압력 감소)
+        const keyEvents = [...keyEventQueue];
+        keyEventQueue = [];
+        
+        // 중복 키 제거 로직 (같은 키가 연속으로 눌리는 경우 첫 번째만 유지)
+        const uniqueEvents = [];
+        const seenKeys = new Set();
+        
+        for (const keyEvent of keyEvents) {
+          // 특수 키(수정자 키)는 항상 처리
+          const isModifier = getModifierKeyByPlatform(keyEvent.key) !== null;
           
-          // 완성된 한글 처리
-          handleRegularInput({
-            type: 'compositionend',
-            text: lastCompEvent.text,
-            timestamp: Date.now()
-          });
-          
-          // 처리 완료 후 큐 비우기
-          keyEventQueue = [];
-          return;
-        } 
-        // 조합 중인 경우
-        else if (lastCompEvent.type === 'compositionupdate') {
-          HANGUL_STATUS.isComposing = true;
-          HANGUL_STATUS.intermediateChars = lastCompEvent.text || '';
-          debugLog(`한글 조합 중: "${HANGUL_STATUS.intermediateChars}"`);
-          
-          // 조합 중이면 다른 키 이벤트는 처리하지 않음
-          keyEventQueue = [];
-          return;
+          // 특수 키이거나 아직 처리되지 않은 키면 추가
+          if (isModifier || !seenKeys.has(keyEvent.key)) {
+            uniqueEvents.push(keyEvent);
+            seenKeys.add(keyEvent.key);
+          } else {
+            // 중복 키 감지 디버깅
+            debugLog(`중복 키 입력 무시: ${keyEvent.key}`);
+          }
         }
-      }
-      
-      // 일반 키 이벤트 처리
-      const keyDownEvents = keyEventQueue.filter(e => e.type === 'keyDown');
-      if (keyDownEvents.length > 0) {
-        // 마지막 이벤트 처리
-        const lastKeyEvent = keyDownEvents[keyDownEvents.length - 1];
         
-        // 한글 조합 완료 후 엔터 등 특수키 처리
-        if (HANGUL_STATUS.isComposing) {
-          if (lastKeyEvent.key === 'Enter' || lastKeyEvent.key === 'Tab' || 
-              lastKeyEvent.key === 'Escape' || lastKeyEvent.key === ' ') {
-            HANGUL_STATUS.isComposing = false;
+        // 필터링된 이벤트 처리
+        for (const keyEvent of uniqueEvents) {
+          const { key, shiftKey, ctrlKey, altKey, metaKey, timestamp } = keyEvent;
+          
+          // 이미 처리된 키인지 확인 (타임스탬프로 구분)
+          const keyId = `${key}-${timestamp}`;
+          if (processedKeys.has(keyId)) {
+            continue;
+          }
+          
+          // 앱 전환 키 조합 감지
+          const modifiers = { shift: shiftKey, ctrl: ctrlKey, alt: altKey, meta: metaKey };
+          if (detectAppSwitching(key, modifiers)) {
+            continue; // 앱 전환이면 더 이상 처리하지 않음
+          }
+          
+          // 특수 문자 구분 처리 개선
+          // 예: Shift+/ = ? 처리
+          let processedKey = key;
+          
+          // Shift 키와 함께 눌린 특수 문자 매핑
+          if (shiftKey && key.length === 1) {
+            const shiftKeyMap = {
+              '/': '?',
+              '1': '!',
+              '2': '@',
+              '3': '#',
+              '4': '$',
+              '5': '%',
+              '6': '^',
+              '7': '&',
+              '8': '*',
+              '9': '(',
+              '0': ')',
+              '-': '_',
+              '=': '+',
+              '\\': '|',
+              '[': '{',
+              ']': '}',
+              ';': ':',
+              ' ': '"',
+              ',': '<',
+              '.': '>',
+              '`': '~'
+            };
             
-            // 중간 조합 문자가 있으면 처리
-            if (HANGUL_STATUS.intermediateChars) {
-              debugLog(`한글 조합 강제 완료: "${HANGUL_STATUS.intermediateChars}"`);
-              handleRegularInput({
-                type: 'compositionend',
-                text: HANGUL_STATUS.intermediateChars,
-                timestamp: Date.now()
-              });
-              HANGUL_STATUS.intermediateChars = '';
+            processedKey = shiftKeyMap[key] || key;
+          }
+          
+          // 특수 키 처리 최적화
+          if (!SPECIAL_KEYS.includes(processedKey)) {
+            try {
+              // 실제 키 입력 처리 (processKeyInput 함수 호출)
+              const processKeyInputFn = getProcessKeyInput();
+              if (processKeyInputFn) {
+                processKeyInputFn({
+                  key: processedKey,
+                  code: keyEvent.code,
+                  shiftKey,
+                  ctrlKey,
+                  altKey,
+                  metaKey,
+                  timestamp,
+                  isComposing: keyEvent.isComposing
+                });
+                
+                // 처리된 키 기록 (중복 방지)
+                processedKeys.set(keyId, true);
+                
+                // 1분 후 맵에서 제거 (메모리 관리)
+                setTimeout(() => {
+                  processedKeys.delete(keyId);
+                }, 60000);
+                
+                // 키 카운터 및 마지막 키 업데이트
+                keyPressCount++;
+                lastKeyPressed = processedKey;
+                debugLog(`총 키 입력 수: ${keyPressCount}, 마지막 키: ${lastKeyPressed}`);
+              }
+            } catch (error) {
+              console.error('키 처리 오류:', error);
             }
           }
         }
-        
-        // 일반 키 입력 처리
-        handleRegularInput(lastKeyEvent);
-      }
-      
-      // 큐 비우기
-      keyEventQueue = [];
-    };
-
-    // 백그라운드 모니터링 함수
-    const checkKeyboardStatus = () => {
-      const now = Date.now();
-      const timeSinceLastEvent = now - lastKeyEventTime;
-      
-      // 30초 동안 이벤트가 없었으면 활성 상태 확인
-      if (timeSinceLastEvent > 30000) {
-        debugLog('키보드 활성 상태 확인 중...');
-        
-        // 특수키 상태 확인
-        for (const key in pressedModifiers) {
-          if (pressedModifiers[key]) {
-            debugLog(`특수키 상태 리셋: ${key}`);
-            pressedModifiers[key] = false;
-          }
-        }
-        
-        // 한글 조합 상태 리셋
-        if (HANGUL_STATUS.isComposing && (now - HANGUL_STATUS.composeStartTime > 10000)) {
-          debugLog('장시간 미사용으로 한글 조합 상태 초기화');
-          HANGUL_STATUS.isComposing = false;
-          HANGUL_STATUS.lastComposedText = '';
-          HANGUL_STATUS.intermediateChars = '';
-        }
+      } catch (error) {
+        console.error('키 이벤트 큐 처리 오류:', error);
       }
     };
 
@@ -492,8 +642,15 @@ function setupKeyboardListener() {
       
       // 추가: MacOS에서 input-event 이벤트도 사용
       window.webContents.on('input-event', (event, inputEvent) => {
-        // mouseMove 이벤트는 무시 (성능 향상을 위해)
-        if (inputEvent.type === 'mouseMove') return;
+        // mouseMove, mouseWheel, scroll 이벤트는 무시 (성능 향상을 위해)
+        if (inputEvent.type === 'mouseMove' || 
+            inputEvent.type === 'mouseWheel' || 
+            inputEvent.type === 'scroll' || 
+            inputEvent.type === 'wheel' || 
+            inputEvent.type.toLowerCase().includes('mouse') || 
+            inputEvent.type.toLowerCase().includes('scroll')) {
+          return;
+        }
         
         debugLog(`MacOS input-event: ${JSON.stringify(inputEvent)}`);
         if (inputEvent.type === 'keyDown' && !SPECIAL_KEYS.includes(inputEvent.key)) {
@@ -589,59 +746,75 @@ function setupKeyboardListener() {
 
     debugLog('키보드 리스너가 설정되었습니다.');
 
-    // 정기적으로 키보드 상태 확인 (멈춤 방지)
-    const keyboardStatusCheckInterval = setInterval(() => {
-      // 특수키 상태 초기화 (멈춤 현상 방지)
-      for (const key in pressedModifiers) {
-        if (pressedModifiers[key]) {
-          try {
-            const keyToCheck = key.charAt(0).toUpperCase() + key.slice(1);
-            const stillPressed = globalShortcut.isPressed(keyToCheck);
-            if (!stillPressed) {
-              debugLog(`특수키 ${key} 상태 리셋 (globalShortcut.isPressed 기반)`);
-              pressedModifiers[key] = false;
+    // 초기화 및 이벤트 등록
+    registerKeyboardEvents();
+    
+    // 활성 창 변경 감지를 위한 주기적 체크
+    if (activeCheckTimer) {
+      clearInterval(activeCheckTimer);
+    }
+    
+    activeCheckTimer = setInterval(async () => {
+      if (appState.isTracking) {
+        try {
+          const activeWindowInfo = await activeWin();
+          if (activeWindowInfo) {
+            const currentAppName = activeWindowInfo.owner?.name || 'Unknown App';
+            const currentWindowTitle = activeWindowInfo.title || 'Unknown Window';
+            const currentUrl = activeWindowInfo.url || '';
+            
+            // 앱이 변경되었는지 확인
+            if (lastActiveApp && lastActiveApp !== currentAppName) {
+              debugLog(`주기적 체크: 앱 전환 감지 ${lastActiveApp} -> ${currentAppName}`);
+              
+              // 앱 전환 후 타이핑 통계 업데이트
+              updateAppTypingStats(
+                currentAppName,
+                currentWindowTitle,
+                currentUrl,
+                3, // 가상 타이핑 수
+                150 // 타이핑 시간 (ms)
+              );
             }
-          } catch (e) {
-            // isPressed가 지원되지 않는 환경에서 오류 방지
-            pressedModifiers[key] = false;
+            
+            // 앱 정보 업데이트
+            lastActiveApp = currentAppName;
+            lastWindowTitle = currentWindowTitle;
           }
+        } catch (error) {
+          console.error('active-win 호출 오류:', error);
+          debugLog('기본 창 정보 사용');
         }
       }
-      
-      // 백그라운드 활성 상태 체크
-      checkKeyboardStatus();
-    }, 3000); // 3초마다 확인
-    
-    // 활성 상태 체크 타이머 설정 (15초마다 - 더 빠른 응답을 위해 30초에서 조정)
-    activeCheckTimer = setInterval(checkKeyboardStatus, 15000);
-
-    // 디버깅용 카운터 리셋 타이머
-    setInterval(() => {
-      debugLog(`키 입력 통계: 총 ${keyPressCount}개, 마지막 키: ${lastKeyPressed}`);
-    }, 10000);
+    }, 2000); // 2초마다 체크 (부하 감소를 위해)
 
     // 리소스 정리 함수 반환
     return {
       dispose: () => {
-        globalShortcut.unregisterAll();
-        clearInterval(keyboardStatusCheckInterval);
-        clearInterval(activeCheckTimer);
-        clearTimeout(keyEventProcessTimer);
-        
-        const mainWindow = BrowserWindow.getAllWindows().find(win => !win.isDestroyed());
-        if (mainWindow) {
-          mainWindow.webContents.removeAllListeners('before-input-event');
-          mainWindow.webContents.removeAllListeners('composition-start');
-          mainWindow.webContents.removeAllListeners('composition-update');
-          mainWindow.webContents.removeAllListeners('composition-end');
-          mainWindow.webContents.removeAllListeners('input-event');
+        debugLog('키보드 리스너 정리 중...');
+        if (activeCheckTimer) {
+          clearInterval(activeCheckTimer);
+          activeCheckTimer = null;
         }
         
-        ipcMain.removeHandler('keyboard-event');
-        ipcMain.removeHandler('get-hangul-status');
-        ipcMain.removeHandler('sendKeyboardEvent');
-        debugLog('키보드 리스너가 해제되었습니다.');
-      },
+        if (appSwitchTimer) {
+          clearTimeout(appSwitchTimer);
+          appSwitchTimer = null;
+        }
+        
+        if (keyEventProcessTimer) {
+          clearInterval(keyEventProcessTimer);
+          keyEventProcessTimer = null;
+        }
+        
+        // 글로벌 단축키 등록 해제
+        globalShortcut.unregisterAll();
+        
+        // 상태 초기화
+        keyEventQueue = [];
+        processedKeys.clear();
+        debugLog('키보드 리스너 정리 완료');
+      }
     };
   } catch (error) {
     console.error('키보드 리스너 설정 오류:', error);
@@ -654,76 +827,81 @@ function setupKeyboardListener() {
  */
 function registerGlobalShortcuts() {
   try {
-    // 권한 확인
-    const canRegister = !globalShortcut.isRegistered('CommandOrControl+X');
+    // 이미 등록된 단축키가 있으면 해제
+    globalShortcut.unregisterAll();
     
-    debugLog(`전역 단축키 등록 시작 (권한 상태: ${canRegister})`);
-    
-    // 플랫폼별 단축키 등록
-    if (isWindows()) {
-      // Windows 특화 단축키
-      globalShortcut.register('Alt+F4', () => {
-        debugLog('Alt+F4 감지됨');
-        // 애플리케이션 종료 방지 (필요한 경우)
-        return false;
-      });
-    } else if (isMacOS()) {
-      // macOS 특화 단축키
-      globalShortcut.register('Command+Q', () => {
-        debugLog('Command+Q 감지됨');
-        // 애플리케이션 종료 방지 (필요한 경우)
-        return false;
-      });
-      
-      // MacOS에서 한/영 전환 감지 시도
-      try {
-        globalShortcut.register('Command+Space', () => {
-          debugLog('Command+Space 감지됨 (한/영 전환 가능성)');
-          return false;
-        });
-      } catch (err) {
-        debugLog('Command+Space 등록 실패 (시스템에서 사용중)');
+    // 모니터링 시작/중지 단축키
+    globalShortcut.register('CommandOrControl+Shift+M', () => {
+      if (appState.isTracking) {
+        // 모니터링 중지
+        ipcMain.emit('stop-tracking');
+      } else {
+        // 모니터링 시작
+        ipcMain.emit('start-tracking');
       }
-    }
-
-    // 공통 단축키 등록
-    globalShortcut.register('CommandOrControl+R', () => {
-      debugLog('리로드 단축키 감지됨');
-      return false; // 기본 동작 방지
     });
     
-    // 디버깅용 단축키
-    globalShortcut.register('CommandOrControl+Alt+K', () => {
-      debugLog('디버그 단축키 감지됨, 현재 키보드 상태 출력');
-      debugLog(`현재 키 입력 통계: 총 ${keyPressCount}개, 마지막 키: ${lastKeyPressed}`);
-      return false;
+    // 앱 전환 감지 단축키 (Command+Tab / Alt+Tab)
+    const appSwitchShortcut = process.platform === 'darwin' ? 'Command+Tab' : 'Alt+Tab';
+    globalShortcut.register(appSwitchShortcut, () => {
+      debugLog('앱 전환 단축키 감지');
+      
+      // 앱 전환 상태 설정
+      isAppSwitching = true;
+      
+      // 앱 전환 타이머 설정
+      if (appSwitchTimer) clearTimeout(appSwitchTimer);
+      appSwitchTimer = setTimeout(async () => {
+        try {
+          // 활성 창 정보 가져오기
+          const activeWindowInfo = await activeWin();
+          if (activeWindowInfo && appState.isTracking) {
+            const appName = activeWindowInfo.owner?.name || 'Unknown App';
+            const windowTitle = activeWindowInfo.title || 'Unknown Window';
+            const url = activeWindowInfo.url || '';
+            
+            // 타이핑 통계 업데이트
+            updateAppTypingStats(appName, windowTitle, url, 5, 500);
+          }
+        } catch (error) {
+          console.error('앱 전환 감지 오류:', error);
+        }
+        
+        isAppSwitching = false;
+      }, 500);
     });
     
-    debugLog(`전역 단축키 등록 ${canRegister ? '성공' : '실패 (권한 없음)'}`);
-    return canRegister;
+    debugLog('글로벌 단축키 등록 완료');
+    return true;
   } catch (error) {
-    console.error('단축키 등록 오류:', error);
+    console.error('글로벌 단축키 등록 오류:', error);
     return false;
   }
 }
 
-// 테스트 함수: 키보드 입력 시뮬레이션
+/**
+ * 키보드 입력 시뮬레이션 (테스트용)
+ * @param {string} key - 시뮬레이션할 키
+ */
 function simulateKeyPress(key) {
-  debugLog(`키 입력 시뮬레이션: ${key}`);
+  if (!key) return false;
   
-  // 큐에 시뮬레이션 이벤트 추가
-  const simulatedEvent = {
-    key: key,
-    timestamp: Date.now(),
-    type: 'keyDown',
-    simulated: true
-  };
-  
-  // 직접 stats 모듈 호출하여 처리
-  const { processKeyInput } = require('./stats');
-  processKeyInput('시뮬레이션 창', '시뮬레이션 앱', simulatedEvent);
-  
-  return true;
+  try {
+    const simulatedEvent = {
+      type: 'keyDown',
+      key: key,
+      code: `Key${key.toUpperCase()}`,
+      keyCode: key.charCodeAt(0)
+    };
+    
+    // 통계 모듈에 시뮬레이션된 키 이벤트 전송
+    getProcessKeyInput()('시뮬레이션 창', '시뮬레이션 앱', simulatedEvent);
+    
+    return true;
+  } catch (error) {
+    console.error('키 입력 시뮬레이션 오류:', error);
+    return false;
+  }
 }
 
 module.exports = {

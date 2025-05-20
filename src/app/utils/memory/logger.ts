@@ -402,7 +402,7 @@ export async function analyzeMemoryUsage(
   }
 
   // 기본 통계 계산
-  const usages = logs.map(log => log.info.heap_used_mb || 0);
+  const usages = logs.map(log => log.info.heapUsedMB || 0);
   const avgUsage = usages.reduce((sum, usage) => sum + usage, 0) / usages.length;
   const peakUsage = Math.max(...usages);
   const minUsage = Math.min(...usages);
@@ -412,7 +412,7 @@ export async function analyzeMemoryUsage(
   const usageOverTime = logs
     .map(log => ({
       timestamp: log.timestamp,
-      usageMB: log.info.heap_used_mb || 0,
+      usageMB: log.info.heapUsedMB || 0,
     }))
     .sort((a, b) => a.timestamp - b.timestamp);
 
@@ -424,7 +424,7 @@ export async function analyzeMemoryUsage(
       const index = logs.indexOf(log);
       const prevLog = logs[index + 1]; // 역순 정렬이므로 다음 인덱스가 이전 로그
       const freedMemory = prevLog
-        ? (prevLog.info.heap_used_mb || 0) - (log.info.heap_used_mb || 0)
+        ? (prevLog.info.heapUsedMB || 0) - (log.info.heapUsedMB || 0)
         : 0;
 
       return {
@@ -441,7 +441,7 @@ export async function analyzeMemoryUsage(
       const index = logs.indexOf(log);
       const prevLog = logs[index + 1];
       const freedMemory = prevLog
-        ? (prevLog.info.heap_used_mb || 0) - (log.info.heap_used_mb || 0)
+        ? (prevLog.info.heapUsedMB || 0) - (log.info.heapUsedMB || 0)
         : 0;
 
       return {

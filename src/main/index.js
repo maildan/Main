@@ -39,9 +39,40 @@ const APP_CONFIG = {
   title: 'Loop',
   appUrl: process.env.NODE_ENV === 'development' 
     ? 'http://localhost:3000' 
-    : `file://${path.join(__dirname, '../dist/index.html')}`,
+    : `file://${path.join(__dirname, '../../dist/index.html')}`,
   icon: path.join(__dirname, '../public/icon.png')
 };
+
+// 개발 모드에서 Next.js 서버 준비 확인
+function checkIfNextServerReady() {
+  return new Promise((resolve) => {
+    if (process.env.NODE_ENV !== 'development') {
+      // 개발 모드가 아니면 확인 필요 없음
+      resolve(true);
+      return;
+    }
+    
+    const http = require('http');
+    const checkServer = () => {
+      debugLog('Next.js 서버 준비 상태 확인 중...');
+      
+      http.get('http://localhost:3000', (res) => {
+        if (res.statusCode === 200) {
+          debugLog('Next.js 서버 준비됨');
+          resolve(true);
+        } else {
+          debugLog(`Next.js 서버 응답 코드: ${res.statusCode}, 재시도 중...`);
+          setTimeout(checkServer, 1000);
+        }
+      }).on('error', (err) => {
+        debugLog(`Next.js 서버 연결 실패: ${err.message}, 재시도 중...`);
+        setTimeout(checkServer, 1000);
+      });
+    };
+    
+    checkServer();
+  });
+}
 
 /**
  * 메인 윈도우 생성 함수
@@ -73,8 +104,19 @@ function createMainWindow() {
   // appState에 메인 윈도우 저장
   global.appState.mainWindow = mainWindow;
   
-  // 앱 URL 로드
-  mainWindow.loadURL(APP_CONFIG.appUrl);
+  // 개발 모드에서는 Next.js가 준비되었는지 확인 후 로드
+  if (process.env.NODE_ENV === 'development') {
+    checkIfNextServerReady().then(() => {
+      debugLog('메인 윈도우 URL 로딩 시작:', APP_CONFIG.appUrl);
+      mainWindow.loadURL(APP_CONFIG.appUrl);
+      debugLog('메인 윈도우 URL 로드 성공');
+    });
+  } else {
+    // 프로덕션 모드에서는 즉시 로드
+    debugLog('메인 윈도우 URL 로딩 시작:', APP_CONFIG.appUrl);
+    mainWindow.loadURL(APP_CONFIG.appUrl);
+    debugLog('메인 윈도우 URL 로드 성공');
+  }
   
   // 개발 환경에서 개발자 도구 열기
   if (process.env.NODE_ENV === 'development') {

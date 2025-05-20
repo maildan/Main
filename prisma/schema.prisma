@@ -1,5 +1,5 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
+// This is the Prisma schema file for typing statistics
+// MongoDB 및 PostgreSQL 데이터 모델 정의
 
 // Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
 // Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
@@ -8,18 +8,87 @@ generator client {
   provider = "prisma-client-js"
 }
 
+// MongoDB 연결 (기본 데이터베이스)
 datasource db {
-  provider = "mysql"
-  url      = env("DATABASE_URL")
+  provider = "mongodb"
+  url      = env("MONGODB_URI")
 }
 
+// 타이핑 로그 모델
 model TypingLog {
-  id         Int      @id @default(autoincrement())
-  content    String   @db.Text
-  keyCount   Int
-  typingTime Int
-  timestamp  DateTime
-  createdAt  DateTime @default(now())
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  content       String
+  keyCount      Int
+  typingTime    Int
+  windowTitle   String?
+  browserName   String?
+  totalChars    Int?
+  totalWords    Int?
+  pages         Float?
+  accuracy      Float?
+  timestamp     DateTime
+  createdAt     DateTime @default(now())
+  idempotencyKey String? @unique
+  syncStatus    String?  @default("pending") // pending, synced, failed
+  syncError     String?
+  syncedAt      DateTime?
 
+  @@map("typing_logs")
   @@index([timestamp])
+  @@index([syncStatus])
+}
+
+// 설정 모델
+model Setting {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  key       String   @unique
+  value     String
+  updatedAt DateTime @default(now()) @updatedAt
+
+  @@map("settings")
+}
+
+// 동기화 오류 큐 (Dead Letter Queue)
+model SyncErrorQueue {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  payload     String
+  errorReason String?
+  status      String   @default("pending") // pending, retrying, failed, resolved
+  retryCount  Int      @default(0)
+  createdAt   DateTime @default(now())
+  lastRetryAt DateTime?
+  resolvedAt  DateTime?
+
+  @@map("error_queue")
+  @@index([status])
+}
+
+// 동기화 상태 모델
+model SyncState {
+  id                String   @id @default(auto()) @map("_id") @db.ObjectId
+  lastSyncTime      DateTime?
+  lastSuccessTime   DateTime?
+  lastFailTime      DateTime?
+  totalSyncCount    Int      @default(0)
+  successSyncCount  Int      @default(0)
+  failSyncCount     Int      @default(0)
+  pendingItemsCount Int      @default(0)
+  status            String   @default("idle") // idle, syncing, error
+  updatedAt         DateTime @default(now()) @updatedAt
+
+  @@map("sync_state")
+}
+
+// 성능 측정 로그
+model PerformanceLog {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  operation   String   // sync, query, etl
+  duration    Int      // milliseconds
+  success     Boolean
+  errorMessage String?
+  metadata    String?  // JSON string for additional data
+  createdAt   DateTime @default(now())
+
+  @@map("performance_logs")
+  @@index([operation, createdAt])
 }

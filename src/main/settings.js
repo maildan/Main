@@ -20,15 +20,54 @@ async function loadSettings() {
         ...savedSettings
       };
       
+      // 웹 브라우저 및 카테고리 설정 확인 및 보정
+      ensureCategorySettings();
+      
       debugLog('설정 파일 로드됨:', settingsPath);
-      return true;
+      return appState.settings;
     }
   } catch (err) {
     console.error('설정 로드 중 오류:', err);
   }
   
   debugLog('설정 파일이 없거나 손상되었음. 기본값 사용');
-  return false;
+  ensureCategorySettings();
+  return appState.settings;
+}
+
+/**
+ * 카테고리 활성화 설정 확인 및 보정
+ * 모든 카테고리가 기본적으로 활성화되도록 함
+ */
+function ensureCategorySettings() {
+  // enabledCategories가 없거나 손상된 경우 기본값으로 복원
+  if (!appState.settings.enabledCategories || typeof appState.settings.enabledCategories !== 'object') {
+    appState.settings.enabledCategories = {
+      docs: true,
+      office: true,
+      coding: true,
+      sns: true,
+      web: true,  // 웹 카테고리 추가
+      apps: true  // 앱 카테고리 추가
+    };
+    
+    debugLog('카테고리 설정 초기화됨');
+  } else {
+    // 필요한 모든 카테고리 키가 있는지 확인하고 없으면 추가
+    const categories = ['docs', 'office', 'coding', 'sns', 'web', 'apps'];
+    let updated = false;
+    
+    categories.forEach(category => {
+      if (appState.settings.enabledCategories[category] === undefined) {
+        appState.settings.enabledCategories[category] = true;
+        updated = true;
+      }
+    });
+    
+    if (updated) {
+      debugLog('카테고리 설정 업데이트됨');
+    }
+  }
 }
 
 /**
@@ -43,6 +82,9 @@ function saveSettings(newSettings = null) {
         ...appState.settings,
         ...newSettings
       };
+      
+      // 카테고리 설정 확인 및 보정
+      ensureCategorySettings();
     }
     
     // 저장하기 전에 디렉토리가 존재하는지 확인

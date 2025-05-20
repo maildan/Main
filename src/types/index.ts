@@ -47,11 +47,10 @@ export interface MemoryInfo {
   heapTotal?: number;
   rss?: number;
   percentUsed?: number;
-  percent_used?: number; // 네이티브 모듈 응답과 호환
   heapUsedMB?: number;
-  heap_used_mb?: number; // 네이티브 모듈 응답과 호환
   rssMB?: number;
-  rss_mb?: number; // 네이티브 모듈 응답과 호환
+  heapLimit?: number;
+  external?: number;
   timestamp: number;
 }
 
@@ -255,6 +254,8 @@ export interface SystemStatus {
   memoryUsageLevel: MemoryUsageLevel;
   processingMode: ProcessingMode;
   timestamp: number;
+  optimizationCount?: number;
+  lastOptimization?: number;
 }
 
 /**

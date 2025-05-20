@@ -170,14 +170,20 @@ export function useSettings(electronAPI: ElectronAPI | null) {
           setTimeout(() => reject(new Error('창 모드 변경 시간 초과')), 3000);
         });
         
-        const result = await Promise.race([
-          electronAPI.setWindowMode(mode),
-          timeoutPromise
-        ]) as {success: boolean, error?: string};
-        
-        if (!result.success) {
-          console.error(`창 모드 변경 실패: ${result.error || '알 수 없는 오류'}`);
-          showToast('창 모드 변경에 실패했습니다.', 'error');
+        try {
+          const result = await Promise.race([
+            electronAPI.setWindowMode(mode),
+            timeoutPromise
+          ]) as {success: boolean, error?: string};
+          
+          if (!result.success) {
+            console.error(`창 모드 변경 실패: ${result.error || '알 수 없는 오류'}`);
+            showToast('창 모드 변경에 실패했습니다.', 'error');
+          }
+        } catch (timeoutError) {
+          // 타임아웃 발생시에도 모드는 유지
+          console.warn('창 모드 변경 시간 초과, UI 상태는 유지됩니다');
+          showToast('창 모드 변경 요청이 시간 초과되었지만, 변경이 적용될 수 있습니다.', 'warning');
         }
       } else {
         console.warn('setWindowMode API를 사용할 수 없습니다. UI만 업데이트됩니다.');

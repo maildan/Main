@@ -20,6 +20,8 @@ export const CustomHeader = memo(function CustomHeader({
   const detectionAreaRef = useRef<HTMLDivElement>(null);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const mouseInsideHeader = useRef(false);
+  const lastInteractionTime = useRef(Date.now());
+  const promptShown = useRef(false);
   
   // 창 모드에 따른 자동 숨김 활성화 여부 설정
   useEffect(() => {
@@ -33,6 +35,8 @@ export const CustomHeader = memo(function CustomHeader({
   const handleDetectionAreaEnter = useCallback(() => {
     if (isAutoHide) {
       setIsVisible(true);
+      lastInteractionTime.current = Date.now();
+      promptShown.current = false;
     }
   }, [isAutoHide]);
   
@@ -44,6 +48,8 @@ export const CustomHeader = memo(function CustomHeader({
       timeoutRef.current = null;
     }
     setIsVisible(true);
+    lastInteractionTime.current = Date.now();
+    promptShown.current = false;
   }, []);
   
   const handleMouseLeave = useCallback(() => {
@@ -60,20 +66,31 @@ export const CustomHeader = memo(function CustomHeader({
   // 마우스 움직임 감지 함수를 메모이제이션
   const handleMouseMove = useCallback((e: MouseEvent) => {
     const { clientY } = e;
+    const currentTime = Date.now();
+    
+    // 마지막 상호작용으로부터 2초 이상 지났을 때만 처리 (반복 메시지 방지)
+    if (currentTime - lastInteractionTime.current < 2000) {
+      return;
+    }
     
     // 마우스가 화면 상단 10px 이내에 있으면 도구모음 표시
     if (clientY < 10) {
       setIsVisible(true);
+      lastInteractionTime.current = currentTime;
+      promptShown.current = false;
+      
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
         timeoutRef.current = null;
       }
     } else if (clientY > 100 && isVisible && !mouseInsideHeader.current) {
       // 마우스가 헤더 영역을 벗어났고, 아래로 이동한 경우 타이머 설정
-      if (!timeoutRef.current) {
+      if (!timeoutRef.current && !promptShown.current) {
         timeoutRef.current = setTimeout(() => {
           if (!mouseInsideHeader.current) {
             setIsVisible(false);
+            // 한 번만 프롬프트를 표시하기 위한 플래그 설정
+            promptShown.current = true;
           }
           timeoutRef.current = null;
         }, 600);
@@ -134,13 +151,18 @@ export const CustomHeader = memo(function CustomHeader({
         <div className={styles.dragArea}>
           <div className={styles.leftSection}>
             <div className={styles.iconOnly}>
-              <Image 
-                src="/loop-icon.svg" 
-                alt="Loop 아이콘"
-                width={24}
-                height={24}
-                priority 
-                loading="eager"
+              <Image
+          src="/loop-icon.svg"
+          alt="Loop 아이콘"
+          width={24}
+          height={24}
+          priority
+          loading="eager"
+          onError={(e) => {
+            // 아이콘 로드 실패 시 대체 아이콘 사용
+            const imgElement = e.target as HTMLImageElement;
+            imgElement.src = '/app_icon.webp';
+          }}
               />
             </div>
             <h4 className={styles.appTitle}>loop</h4>

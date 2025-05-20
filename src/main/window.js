@@ -2,10 +2,46 @@ const { BrowserWindow, app, screen } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const url = require('url');
-const { appState, isDev } = require('./constants');
+const http = require('http');
+const { appState } = require('./constants');
 const { applyWindowMode, loadSettings } = require('./settings');
 const { debugLog } = require('./utils');
 const { setupTray } = require('./tray');
+
+// 개발 모드 여부 직접 확인
+const isDev = process.env.NODE_ENV === 'development';
+
+/**
+ * Next.js 서버가 준비되었는지 확인하는 함수
+ */
+function checkIfNextServerReady() {
+  return new Promise((resolve) => {
+    if (!isDev) {
+      // 개발 모드가 아니면 확인 필요 없음
+      resolve(true);
+      return;
+    }
+    
+    debugLog('Next.js 서버 준비 상태 확인 중...');
+    
+    const checkServer = () => {
+      http.get('http://localhost:3000', (res) => {
+        if (res.statusCode === 200) {
+          debugLog('Next.js 서버 준비됨');
+          resolve(true);
+        } else {
+          debugLog(`Next.js 서버 응답 코드: ${res.statusCode}, 재시도 중...`);
+          setTimeout(checkServer, 1000);
+        }
+      }).on('error', (err) => {
+        debugLog(`Next.js 서버 연결 실패: ${err.message}, 재시도 중...`);
+        setTimeout(checkServer, 1000);
+      });
+    };
+    
+    checkServer();
+  });
+}
 
 /**
  * 메인 윈도우 생성 함수
@@ -56,7 +92,12 @@ async function createWindow() {
         accelerator: appState.settings?.useHardwareAcceleration ? 'gpu' : 'cpu',
         // 하드웨어 가속 설정에 따른 옵션 
         offscreen: false,
-      }
+      },
+      show: false, // 준비될 때까지 숨김
+      backgroundColor: appState.settings?.darkMode ? '#121212' : '#f9f9f9',
+      titleBarStyle: 'hidden',
+      frame: false,
+      icon: path.join(__dirname, '../../public/app_icon.webp'), // 아이콘 추가
     };
 
     // 메인 윈도우 생성
@@ -80,94 +121,134 @@ async function createWindow() {
       );
     }
 
-    // 로드 URL 결정
-    const startUrl = isDev
-      ? 'http://localhost:3000'
-      : `file://${path.join(__dirname, '../../dist/index.html')}`;
-
-    // URL 로드 및 이벤트 핸들러 설정
-    debugLog(`메인 윈도우 URL 로딩 시작: ${startUrl}`);
-
-    // 로딩 시 최대 재시도 횟수 및 재시도 간격 설정
-    let retryCount = 0;
-    const MAX_RETRIES = 5;
-    const RETRY_DELAY = 2000;
-
-    const loadWithRetry = () => {
-      mainWindow.loadURL(startUrl)
+    // 개발 모드에서는 Next.js 서버 준비 상태 확인 후 로드
+    if (isDev) {
+      debugLog('개발 모드 감지됨, Next.js 서버 확인 중...');
+      
+      // Next.js 서버 준비 상태 확인
+      await checkIfNextServerReady();
+      
+      // 로드 URL - 개발 모드
+      const devUrl = 'http://localhost:3000';
+      debugLog(`메인 윈도우 URL 로딩 시작 (개발): ${devUrl}`);
+      
+      // 개발 모드에서는 단순 로드 (오류 시 자동 재시도)
+      mainWindow.loadURL(devUrl)
         .then(() => {
-          debugLog('메인 윈도우 URL 로드 성공');
+          debugLog('개발 서버 URL 로드 성공');
         })
         .catch(err => {
-          debugLog(`URL 로드 실패 (${retryCount + 1}/${MAX_RETRIES}): ${err.message}`);
-
-          if (retryCount < MAX_RETRIES) {
-            retryCount++;
-            debugLog(`${RETRY_DELAY}ms 후 재시도...`);
-            setTimeout(loadWithRetry, RETRY_DELAY);
-          } else {
-            debugLog('최대 재시도 횟수 초과, 오류 화면 표시');
-
-            // 오류 화면 표시
-            const errorHtml = `
-              <!DOCTYPE html>
-              <html>
-              <head>
-                <title>연결 오류</title>
-                <meta charset="UTF-8">
-                <style>
-                  body { font-family: Arial; padding: 20px; color: #333; background: #f0f0f0; }
-                  .container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-                  h1 { color: #2196F3; }
-                  pre { background: #f5f5f5; padding: 10px; border-radius: 4px; overflow: auto; }
-                  .error { color: #e53935; }
-                  .solution { margin-top: 20px; border-top: 1px solid #eee; padding-top: 20px; }
-                  button { padding: 10px 15px; background: #2196F3; color: white; border: none; border-radius: 4px; cursor: pointer; }
-                  button:hover { background: #1976D2; }
-                </style>
-              </head>
-              <body>
-                <div class="container">
-                  <h1>Next.js 서버 연결 오류</h1>
-                  <p>Next.js 서버에 연결할 수 없습니다.</p>
-                  <p class="error">오류: Next.js 서버가 실행 중인지 확인하세요.</p>
-                  <div class="solution">
-                    <h3>해결 방법:</h3>
-                    <p>터미널에서 아래 명령어 실행 후 앱을 다시 시작하세요:</p>
-                    <ol>
-                      <li>개발 모드: <code>npm run dev</code></li>
-                      <li>또는 프로덕션 모드: <code>npm run build</code> 후 <code>npm run start</code></li>
-                    </ol>
-                    <button onclick="window.location.reload()">새로고침</button>
-                    <button onclick="window.api.restartApp()">앱 재시작</button>
-                  </div>
-                </div>
-                <script>
-                  // 5초마다 자동으로 연결 재시도
-                  setInterval(() => {
-                    fetch('http://localhost:3000')
-                      .then(response => {
-                        if (response.status === 200) {
-                          window.location.reload();
-                        }
-                      })
-                      .catch(e => console.log('서버 확인 중...'));
-                  }, 5000);
-                </script>
-              </body>
-              </html>
-            `;
-
-            const tempPath = path.join(__dirname, '../../error.html');
-            fs.writeFileSync(tempPath, errorHtml);
-
-            return appState.mainWindow.loadFile(tempPath);
-          }
+          debugLog(`개발 서버 URL 로드 실패: ${err.message}`);
+          
+          // 오류 발생시 기본 오류 페이지 표시
+          const errorHtml = `
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <title>개발 서버 연결 오류</title>
+            <style>
+              body { font-family: sans-serif; padding: 2rem; line-height: 1.5; }
+              h1 { color: #e53e3e; }
+              .container { max-width: 600px; margin: 0 auto; }
+              .code { background: #f7fafc; padding: 1rem; border-radius: 4px; font-family: monospace; }
+              button { padding: 0.5rem 1rem; background: #3182ce; color: white; border: none; border-radius: 4px; cursor: pointer; }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <h1>개발 서버 연결 오류</h1>
+              <p>Next.js 개발 서버에 연결할 수 없습니다.</p>
+              <p>다음 명령어로 개발 서버를 시작하세요:</p>
+              <div class="code">npm run dev</div>
+              <br>
+              <button onclick="window.location.reload()">새로고침</button>
+            </div>
+            <script>
+              // 10초마다 자동 재시도
+              setInterval(() => window.location.reload(), 10000);
+            </script>
+          </body>
+          </html>
+          `;
+          
+          const tempPath = path.join(app.getPath('temp'), 'dev-error.html');
+          fs.writeFileSync(tempPath, errorHtml);
+          mainWindow.loadFile(tempPath);
         });
-    };
+    } else {
+      // 프로덕션 모드 - 정적 파일 로드
+      const prodUrl = `file://${path.join(__dirname, '../../dist/index.html')}`;
+      debugLog(`메인 윈도우 URL 로딩 시작 (프로덕션): ${prodUrl}`);
 
-    // 첫 로딩 시도 시작
-    loadWithRetry();
+      // 로딩 시 최대 재시도 횟수 및 재시도 간격 설정
+      let retryCount = 0;
+      const MAX_RETRIES = 5;
+      const RETRY_DELAY = 2000;
+
+      const loadWithRetry = () => {
+        mainWindow.loadURL(prodUrl)
+          .then(() => {
+            debugLog('메인 윈도우 URL 로드 성공');
+          })
+          .catch(err => {
+            debugLog(`URL 로드 실패 (${retryCount + 1}/${MAX_RETRIES}): ${err.message}`);
+
+            if (retryCount < MAX_RETRIES) {
+              retryCount++;
+              debugLog(`${RETRY_DELAY}ms 후 재시도...`);
+              setTimeout(loadWithRetry, RETRY_DELAY);
+            } else {
+              debugLog('최대 재시도 횟수 초과, 오류 화면 표시');
+
+              // 오류 화면 표시
+              const errorHtml = `
+                <!DOCTYPE html>
+                <html>
+                <head>
+                  <title>연결 오류</title>
+                  <meta charset="UTF-8">
+                  <style>
+                    body { font-family: Arial; padding: 20px; color: #333; background: #f0f0f0; }
+                    .container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+                    h1 { color: #2196F3; }
+                    pre { background: #f5f5f5; padding: 10px; border-radius: 4px; overflow: auto; }
+                    .error { color: #e53935; }
+                    .solution { margin-top: 20px; border-top: 1px solid #eee; padding-top: 20px; }
+                    button { padding: 10px 15px; background: #2196F3; color: white; border: none; border-radius: 4px; cursor: pointer; }
+                    button:hover { background: #1976D2; }
+                  </style>
+                </head>
+                <body>
+                  <div class="container">
+                    <h1>앱 로딩 오류</h1>
+                    <p>앱 페이지를 로드할 수 없습니다.</p>
+                    <p class="error">오류: 앱 리소스를 찾을 수 없습니다.</p>
+                    <div class="solution">
+                      <h3>해결 방법:</h3>
+                      <p>앱을 다시 빌드한 후 실행하세요:</p>
+                      <ol>
+                        <li><code>npm run build</code></li>
+                        <li><code>npm run start</code></li>
+                      </ol>
+                      <button onclick="window.location.reload()">새로고침</button>
+                      <button onclick="window.api.restartApp()">앱 재시작</button>
+                    </div>
+                  </div>
+                </body>
+                </html>
+              `;
+
+              const tempPath = path.join(__dirname, '../../error.html');
+              fs.writeFileSync(tempPath, errorHtml);
+
+              return appState.mainWindow.loadFile(tempPath);
+            }
+          });
+      };
+
+      // 첫 로딩 시도 시작
+      loadWithRetry();
+    }
 
     // 리소스 존재 여부 확인 및 누락된 리소스 생성
     ensureRequiredResources();

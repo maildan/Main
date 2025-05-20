@@ -1,118 +1,405 @@
 const { 
   BROWSER_PROCESS_NAMES, 
+  BROWSER_DISPLAY_NAMES,
   WEBSITE_URL_PATTERNS, 
   GOOGLE_DOCS_URL_PATTERNS,
-  GOOGLE_DOCS_TITLE_PATTERNS
+  GOOGLE_DOCS_TITLE_PATTERNS,
+  SUPPORTED_WEBSITES,
+  appState
 } = require('./constants');
 const { debugLog } = require('./utils');
+const path = require('path');
+const { app, BrowserWindow } = require('electron');
+const url = require('url');
+
+// 마지막으로 알려진 브라우저 정보를 캐싱
+let lastKnownBrowserInfo = {
+  name: null,
+  title: '',
+  url: '',
+  timestamp: 0,
+  urlPatterns: [] // URL 패턴 캐싱 추가
+};
+
+// URL 캐시 (중복 검사 방지)
+const urlCache = new Map();
+const URL_CACHE_MAX_SIZE = 100;
+const URL_CACHE_TTL = 5 * 60 * 1000; // 5분
 
 /**
- * 브라우저 이름 감지 함수
+ * URL 캐시 관리
+ * @param {string} url - 캐시할 URL
+ * @param {string} category - URL의 카테고리
+ */
+function cacheUrl(url, category) {
+  if (!url) return;
+  
+  // URL 캐시 크기 제한
+  if (urlCache.size > URL_CACHE_MAX_SIZE) {
+    // 가장 오래된 항목 제거
+    const oldestKey = urlCache.keys().next().value;
+    if (oldestKey) urlCache.delete(oldestKey);
+  }
+  
+  urlCache.set(url, {
+    category,
+    timestamp: Date.now()
+  });
+}
+
+/**
+ * 캐시된 URL 카테고리 가져오기
+ * @param {string} url - 확인할 URL
+ * @returns {string|null} - 카테고리 또는 null
+ */
+function getCachedUrlCategory(url) {
+  if (!url) return null;
+  
+  const cached = urlCache.get(url);
+  if (!cached) return null;
+  
+  // 캐시 만료 확인
+  if (Date.now() - cached.timestamp > URL_CACHE_TTL) {
+    urlCache.delete(url);
+    return null;
+  }
+  
+  return cached.category;
+}
+
+/**
+ * 브라우저 이름 감지 함수 (고급 버전)
  * @param {Object} windowInfo - 활성 창 정보
  * @returns {string|null} - 감지된 브라우저 이름 또는 null
  */
 function detectBrowserName(windowInfo) {
-  // 프로세스 이름으로 브라우저 감지
-  const processName = windowInfo.owner?.name?.toLowerCase() || '';
-  
-  // 제목으로 브라우저 종류 유추
-  const title = windowInfo.title?.toLowerCase() || '';
-  // URL 정보 확인 
-  const url = windowInfo.url?.toLowerCase() || '';
-  
-  debugLog('활성 창 정보:', {
-    title: windowInfo.title,
-    process: processName,
-    url: windowInfo.url || '(URL 없음)'
-  });
-  
-  // 프로세스 이름을 기준으로 브라우저 감지 (가장 신뢰도 높음)
-  for (const browser of BROWSER_PROCESS_NAMES) {
-    if (processName.includes(browser)) {
-      debugLog(`프로세스 이름으로 ${browser} 감지`);
-      return browser;
+  try {
+    // 오류 발생 시 마지막 알려진 정보 사용 (10초 이내인 경우)
+    if (!windowInfo) {
+      const now = Date.now();
+      if (lastKnownBrowserInfo.timestamp > 0 && 
+          now - lastKnownBrowserInfo.timestamp < 10000) {
+        debugLog(`캐시된 브라우저 정보 사용: ${lastKnownBrowserInfo.name}`);
+        return lastKnownBrowserInfo.name;
+      }
+      debugLog('유효한 창 정보 없음');
+      return null;
     }
-  }
-  
-  // 타이틀에서 브라우저 이름 찾기
-  for (const browser of BROWSER_PROCESS_NAMES) {
-    if (title.includes(browser)) {
-      debugLog(`창 제목으로 ${browser} 감지`);
-      return browser;
-    }
-  }
-  
-  // 특정 브라우저별 추가 확인 (OS별 특수 경우)
-  if ((processName.includes('ApplicationFrameHost') || 
-      (processName.toLowerCase().includes('application') && processName.toLowerCase().includes('host'))) && 
-     title.toLowerCase().includes('edge')) {
-    return 'edge';
-  }
-  
-  if (process.platform === 'darwin' && processName.includes('safari')) {
-    return 'safari';
-  }
-  
-  // 일반적인 웹사이트 URL/제목 패턴 확인
-  for (const pattern of WEBSITE_URL_PATTERNS) {
-    if (url.includes(pattern) || title.includes(pattern)) {
-      // 웹사이트 접속 중인 것으로 판단되어 기본 브라우저 추정
-      return process.platform === 'darwin' ? 'safari' : 'chrome';
-    }
-  }
-  
-  // 일반적인 추론 - 제목에 웹사이트 주소가 있으면 브라우저일 가능성이 높음
-  if (title.includes('http://') || title.includes('https://') || 
-      title.includes('.com') || title.includes('.org') || title.includes('.net') ||
-      title.includes('.co.kr') || title.includes('.kr') || title.includes('.io')) {
     
-    // 기본 브라우저 추정
-    return process.platform === 'darwin' ? 'safari' : 'chrome';
+    // 프로세스 이름으로 브라우저 감지
+    const processName = windowInfo.owner?.name || '';
+    const processPath = windowInfo.owner?.path || '';
+    const browserName = getBrowserNameFromProcess(processName, processPath);
+    
+    // 감지된 브라우저 정보 저장
+    if (browserName) {
+      debugLog(`브라우저 감지됨: ${browserName}`);
+      
+      // URL 정규화 및 정보 저장
+      let normalizedUrl = '';
+      if (windowInfo.url) {
+        try {
+          // URL 파싱 및 정규화
+          const parsedUrl = new URL(windowInfo.url);
+          normalizedUrl = parsedUrl.hostname + parsedUrl.pathname;
+          debugLog(`정규화된 URL: ${normalizedUrl}`);
+        } catch (error) {
+          // URL 파싱 실패 시 원본 그대로 사용
+          normalizedUrl = windowInfo.url;
+          debugLog(`URL 파싱 실패, 원본 사용: ${normalizedUrl}`);
+        }
+      }
+      
+      lastKnownBrowserInfo = {
+        name: browserName,
+        title: windowInfo.title || '',
+        url: normalizedUrl || windowInfo.url || '',
+        urlPatterns: detectUrlPatterns(windowInfo.url),
+        timestamp: Date.now()
+      };
+      
+      // 웹사이트 카테고리 감지 및 로깅
+      const category = detectWebsiteCategory(windowInfo.url);
+      if (category) {
+        debugLog(`웹사이트 카테고리 감지: ${category}, URL: ${windowInfo.url}`);
+      }
+    } else {
+      debugLog(`알 수 없는 브라우저: processName=${processName}, path=${processPath}`);
+    }
+    
+    return browserName;
+  } catch (error) {
+    console.error('브라우저 감지 오류:', error);
+    return null;
   }
-  
-  debugLog('브라우저를 감지할 수 없음');
-  return null;
 }
 
 /**
- * Google Docs 관련 창인지 확인
- * @param {Object} windowInfo - 활성 창 정보
- * @returns {boolean} Google Docs 관련 창 여부
+ * URL에서 패턴 감지 (개선 버전)
+ * @param {string} urlString - 확인할 URL
+ * @returns {Array} - 감지된 패턴 목록
  */
-function isGoogleDocsWindow(windowInfo) {
-  // URL 기반 확인 (Chrome, Edge 등 일부 브라우저에서 제공)
-  if (windowInfo.url) {
-    const url = windowInfo.url.toLowerCase();
-    for (const pattern of GOOGLE_DOCS_URL_PATTERNS) {
-      if (url.includes(pattern)) {
-        debugLog('URL 패턴으로 구글 문서 감지:', url);
-        return true;
+function detectUrlPatterns(urlString) {
+  if (!urlString) return [];
+  
+  const patterns = [];
+  
+  try {
+    const normalizedUrl = urlString.toLowerCase();
+    
+    // 지원되는 웹사이트 카테고리별 패턴 확인
+    for (const [category, sites] of Object.entries(SUPPORTED_WEBSITES)) {
+      for (const site of sites) {
+        if (normalizedUrl.includes(site.pattern)) {
+          patterns.push({
+            category,
+            pattern: site.pattern,
+            name: site.name
+          });
+          
+          debugLog(`URL 패턴 감지: ${site.name} (${category})`);
+        }
       }
     }
-  }
-  
-  // 창 제목 기반 확인 (모든 브라우저 지원)
-  const title = windowInfo.title?.toLowerCase() || '';
-  for (const pattern of GOOGLE_DOCS_TITLE_PATTERNS) {
-    if (title.includes(pattern)) {
-      debugLog('제목 패턴으로 구글 문서 감지:', title);
-        return true;
+    
+    // 패턴이 감지되지 않은 경우 로깅
+    if (patterns.length === 0) {
+      debugLog(`지원되는 패턴 없음: ${urlString}`);
     }
+  } catch (error) {
+    console.error('URL 패턴 감지 오류:', error);
   }
   
-  // 확장된 감지 로직 - 구글 문서 작업 시 특정 패턴이 있는지 확인
-  if ((title.includes('문서') || title.includes('document') || 
-       title.includes('spreadsheet') || title.includes('presentation')) && 
-      (title.includes('google') || title.includes('구글'))) {
-    debugLog('추가 패턴으로 구글 문서 감지:', title);
-    return true;
-  }
-  
-  debugLog('구글 문서가 아님:', title);
-  return false;
+  return patterns;
 }
 
+/**
+ * 프로세스 이름과 경로에서 브라우저 이름 추출 (고급 버전)
+ * @param {string} processName - 프로세스 이름
+ * @param {string} processPath - 프로세스 실행 경로
+ * @returns {string|null} - 브라우저 이름 또는 null
+ */
+function getBrowserNameFromProcess(processName, processPath) {
+  try {
+    if (!processName && !processPath) {
+      debugLog('프로세스 이름과 경로가 모두 없음');
+      return null;
+    }
+    
+    // 프로세스 이름 정규화 (소문자, 확장자 제거)
+    const normalizedProcessName = processName.toLowerCase().replace(/\.[^/.]+$/, '');
+    
+    // 알려진 브라우저 목록과 매칭
+    for (const [browserKey, patterns] of Object.entries(BROWSER_PROCESS_NAMES)) {
+      for (const pattern of patterns) {
+        if (normalizedProcessName.includes(pattern)) {
+          // 표시 이름 매핑이 있으면 사용
+          const displayName = BROWSER_DISPLAY_NAMES[pattern.toLowerCase()] || browserKey;
+          debugLog(`프로세스 이름으로 브라우저 감지: ${normalizedProcessName} -> ${displayName}`);
+          return displayName;
+        }
+      }
+    }
+    
+    // 경로에서 추가 확인
+    if (processPath) {
+      const filename = path.basename(processPath).toLowerCase();
+      
+      // 파일 이름으로 브라우저 감지 (맥 특화)
+      if (filename.includes('chrome')) {
+        debugLog('경로에서 Chrome 브라우저 감지됨');
+        return BROWSER_DISPLAY_NAMES['chrome'] || 'Chrome';
+      }
+      if (filename.includes('firefox')) {
+        debugLog('경로에서 Firefox 브라우저 감지됨');
+        return BROWSER_DISPLAY_NAMES['firefox'] || 'Firefox';
+      }
+      if (filename.includes('safari')) {
+        debugLog('경로에서 Safari 브라우저 감지됨');
+        return BROWSER_DISPLAY_NAMES['safari'] || 'Safari';
+      }
+      if (filename.includes('edge')) {
+        debugLog('경로에서 Edge 브라우저 감지됨');
+        return BROWSER_DISPLAY_NAMES['edge'] || 'Edge';
+      }
+      if (filename.includes('opera')) {
+        debugLog('경로에서 Opera 브라우저 감지됨');
+        return BROWSER_DISPLAY_NAMES['opera'] || 'Opera';
+      }
+      if (filename.includes('brave')) {
+        debugLog('경로에서 Brave 브라우저 감지됨');
+        return BROWSER_DISPLAY_NAMES['brave'] || 'Brave';
+      }
+      if (filename.includes('vivaldi')) {
+        debugLog('경로에서 Vivaldi 브라우저 감지됨');
+        return BROWSER_DISPLAY_NAMES['vivaldi'] || 'Vivaldi';
+      }
+      // 네이버 웨일 브라우저 추가
+      if (filename.includes('whale')) {
+        debugLog('경로에서 네이버 웨일 브라우저 감지됨');
+        return BROWSER_DISPLAY_NAMES['whale'] || '네이버 웨일';
+      }
+      // Arc 브라우저 추가
+      if (filename.includes('arc')) {
+        debugLog('경로에서 Arc 브라우저 감지됨');
+        return BROWSER_DISPLAY_NAMES['arc'] || 'Arc Browser';
+      }
+    }
+    
+    debugLog(`알 수 없는 브라우저 프로세스: ${normalizedProcessName}`);
+    return null;
+  } catch (error) {
+    console.error('프로세스 이름에서 브라우저 감지 오류:', error);
+    return null;
+  }
+}
+
+/**
+ * URL 패턴으로 웹사이트 카테고리 감지
+ * @param {string} urlString - 확인할 URL
+ * @returns {string|null} - 감지된 카테고리 또는 null
+ */
+function detectWebsiteCategory(urlString) {
+  if (!urlString) return null;
+  
+  try {
+    // 캐시 확인
+    const cachedCategory = getCachedUrlCategory(urlString);
+    if (cachedCategory) {
+      debugLog(`캐시된 URL 카테고리 사용: ${cachedCategory}`);
+      return cachedCategory;
+    }
+    
+    const normalizedUrl = urlString.toLowerCase();
+    
+    // URL 패턴 매칭
+    for (const [category, patterns] of Object.entries(WEBSITE_URL_PATTERNS)) {
+      for (const pattern of patterns) {
+        if (normalizedUrl.includes(pattern)) {
+          // 카테고리 캐싱
+          cacheUrl(urlString, category);
+          debugLog(`웹사이트 카테고리 감지: ${category} (${pattern})`);
+          return category;
+        }
+      }
+    }
+    
+    // 지원되는 웹사이트 확인
+    for (const [category, sites] of Object.entries(SUPPORTED_WEBSITES)) {
+      for (const site of sites) {
+        if (normalizedUrl.includes(site.pattern)) {
+          // 카테고리 캐싱
+          cacheUrl(urlString, category);
+          debugLog(`지원되는 웹사이트 감지: ${site.name} (${category})`);
+          return category;
+        }
+      }
+    }
+    
+    // 일반 웹사이트로 처리
+    cacheUrl(urlString, 'web');
+    debugLog(`일반 웹사이트로 분류: ${urlString}`);
+    return 'web';
+  } catch (error) {
+    console.error('웹사이트 카테고리 감지 오류:', error);
+    return null;
+  }
+}
+
+/**
+ * Google Docs 창인지 확인 (개선 버전)
+ * @param {Object} windowInfo - 확인할 창 정보
+ * @returns {boolean} - Google Docs 창 여부
+ */
+function isGoogleDocsWindow(windowInfo) {
+  try {
+    if (!windowInfo) return false;
+    
+    // URL 기반 확인
+    if (windowInfo.url) {
+      const url = windowInfo.url.toLowerCase();
+      
+      // Google Docs URL 패턴 매칭
+      for (const pattern of GOOGLE_DOCS_URL_PATTERNS) {
+        if (url.includes(pattern)) {
+          debugLog(`Google Docs URL 감지: ${url}`);
+          return true;
+        }
+      }
+    }
+    
+    // 제목 기반 확인
+    if (windowInfo.title) {
+      const title = windowInfo.title.toLowerCase();
+      
+      // Google Docs 제목 패턴 매칭
+      for (const pattern of GOOGLE_DOCS_TITLE_PATTERNS) {
+        if (title.includes(pattern)) {
+          debugLog(`Google Docs 제목 감지: ${title}`);
+          return true;
+        }
+      }
+    }
+    
+    return false;
+  } catch (error) {
+    console.error('Google Docs 창 확인 오류:', error);
+    return false;
+  }
+}
+
+/**
+ * 마지막으로 알려진 브라우저 정보 가져오기
+ * @returns {Object} - 캐시된 브라우저 정보
+ */
+function getLastKnownBrowserInfo() {
+  return { ...lastKnownBrowserInfo };
+}
+
+/**
+ * 대체 브라우저 이름 추정 (active-win 오류 시 사용)
+ * @returns {string} - 추정된 브라우저 이름
+ */
+function getFallbackBrowserName() {
+  // 마지막으로 저장된 브라우저 이름이 있으면 반환
+  if (lastKnownBrowserInfo.name && 
+      Date.now() - lastKnownBrowserInfo.timestamp < 30000) {
+    return lastKnownBrowserInfo.name;
+  }
+  
+  // 현재 통계에서 브라우저 이름 가져오기
+  if (appState.currentStats && appState.currentStats.currentBrowser) {
+    return appState.currentStats.currentBrowser;
+  }
+  
+  // 어떤 정보도 없는 경우 기본값 반환
+  return 'Unknown Browser';
+}
+
+/**
+ * URL 및 브라우저 정보 정리 (캐시 만료 항목 제거)
+ */
+function cleanupUrlCache() {
+  const now = Date.now();
+  
+  // 만료된 URL 캐시 항목 제거
+  for (const [urlKey, data] of urlCache.entries()) {
+    if (now - data.timestamp > URL_CACHE_TTL) {
+      urlCache.delete(urlKey);
+    }
+  }
+}
+
+// 주기적인 캐시 정리 (10분마다)
+setInterval(cleanupUrlCache, 10 * 60 * 1000);
+
+// 브라우저 감지 함수들 내보내기
 module.exports = {
   detectBrowserName,
-  isGoogleDocsWindow
+  detectWebsiteCategory,
+  detectUrlPatterns,
+  isGoogleDocsWindow,
+  getLastKnownBrowserInfo,
+  getFallbackBrowserName,
+  cleanupUrlCache
 };

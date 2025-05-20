@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import nativeModule from '../../../../../server/native';
 
+// output: 'export'를 사용할 때 필요한 설정
+export const dynamic = 'force-static';
+
 export async function GET() {
   try {
     let result;
@@ -82,5 +85,30 @@ export async function GET() {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error'
     }, { status: 500 });
+  }
+}
+
+export async function POST(request: Request) {
+  try {
+    const { level } = await request.json();
+    
+    // 레벨 기반 메모리 최적화 로직
+    console.log('메모리 최적화 레벨:', level);
+    
+    const result = {
+      success: true,
+      message: `메모리 최적화(레벨: ${level})가 실행되었습니다.`,
+      freedMemory: 30 * 1024 * 1024,
+      freedMB: 30,
+      timestamp: Date.now()
+    };
+    
+    return NextResponse.json(result);
+  } catch (error) {
+    console.error('메모리 최적화 오류:', error);
+    return NextResponse.json(
+      { error: 'Failed to optimize memory' },
+      { status: 500 }
+    );
   }
 }

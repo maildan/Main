@@ -29,18 +29,12 @@ export async function ensureMemoryInfo(): Promise<MemoryInfo> {
 
   // 오류 발생 시 기본값 반환
   return {
-    heap_used: 0,
     heapUsed: 0,
-    heap_total: 0,
     heapTotal: 0,
-    heap_used_mb: 0,
     heapUsedMB: 0,
     rss: 0,
-    rss_mb: 0,
     rssMB: 0,
-    percent_used: 0,
     percentUsed: 0,
-    heap_limit: 0,
     timestamp: Date.now()
   };
 }
@@ -49,7 +43,7 @@ export async function ensureMemoryInfo(): Promise<MemoryInfo> {
  * 최적화 레벨 결정
  */
 export function determineOptimizationLevel(info: MemoryInfo): OptimizationLevel {
-  const usedMB = info.heap_used_mb;
+  const usedMB = info.heapUsedMB || 0;
 
   if (usedMB < MEMORY_THRESHOLDS.LOW) {
     return OptimizationLevel.None;
@@ -141,7 +135,7 @@ export async function performGC(emergency: boolean = false): Promise<GCResult> {
     const memoryAfter = await ensureMemoryInfo();
 
     // 해제된 메모리 계산
-    const freedMemory = Math.max(0, memoryBefore.heap_used - memoryAfter.heap_used);
+    const freedMemory = Math.max(0, (memoryBefore.heapUsed || 0) - (memoryAfter.heapUsed || 0));
     const freedMB = freedMemory / (1024 * 1024);
 
     // GC 시간 업데이트

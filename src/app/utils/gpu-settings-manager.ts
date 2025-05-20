@@ -244,3 +244,115 @@ function getGPURecommendationMessage(gpuType: string, settings: GPUSettings): st
       return '시스템에 맞는 기본 설정이 적용되었습니다.';
   }
 }
+
+/**
+ * GPU 상태 확인
+ * @returns GPU 상태 정보
+ */
+export async function getGpuStatus() {
+  try {
+    const gpuType = await detectGPUType();
+    const isEnabled = await isGPUAccelerationEnabled();
+    
+    return {
+      success: true,
+      enabled: isEnabled,
+      gpuType,
+      recommendedSettings: await getOptimalGPUSettings(),
+      timestamp: Date.now()
+    };
+  } catch (error) {
+    console.error('GPU 상태 확인 오류:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : '알 수 없는 오류',
+      timestamp: Date.now()
+    };
+  }
+}
+
+/**
+ * GPU 설정 가져오기
+ * @returns 현재 GPU 설정
+ */
+export async function getGpuSettings() {
+  try {
+    // 로컬 스토리지에서 설정 가져오기 (존재하는 경우)
+    let settings: GPUSettings | null = null;
+    
+    if (typeof window !== 'undefined' && window.localStorage) {
+      const storedSettings = localStorage.getItem('gpu_settings');
+      if (storedSettings) {
+        try {
+          settings = JSON.parse(storedSettings) as GPUSettings;
+        } catch (e) {
+          console.warn('저장된 GPU 설정 파싱 실패');
+        }
+      }
+    }
+    
+    // 저장된 설정이 없으면 최적의 설정 계산
+    if (!settings) {
+      settings = await getOptimalGPUSettings();
+    }
+    
+    return {
+      success: true,
+      settings,
+      timestamp: Date.now()
+    };
+  } catch (error) {
+    console.error('GPU 설정 가져오기 오류:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : '알 수 없는 오류',
+      timestamp: Date.now()
+    };
+  }
+}
+
+/**
+ * GPU 설정 업데이트
+ * @param settings 업데이트할 설정
+ * @returns 성공 여부
+ */
+export async function updateGpuSettings(settings: Partial<GPUSettings>) {
+  try {
+    // 현재 설정 가져오기
+    const response = await getGpuSettings();
+    
+    // 기본 설정 또는 현재 설정 사용
+    const defaultSettings = await getOptimalGPUSettings();
+    const currentSettings = response.success && response.settings ? response.settings : defaultSettings;
+    
+    // 새 설정 생성 (현재 설정과 새 설정 병합)
+    const newSettings: GPUSettings = {
+      useHardwareAcceleration: settings.useHardwareAcceleration ?? currentSettings.useHardwareAcceleration,
+      processingMode: settings.processingMode ?? currentSettings.processingMode,
+      optimizeForBattery: settings.optimizeForBattery ?? currentSettings.optimizeForBattery,
+      memoryOptimization: settings.memoryOptimization ?? currentSettings.memoryOptimization,
+      threadCount: settings.threadCount ?? currentSettings.threadCount
+    };
+    
+    // 설정 적용
+    const success = await applyGPUSettings(newSettings);
+    
+    // 성공했다면 로컬 스토리지에 저장
+    if (success && typeof window !== 'undefined' && window.localStorage) {
+      localStorage.setItem('gpu_settings', JSON.stringify(newSettings));
+    }
+    
+    return {
+      success,
+      settings: newSettings,
+      timestamp: Date.now()
+    };
+  } catch (error) {
+    console.error('GPU 설정 업데이트 오류:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : '알 수 없는 오류',
+      timestamp: Date.now()
+    };
+  }
+}

@@ -6,7 +6,7 @@
 
 import { getMemoryInfo } from './nativeModuleClient';
 import { getGpuInformation } from './gpu-acceleration';
-import { SystemStatus, ProcessingMode, MemoryUsageLevel as AppMemoryUsageLevel, MemoryInfo } from '@/types';
+import { SystemStatus, ProcessingMode, MemoryUsageLevel as AppMemoryUsageLevel } from '@/types';
 import { getMemoryUsageLevel } from './enum-converters';
 
 // 모니터링 상태
@@ -69,7 +69,7 @@ async function checkSystemStatus() {
       return;
     }
 
-    const percentUsed = memoryInfo.percentUsed || memoryInfo.percent_used || 0;
+    const percentUsed = memoryInfo.percentUsed || 0;
 
     // getMemoryUsageLevel 함수는 enum-converters.ts의 값을 반환하므로
     // 애플리케이션 레벨의 MemoryUsageLevel로 변환합니다.
@@ -91,7 +91,15 @@ async function checkSystemStatus() {
     const status: SystemStatus = {
       memoryUsageLevel: memoryLevel,
       cpuUsage: 0, // 현재 API에서 CPU 사용량 정보가 없음
-      memoryInfo: memoryInfo,
+      memoryInfo: {
+        timestamp: Date.now(),
+        heapUsed: 0,
+        heapTotal: 0,
+        rss: 0,
+        heapUsedMB: 0,
+        rssMB: 0,
+        percentUsed: 0,
+      },
       processingMode: processingMode,
       timestamp: Date.now(),
       optimizationCount: 0,
@@ -197,13 +205,12 @@ export async function getSystemStatus(forceRefresh = false): Promise<SystemStatu
       cpuUsage: 0,
       memoryInfo: {
         timestamp: Date.now(),
-        heap_used: 0,
-        heap_total: 0,
-        heap_limit: 0,
+        heapUsed: 0,
+        heapTotal: 0,
         rss: 0,
-        heap_used_mb: 0,
-        rss_mb: 0,
-        percent_used: 0,
+        heapUsedMB: 0,
+        rssMB: 0,
+        percentUsed: 0,
       },
       processingMode: ProcessingMode.NORMAL,
       timestamp: now,

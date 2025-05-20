@@ -22,6 +22,9 @@ const {
   getStats: getWorkerPoolStats
 } = workerPool;
 
+// output: 'export'를 사용할 때 필요한 설정
+export const dynamic = 'force-static';
+
 /**
  * 워커 풀 상태 확인 API
  */

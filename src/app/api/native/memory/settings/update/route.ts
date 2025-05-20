@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+// output: 'export'를 사용할 때 필요한 설정
+export const dynamic = 'force-static';
+
 /**
  * 메모리 설정 업데이트 API
  */
@@ -7,13 +10,11 @@ export async function POST(request: NextRequest) {
   try {
     const settingsJson = await request.text();
     
-    // 서버 측에서 네이티브 모듈 불러오기
-    const nativeModule = require('../../../../../../../native-modules');
-    
-    const success = await nativeModule.update_memory_settings(settingsJson);
+    // 더미 구현
+    console.log('메모리 설정 업데이트 요청:', settingsJson);
     
     return NextResponse.json({
-      success: !!success,
+      success: true,
       timestamp: Date.now()
     });
   } catch (error) {

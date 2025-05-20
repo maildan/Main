@@ -17,6 +17,9 @@ const OPTIMIZATION_LEVEL = {
 
 type OptimizationLevelType = typeof OPTIMIZATION_LEVEL[keyof typeof OPTIMIZATION_LEVEL];
 
+// output: 'export'를 사용할 때 필요한 설정
+export const dynamic = 'force-static';
+
 /**
  * GET 핸들러 - 메모리 사용량 정보 조회
  */

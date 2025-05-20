@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server';
 
+// output: 'export'를 사용할 때 필요한 설정
+export const dynamic = 'force-static';
+
 export async function GET() {
   try {
     // 네이티브 모듈 동적 임포트 (타입 에러 해결)

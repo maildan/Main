@@ -2,10 +2,13 @@
  * 로그 검색 API 엔드포인트
  */
 
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { readdir, readFile } from 'fs/promises';
 import { join } from 'path';
 import { LogEntry, LogSearchOptions, LogType } from '@/app/utils/log-utils';
+
+// output: 'export'를 사용할 때 필요한 설정
+export const dynamic = 'force-static';
 
 /**
  * 로그를 검색합니다.
@@ -13,39 +16,15 @@ import { LogEntry, LogSearchOptions, LogType } from '@/app/utils/log-utils';
  * @param request - GET 요청
  * @returns 검색 결과
  */
-export async function GET(request: Request) {
+export async function GET() {
   try {
-    // URL에서 검색 옵션 추출
-    const { searchParams } = new URL(request.url);
-    const options: LogSearchOptions = {
-      type: searchParams.get('type') as LogType || undefined,
-      startTime: searchParams.get('startTime') ? parseInt(searchParams.get('startTime') || '0') : undefined,
-      endTime: searchParams.get('endTime') ? parseInt(searchParams.get('endTime') || '0') : undefined,
-      query: searchParams.get('query') || undefined,
-      limit: searchParams.get('limit') ? parseInt(searchParams.get('limit') || '100') : 100,
-      offset: searchParams.get('offset') ? parseInt(searchParams.get('offset') || '0') : 0,
-      sessionId: searchParams.get('sessionId') || undefined
-    };
-    
-    // 태그 처리 (여러 개 가능)
-    const tags = searchParams.getAll('tag');
-    if (tags.length > 0) {
-      options.tags = tags;
-    }
-    
-    // 여러 타입 처리
-    const types = searchParams.getAll('type');
-    if (types.length > 1) {
-      options.type = types as LogType[];
-    }
-    
-    // 로그 검색
-    const logs = await searchLogsFromFiles(options);
-    
+    // 정적 내보내기를 위해 빈 결과 반환
+    // 실제 검색은 클라이언트 측에서 처리
     return NextResponse.json({
       success: true,
-      count: logs.length,
-      data: logs
+      count: 0,
+      data: [],
+      message: '정적 내보내기 모드에서는 빈 결과가 반환됩니다. 실제 검색은 클라이언트에서 처리해야 합니다.'
     });
   } catch (error) {
     console.error('로그 검색 중 오류:', error);

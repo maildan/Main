@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+// output: 'export'를 사용할 때 필요한 설정
+export const dynamic = 'force-static';
+
 /**
  * GET 요청 핸들러
  * API가 정상적으로 작동하는지 테스트하기 위한 엔드포인트

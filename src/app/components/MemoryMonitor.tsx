@@ -150,26 +150,26 @@ export default function MemoryMonitor({
         
         // 메모리 상태 업데이트
         setCurrentMemory({
-          heapUsed: memoryInfo.heap_used_mb || memoryInfo.heapUsedMB || 0,
-          heapTotal: (memoryInfo.heap_total || 0) / (1024 * 1024),
-          percentUsed: memoryInfo.percent_used || memoryInfo.percentUsed || 0,
-          rss: memoryInfo.rss_mb || memoryInfo.rssMB,
+          heapUsed: memoryInfo.heapUsedMB || memoryInfo.heapUsedMB || 0,
+          heapTotal: (memoryInfo.heapTotal || 0) / (1024 * 1024),
+          percentUsed: memoryInfo.percentUsed || memoryInfo.percentUsed || 0,
+          rss: memoryInfo.rssMB || memoryInfo.rssMB,
           timestamp
         });
         
         // 메모리 상태 평가
         setMemoryStatus(evaluateMemoryStatus(
-          memoryInfo.percent_used || memoryInfo.percentUsed || 0
+          memoryInfo.percentUsed || memoryInfo.percentUsed || 0
         ));
         
         // 차트 데이터 업데이트
         setMemoryData(prev => {
           // 새 데이터 포인트 추가
           const newLabels = [...prev.labels, formattedTime];
-          const newUsed = [...prev.used, memoryInfo.heap_used_mb || memoryInfo.heapUsedMB || 0];
-          const newTotal = [...prev.total, (memoryInfo.heap_total || 0) / (1024 * 1024)];
-          const newPercent = [...prev.percent, memoryInfo.percent_used || memoryInfo.percentUsed || 0];
-          const newRSS = [...(prev.rss || []), memoryInfo.rss_mb || memoryInfo.rssMB || 0];
+          const newUsed = [...prev.used, memoryInfo.heapUsedMB || memoryInfo.heapUsedMB || 0];
+          const newTotal = [...prev.total, (memoryInfo.heapTotal || 0) / (1024 * 1024)];
+          const newPercent = [...prev.percent, memoryInfo.percentUsed || memoryInfo.percentUsed || 0];
+          const newRSS = [...(prev.rss || []), memoryInfo.rssMB || memoryInfo.rssMB || 0];
           
           // 데이터 개수 제한
           if (newLabels.length > historyLength) {

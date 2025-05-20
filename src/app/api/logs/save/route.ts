@@ -7,6 +7,9 @@ import { writeFile, mkdir } from 'fs/promises';
 import { join, dirname } from 'path';
 import { LogEntry } from '@/app/utils/log-utils';
 
+// output: 'export'를 사용할 때 필요한 설정
+export const dynamic = 'force-static';
+
 /**
  * 로그를 저장합니다.
  * 
