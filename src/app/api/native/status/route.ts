@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
 import nativeModule from '../../../../server/native';
 
-// output: 'export'를 사용할 때 필요한 설정
-export const dynamic = 'force-static';
+// dynamic 설정을 변경하여 API 라우트가 제대로 동작하도록 함
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
 
 // 네이티브 모듈 상태 조회
 export async function GET() {

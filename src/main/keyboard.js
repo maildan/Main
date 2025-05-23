@@ -77,6 +77,7 @@ let keyEventProcessTimer = null;
 let lastActiveApp = '';
 let lastWindowTitle = '';
 let isAppSwitching = false;
+let activeCheckTimer = null;
 
 // 디바운스 시간 최적화 (100ms에서 30ms로 감소)
 const DEBOUNCE_TIME = 30;
@@ -86,6 +87,24 @@ const MAX_QUEUE_SIZE = 20;
 
 // 기본 설정 가져오기 (현재 OS에 맞게)
 const currentOSConfig = PLATFORM_KEY_CONFIGS[process.platform] || PLATFORM_KEY_CONFIGS.win32;
+
+// 키 이벤트 처리 함수 (전역 스코프로 이동)
+function processKeyEventQueue() {
+  if (keyEventQueue.length === 0) {
+    return;
+  }
+  
+  try {
+    // 키 이벤트 처리 로직
+    while (keyEventQueue.length > 0) {
+      const event = keyEventQueue.shift();
+      // 여기서 실제 키 이벤트 처리 로직 구현
+      // 이벤트 타입, 키 코드 등을 기준으로 처리
+    }
+  } catch (error) {
+    console.error('키 이벤트 큐 처리 중 오류:', error);
+  }
+}
 
 /**
  * settings.json에서 앱 설정 가져오기
@@ -171,6 +190,121 @@ function updateAppTypingStats(appName, windowTitle, url, typingCount = 1, typing
   }
 }
 
+// IPC를 통한 키보드 이벤트 처리
+function setupKeyboardIpcHandlers() {
+  try {
+    // 기존 IPC 핸들러 제거 시도
+    try {
+      ipcMain.removeHandler('keyboard-event');
+      ipcMain.removeHandler('sendKeyboardEvent');
+      ipcMain.removeAllListeners('keyboard-event');
+      ipcMain.removeAllListeners('sendKeyboardEvent');
+      console.log('기존 키보드 IPC 핸들러가 제거되었습니다.');
+    } catch (error) {
+      console.log('키보드 IPC 핸들러 제거 시도 중:', error.message);
+    }
+
+    // 새 핸들러 등록
+    ipcMain.handle('keyboard-event', async (event, data) => {
+      if (!appState.isTracking) return { success: false, reason: 'tracking-disabled' };
+      
+      try {
+        debugLog(`IPC 키보드 이벤트 수신: ${JSON.stringify(data)}`);
+        
+        // 키 이벤트 큐에 추가
+        keyEventQueue.push({
+          key: data.key,
+          code: data.code || '',
+          timestamp: Date.now(),
+          type: data.type || 'keyDown',
+          ...(data.text && { text: data.text })
+        });
+        
+        // 디바운스 타이머 설정 (연속 입력 최적화)
+        clearTimeout(keyEventProcessTimer);
+        keyEventProcessTimer = setTimeout(processKeyEventQueue, DEBOUNCE_TIME);
+        
+        return { success: true };
+      } catch (error) {
+        console.error('키보드 이벤트 처리 오류:', error);
+        return { success: false, error: error.message };
+      }
+    });
+    
+    // 클라이언트에서 전송된 키 이벤트 처리
+    ipcMain.handle('sendKeyboardEvent', async (event, data) => {
+      try {
+        debugLog(`클라이언트에서 키 이벤트 수신: ${JSON.stringify(data)}`);
+        
+        // 키 이벤트 큐에 추가
+        keyEventQueue.push({
+          ...data,
+          timestamp: Date.now(),
+          fromRenderer: true
+        });
+        
+        // 디바운스 타이머 설정
+        clearTimeout(keyEventProcessTimer);
+        keyEventProcessTimer = setTimeout(processKeyEventQueue, DEBOUNCE_TIME);
+        
+        return { success: true };
+      } catch (error) {
+        console.error('클라이언트 키 이벤트 처리 오류:', error);
+        return { success: false, error: error.message };
+      }
+    });
+
+    // 일반 IPC 이벤트 핸들러 등록 (비동기 방식)
+    ipcMain.on('keyboard-event', (event, data) => {
+      try {
+        debugLog(`IPC 키보드 이벤트(on) 수신: ${JSON.stringify(data)}`);
+        
+        // 키 이벤트 큐에 추가
+        keyEventQueue.push({
+          key: data.key,
+          code: data.code || '',
+          timestamp: Date.now(),
+          type: data.type || 'keyDown',
+          ...(data.text && { text: data.text }),
+          fromIpcOn: true
+        });
+        
+        // 디바운스 타이머 설정
+        clearTimeout(keyEventProcessTimer);
+        keyEventProcessTimer = setTimeout(processKeyEventQueue, DEBOUNCE_TIME);
+      } catch (error) {
+        console.error('IPC 키보드 이벤트(on) 처리 오류:', error);
+      }
+    });
+    
+    // 추가 키보드 이벤트 핸들러 (대체 API)
+    ipcMain.on('sendKeyboardEvent', (event, data) => {
+      try {
+        debugLog(`대체 키보드 이벤트 API 사용: ${JSON.stringify(data)}`);
+        
+        // 키 이벤트 큐에 추가
+        keyEventQueue.push({
+          ...data,
+          timestamp: Date.now(),
+          fromRendererOn: true
+        });
+        
+        // 디바운스 타이머 설정
+        clearTimeout(keyEventProcessTimer);
+        keyEventProcessTimer = setTimeout(processKeyEventQueue, DEBOUNCE_TIME);
+      } catch (error) {
+        console.error('대체 키보드 API 이벤트 처리 오류:', error);
+      }
+    });
+
+    console.log('키보드 IPC 핸들러가 성공적으로 설정되었습니다.');
+    return true;
+  } catch (error) {
+    console.error('키보드 IPC 핸들러 설정 오류:', error);
+    return false;
+  }
+}
+
 /**
  * 키보드 이벤트 감지 로직 개선
  * - 중복 키 입력 처리 로직 추가
@@ -184,6 +318,9 @@ function setupKeyboardListener() {
 
     // 이미 등록된 단축키가 있으면 해제
     globalShortcut.unregisterAll();
+
+    // IPC 핸들러 등록
+    setupKeyboardIpcHandlers();
 
     // 현재 눌린 특수 키 추적 (개선된 버전)
     const pressedModifiers = {
@@ -199,14 +336,14 @@ function setupKeyboardListener() {
     keyEventProcessTimer = null;
     
     // 디바운스 시간 최적화 (중복 키 입력 방지)
-    const DEBOUNCE_TIME = 10; // 10ms 디바운스
+    const DEBOUNCE_TIME = 50; // ms
     const KEY_PRESS_COOLDOWN = 50; // 같은 키 재입력 대기 시간 (ms)
 
     // 마지막 키 이벤트 타임스탬프
-    lastKeyEventTime = Date.now();
+    let lastKeyEventTime = Date.now();
     
     // 활성 상태 체크 타이머
-    let activeCheckTimer = null;
+    activeCheckTimer = null;
     
     // 앱 전환 감지 변수
     lastActiveApp = '';
@@ -214,9 +351,13 @@ function setupKeyboardListener() {
     isAppSwitching = false;
     let appSwitchTimer = null;
     
-    // 처리된 키 추적을 위한 맵 (중복 방지)
-    const processedKeys = new Map();
+    // 이미 처리된 키 추적 (중복 처리 방지)
+    let processedKeys = new Map();
     
+    // 마지막으로 처리된 키와 카운트
+    let lastKeyPressed = '';
+    let keyPressCount = 0;
+
     // 한글 자모음 조합 상태 추적 개선
     const hangulState = {
       isComposing: false,
@@ -225,9 +366,19 @@ function setupKeyboardListener() {
       lastChar: '',
       composingKeys: new Set()
     };
+    
+    // 특수 키 목록 (처리하지 않을 키)
+    const SPECIAL_KEYS = [
+      'Alt', 'AltGraph', 'CapsLock', 'Control', 'Fn', 'FnLock', 
+      'Hyper', 'Meta', 'NumLock', 'ScrollLock', 'Shift', 'Super', 
+      'Tab', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 
+      'End', 'Home', 'PageDown', 'PageUp', 'Escape', 'F1', 'F2', 
+      'F3', 'F4', 'F5', 'F6', 'F7', 'F8', 'F9', 'F10', 'F11', 'F12'
+    ];
 
     // 플랫폼별 키 매핑 구성
     const getModifierKeyByPlatform = (key) => {
+      if (!key) return null;
       if (key === 'Alt' || key.toLowerCase() === 'alt') return 'alt';
       if (key === 'Control' || key.toLowerCase() === 'control' || key === 'ctrl') return 'ctrl';
       if (key === 'Shift' || key.toLowerCase() === 'shift') return 'shift';
@@ -235,6 +386,7 @@ function setupKeyboardListener() {
       return null;
     };
 
+    
     /**
      * 앱 전환 감지 함수 (개선된 버전)
      * @param {string} key - 입력된 키
@@ -339,6 +491,24 @@ function setupKeyboardListener() {
         const seenKeys = new Set();
         
         for (const keyEvent of keyEvents) {
+          // undefined 키는 무시 (text가 있으면 처리)
+          if (keyEvent.key === undefined && !keyEvent.text) {
+            debugLog('정의되지 않은 키 입력 무시: undefined');
+            continue;
+          }
+          
+          // 한글 조합 관련 이벤트는 모두 처리
+          if (keyEvent.isComposing || keyEvent.type === 'compositionstart' || 
+              keyEvent.type === 'compositionupdate' || keyEvent.type === 'compositionend') {
+            // 한글 조합 관련 이벤트에 특별 처리 추가
+            // 스페이스바 관련 처리 추가
+            if (keyEvent.key === ' ' || keyEvent.code === 'Space') {
+              keyEvent.text = ' '; // 스페이스를 명시적으로 공백으로 처리
+            }
+            uniqueEvents.push(keyEvent);
+            continue;
+          }
+        
           // 특수 키(수정자 키)는 항상 처리
           const isModifier = getModifierKeyByPlatform(keyEvent.key) !== null;
           
@@ -354,7 +524,12 @@ function setupKeyboardListener() {
         
         // 필터링된 이벤트 처리
         for (const keyEvent of uniqueEvents) {
-          const { key, shiftKey, ctrlKey, altKey, metaKey, timestamp } = keyEvent;
+          const { key, shiftKey, ctrlKey, altKey, metaKey, timestamp, isComposing } = keyEvent;
+          
+          // key가 undefined인 경우 처리하지 않음
+          if (key === undefined) {
+            continue;
+          }
           
           // 이미 처리된 키인지 확인 (타임스탬프로 구분)
           const keyId = `${key}-${timestamp}`;
@@ -392,13 +567,52 @@ function setupKeyboardListener() {
               '[': '{',
               ']': '}',
               ';': ':',
-              ' ': '"',
+              '': '"',
               ',': '<',
               '.': '>',
               '`': '~'
             };
             
             processedKey = shiftKeyMap[key] || key;
+          }
+          
+          // 한글 입력 이벤트 처리 - compositionupdate, compositionend 이벤트도 처리
+          if (isComposing) {
+            debugLog(`한글 입력 중: ${processedKey}`);
+            
+            try {
+              // 완성된 한글 문자인 경우만 카운트
+              if ((keyEvent.type === 'compositionend' || keyEvent.type === 'compositionupdate') && (keyEvent.text || keyEvent.key === ' ')) {
+                const processKeyInputFn = getProcessKeyInput();
+                if (processKeyInputFn) {
+                  // 스페이스바 처리 개선
+                  const textToProcess = keyEvent.key === ' ' ? ' ' : (keyEvent.text || '');
+                  
+                  processKeyInputFn({
+                    key: textToProcess,
+                    code: keyEvent.code || '',
+                    shiftKey,
+                    ctrlKey,
+                    altKey,
+                    metaKey,
+                    timestamp,
+                    isComposing: true,
+                    text: textToProcess
+                  });
+                  
+                  // 처리된 키 기록 (중복 방지)
+                  processedKeys.set(keyId, true);
+                  
+                  keyPressCount++;
+                  lastKeyPressed = keyEvent.text;
+                  debugLog(`한글 처리: ${keyEvent.text}, 총 키 입력 수: ${keyPressCount}`);
+                }
+              }
+            } catch (error) {
+              console.error('한글 키 처리 오류:', error);
+            }
+            
+            continue; // 다음 키 처리
           }
           
           // 특수 키 처리 최적화
@@ -426,10 +640,12 @@ function setupKeyboardListener() {
                   processedKeys.delete(keyId);
                 }, 60000);
                 
-                // 키 카운터 및 마지막 키 업데이트
-                keyPressCount++;
-                lastKeyPressed = processedKey;
-                debugLog(`총 키 입력 수: ${keyPressCount}, 마지막 키: ${lastKeyPressed}`);
+                // 유효한 키 입력만 카운트
+                if (processedKey && typeof processedKey === 'string' && processedKey.length > 0) {
+                  keyPressCount++;
+                  lastKeyPressed = processedKey;
+                  debugLog(`총 키 입력 수: ${keyPressCount}, 마지막 키: ${lastKeyPressed}`);
+                }
               }
             } catch (error) {
               console.error('키 처리 오류:', error);
@@ -511,6 +727,10 @@ function setupKeyboardListener() {
         
         // 키 입력 이벤트 핸들러 정의
         window._loopKeydownHandler = (e) => {
+          // 구글 문서에서 특별 처리
+          const isGoogleDocs = window.location.href.includes('docs.google.com');
+          
+          // 이벤트 전송
           window.electronAPI.sendKeyboardEvent({
             key: e.key,
             code: e.code,
@@ -518,8 +738,14 @@ function setupKeyboardListener() {
             altKey: e.altKey,
             ctrlKey: e.ctrlKey,
             metaKey: e.metaKey,
-            shiftKey: e.shiftKey
+            shiftKey: e.shiftKey,
+            isGoogleDocs
           });
+          
+          // 구글 문서에서는 콘솔에 추가 디버깅 메시지
+          if (isGoogleDocs) {
+            console.log('구글 문서 키 이벤트 감지:', e.key);
+          }
         };
         
         // 한글 조합 이벤트 핸들러 정의
@@ -669,65 +895,6 @@ function setupKeyboardListener() {
       
       debugLog('MacOS 특화 키보드 이벤트 설정 완료');
     };
-
-    // IPC를 통한 키보드 이벤트 처리
-    ipcMain.handle('keyboard-event', async (event, data) => {
-      if (!appState.isTracking) return { success: false, reason: 'tracking-disabled' };
-      
-      try {
-        debugLog(`IPC 키보드 이벤트 수신: ${JSON.stringify(data)}`);
-        
-        // 키 이벤트 큐에 추가
-        keyEventQueue.push({
-          key: data.key,
-          code: data.code || '',
-          timestamp: Date.now(),
-          type: data.type || 'keyDown',
-          ...(data.text && { text: data.text })
-        });
-        
-        // 디바운스 타이머 설정 (연속 입력 최적화)
-        clearTimeout(keyEventProcessTimer);
-        keyEventProcessTimer = setTimeout(processKeyEventQueue, DEBOUNCE_TIME);
-        
-        return { success: true };
-      } catch (error) {
-        console.error('키보드 이벤트 처리 오류:', error);
-        return { success: false, error: error.message };
-      }
-    });
-    
-    // 클라이언트에서 전송된 키 이벤트 처리
-    ipcMain.handle('sendKeyboardEvent', async (event, data) => {
-      try {
-        debugLog(`클라이언트에서 키 이벤트 수신: ${JSON.stringify(data)}`);
-        
-        // 키 이벤트 큐에 추가
-        keyEventQueue.push({
-          ...data,
-          timestamp: Date.now(),
-          fromRenderer: true
-        });
-        
-        // 디바운스 타이머 설정
-        clearTimeout(keyEventProcessTimer);
-        keyEventProcessTimer = setTimeout(processKeyEventQueue, DEBOUNCE_TIME);
-        
-        return { success: true };
-      } catch (error) {
-        console.error('클라이언트 키 이벤트 처리 오류:', error);
-        return { success: false, error: error.message };
-      }
-    });
-
-    // 한글 조합 상태 확인 IPC
-    ipcMain.handle('get-hangul-status', () => {
-      return { 
-        isComposing: HANGUL_STATUS.isComposing,
-        lastComposedText: HANGUL_STATUS.lastComposedText,
-        intermediateChars: HANGUL_STATUS.intermediateChars
-      };
-    });
 
     // 애플리케이션 전체 단축키 등록
     registerGlobalShortcuts();
@@ -907,5 +1074,6 @@ function simulateKeyPress(key) {
 module.exports = {
   setupKeyboardListener,
   registerGlobalShortcuts,
-  simulateKeyPress // 테스트용 함수 추가
+  simulateKeyPress, // 테스트용 함수 추가
+  setupKeyboardIpcHandlers, // 이 함수 내보내기 추가
 };

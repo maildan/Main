@@ -143,6 +143,14 @@ function register() {
       
       console.debug(`창 모드 적용: ${mode}`);
       
+      // 모드 적용 전에 즉시 응답 전송 (UI 반응성 향상)
+      event.reply('window-mode-change-result', { 
+        success: true, 
+        status: 'applying',
+        message: '창 모드 적용 중...'
+      });
+      
+      // 창 모드 적용
       if (mode === 'fullscreen') {
         mainWindow.setFullScreen(true);
       } else if (mode === 'maximized') {
@@ -156,7 +164,12 @@ function register() {
       // 설정 저장
       const success = saveSettings({ windowMode: mode });
       
-      event.reply('window-mode-change-result', { success });
+      // 변경 완료 알림
+      mainWindow.webContents.send('window-mode-applied', { 
+        mode,
+        success
+      });
+      
     } catch (error) {
       console.error('윈도우 모드 변경 중 오류:', error);
       event.reply('window-mode-change-result', { success: false, error: error.message });

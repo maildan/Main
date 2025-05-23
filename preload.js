@@ -1,374 +1,126 @@
+// preload.js
+console.log('Electron preload 스크립트가 로드되었습니다.');
+
 const { contextBridge, ipcRenderer } = require('electron');
 
-// 안전한 IPC 통신을 위한 API 노출
-contextBridge.exposeInMainWorld('electronAPI', {
-  onTypingStatsUpdate: (callback) => {
-    if (!callback || typeof callback !== 'function') {
-      console.error('유효한 콜백 함수가 필요합니다');
-      return () => {};
-    }
+// 개발 환경인지 확인
+const isDev = process.env.NODE_ENV === 'development';
+console.log(`현재 환경: ${isDev ? '개발' : '프로덕션'}`);
 
-    const handler = (_event, data) => {
-      console.log('타이핑 통계 업데이트 수신:', data);
-      callback(data);
-    };
-    
-    ipcRenderer.on('typing-stats-update', handler);
-    
-    return () => {
-      ipcRenderer.removeListener('typing-stats-update', handler);
-    };
-  },
-  
-  startTracking: () => {
-    console.log('모니터링 시작 요청');
-    ipcRenderer.send('start-tracking');
-  },
-  
-  stopTracking: () => {
-    console.log('모니터링 중지 요청');
-    ipcRenderer.send('stop-tracking');
-  },
-  
-  saveStats: (content) => {
-    console.log('통계 저장 요청:', content);
-    ipcRenderer.send('save-stats', content);
-  },
-  
-  // 현재 브라우저 정보 가져오기
-  getCurrentBrowserInfo: () => {
-    return new Promise((resolve) => {
-      ipcRenderer.once('current-browser-info', (_event, data) => {
-        console.log('브라우저 정보 수신:', data);
-        resolve(data);
-      });
-      ipcRenderer.send('get-current-browser-info');
-    });
-  },
+// 키보드 이벤트를 위한 전역 변수
+let _loopKeydownHandler = null;
 
-  // 디버그 정보 가져오기
-  getDebugInfo: () => {
-    return new Promise((resolve) => {
-      ipcRenderer.once('debug-info', (_event, data) => {
-        console.log('디버그 정보 수신:', data);
-        resolve(data);
-      });
-      ipcRenderer.send('get-debug-info');
-    });
-  },
-
-  // 나머지 API 메서드들...
-  onStatsSaved: (callback) => {
-    if (!callback || typeof callback !== 'function') return () => {};
-    const handler = (_event, data) => callback(data);
-    ipcRenderer.on('stats-saved', handler);
-    return () => ipcRenderer.removeListener('stats-saved', handler);
-  },
-
-  // 키보드 이벤트 전송 API
-  sendKeyboardEvent: (eventData) => {
-    console.log('키보드 이벤트 전송:', eventData);
-    return ipcRenderer.invoke('sendKeyboardEvent', eventData);
-  },
+// DOM 로드 후 실행될 코드
+window.addEventListener('DOMContentLoaded', () => {
+  console.log('DOM 콘텐츠가 로드되었습니다. 키보드 이벤트 핸들러 설정 중...');
   
-  // 한글 자모음 조합 상태 확인
-  getHangulStatus: () => {
-    return ipcRenderer.invoke('get-hangul-status');
-  },
-  
-  // 키보드 이벤트 직접 테스트 (디버깅용)
-  testKeyboardInput: (key) => {
-    console.log('키보드 입력 테스트:', key);
-    return ipcRenderer.invoke('test-keyboard-input', key);
-  },
-  
-  // 한글 입력 테스트
-  testHangulInput: async (text) => {
-    console.log('한글 입력 테스트:', text);
-    
-    // 테스트 설정
-    const testOptions = {
-      text: text || '안녕하세요', // 테스트할 텍스트
-      durationSec: 5,            // 테스트 기간 (초)
-      measureWpm: true,          // WPM 측정 여부
-      measureAccuracy: true      // 정확도 측정 여부
-    };
-    
-    try {
-      // 한글 입력 테스트 요청
-      const result = await ipcRenderer.invoke('test-hangul-input', testOptions);
-      
-      if (result.success) {
-        console.log('한글 입력 테스트 성공:', result);
-        return {
-          success: true,
-          keystrokes: result.keystrokes,
-          duration: result.duration,
-          wpm: result.wpm,
-          accuracy: result.accuracy
-        };
-      } else {
-        console.error('한글 입력 테스트 실패:', result.error);
-        return {
-          success: false,
-          error: result.error
-        };
+  // 키보드 이벤트 핸들러 설정 (contextBridge가 완료된 후 실행되도록 지연)
+  setTimeout(() => {
+    _loopKeydownHandler = function(event) {
+      try {
+        // ipcRenderer를 직접 사용하여 키보드 이벤트 전송 (contextBridge에 의존하지 않음)
+        ipcRenderer.send('keyboard-event', {
+          key: event.key,
+          code: event.code,
+          ctrlKey: event.ctrlKey,
+          altKey: event.altKey,
+          shiftKey: event.shiftKey,
+          metaKey: event.metaKey,
+          timestamp: Date.now(),
+          type: 'keyDown'
+        });
+        return true;
+      } catch (err) {
+        console.error('키보드 이벤트 처리 오류:', err);
+        return false;
       }
-    } catch (error) {
-      console.error('한글 입력 테스트 오류:', error);
-      return {
-        success: false,
-        error: error.message || '알 수 없는 오류'
-      };
-    }
-  },
-
-  // 한글 자모 분해 헬퍼 함수
-  decomposeHangul: (char) => {
-    // 한글 유니코드 범위 체크
-    if (!/^[가-힣]$/.test(char)) {
-      return [char]; // 한글이 아니면 그대로 반환
-    }
-    
-    // 한글 유니코드 값 계산
-    const code = char.charCodeAt(0) - 0xAC00;
-    
-    // 초성, 중성, 종성 추출
-    const jong = code % 28;
-    const jung = ((code - jong) / 28) % 21;
-    const cho = Math.floor((code / 28) / 21);
-    
-    // 자모음 배열
-    const choList = ['ㄱ', 'ㄲ', 'ㄴ', 'ㄷ', 'ㄸ', 'ㄹ', 'ㅁ', 'ㅂ', 'ㅃ', 'ㅅ', 'ㅆ', 'ㅇ', 'ㅈ', 'ㅉ', 'ㅊ', 'ㅋ', 'ㅌ', 'ㅍ', 'ㅎ'];
-    const jungList = ['ㅏ', 'ㅐ', 'ㅑ', 'ㅒ', 'ㅓ', 'ㅔ', 'ㅕ', 'ㅖ', 'ㅗ', 'ㅘ', 'ㅙ', 'ㅚ', 'ㅛ', 'ㅜ', 'ㅝ', 'ㅞ', 'ㅟ', 'ㅠ', 'ㅡ', 'ㅢ', 'ㅣ'];
-    const jongList = ['', 'ㄱ', 'ㄲ', 'ㄳ', 'ㄴ', 'ㄵ', 'ㄶ', 'ㄷ', 'ㄹ', 'ㄺ', 'ㄻ', 'ㄼ', 'ㄽ', 'ㄾ', 'ㄿ', 'ㅀ', 'ㅁ', 'ㅂ', 'ㅄ', 'ㅅ', 'ㅆ', 'ㅇ', 'ㅈ', 'ㅊ', 'ㅋ', 'ㅌ', 'ㅍ', 'ㅎ'];
-    
-    // 디버그용 출력
-    console.log(`한글 분해: ${char} → 초성: ${choList[cho]}, 중성: ${jungList[jung]}, 종성: ${jongList[jong]}`);
-    
-    // 중간 조합 과정용 배열 반환
-    const result = [];
-    
-    // 초성만 있는 상태
-    result.push(choList[cho]);
-    
-    // 초성+중성 있는 상태
-    const choJung = String.fromCharCode(0xAC00 + cho * 21 * 28 + jung * 28);
-    result.push(choJung);
-    
-    // 종성이 있으면 추가
-    if (jong > 0) {
-      const complete = char;
-      result.push(complete);
-    }
-    
-    return result;
-  },
-
-  // 설정 관련 API
-  saveSettings: (settings) => {
-    console.log('설정 저장 요청:', settings);
-    return new Promise((resolve) => {
-      ipcRenderer.once('settings-saved', (_event, result) => {
-        resolve(result);
-      });
-      ipcRenderer.send('save-settings', settings);
-    });
-  },
-  
-  loadSettings: () => {
-    return new Promise((resolve) => {
-      ipcRenderer.once('settings-loaded', (_event, data) => {
-        console.log('설정 로드 수신:', data);
-        resolve(data);
-      });
-      
-      ipcRenderer.send('load-settings');
-    });
-  },
-  
-  setDarkMode: (enabled) => {
-    console.log('다크 모드 설정 요청:', enabled);
-    return new Promise((resolve) => {
-      ipcRenderer.once('dark-mode-changed', (_event, result) => {
-        resolve(result);
-      });
-      ipcRenderer.send('set-dark-mode', enabled);
-    });
-  },
-  
-  /**
-   * 창 모드 설정
-   * @param {string} mode - 창 모드 ('windowed', 'fullscreen', 'fullscreen-auto-hide')
-   * @returns {Promise<object>} - 설정 결과
-   */
-  setWindowMode: (mode) => {
-    console.log('창 모드 설정 요청:', mode);
-    return new Promise((resolve) => {
-      // 응답 핸들러 등록
-      ipcRenderer.once('window-mode-changed', (_event, result) => {
-        console.log('창 모드 변경 결과:', result);
-        
-        // 이벤트 발생
-        if (result.success) {
-          // 다른 컴포넌트에 알리기 위해 커스텀 이벤트 발생
-          window.dispatchEvent(new CustomEvent('window-mode-changed', { 
-            detail: result.mode 
-          }));
-        }
-        
-        resolve(result);
-      });
-      
-      // 요청 보내기
-      ipcRenderer.send('set-window-mode', mode);
-    });
-  },
-  
-  // 창 모드 상태 확인 (Promise 반환으로 업데이트)
-  getWindowMode: () => {
-    return new Promise((resolve) => {
-      ipcRenderer.once('window-mode-status', (_event, result) => {
-        console.log('창 모드 상태:', result);
-        resolve(result.mode || 'windowed');
-      });
-      ipcRenderer.send('get-window-mode');
-    });
-  },
-  
-  windowControl: (command) => {
-    const validCommands = ['minimize', 'maximize', 'close', 'showHeader', 'hideHeader'];
-    if (!validCommands.includes(command)) {
-      console.error('유효하지 않은 창 제어 명령:', command);
-      return;
-    }
-    console.log('창 제어 요청:', command);
-    ipcRenderer.send('window-control', command);
-  },
-
-  /**
-   * 자동 시작 설정 확인
-   * @param {boolean} shouldAutoStart - 자동 시작 여부
-   */
-  checkAutoStart: (shouldAutoStart) => {
-    console.log('자동 시작 설정 확인:', shouldAutoStart);
-    ipcRenderer.send('check-auto-start', shouldAutoStart);
-  },
-
-  /**
-   * 자동 모니터링 시작 이벤트 수신
-   * @param {Function} callback - 자동 모니터링 시작 알림 콜백 함수
-   * @returns {Function} - 이벤트 리스너 제거 함수
-   */
-  onAutoTrackingStarted: (callback) => {
-    if (!callback || typeof callback !== 'function') {
-      console.error('유효한 콜백 함수가 필요합니다');
-      return () => {};
-    }
-
-    // 이벤트 핸들러 정의
-    const handler = (_event, data) => {
-      console.log('자동 모니터링 시작됨:', data);
-      callback(data);
     };
     
     // 이벤트 리스너 등록
-    ipcRenderer.on('auto-tracking-started', handler);
+    document.removeEventListener('keydown', _loopKeydownHandler);
+    document.addEventListener('keydown', _loopKeydownHandler);
     
-    // 이벤트 리스너 제거 함수 반환
-    return () => {
-      ipcRenderer.removeListener('auto-tracking-started', handler);
-    };
-  },
-
-  /**
-   * 트레이에서 특정 탭으로 이동
-   * @param {Function} callback - 탭 전환 콜백 함수
-   * @returns {Function} - 이벤트 리스너 제거 함수
-   */
-  onSwitchTab: (callback) => {
-    if (!callback || typeof callback !== 'function') {
-      console.error('유효한 콜백 함수가 필요합니다');
-      return () => {};
-    }
-
-    const handler = (_event, tabName) => {
-      console.log('탭 전환 요청 수신:', tabName);
-      callback(tabName);
-      
-      // 탭 전환 완료 알림
-      setTimeout(() => {
-        ipcRenderer.send('switch-to-tab-handled', tabName);
-      }, 100);
-    };
-
-    ipcRenderer.on('switch-to-tab', handler);
-
-    return () => {
-      ipcRenderer.removeListener('switch-to-tab', handler);
-    };
-  },
-
-  /**
-   * 통계 저장 다이얼로그 열기 요청
-   * @param {Function} callback - 저장 다이얼로그 열기 콜백
-   * @returns {Function} - 이벤트 리스너 제거 함수
-   */
-  onOpenSaveStatsDialog: (callback) => {
-    if (!callback || typeof callback !== 'function') {
-      console.error('유효한 콜백 함수가 필요합니다');
-      return () => {};
-    }
-
-    const handler = () => {
-      console.log('통계 저장 다이얼로그 열기 요청 수신');
-      callback();
-    };
-
-    ipcRenderer.on('open-save-stats-dialog', handler);
-
-    return () => {
-      ipcRenderer.removeListener('open-save-stats-dialog', handler);
-    };
-  },
-
-  /**
-   * 통계 업데이트 요청
-   */
-  requestStatsUpdate: () => {
-    console.log('통계 업데이트 요청');
-    ipcRenderer.send('request-stats-update');
-  },
-
-  /**
-   * 미니뷰 통계 업데이트 이벤트 수신
-   * @param {Function} callback - 미니뷰 통계 업데이트 콜백
-   * @returns {Function} - 이벤트 리스너 제거 함수
-   */
-  onMiniViewStatsUpdate: (callback) => {
-    if (!callback || typeof callback !== 'function') {
-      console.error('유효한 콜백 함수가 필요합니다');
-      return () => {};
-    }
-
-    const handler = (_event, data) => {
-      callback(data);
-    };
-    
-    ipcRenderer.on('mini-view-stats-update', handler);
-    
-    return () => {
-      ipcRenderer.removeListener('mini-view-stats-update', handler);
-    };
-  },
-  
-  /**
-   * 미니뷰 토글 (열기/닫기)
-   */
-  toggleMiniView: () => {
-    ipcRenderer.send('toggle-mini-view');
-  }
+    console.log('DOM 키보드 이벤트 핸들러 설정 완료');
+  }, 100); // contextBridge 설정이 완료된 후 실행될 수 있도록 약간의 지연 추가
 });
 
-// 디버그용 로그
-console.log('Electron preload 스크립트가 로드되었습니다.');
+// contextBridge API 설정
+try {
+  // IPC 통신 채널 설정 - contextBridge를 통해 안전하게 노출
+  contextBridge.exposeInMainWorld('electron', {
+    // 키보드 이벤트 핸들러
+    sendKeyboardEvent: (data) => {
+      console.log('키보드 이벤트 전송:', data);
+      
+      // 안전한 방식으로 전송
+      return ipcRenderer.invoke('keyboard-event', data)
+        .catch(err => {
+          console.warn('keyboard-event 채널 호출 실패, 대체 채널 시도:', err);
+          return ipcRenderer.invoke('sendKeyboardEvent', data);
+        });
+    },
+    
+    // 표준 키보드 이벤트 핸들러
+    sendKeyEvent: (data) => {
+      return ipcRenderer.send('keyboard-event', data);
+    },
+    
+    // 윈도우 컨트롤
+    windowControl: (command, params) => {
+      return ipcRenderer.send('window-control', command, params);
+    },
+    
+    // 일반 IPC 통신
+    send: (channel, data) => {
+      if (typeof channel !== 'string' || !channel.startsWith('loop:')) {
+        console.error('보안상의 이유로 "loop:" 접두사가 없는 채널은 허용되지 않습니다');
+        return;
+      }
+      ipcRenderer.send(channel, data);
+    },
+    
+    // 응답을 기다리는 IPC 통신
+    invoke: (channel, data) => {
+      if (typeof channel !== 'string' || !channel.startsWith('loop:')) {
+        console.error('보안상의 이유로 "loop:" 접두사가 없는 채널은 허용되지 않습니다');
+        return Promise.reject(new Error('유효하지 않은 채널'));
+      }
+      return ipcRenderer.invoke(channel, data);
+    },
+    
+    // IPC 이벤트 리스너
+    on: (channel, callback) => {
+      if (typeof channel !== 'string' || !channel.startsWith('loop:')) {
+        console.error('보안상의 이유로 "loop:" 접두사가 없는 채널은 허용되지 않습니다');
+        return;
+      }
+      ipcRenderer.on(channel, (_, ...args) => callback(...args));
+    },
+    
+    // 테스트용 메서드
+    testConnection: () => {
+      return Promise.resolve({ success: true, message: 'API 연결 성공!' });
+    }
+  });
+
+  // 추가 키보드 이벤트 핸들링을 위한 전역 API 설정 (호환성 유지)
+  contextBridge.exposeInMainWorld('electronAPI', {
+    sendKeyboardEvent: (data) => {
+      return ipcRenderer.invoke('sendKeyboardEvent', data)
+        .catch(err => {
+          console.warn('electronAPI.sendKeyboardEvent 오류:', err);
+          return ipcRenderer.invoke('keyboard-event', data);
+        });
+    },
+    
+    // 테스트용 메서드
+    isAPIAvailable: () => true
+  });
+
+  console.log('contextBridge API가 성공적으로 설정되었습니다.');
+} catch (error) {
+  console.error('contextBridge API 설정 중 오류 발생:', error);
+  console.warn('contextIsolation이 비활성화되어 있을 수 있습니다. 보안을 위해 활성화하는 것이 좋습니다.');
+}
+
+console.log('Electron preload 스크립트가 완전히 로드되었습니다.');

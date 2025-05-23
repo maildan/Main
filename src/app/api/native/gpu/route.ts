@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
 import nativeModule from '../../../../server/native';
 
-// output: 'export'를 사용할 때 필요한 설정
-export const dynamic = 'force-static';
+// dynamic 설정을 변경하여 API 라우트가 제대로 동작하도록 함
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
 
 export async function GET() {
   try {
@@ -54,12 +55,7 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
 
-    // 런타임에 서버 측에서만 모듈 가져오기
-    const nativeModule = process.env.NODE_ENV === 'development'
-      ? (await import('../../../../server/native')).default
-      : null;
-
-    // 네이티브 모듈이 로드되었는지 확인
+    // 런타임에 서버 측에서만 모듈 가져오기 (이미 import된 모듈 사용)
     if (!nativeModule) {
       return NextResponse.json({
         success: false,

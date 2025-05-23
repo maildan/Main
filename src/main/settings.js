@@ -108,7 +108,127 @@ function saveSettings(newSettings = null) {
  */
 function applyWindowMode(mode) {
   if (!appState.mainWindow) return;
-  
+  function applyWindowMode(mode) {
+    if (!appState.mainWindow) return false;
+    
+    // 실행 여부를 명시적으로 반환
+    try {
+      // (기존 코드...)
+      
+      // 상태 업데이트 - 렌더러에 통지
+      if (appState.mainWindow && appState.mainWindow.webContents) {
+        // 웹 컨텐츠에 창 모드 변경 이벤트 전송
+        appState.mainWindow.webContents.send('window-mode-status', {
+          mode: mode,
+          autoHideToolbar: appState.autoHideToolbar,
+          success: true // 성공 플래그 추가
+        });
+      }
+      
+      return true;
+    } catch (error) {
+      console.error('창 모드 변경 중 오류:', error);
+      // 실패 시 렌더러에 통지
+      if (appState.mainWindow && appState.mainWindow.webContents) {
+        appState.mainWindow.webContents.send('window-mode-status', {
+          mode: mode,
+          error: error.message,
+          success: false
+        });
+      }
+      return false;
+    }
+  }function applyWindowMode(mode) {
+    if (!appState.mainWindow) return false;
+    
+    // 실행 여부를 명시적으로 반환
+    try {
+      // (기존 코드...)
+      
+      // 상태 업데이트 - 렌더러에 통지
+      if (appState.mainWindow && appState.mainWindow.webContents) {
+        // 웹 컨텐츠에 창 모드 변경 이벤트 전송
+        appState.mainWindow.webContents.send('window-mode-status', {
+          mode: mode,
+          autoHideToolbar: appState.autoHideToolbar,
+          success: true // 성공 플래그 추가
+        });
+      }
+      
+      return true;
+    } catch (error) {
+      console.error('창 모드 변경 중 오류:', error);
+      // 실패 시 렌더러에 통지
+      if (appState.mainWindow && appState.mainWindow.webContents) {
+        appState.mainWindow.webContents.send('window-mode-status', {
+          mode: mode,
+          error: error.message,
+          success: false
+        });
+      }
+      return false;
+    }
+  }function applyWindowMode(mode) {
+    if (!appState.mainWindow) return false;
+    
+    // 실행 여부를 명시적으로 반환
+  try {
+      // (기존 코드...)
+      
+      // 상태 업데이트 - 렌더러에 통지
+      if (appState.mainWindow && appState.mainWindow.webContents) {
+        // 웹 컨텐츠에 창 모드 변경 이벤트 전송
+        appState.mainWindow.webContents.send('window-mode-status', {
+          mode: mode,
+          autoHideToolbar: appState.autoHideToolbar,
+          success: true // 성공 플래그 추가
+        });
+      }
+      
+      return true;
+    } catch (error) {
+      console.error('창 모드 변경 중 오류:', error);
+      // 실패 시 렌더러에 통지
+      if (appState.mainWindow && appState.mainWindow.webContents) {
+        appState.mainWindow.webContents.send('window-mode-status', {
+          mode: mode,
+          error: error.message,
+          success: false
+        });
+      }
+      return false;
+    }
+  }function applyWindowMode(mode) {
+    if (!appState.mainWindow) return false;
+    
+    // 실행 여부를 명시적으로 반환
+    try {
+      // (기존 코드...)
+      
+      // 상태 업데이트 - 렌더러에 통지
+      if (appState.mainWindow && appState.mainWindow.webContents) {
+        // 웹 컨텐츠에 창 모드 변경 이벤트 전송
+        appState.mainWindow.webContents.send('window-mode-status', {
+          mode: mode,
+          autoHideToolbar: appState.autoHideToolbar,
+          success: true // 성공 플래그 추가
+        });
+      }
+      
+      return true;
+    } catch (error) {
+      console.error('창 모드 변경 중 오류:', error);
+      // 실패 시 렌더러에 통지
+      if (appState.mainWindow && appState.mainWindow.webContents) {
+        appState.mainWindow.webContents.send('window-mode-status', {
+          mode: mode,
+          error: error.message,
+          success: false
+        });
+      }
+      return false;
+    }
+  }
   debugLog('창 모드 적용:', mode);
   
   switch (mode) {

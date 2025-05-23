@@ -65,33 +65,40 @@ function formatTime(seconds) {
 }
 
 /**
- * 안전하게 모듈 로드
- * @param {string} modulePath - 로드할 모듈 경로
- * @param {Object} fallbackModule - 대체 모듈 (로드 실패 시 사용)
- * @returns {Object} 로드된 모듈 또는 대체 모듈
+ * 파일 경로 안전하게 생성
+ * @param {string} basePath 기본 경로
+ * @param {string[]} segments 경로 세그먼트
+ * @returns {string} 결합된 경로
  */
-function safeRequire(modulePath, fallbackModule = {}) {
+function safePath(basePath, ...segments) {
   try {
-    const module = require(modulePath);
-
-    // DLL이나 네이티브 모듈 로딩 시도인 경우 추가 확인
-    if (modulePath.endsWith('.node') || modulePath.endsWith('.dll')) {
-      // 유효한 JS 객체인지 확인 (네이티브 모듈은 객체여야 함)
-      if (typeof module !== 'object') {
-        throw new Error(`유효하지 않은 네이티브 모듈 형식: ${typeof module}`);
-      }
-    }
-
-    return module;
+    // undefined, null 등을 빈 문자열로 대체
+    const safeBase = basePath || '';
+    const safeSegments = segments.map(s => s || '');
+    
+    return path.join(safeBase, ...safeSegments);
   } catch (error) {
-    debugLog(`모듈 '${modulePath}' 로드 실패: ${error.message}`);
-    
-    // 스택 트레이스 로깅 (디버깅용)
-    if (error.stack) {
-      debugLog(`Require stack:\n${error.stack}`);
-    }
-    
-    return fallbackModule;
+    console.error('경로 생성 오류:', error);
+    return '';
+  }
+}
+
+/**
+ * 모듈 안전하게 require
+ * @param {string} modulePath 모듈 경로
+ * @returns {any} 모듈 또는 null
+ */
+function safeRequire(modulePath) {
+  if (!modulePath) {
+    console.warn('모듈 경로가 지정되지 않았습니다.');
+    return null;
+  }
+  
+  try {
+    return require(modulePath);
+  } catch (error) {
+    console.warn(`모듈을 로드할 수 없습니다 (${modulePath}):`, error.message);
+    return null;
   }
 }
 
@@ -141,6 +148,7 @@ async function waitForServer(host = 'localhost', port = 3000, timeout = 30000, i
 module.exports = {
   debugLog,
   formatTime,
+  safePath,
   safeRequire,
   isServerRunning,
   waitForServer

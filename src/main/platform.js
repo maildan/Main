@@ -10,6 +10,10 @@ const os = require('os');
 const path = require('path');
 const fs = require('fs');
 const { debugLog } = require('./utils');
+const { EventEmitter } = require('events');
+
+// 플랫폼 이벤트 버스 (테마 변경 등의 이벤트를 처리)
+const platformEvents = new EventEmitter();
 
 // 플랫폼 식별자
 const PLATFORMS = {
@@ -337,6 +341,65 @@ function getCommandModifier() {
   return isMacOS() ? 'Command' : 'Control';
 }
 
+/**
+ * 플랫폼 초기화 함수
+ * 플랫폼 별 설정을 초기화하고 필요한 디렉토리를 생성합니다.
+ * @returns {boolean} 초기화 성공 여부
+ */
+function initialize() {
+  try {
+    debugLog('플랫폼 모듈 초기화 중...');
+    
+    // 현재 플랫폼 확인
+    const platform = getCurrentPlatform();
+    debugLog(`감지된 플랫폼: ${platform}`);
+    
+    // 필요한 디렉토리 생성
+    const paths = PLATFORM_PATHS[platform];
+    
+    // 로그 디렉토리 확인 및 생성
+    if (paths.logs && !fs.existsSync(paths.logs)) {
+      try {
+        fs.mkdirSync(paths.logs, { recursive: true });
+        debugLog(`로그 디렉토리 생성됨: ${paths.logs}`);
+      } catch (err) {
+        debugLog(`로그 디렉토리 생성 실패: ${err.message}`);
+      }
+    }
+    
+    // 테마 감지
+    const isDark = nativeTheme.shouldUseDarkColors;
+    debugLog(`시스템 테마: ${isDark ? '다크' : '라이트'}`);
+    
+    // 테마 변경 이벤트 리스너 설정
+    nativeTheme.on('updated', () => {
+      const newTheme = nativeTheme.shouldUseDarkColors ? '다크' : '라이트';
+      debugLog(`시스템 테마 변경됨: ${newTheme}`);
+      
+      // 이벤트를 발생시켜 다른 모듈에 알림
+      platformEvents.emit('theme:changed', { isDark: nativeTheme.shouldUseDarkColors });
+    });
+    
+    // 개발 모드일 경우 추가 설정
+    if (process.env.NODE_ENV === 'development') {
+      console.log('개발 모드: 추가 설정 적용 중...');
+      
+      // 개발 모드에서는 보안 제한 완화
+      if (app && app.commandLine) {
+        app.commandLine.appendSwitch('disable-web-security');
+        app.commandLine.appendSwitch('allow-insecure-localhost');
+        app.commandLine.appendSwitch('ignore-certificate-errors');
+      }
+    }
+    
+    debugLog('플랫폼 초기화 완료');
+    return true;
+  } catch (error) {
+    console.error('플랫폼 초기화 실패:', error);
+    return false;
+  }
+}
+
 module.exports = {
   PLATFORMS,
   getCurrentPlatform,
@@ -355,4 +418,6 @@ module.exports = {
   isDarkMode,
   setAppDarkMode,
   getCommandModifier,
+  initialize,
+  platformEvents
 };

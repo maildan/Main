@@ -2,9 +2,11 @@
   "name": "loop",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
   "main": "src/main/main.js",
   "scripts": {
-    "dev": "concurrently -n \"next,electron\" -c \"blue,green\" \"next dev\" \"wait-on -l tcp:3000 && cross-env NODE_ENV=development electron --expose-gc --js-flags=\\\"--expose-gc\\\" .\"",
+    "dev": "concurrently -n \"next,electron\" -c \"blue,green\" \"next dev -p 3000\" \"wait-on -l tcp:3000 && cross-env NODE_ENV=development electron --expose-gc --js-flags=\\\"--expose-gc\\\" .\"",
+    "dev:consistent": "concurrently -n \"next,electron\" -c \"blue,green\" \"next dev -p 3000\" \"wait-on -l tcp:3000 && cross-env NODE_ENV=development LOOP_DEBUG=true MONGODB_URI='mongodb+srv://user:password@example.mongodb.net' SUPABASE_URL='https://example.supabase.co' SUPABASE_ANON_KEY='examplekey' electron --expose-gc --js-flags=\\\"--expose-gc\\\" .\"",
     "start": "concurrently \"next start\" \"electron --expose-gc --js-flags=\\\"--expose-gc\\\" .\"",
     "start:dist": "cross-env NODE_ENV=production electron --expose-gc --js-flags=\\\"--expose-gc\\\" .",
     "build": "cross-env NODE_ENV=production next build && node scripts/prepare-electron-dist.js",
@@ -51,6 +53,11 @@
     "dev:debug": "concurrently -n \"next,electron\" -c \"blue,green\" \"next dev\" \"wait-on -l tcp:3000 && cross-env NODE_ENV=development ELECTRON_DEBUG=true electron --inspect=9229 --expose-gc --js-flags=\\\"--expose-gc\\\" .\""
   },
   "dependencies": {
+    "@babel/core": "^7.27.1",
+    "@babel/plugin-transform-runtime": "^7.27.1",
+    "@babel/preset-env": "^7.27.2",
+    "@babel/preset-react": "^7.27.1",
+    "@babel/preset-typescript": "^7.27.1",
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.0",
     "@mui/icons-material": "^7.0.1",
@@ -64,6 +71,7 @@
     "@supabase/supabase-js": "^2.49.5",
     "@types/recharts": "^1.8.29",
     "active-win": "^8.1.0",
+    "auto-launch": "^5.0.6",
     "better-sqlite3": "^11.9.1",
     "body-parser": "^2.2.0",
     "chart.js": "^4.4.8",
@@ -73,6 +81,7 @@
     "dotenv": "^16.4.7",
     "electron-is-dev": "^3.0.1",
     "electron-log": "^5.4.0",
+    "electron-store": "^10.0.1",
     "electron-util": "^0.18.1",
     "express": "^5.1.0",
     "fs": "^0.0.1-security",
@@ -105,6 +114,7 @@
     "@typescript-eslint/eslint-plugin": "^8.0.0",
     "@typescript-eslint/parser": "^8.0.0",
     "autoprefixer": "^10.4.21",
+    "babel-loader": "^10.0.0",
     "cargo-cp-artifact": "^0.1.8",
     "concurrently": "^9.1.2",
     "cross-env": "^7.0.3",
@@ -131,7 +141,6 @@
   "description": "This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).",
   "keywords": [],
   "author": "",
-  "license": "ISC",
   "iohook": {
     "targets": [
       "node-108",

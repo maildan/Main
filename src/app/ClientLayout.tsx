@@ -1,8 +1,13 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { ToastProvider } from './components/ToastContext';
 
-export default function ClientLayout({ children }: { children: React.ReactNode }) {
+type ClientLayoutProps = {
+  children: React.ReactNode;
+};
+
+export default function ClientLayout({ children }: ClientLayoutProps) {
   const [mounted, setMounted] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
   
@@ -54,5 +59,9 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
     document.documentElement.classList.remove('dark-mode');
   }
   
-  return <>{children}</>;
+  return (
+    <ToastProvider>
+      {children}
+    </ToastProvider>
+  );
 }

@@ -12,9 +12,16 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 // Supabase 연결 정보
-const SUPABASE_URL = process.env.SUPABASE_URL || 'https://your-project.supabase.co';
-const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || 'your-anon-key';
-const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY; // 보안 작업을 위한 서비스 키
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
+
+// 환경 변수 확인
+if (!SUPABASE_URL || !SUPABASE_ANON_KEY || !SUPABASE_SERVICE_KEY) {
+  console.error('Supabase 환경 변수가 설정되지 않았습니다. 서비스는 제한된 기능으로 작동합니다.');
+  console.error('필요한 환경 변수: SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_KEY');
+  console.error('.env 파일이나 환경 변수를 확인해주세요.');
+}
 
 // Supabase 클라이언트 인스턴스
 let supabase = null;
@@ -22,10 +29,16 @@ let serviceClient = null;
 
 /**
  * Supabase 클라이언트 초기화
- * @returns {Object} Supabase 클라이언트
+ * @returns {Object|null} Supabase 클라이언트 또는 null(연결 정보 누락 시)
  */
 export function initSupabase() {
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    console.error('Supabase 연결 초기화 실패: 환경 변수가 누락되었습니다.');
+    return null;
+  }
+  
   if (!supabase) {
+    try {
     supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
       auth: {
         persistSession: false,
@@ -42,6 +55,10 @@ export function initSupabase() {
     });
     
     console.log('Supabase 클라이언트 초기화 완료');
+    } catch (error) {
+      console.error('Supabase 클라이언트 초기화 오류:', error);
+      return null;
+    }
   }
   
   return supabase;
@@ -49,10 +66,16 @@ export function initSupabase() {
 
 /**
  * 서비스 롤 클라이언트 초기화 (관리자 권한)
- * @returns {Object} Supabase 서비스 클라이언트
+ * @returns {Object|null} Supabase 서비스 클라이언트 또는 null(연결 정보 누락 시)
  */
 export function initServiceClient() {
-  if (!serviceClient && SUPABASE_SERVICE_KEY) {
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
+    console.error('Supabase 서비스 클라이언트 초기화 실패: URL 또는 서비스 키가 누락되었습니다.');
+    return null;
+  }
+  
+  if (!serviceClient) {
+    try {
     serviceClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
       auth: {
         persistSession: false,
@@ -61,6 +84,10 @@ export function initServiceClient() {
     });
     
     console.log('Supabase 서비스 클라이언트 초기화 완료');
+    } catch (error) {
+      console.error('Supabase 서비스 클라이언트 초기화 오류:', error);
+      return null;
+    }
   }
   
   return serviceClient;

@@ -519,6 +519,65 @@ function createFallbackMemoryManager() {
 }
 
 /**
+ * 보안 권한 처리 설정
+ * @param {Object} mainWindow - 메인 윈도우 객체
+ * @returns {boolean} 설정 성공 여부
+ */
+function setupPermissionHandler(mainWindow) {
+  try {
+    debugLog('보안 권한 핸들러 설정 중...');
+    
+    if (!mainWindow || !mainWindow.webContents) {
+      debugLog('유효한 윈도우 객체가 제공되지 않았습니다.');
+      return false;
+    }
+    
+    // 권한 요청 처리
+    mainWindow.webContents.session.setPermissionRequestHandler((webContents, permission, callback) => {
+      const url = webContents.getURL();
+      debugLog(`권한 요청: ${permission}, URL: ${url}`);
+      
+      // localhost 또는 자체 도메인에서만 권한 허용
+      if (url.startsWith('http://localhost:') || url.startsWith('https://localhost:') || 
+          url.startsWith('loop://') || url.startsWith('loop-api://')) {
+        // 기본적으로 허용할 권한 목록
+        const allowedPermissions = [
+          'media',          // 미디어 접근
+          'notifications',  // 알림
+          'clipboard-read', // 클립보드 읽기
+          'clipboard-write' // 클립보드 쓰기
+        ];
+        
+        // 안전한 권한은 허용
+        if (allowedPermissions.includes(permission)) {
+          debugLog(`권한 허용됨: ${permission}`);
+          callback(true);
+          return;
+        }
+        
+        // 그 외 권한은 개발 모드에서만 허용
+        const isDev = process.env.NODE_ENV === 'development';
+        if (isDev) {
+          debugLog(`개발 환경에서 권한 허용됨: ${permission}`);
+          callback(true);
+          return;
+        }
+      }
+      
+      // 그 외에는 거부
+      debugLog(`권한 거부됨: ${permission}`);
+      callback(false);
+    });
+    
+    debugLog('권한 핸들러 설정 완료');
+    return true;
+  } catch (error) {
+    console.error('권한 핸들러 설정 중 오류:', error);
+    return false;
+  }
+}
+
+/**
  * 앱 생명주기 관리
  * 
  * 앱의 시작, 실행, 종료 등 생명주기를 관리하고
@@ -613,7 +672,8 @@ module.exports = {
   cleanupApp,
   setupAppEventListeners,
   setupGpuConfiguration,
-  initializeAppLifecycle
+  initializeAppLifecycle,
+  setupPermissionHandler
 };
 
 // CommonJS 방식으로 내보내기
@@ -621,5 +681,6 @@ module.exports.default = {
   initializeApp,
   cleanupApp,
   setupAppEventListeners,
-  setupGpuConfiguration
+  setupGpuConfiguration,
+  setupPermissionHandler
 };

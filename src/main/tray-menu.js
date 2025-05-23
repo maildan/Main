@@ -48,29 +48,56 @@ const TRAY_ICONS = {
 };
 
 /**
- * 플랫폼별 아이콘 경로 가져오기
+ * 트레이 아이콘 파일 경로 반환
  * @param {string} state 아이콘 상태 ('normal' | 'active')
- * @returns {string} 아이콘 경로
+ * @returns {string|null} 아이콘 파일 경로 또는 null
  */
 function getIconPath(state = 'normal') {
-  const currentPlatform = platform.getCurrentPlatform();
-  let iconKey = currentPlatform;
-
-  // 플랫폼별 아이콘이 없으면 기본값 사용
-  if (!TRAY_ICONS[iconKey]) {
-    iconKey = 'default';
+  // state가 없을 경우 기본값 설정
+  state = state || 'normal';
+  
+  try {
+    let iconName;
+    
+    // 플랫폼에 따라 아이콘 파일 이름 설정
+    if (platform.isMacOS()) {
+      // macOS에서는 템플릿 이미지 사용 가능
+      iconName = `tray-icon-${state}-Template.png`;
+    } else if (platform.isWindows()) {
+      // Windows에서는 16x16 ICO 파일 선호
+      iconName = `tray-icon-${state}.ico`;
+    } else {
+      // 기타 플랫폼(Linux 등)
+      iconName = `tray-icon-${state}.png`;
+    }
+    
+    // 가능한 아이콘 경로들
+    const possiblePaths = [
+      // 1. 공개 디렉토리 확인
+      path.join(__dirname, '../../public/icons', iconName),
+      // 2. 리소스 디렉토리 확인
+      path.join(__dirname, '../../resources/icons', iconName),
+      // 3. 애셋 디렉토리 확인
+      path.join(__dirname, '../../assets/icons', iconName),
+      // 4. 기본 아이콘으로 대체
+      path.join(__dirname, '../../public', 'app_icon.webp'),
+      path.join(__dirname, '../../public', 'app-icon.png')
+    ];
+    
+    // 존재하는 첫 번째 아이콘 파일 반환
+    for (const iconPath of possiblePaths) {
+      if (fs.existsSync(iconPath)) {
+        return iconPath;
+      }
+    }
+    
+    // 아이콘 파일이 없는 경우
+    log.warn(`트레이 아이콘 파일을 찾을 수 없음: ${iconName}`);
+    return null;
+  } catch (error) {
+    log.error('트레이 아이콘 경로 계산 오류:', error);
+    return null;
   }
-
-  let iconName = TRAY_ICONS[iconKey][state];
-
-  // macOS는 다크/라이트 모드에 따라 다른 아이콘 사용
-  if (platform.isMacOS() && typeof iconName === 'object') {
-    const isDark = platform.isDarkMode();
-    iconName = iconName[isDark ? 'dark' : 'light'];
-  }
-
-  // 확장자는 운영체제별로 자동 선택 (.ico, .png 등)
-  return platform.getIconPath(iconName);
 }
 
 /**
@@ -80,7 +107,7 @@ function getIconPath(state = 'normal') {
  */
 function createTrayIcon(state = 'normal') {
   try {
-    const iconPath = getIconPath(state);
+    const iconPath = getIconPath(state || 'normal');
 
     // 아이콘 파일이 없으면 빈 이미지 반환
     if (!iconPath || !fs.existsSync(iconPath)) {
@@ -88,11 +115,11 @@ function createTrayIcon(state = 'normal') {
       return nativeImage.createEmpty();
     }
 
-    // 아이콘 이미지 생성
+    // 아이콘 이미지 생성 - undefined 체크 추가
     const icon = nativeImage.createFromPath(iconPath);
 
     // macOS에서는 템플릿 이미지로 설정 (시스템이 자동으로 색상 조절)
-    if (platform.isMacOS()) {
+    if (platform.isMacOS && typeof platform.isMacOS === 'function' && platform.isMacOS()) {
       icon.setTemplateImage(true);
     }
 

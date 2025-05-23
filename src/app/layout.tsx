@@ -13,6 +13,9 @@ export default function RootLayout({
 }) {
   return (
     <html lang="ko">
+      <head>
+        <meta httpEquiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' http: https: ws://localhost:* wss://localhost:*; font-src 'self';" />
+      </head>
       <body>
         <ClientLayout>{children}</ClientLayout>
       </body>

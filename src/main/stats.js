@@ -531,6 +531,12 @@ function processKeyInput(event) {
     // 일반 키 입력 처리 (기존 로직 유지)
     const { key } = event;
     
+    // undefined 키나 null 키는 처리하지 않음
+    if (key === undefined || key === null) {
+      debugLog('유효하지 않은 키 입력 무시: undefined/null');
+      return false;
+    }
+    
     // 특수 키 필터링 (사용자 입력이 아닌 키)
     if (SPECIAL_KEYS.includes(key)) {
       return false;
@@ -541,7 +547,8 @@ function processKeyInput(event) {
       appState.currentStats = {};
     }
     
-    // 키 카운터 증가
+    // 키 카운터 증가 (유효한 키인 경우에만)
+    if (key && typeof key === 'string' && key.length > 0) {
     appState.currentStats.keyCount = (appState.currentStats.keyCount || 0) + 1;
     
     // 타이핑 시간 증가 (평균 타이핑 시간 기준으로 가중치 적용)
@@ -568,6 +575,10 @@ function processKeyInput(event) {
     sendStatsUpdate();
     
     return true;
+    } else {
+      debugLog(`유효하지 않은 키 입력 무시: ${key}`);
+      return false;
+    }
   } catch (error) {
     console.error('키 입력 처리 오류:', error);
     return false;
@@ -776,6 +787,102 @@ function saveStats(stats) {
   } catch (error) {
     console.error('통계 저장 오류:', error);
     return null;
+  }
+}
+
+/**
+ * 통계 초기화 함수
+ * 앱이 시작되거나 사용자가 리셋을 요청할 때 호출됩니다.
+ */
+function resetStats() {
+  try {
+    appState.currentStats = {
+      keyCount: 0,
+      typingTime: 0,
+      content: '',
+      currentWindow: '',
+      currentBrowser: '',
+      totalChars: 0,
+      totalWords: 0,
+      accuracy: 100,
+      startTime: Date.now()
+    };
+    
+    // 이벤트 알림
+    if (appState.mainWindow && !appState.mainWindow.isDestroyed()) {
+      appState.mainWindow.webContents.send('stats-reset');
+    }
+    
+    return true;
+  } catch (error) {
+    console.error('통계 초기화 중 오류:', error);
+    return false;
+  }
+}
+
+/**
+ * 타이핑 패턴 분석 함수
+ * 사용자의 타이핑 습관, 패턴 및 효율성을 분석합니다.
+ * @param {Object} typingData - 분석할 타이핑 데이터
+ * @returns {Object} 분석 결과
+ */
+function analyzeTypingPattern(typingData = null) {
+  try {
+    // 타이핑 데이터가 없으면 현재 통계 사용
+    const data = typingData || { ...appState.currentStats };
+    
+    if (!data || !data.keyCount || data.keyCount < 10) {
+      console.log('분석할 충분한 데이터가 없습니다.');
+      return {
+        pattern: 'unknown',
+        efficiency: 100,
+        suggestions: [],
+        analysis: {
+          rhythm: 'unknown',
+          consistency: 'unknown',
+          errorRate: 0
+        }
+      };
+    }
+    
+    // 기본 분석 데이터
+    const analysis = {
+      pattern: 'normal',
+      efficiency: 100,
+      suggestions: [],
+      analysis: {
+        rhythm: 'steady',
+        consistency: 'good',
+        errorRate: 0
+      }
+    };
+    
+    // 정확도 기반 효율성 계산
+    if (data.accuracy && data.accuracy < 100) {
+      analysis.efficiency = data.accuracy;
+      
+      if (data.accuracy < 90) {
+        analysis.pattern = 'error-prone';
+        analysis.suggestions.push('정확도를 높이기 위해 천천히 타이핑해 보세요.');
+        analysis.analysis.rhythm = 'irregular';
+      }
+    }
+    
+    // 에러율 계산
+    if (data.errorCount && data.keyCount) {
+      analysis.analysis.errorRate = Math.round((data.errorCount / data.keyCount) * 100);
+    }
+    
+    // 최종 분석 결과 반환
+    return analysis;
+  } catch (error) {
+    console.error('타이핑 패턴 분석 오류:', error);
+    return {
+      pattern: 'error',
+      efficiency: 0,
+      suggestions: ['분석 중 오류가 발생했습니다.'],
+      analysis: { error: String(error) }
+    };
   }
 }
 

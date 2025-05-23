@@ -1,1 +1,0 @@
-console.log('IPC 핸들러 모듈 로드됨:', mkdir -p loop_3/src/main/handlersrequire('./handlers')); -A src/main/handlers/tracking-handlers.js

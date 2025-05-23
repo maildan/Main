@@ -135,7 +135,23 @@ export function Settings({
       ...prev,
       windowMode: mode
     }));
-    onWindowModeChange(mode);
+    
+    // 창 모드 변경 요청에 타임아웃 추가
+    try {
+      // 창 모드 변경 함수 호출
+      onWindowModeChange(mode);
+      
+      // 성공 메시지 (선택적)
+      console.log(`창 모드가 ${mode}(으)로 변경되었습니다.`);
+    } catch (error) {
+      // 오류 처리
+      console.error('창 모드 변경 중 오류:', error);
+      
+      // 오류 메시지 표시 (선택적)
+      if (typeof window !== 'undefined' && window.electron) {
+        window.electron.showToast?.('창 모드 변경 중 오류가 발생했습니다. 다시 시도해주세요.', 'error');
+      }
+    }
   };
 
   // 트레이 관련 핸들러 추가

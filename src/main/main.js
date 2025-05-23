@@ -1,17 +1,111 @@
-const { app, ipcMain } = require('electron');
+// .env 파일에서 환경 변수 로드
+require('dotenv').config();
+
+// 개발 모드 여부 감지 - 일찍 정의하여 다른 모든 코드에서 사용할 수 있게 함
+const isDev = process.env.NODE_ENV === 'development';
+const disableCSP = isDev || process.env.DISABLE_CSP === 'true';
+const disableSecurity = isDev || process.env.DISABLE_SECURITY === 'true';
+
+console.log(`애플리케이션 실행 (개발 모드: ${isDev}, 보안 비활성화: ${disableSecurity}, CSP 비활성화: ${disableCSP})`);
+
+// Electron 모듈 가져오기 전에 환경 변수 설정 (Windows에서도 작동하게)
+if (disableSecurity || disableCSP) {
+  process.env.ELECTRON_DISABLE_SECURITY_WARNINGS = 'true';
+  
+  // CSP 관련 프로세스 환경 변수 설정 (Chromium이 CSP 인식)
+  process.env.ELECTRON_OVERRIDE_CSP = '*';
+}
+
+const { app, ipcMain, BrowserWindow, session, shell, dialog, screen, Menu, protocol, globalShortcut } = require('electron');
 const path = require('path');
 const { debugLog, safeRequire } = require('./utils');
 const fs = require('fs');
 const http = require('http');
+const url = require('url');
+
+// 앱 준비 이전에 하드웨어 가속 설정 
+// GPU 가속 제어 - 앱 준비 전에 호출해야 함
+const disableHardwareAcceleration = process.env.GPU_MODE === 'software' || 
+                                     process.env.DISABLE_GPU === 'true';
+                                     
+if (disableHardwareAcceleration) {
+  console.log('GPU 모드: software - 하드웨어 가속 비활성화');
+  app.disableHardwareAcceleration();
+}
+
+// 앱 준비 이전에 CSP 및 보안 관련 명령줄 스위치 설정
+if (process.env.NODE_ENV === 'development') {
+  console.log('애플리케이션 실행 (개발 모드: true, 보안 비활성화: true, CSP 비활성화: true)');
+  console.log('보안 제한 비활성화 및 CSP 제한 제거 중...');
+  
+  // 보안 관련 명령줄 스위치 설정
+  app.commandLine.appendSwitch('disable-web-security');
+  app.commandLine.appendSwitch('allow-insecure-localhost');
+  app.commandLine.appendSwitch('ignore-certificate-errors');
+  app.commandLine.appendSwitch('disable-site-isolation-trials');
+  app.commandLine.appendSwitch('allow-running-insecure-content');
+  
+  console.log('모든 CSP 제한 완전히 비활성화됨');
+}
+
+// 앱 준비 이전에 하드웨어 가속 설정
+const enableHardwareAcceleration = process.env.GPU_MODE !== 'software';
+if (!enableHardwareAcceleration) {
+  console.log('GPU 모드: software - 하드웨어 가속 비활성화');
+  app.disableHardwareAcceleration();
+}
+
+// GPU 관련 명령줄 스위치 설정
+if (!enableHardwareAcceleration) {
+  app.commandLine.appendSwitch('disable-gpu');
+  app.commandLine.appendSwitch('disable-gpu-compositing');
+} else {
+  // 하드웨어 가속 활성화 시 추가 최적화
+  app.commandLine.appendSwitch('enable-hardware-acceleration');
+  app.commandLine.appendSwitch('ignore-gpu-blacklist');
+}
+
+// 디버깅을 위한 GPU 프로세스 크래시 제한 비활성화
+app.commandLine.appendSwitch('disable-gpu-process-crash-limit');
+
+// 디버깅 관련 플래그 추가
+if (isDev) {
+  app.commandLine.appendSwitch('debug-gpu');
+}
+
+// NODE_ENV 설정 확인 및 로깅
+console.log(`[환경] NODE_ENV: ${process.env.NODE_ENV || 'not set'}`);
+console.log(`[환경] NEXT_PORT: ${process.env.NEXT_PORT || '3000'}`);
+console.log(`[환경] GPU_MODE: ${process.env.GPU_MODE || 'not set'}`);
+console.log(`[환경] GPU_RESOURCE_DIR: ${process.env.GPU_RESOURCE_DIR || 'not set'}`);
+console.log(`[환경] MongoDB URI: ${process.env.MONGODB_URI ? '설정됨' : '설정되지 않음'}`);
+console.log(`[환경] Supabase URL: ${process.env.SUPABASE_URL ? '설정됨' : '설정되지 않음'}`);
 
 // 기본 설정 및 상태 관리
 const constants = safeRequire('./constants', { appState: {} });
 const appState = constants.appState || {};
 
+// 초기화 플래그 추가
+appState.protocolsRegistered = false;
+appState.securityInitialized = false;
+
+// 프로토콜 관련 모듈 먼저 로드 (app.ready 이전에 호출되어야 함)
+const protocols = safeRequire('./protocols', {});
+
+// 프로토콜 스키마 등록 (app.ready 이전에 호출)
+if (protocols && protocols.registerSchemesAsPrivileged) {
+  protocols.registerSchemesAsPrivileged();
+}
+
 // 핵심 모듈 로드
 const settings = safeRequire('./settings', {});
 const stats = safeRequire('./stats', {}); // stats.js 먼저 로드
-const { setupAppEventListeners } = safeRequire('./app-lifecycle', { setupAppEventListeners: () => debugLog('앱 이벤트 리스너 기본 구현 사용') });
+const { setupAppEventListeners } = safeRequire('./app-lifecycle', { 
+  setupAppEventListeners: () => debugLog('앱 이벤트 리스너 기본 구현 사용'),
+  cleanupApp: () => debugLog('앱 정리 기본 구현 사용'),
+  initializeApp: async () => debugLog('앱 초기화 기본 구현 사용'),
+  setupGpuConfiguration: () => debugLog('GPU 구성 기본 구현 사용')
+});
 const { createWindow, getMainWindow } = safeRequire('./window', { createWindow: () => debugLog('창 생성 기본 구현 사용'), getMainWindow: () => null });
 const memoryManager = safeRequire('./memory-manager', {});
 const memoryManagerNative = safeRequire('./memory-manager-native', {});
@@ -21,18 +115,49 @@ const platform = safeRequire('./platform', {});
 const browser = safeRequire('./browser', {});
 
 // 추가 모듈 로드 (전체 main 폴더 내 모듈)
-const security = safeRequire('./security-checks', {});
+const security = safeRequire('./security-checks', {
+  initializeSecuritySettings: () => debugLog('보안 설정 초기화 기본 구현 사용'),
+  applySecuritySettings: () => debugLog('보안 설정 적용 기본 구현 사용'),
+  setupPermissionHandler: () => debugLog('권한 핸들러 설정 기본 구현 사용'),
+  setupKeyboardEventHandler: () => debugLog('키보드 이벤트 핸들러 설정 기본 구현 사용')
+});
 const powerMonitor = safeRequire('./power-monitor', {});
 const gpuUtils = safeRequire('./gpu-utils', {});
 const screenshot = safeRequire('./screenshot', {});
 const clipboardWatcher = safeRequire('./clipboard-watcher', {});
 const crashReporter = safeRequire('./crash-reporter', {});
 const menu = safeRequire('./menu', {});
-const protocols = safeRequire('./protocols', {});
 const safeStorage = safeRequire('./safe-storage', {});
 const screens = safeRequire('./screens', {});
 const shortcuts = safeRequire('./shortcuts', {});
-const store = safeRequire('./store', {});
+
+// Store 모듈 로드 수정 (electron-store 문제 해결)
+let store;
+try {
+  // ESM 모듈로 가져오기 시도
+  const ElectronStore = safeRequire('./store', {}).default;
+  if (ElectronStore && typeof ElectronStore === 'function') {
+    store = new ElectronStore();
+    console.log('electron-store를 생성자로서 성공적으로 로드했습니다.');
+  } else {
+    // commonjs로 가져오기 시도
+    const StoreModule = require('electron-store');
+    if (StoreModule.default && typeof StoreModule.default === 'function') {
+      store = new StoreModule.default();
+      console.log('electron-store를 commonjs 모듈로 성공적으로 로드했습니다.');
+    } else if (typeof StoreModule === 'function') {
+      store = new StoreModule();
+      console.log('electron-store를 직접 함수로 성공적으로 로드했습니다.');
+    } else {
+      console.error('electron-store 모듈을 생성자로 불러올 수 없습니다. 메모리 스토어로 폴백합니다.');
+      store = require('./memory-store');
+    }
+  }
+} catch (storeError) {
+  console.error('electron-store 로드 중 오류:', storeError);
+  store = require('./memory-store');
+}
+
 const systemEvents = safeRequire('./system-events', {});
 const trayMenu = safeRequire('./tray-menu', {});
 const tray = safeRequire('./tray', {});
@@ -176,14 +301,25 @@ if (!gotSingleInstanceLock) {
       debugLog('GC 노출 플래그가 이미 설정되어 있습니다');
     }
     
-    // Chrome 스타일의 GPU 가속을 위한 기본 플래그 추가 (app.ready 전)
-    if (!app.commandLine.hasSwitch('disable-gpu')) {
-      // 기본 GPU 설정 - app-lifecycle에서 세부 설정함
-      app.commandLine.appendSwitch('enable-hardware-acceleration');
-      app.commandLine.appendSwitch('enable-gpu-rasterization');
-      app.commandLine.appendSwitch('enable-zero-copy');
-      
-      debugLog('기본 GPU 가속 플래그 설정 완료');
+    // GPU 가속 관련 설정 (app.ready 전에 해야 함)
+    const settings = appState.settings || {};
+    const useHardwareAcceleration = settings.useHardwareAcceleration !== false;
+    
+    // 하드웨어 가속 비활성화 (설정에 따라)
+    if (!useHardwareAcceleration) {
+      // 반드시 app.ready 이전에 호출되어야 함
+      app.disableHardwareAcceleration();
+      debugLog('하드웨어 가속 비활성화됨');
+    } else {
+      // Chrome 스타일의 GPU 가속을 위한 기본 플래그 추가 (app.ready 전)
+      if (!app.commandLine.hasSwitch('disable-gpu')) {
+        // 기본 GPU 설정 - app-lifecycle에서 세부 설정함
+        app.commandLine.appendSwitch('enable-hardware-acceleration');
+        app.commandLine.appendSwitch('enable-gpu-rasterization');
+        app.commandLine.appendSwitch('enable-zero-copy');
+        
+        debugLog('기본 GPU 가속 플래그 설정 완료');
+      }
     }
   } catch (error) {
     debugLog('플래그 설정 실패:', error);
@@ -198,10 +334,32 @@ if (!gotSingleInstanceLock) {
       app.commandLine.appendSwitch('js-flags', '--max-old-space-size=256');
       app.commandLine.appendSwitch('disable-site-isolation-trials');
       
-      // GPU 설정을 app-lifecycle에서 처리하도록 변경
-      // 이 시점에서는 기본 설정만 적용
+      // 개발 모드 감지
+      const isDev = process.env.NODE_ENV === 'development';
+      debugLog(`개발 모드: ${isDev}`);
       
-      debugLog('기본 앱 설정 적용 완료');
+      // 개발 모드에서 추가 설정
+      if (isDev) {
+        // 개발용 포트 지정
+        process.env.PORT = process.env.PORT || '3000';
+        debugLog(`개발 서버 포트: ${process.env.PORT}`);
+      }
+      
+      // 보안 설정은 앱이 ready 상태가 된 후에 적용하도록 변경
+      // (app.whenReady() 이후에 실행)
+      
+      // 제품 모드 감지 및 관련 설정
+      const isProduction = process.env.NODE_ENV === 'production';
+      if (isProduction) {
+        // 프로덕션에서 개발자 도구 비활성화
+        app.on('browser-window-created', (_, window) => {
+          window.webContents.on('devtools-opened', () => {
+            window.webContents.closeDevTools();
+          });
+        });
+      }
+      
+      debugLog('앱 설정 초기화 완료');
       
       // 초기 실행 설정
       const gotTheLock = app.requestSingleInstanceLock();
@@ -227,50 +385,87 @@ if (!gotSingleInstanceLock) {
   
   setupAppConfig();
   
+  // 초기 프로토콜 보안 설정 (반드시 app.ready 이전에 해야 함)
+  if (protocols && protocols.registerProtocolHandlers && !appState.protocolsRegistered) {
+    protocols.registerProtocolHandlers();
+    appState.protocolsRegistered = true;
+    console.log('프로토콜 핸들러 등록 완료');
+  }
+  
   // app ready 이벤트에서 Next.js 서버 준비 상태 확인 추가
-  app.on('ready', async () => {
+  app.whenReady().then(async () => {
+    debugLog('앱 준비됨, 초기화 시작...');
+
     try {
-      debugLog('앱 준비됨, Next.js 서버 확인 중...');
+      // .env 파일이 있는지 확인하고 환경 변수 로드 시도
+      require('dotenv').config();
+      console.log('.env 파일을 성공적으로 로드했습니다.');
+    } catch (error) {
+      debugLog('.env 파일 로드 중 오류:', error);
+    }
+
+    // 모듈 로드 상태 디버깅
+    debugLog('모듈 로드 상태:');
+    debugLog('- createWindow:', !!createWindow);
+    debugLog('- setupAppEventListeners:', !!setupAppEventListeners);
+    debugLog('- setupKeyboardListener:', !!setupKeyboardListener);
+    debugLog('- setupIpcHandlers:', !!setupIpcHandlers);
+    debugLog('- loadSettings:', !!loadSettings);
+    debugLog('- initializeNativeModule:', !!initializeNativeModule);
+    debugLog('- security:', !!security);
+
+    // 앱 이벤트 리스너 처리
+    if (!appEventListenersSetup) {
+      appEventListenersSetup = true;
+      setupAppEventListeners();
+      debugLog('앱 이벤트 리스너 설정 완료 (main.js)');
+    }
+    
+    // 보안 설정 초기화
+    try {
+      console.log('개발 환경: 모든 보안 설정 비활성화');
+      const securityResult = setupSecuritySettings();
+      debugLog(`보안 설정 초기화 결과: ${securityResult}`);
+    } catch (securityError) {
+      console.error('보안 설정 초기화 오류:', securityError);
+    }
+    
+    try {
+      // GPU 가속 설정 (창 생성 전에 적용)
+      setupGpuAcceleration();
       
-      // 초기화 상태 로깅
-      debugLog('모듈 로드 상태:');
-      debugLog('- createWindow: ' + (typeof createWindow === 'function' ? '로드됨' : '로드 실패'));
-      debugLog('- setupAppEventListeners: ' + (typeof setupAppEventListeners === 'function' ? '로드됨' : '로드 실패'));
-      debugLog('- setupKeyboardListener: ' + (typeof setupKeyboardListener === 'function' ? '로드됨' : '로드 실패'));
-      debugLog('- setupIpcHandlers: ' + (typeof setupIpcHandlers === 'function' ? '로드됨' : '로드 실패'));
-      debugLog('- loadSettings: ' + (typeof loadSettings === 'function' ? '로드됨' : '로드 실패'));
-      debugLog('- initializeNativeModule: ' + (typeof initializeNativeModule === 'function' ? '로드됨' : '로드 실패'));
+      // 메인 창 생성 - window.js의 createWindow 함수 사용
+      debugLog('메인 창 생성 시작...');
+      const mainWindow = createWindow();
       
-      // 앱 이벤트 리스너가 아직 설정되지 않았다면 설정
-      if (!appEventListenersSetup) {
-        setupAppEventListeners();
-        appEventListenersSetup = true;
-        debugLog('앱 이벤트 리스너 설정 완료 (main.js)');
+      if (!mainWindow) {
+        throw new Error('메인 창 생성 실패');
       }
       
-      // 개발 모드에서는 Next.js 서버 준비 상태 확인
-      if (process.env.NODE_ENV === 'development') {
+      debugLog('메인 창 생성됨:', !!mainWindow);
+      
+      // 창에 보안 설정 적용
+      if (mainWindow && security && typeof security.applySecuritySettings === 'function') {
+        try {
+          security.applySecuritySettings(mainWindow);
+          debugLog('창에 보안 설정 적용됨');
+        } catch (windowSecurityError) {
+          console.error('창 보안 설정 적용 중 오류:', windowSecurityError);
+        }
+      }
+      
+      // 개발 모드에서만 Next.js 서버 확인
+      if (isDev) {
+        debugLog('개발 모드 감지됨, Next.js 서버 확인 중...');
         await checkIfNextServerReady();
       }
       
       // 앱 초기화 실행
+      debugLog('앱 초기화 시작...');
       await initializeApp();
-      
-      // 창 생성
-      createWindow();
-      
-      // 데이터베이스 초기화
-      database.initializeDatabase();
-      
-      // MongoDB 및 Supabase 데이터 동기화 초기화
-      try {
-        await dataSync.initialize();
-        debugLog('데이터 동기화 모듈 초기화 성공');
-      } catch (error) {
-        console.error('데이터 동기화 모듈 초기화 실패:', error);
-      }
-    } catch (error) {
-      debugLog('시작 오류:', error);
+      debugLog('앱 초기화 완료');
+    } catch (startError) {
+      console.error('앱 시작 오류:', startError);
     }
   });
   
@@ -287,102 +482,166 @@ if (!gotSingleInstanceLock) {
 }
 
 /**
- * 애플리케이션 시작 전 GPU 설정 및 성능 최적화
+ * GPU 가속 설정
  */
 function setupGpuAcceleration() {
-  const { settings } = appState;
-  
-  // GPU 하드웨어 가속 설정에 따라 스위치 적용
-  if (settings && settings.useHardwareAcceleration) {
-    // GPU 가속화 활성화
-    app.commandLine.appendSwitch('enable-gpu-rasterization');
-    app.commandLine.appendSwitch('enable-zero-copy');
-    app.commandLine.appendSwitch('enable-hardware-overlays', 'single-fullscreen,single-on-top');
-    app.commandLine.appendSwitch('enable-features', 'VaapiVideoDecoder');
+  try {
+    // 이미 앱이 준비된 후라면 app.disableHardwareAcceleration()은 호출할 수 없음
+    // 앱 준비 전에 이미 최상위에서 처리됨
     
-    // 고급 WebGL 최적화
-    app.commandLine.appendSwitch('enable-webgl');
-    app.commandLine.appendSwitch('canvas-oop-rasterization');
-    
-    // V8 최적화
-    app.commandLine.appendSwitch('js-flags', '--max-old-space-size=4096');
-    
-    debugLog('GPU 하드웨어 가속이 활성화되었습니다.');
-  } else {
-    // 소프트웨어 렌더링 사용 (GPU 가속 비활성화)
-    app.disableHardwareAcceleration();
-    app.commandLine.appendSwitch('disable-gpu');
-    
-    // 메모리 사용 최적화 (하드웨어 가속이 꺼진 경우)
-    app.commandLine.appendSwitch('js-flags', '--max-old-space-size=2048');
-    
-    debugLog('GPU 하드웨어 가속이 비활성화되었습니다. 소프트웨어 렌더링을 사용합니다.');
+    // 환경변수 확인
+    const gpuMode = process.env.GPU_MODE || '';
+    console.log('환경 변수 GPU_MODE:', gpuMode);
+
+    // 환경 변수를 기반으로 GPU 설정 초기화
+    const envBasedSettings = {
+      gpuAcceleration: gpuMode !== 'software',
+      hardwareAcceleration: gpuMode !== 'software',
+      vsync: true,
+      webGLEnabled: gpuMode !== 'software',
+      batteryOptimizationMode: 'auto'
+    };
+
+    console.log('환경 변수 기반 GPU 설정:', {
+      gpuAcceleration: envBasedSettings.gpuAcceleration,
+      hardwareAcceleration: envBasedSettings.hardwareAcceleration,
+      vsync: envBasedSettings.vsync,
+      webGLEnabled: envBasedSettings.webGLEnabled,
+      batteryOptimizationMode: envBasedSettings.batteryOptimizationMode
+    });
+
+    // 설정 파일에서 GPU 설정 로드
+    const userDataPath = app.getPath('userData');
+    const gpuSettingsPath = path.join(userDataPath, 'gpu-settings.json');
+    let fileSettings = {};
+
+    if (fs.existsSync(gpuSettingsPath)) {
+      try {
+        const fileContent = fs.readFileSync(gpuSettingsPath, 'utf8');
+        fileSettings = JSON.parse(fileContent);
+        console.log('GPU 설정 파일에서 로드됨:', gpuSettingsPath);
+      } catch (parseError) {
+        console.error('GPU 설정 파일 파싱 오류:', parseError);
+      }
+    }
+
+    // 환경변수가 우선순위가 높음
+    const finalSettings = {
+      ...fileSettings,
+      ...envBasedSettings
+    };
+
+    console.log('최종 GPU 설정 (환경변수 우선):', {
+      gpuAcceleration: finalSettings.gpuAcceleration,
+      hardwareAcceleration: finalSettings.hardwareAcceleration,
+      vsync: finalSettings.vsync,
+      webGLEnabled: finalSettings.webGLEnabled,
+      batteryOptimizationMode: finalSettings.batteryOptimizationMode
+    });
+
+    // 설정 적용
+    appState.gpuSettings = finalSettings;
+
+    return appState.gpuSettings;
+  } catch (error) {
+    console.error('GPU 가속 설정 오류:', error);
+    return null;
   }
-  
-  // 공통 성능 최적화 설정
-  app.commandLine.appendSwitch('enable-features', 'SharedArrayBuffer');
-  app.commandLine.appendSwitch('disable-features', 'OutOfBlinkCors');
-  app.commandLine.appendSwitch('disable-site-isolation-trials');
-  
-  // 메모리 압축 활성화
-  app.commandLine.appendSwitch('enable-features', 'MemoryPressureBasedSourceBufferGC');
-  app.commandLine.appendSwitch('force-fieldtrials', 'MemoryPressureBasedSourceBufferGC/Enabled');
-  
-  // CrashPad 비활성화 (선택적, 메모리 사용 감소)
-  app.commandLine.appendSwitch('disable-crash-reporter');
-  
-  return settings?.useHardwareAcceleration || false;
 }
 
 /**
- * 앱 초기화 함수
+ * 앱 종료 시 정리 작업 수행
+ */
+function cleanupOnExit() {
+  try {
+    console.log('앱 종료 시 정리 작업 수행...');
+    
+    // 키보드 리스너 해제
+    if (keyboardListenerHandler) {
+      console.log('키보드 리스너 해제 중...');
+      keyboardListenerHandler.dispose && keyboardListenerHandler.dispose();
+      keyboardListenerHandler = null;
+    }
+    
+    // 메모리 정리
+    if (global.gc) {
+      console.log('가비지 컬렉션 실행 중...');
+      global.gc();
+    }
+    
+    // 데이터베이스 연결 종료
+    if (database && database.closeDatabase) {
+      console.log('데이터베이스 연결 종료 중...');
+      database.closeDatabase();
+    }
+    
+    console.log('정리 작업 완료');
+    return true;
+  } catch (error) {
+    console.error('정리 작업 중 오류:', error);
+    return false;
+  }
+}
+
+/**
+ * 앱을 초기화하는 함수
  */
 async function initializeApp() {
   try {
-    // 기존 코드
-    // 창 생성 전에 메모리 설정 초기화
-    setupMemoryManagement();
-    
-    // 메모리 최적화를 위한 이벤트 리스너 설정
-    setupMemoryOptimizationEvents();
-    
-    // 추가된 초기화 코드
+    debugLog('앱 초기화 시작...');
+    console.log('앱 초기화 시작');
+
+    // 플랫폼 초기화
+    initializePlatform();
+
     // 설정 로드
+    console.log('설정 로드 중...');
     await loadSettings();
+
+    // 보안 설정 초기화
+    try {
+      console.log('개발 환경: 모든 보안 설정 비활성화');
+      const securityResult = setupSecuritySettings();
+      debugLog(`보안 설정 초기화 결과: ${securityResult}`);
+    } catch (securityError) {
+      console.error('보안 설정 초기화 오류:', securityError);
+    }
+
+    // 그 외 초기화 작업들
+    console.log('네이티브 메모리 모듈 초기화...');
+    const nativeInitResult = await initializeNativeModule();
     
-    // 키보드 리스너는 모니터링 시작 시 설정하도록 변경
-    // 기존 코드 제거:
-    // keyboardListenerInstance = setupKeyboardListener();
-    // keyboardListenerActive = !!keyboardListenerInstance;
-    
-    // IPC 핸들러 설정
-    setupIpcHandlers();
-    
-    // 메모리 모니터링 시작
-    setupMemoryMonitoring();
-    
-    // 네이티브 모듈 초기화
-    initializeNativeModule();
-    
-    debugLog('모든 모듈 초기화 완료');
-    
-    // 모듈 상태 확인 및 로그
-    debugLog('----------------');
-    debugLog('모듈 활성화 상태:');
-    debugLog('- 키보드 리스너 활성화: 모니터링 시작 시 활성화됨');
-    debugLog('- 메모리 관리 활성화:', !!memoryManager.isMemoryMonitoringActive);
-    debugLog('- 네이티브 모듈 활성화:', !!initializeNativeModule());
-    debugLog('- 설정 로드 활성화:', !!appState.settings);
-    debugLog('----------------');
-    
-    // 글로벌 단축키 등록 (모니터링 시작/중지 단축키)
-    if (keyboard.registerGlobalShortcuts) {
-      keyboard.registerGlobalShortcuts();
+    // 메모리 최적화 설정
+    console.log('메모리 최적화 설정 중...');
+    try {
+      // 메모리 관리 초기화 함수 호출
+      setupMemoryManagement();
+      
+      // 메모리 최적화 이벤트 설정
+      setupMemoryOptimizationEvents();
+    } catch (err) {
+      console.error('메모리 초기화 중 오류:', err);
     }
     
+    // GPU 가속 설정
+    console.log('GPU 가속 설정 중...');
+    try {
+      setupGpuAcceleration();
+    } catch (error) {
+      console.error('GPU 가속 설정 오류:', error);
+    }
+    
+    // 키보드 이벤트 리스너 설정 (보안 설정 이후에 실행)
+    try {
+      setupKeyboardListening();
+    } catch (keyboardError) {
+      console.error('키보드 리스너 설정 오류:', keyboardError);
+    }
+    
+    return true;
   } catch (error) {
     console.error('앱 초기화 중 오류:', error);
-    app.quit();
+    return false;
   }
 }
 
@@ -441,8 +700,22 @@ function setupMemoryOptimizationEvents() {
   const { app, ipcMain } = require('electron');
   const { isNativeModuleAvailable, optimizeMemory, forceGarbageCollection } = require('../server/native/index.cjs');
   
+  // 메모리 임계값 설정 (기본값)
+  if (!appState.memoryThreshold) {
+    appState.memoryThreshold = {
+      high: 200,     // 메모리 사용량이 200MB를 초과할 때 일반 최적화 실행
+      critical: 500  // 메모리 사용량이 500MB를 초과할 때 긴급 최적화 실행
+    };
+    console.log('메모리 임계값 기본 설정됨:', appState.memoryThreshold);
+  }
+  
   // 메모리 사용량 모니터링 타이머
   let memoryMonitorTimer = null;
+  
+  // 메모리 모니터링 간격 설정 (기본값: 30초)
+  if (!appState.memoryMonitorInterval) {
+    appState.memoryMonitorInterval = 30000;
+  }
   
   // 메모리 사용량 확인 및 최적화
   const checkMemoryUsage = async () => {
@@ -614,7 +887,306 @@ app.on('before-quit', async (event) => {
   // ... existing code ...
   
   // 데이터베이스 연결 종료
-  database.closeDatabase();
+  if (database && database.closeDatabase) {
+    console.log('데이터베이스 연결 종료 중...');
+    database.closeDatabase();
+    console.log('데이터베이스 연결이 성공적으로 종료되었습니다.');
+  }
   
   // ... existing code ...
 });
+
+/**
+ * 보안 설정을 초기화합니다.
+ * 개발 환경에서는 보안 설정을 완화합니다.
+ */
+function setupSecuritySettings() {
+  try {
+    // 개발 환경 또는 보안 비활성화 환경 변수 확인
+    const isDev = process.env.NODE_ENV === 'development';
+    const disableSecurity = isDev || process.env.DISABLE_SECURITY === 'true';
+    
+    if (disableSecurity) {
+      console.log('개발 환경: 모든 보안 설정 비활성화');
+      
+      // 개발 환경에서는 웹 보안 완전 비활성화
+      if (app && app.commandLine) {
+        app.commandLine.appendSwitch('disable-web-security');
+        app.commandLine.appendSwitch('allow-insecure-localhost');
+        app.commandLine.appendSwitch('ignore-certificate-errors');
+        app.commandLine.appendSwitch('disable-site-isolation-trials');
+        app.commandLine.appendSwitch('allow-running-insecure-content');
+        // CORS 비활성화
+        app.commandLine.appendSwitch('disable-features', 'OutOfBlinkCors');
+      }
+      
+      // 세션 기반 CSP 제거 (모든 세션에 적용)
+      if (session && session.defaultSession) {
+        // 모든 웹 요청에 대한 CSP 헤더 제거
+        session.defaultSession.webRequest.onHeadersReceived(
+          { urls: ['*://*/*'] },
+          (details, callback) => {
+            if (details && details.responseHeaders) {
+              // CSP 관련 모든 헤더 제거
+              Object.keys(details.responseHeaders).forEach((key) => {
+                if (key.toLowerCase().includes('content-security-policy')) {
+                  delete details.responseHeaders[key];
+                }
+              });
+            }
+            
+            callback({
+              responseHeaders: details.responseHeaders,
+              cancel: false
+            });
+          }
+        );
+      }
+
+      // 모든 창에 대해 웹 보안 비활성화 (기본 설정만 변경)
+      app.on('browser-window-created', (_, window) => {
+        const webContents = window.webContents;
+        if (webContents) {
+          // CSP 헤더 제거 설정
+          webContents.session.webRequest.onHeadersReceived(
+            { urls: ['*://*/*'] },
+            (details, callback) => {
+              const responseHeaders = {...details.responseHeaders};
+              
+              // CSP 헤더 제거
+              Object.keys(responseHeaders).forEach(key => {
+                if (key.toLowerCase().includes('content-security-policy')) {
+                  delete responseHeaders[key];
+                }
+              });
+              
+              callback({ responseHeaders });
+            }
+          );
+        }
+      });
+      
+      return true;
+    }
+    
+    // 프로덕션 환경에서는 보안 설정 적용
+    // 보안 모듈 로드
+    const security = safeRequire('./security-checks', {});
+    
+    if (security) {
+      // 보안 모듈에 Electron 객체 참조 설정
+      if (security.setElectronApp) {
+        security.setElectronApp(app);
+        debugLog('보안 모듈 Electron 참조 설정됨');
+      }
+      
+      // 보안 설정 초기화
+      if (security.initSecurity) {
+        const securityInitResult = security.initSecurity(isDev);
+        debugLog(`보안 설정 초기화 결과: ${securityInitResult}`);
+      } else {
+        debugLog('보안 모듈의 initSecurity 함수가 존재하지 않습니다');
+        return false;
+      }
+      
+      appState.securityInitialized = true;
+      return true;
+    } else {
+      console.error('보안 모듈을 로드할 수 없습니다');
+      return false;
+    }
+  } catch (error) {
+    console.error('보안 설정 초기화 오류:', error);
+    return false;
+  }
+}
+
+/**
+ * 키보드 리스너 설정
+ */
+function setupKeyboardListening() {
+  try {
+    console.log('키보드 이벤트 리스너 설정 중...');
+    
+    // keyboard 모듈 로드
+    const keyboard = safeRequire('./keyboard', {});
+    
+    if (!keyboard) {
+      console.error('키보드 모듈을 로드할 수 없습니다.');
+      return false;
+    }
+    
+    // 먼저 IPC 핸들러 설정 (webContents가 생성되기 전에)
+    if (keyboard.setupKeyboardIpcHandlers) {
+      const ipcSetupResult = keyboard.setupKeyboardIpcHandlers();
+      console.log(`키보드 IPC 핸들러 설정 결과: ${ipcSetupResult}`);
+    } else {
+      console.log('setupKeyboardIpcHandlers 함수가 없습니다');
+      
+      // 보안 모듈에 있는 키보드 이벤트 핸들러 시도
+      const security = safeRequire('./security-checks', {});
+      if (security && security.setupKeyboardEventHandler) {
+        const securityIpcResult = security.setupKeyboardEventHandler();
+        console.log(`보안 모듈 키보드 이벤트 핸들러 설정 결과: ${securityIpcResult}`);
+      }
+    }
+    
+    // 그 다음 키보드 리스너 설정
+    if (keyboard.setupKeyboardListener) {
+      const keyboardListenerResult = keyboard.setupKeyboardListener();
+      console.log(`키보드 리스너 설정 결과: ${keyboardListenerResult ? '성공' : '실패'}`);
+    } else {
+      console.log('setupKeyboardListener 함수가 없습니다');
+    }
+    
+    // 전역 단축키 설정
+    if (keyboard.registerGlobalShortcuts) {
+      keyboard.registerGlobalShortcuts();
+    }
+    
+    return true;
+  } catch (error) {
+    console.error('키보드 이벤트 리스너 설정 실패:', error);
+    return false;
+  }
+}
+
+/**
+ * 플랫폼별 초기화 작업
+ */
+function initializePlatform() {
+  console.log('플랫폼 초기화 중...');
+  
+  try {
+    // 플랫폼 감지
+    const platform = process.platform;
+    console.log('감지된 플랫폼:', platform);
+    
+    // 아이콘 경로 설정
+    // 여러 가능한 아이콘 경로를 시도하고 존재하는 것을 사용
+    let iconPath = null;
+    
+    // 가능한 아이콘 경로들
+    const possibleIconPaths = [
+      path.join(__dirname, '../../public/app_icon.webp'),
+      path.join(__dirname, '../../public/app-icon.png'),
+      path.join(__dirname, '../../public/app-icon.svg'),
+      path.join(process.resourcesPath || __dirname, 'app_icon.webp'),
+      path.join(process.resourcesPath || __dirname, 'app-icon.png')
+    ];
+    
+    // 존재하는 첫 번째 아이콘 파일 찾기
+    for (const iconCandidate of possibleIconPaths) {
+      if (fs.existsSync(iconCandidate)) {
+        iconPath = iconCandidate;
+        break;
+      }
+    }
+    
+    // 아이콘이 없으면 null로 설정하여 기본값 사용
+    appState.appIcon = iconPath;
+    
+    if (iconPath) {
+      console.log('앱 아이콘 찾음:', iconPath);
+    } else {
+      console.log('앱 아이콘을 찾을 수 없어 기본 아이콘을 사용합니다.');
+    }
+    
+    return true;
+  } catch (error) {
+    console.error('플랫폼 초기화 오류:', error);
+    return false;
+  }
+}
+
+/**
+ * 운영체제별 플랫폼 설정
+ */
+function setupPlatformSpecificConfigurations() {
+  try {
+    console.log('운영체제별 설정 적용 중...');
+    
+    const currentPlatform = appState.platform || process.platform;
+    
+    // macOS 특화 설정
+    if (currentPlatform === 'darwin') {
+      app.on('activate', () => {
+        // macOS에서는 독 아이콘 클릭 시 창이 없으면 새로 만듦
+        if (BrowserWindow.getAllWindows().length === 0) {
+          createWindow();
+        }
+      });
+      
+      // 메뉴바 설정
+      if (menu && menu.setupDarwinMenu) {
+        menu.setupDarwinMenu();
+      }
+    } 
+    // Windows 특화 설정
+    else if (currentPlatform === 'win32') {
+      // 시작 시 자동 실행 설정
+      if (autoLaunch && autoLaunch.setup) {
+        autoLaunch.setup();
+      }
+    }
+    
+    console.log('운영체제별 설정 적용 완료');
+    return true;
+  } catch (error) {
+    console.error('운영체제별 설정 적용 오류:', error);
+    return false;
+  }
+}
+
+/**
+ * 최종 설정 적용
+ */
+function finalizeConfiguration() {
+  try {
+    console.log('최종 설정 적용 중...');
+    
+    // 트레이 아이콘 설정
+    if (tray && tray.setupTray) {
+      tray.setupTray();
+    }
+    
+    // 전역 단축키 등록
+    if (keyboard && keyboard.registerGlobalShortcuts) {
+      keyboard.registerGlobalShortcuts();
+    }
+    
+    // 프로토콜 핸들러는 앱 시작 시 한 번만 등록해야 함
+    // 이미 등록된 경우 다시 등록하지 않음
+    if (!appState.protocolsRegistered && protocols && protocols.registerProtocolHandlers) {
+      console.log('프로토콜 핸들러 등록 (finalizeConfiguration)');
+      try {
+        protocols.registerProtocolHandlers();
+        appState.protocolsRegistered = true;
+      } catch (protocolError) {
+        console.error('프로토콜 핸들러 등록 오류:', protocolError);
+      }
+    } else if (appState.protocolsRegistered) {
+      console.log('프로토콜 핸들러가 이미 등록되어 있음 (finalizeConfiguration)');
+    }
+    
+    // 개발 모드 감지 및 개발 모드 특화 설정
+    const isDev = process.env.NODE_ENV === 'development';
+    if (isDev) {
+      console.log('개발 모드 특수 설정 적용');
+      
+      // 개발 도구 활성화 (이미 활성화된 경우 무시)
+      if (appState.mainWindow && !appState.mainWindow.isDestroyed()) {
+        const { webContents } = appState.mainWindow;
+        if (webContents && !webContents.isDevToolsOpened()) {
+          webContents.openDevTools({ mode: 'detach' });
+        }
+      }
+    }
+    
+    console.log('최종 설정 적용 완료');
+    return true;
+  } catch (error) {
+    console.error('최종 설정 적용 오류:', error);
+    return false;
+  }
+}

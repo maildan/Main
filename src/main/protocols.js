@@ -72,6 +72,8 @@ function getMimeType(filePath) {
  */
 function registerProtocolHandlers() {
   // 프로토콜 등록 (가능한 경우 표준 스킴으로 등록)
+  // 중요: 이 함수는 app.ready 이전에 호출되어야 함
+  try {
   protocol.registerSchemesAsPrivileged([
     {
       scheme: APP_PROTOCOL,
@@ -85,8 +87,56 @@ function registerProtocolHandlers() {
     },
   ]);
 
-  // 앱이 준비되면 파일 프로토콜 핸들러 등록
-  app.whenReady().then(() => {
+    console.log(`프로토콜 스키마 등록 완료: ${APP_PROTOCOL}://`);
+  } catch (error) {
+    console.error('프로토콜 스키마 등록 실패:', error);
+  }
+
+  // 나머지 프로토콜 설정은 앱이 준비된 후에 실행
+  registerProtocolHandlersAfterReady();
+}
+
+/**
+ * 앱 준비 후 프로토콜 핸들러 설정
+ * (이 부분은 app.ready 이후에 호출되어야 함)
+ */
+function registerProtocolHandlersAfterReady() {
+  // 이미 등록되었는지 확인하는 플래그
+  if (global.__protocolsRegistered) {
+    console.log('프로토콜 핸들러가 이미 등록되어 있습니다.');
+    return;
+  }
+
+  // 앱이 준비되었는지 확인
+  if (!app.isReady()) {
+    console.log('앱이 준비되지 않았습니다. 준비 이벤트에 등록합니다.');
+    
+    // app.whenReady() 사용
+    app.whenReady().then(registerFileProtocols).catch(error => {
+      console.error('프로토콜 등록을 위한 앱 준비 대기 중 오류:', error);
+    });
+  } else {
+    // 앱이 이미 준비된 경우 바로 등록
+    console.log('앱이 이미 준비되었습니다. 프로토콜을 즉시 등록합니다.');
+    registerFileProtocols().catch(error => {
+      console.error('프로토콜 즉시 등록 중 오류:', error);
+    });
+  }
+}
+
+/**
+ * 파일 및 API 프로토콜 핸들러 등록
+ * @returns {Promise<void>}
+ */
+async function registerFileProtocols() {
+  try {
+    // 프로토콜이 이미 등록되어 있는지 확인
+    if (protocol.isProtocolRegistered(APP_PROTOCOL)) {
+      console.log(`프로토콜 ${APP_PROTOCOL}이(가) 이미 등록되어 있습니다.`);
+      global.__protocolsRegistered = true;
+      return;
+    }
+    
     // 파일 프로토콜 핸들러
     protocol.registerFileProtocol(APP_PROTOCOL, (request, callback) => {
       try {
@@ -116,6 +166,7 @@ function registerProtocolHandlers() {
     });
 
     // HTTP 프로토콜 핸들러 (앱 내 API 통신용)
+    if (!protocol.isProtocolRegistered(`${APP_PROTOCOL}-api`)) {
     protocol.registerHttpProtocol(`${APP_PROTOCOL}-api`, (request, callback) => {
       try {
         const url = new URL(request.url);
@@ -144,10 +195,16 @@ function registerProtocolHandlers() {
         callback({ error: -2 });
       }
     });
+    }
 
-    console.log(`프로토콜 등록 완료: ${APP_PROTOCOL}://`);
+    // 등록 완료 플래그 설정
+    global.__protocolsRegistered = true;
+    console.log(`파일 프로토콜 핸들러 등록 완료: ${APP_PROTOCOL}://`);
     console.log(`API 프로토콜 등록 완료: ${APP_PROTOCOL}-api://`);
-  });
+  } catch (error) {
+    console.error('프로토콜 핸들러 등록 중 오류:', error);
+    throw error; // 오류를 상위로 전달하여 처리할 수 있도록 함
+  }
 }
 
 /**
@@ -188,6 +245,7 @@ function setupProtocolSecurity(webContents) {
 
 module.exports = {
   registerProtocolHandlers,
+  registerProtocolHandlersAfterReady,
   setupProtocolSecurity,
   filePathToProtocolUrl,
   protocolUrlToFilePath,

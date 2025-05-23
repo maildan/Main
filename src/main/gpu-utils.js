@@ -5,10 +5,148 @@
  * - 배터리 최적화 모드 관리
  * - 하드웨어 가속 설정 처리
  */
-
+require('dotenv').config();
 const { app } = require('electron');
 const log = require('electron-log');
-const store = require('./store');
+const storeModule = require('./store');
+const path = require('path');
+const fs = require('fs');
+const { appState } = require('./constants');
+const { debugLog } = require('./utils');
+
+// 사용자 데이터 경로 가져오기 (PATH.JOIN 빈 인자 문제 수정)
+const USERDATA_PATH = (() => {
+  try {
+    return process.env.NODE_ENV === 'development'
+      ? path.join(__dirname, '../../userData') // 개발 환경
+      : app.getPath('userData'); // 프로덕션 환경
+  } catch (error) {
+    console.error('사용자 데이터 경로 가져오기 오류:', error);
+    // 기본값 제공 - 빈 값이 들어가지 않도록 함
+    return path.join(__dirname, '../../userData');
+  }
+})();
+
+// GPU 설정 파일 경로 (undefined 방지)
+const GPU_CONFIG_PATH = path.join(USERDATA_PATH || __dirname, 'gpu-settings.json');
+
+// 기본 GPU 리소스 디렉토리
+const DEFAULT_GPU_RESOURCE_DIR = path.join(__dirname, '../../resources/gpu');
+
+// GPU 리소스 디렉토리 (환경변수 undefined 방지)
+const GPU_RESOURCE_DIR = process.env.GPU_RESOURCE_DIR 
+  ? path.join(__dirname, process.env.GPU_RESOURCE_DIR) 
+  : DEFAULT_GPU_RESOURCE_DIR;
+
+// GPU 설정 파일 확인 및 생성
+const ensureGpuConfigFile = () => {
+  try {
+    // 파일이 없으면 기본 설정으로 생성
+    if (!fs.existsSync(GPU_CONFIG_PATH)) {
+      const defaultSettings = {
+        acceleration: true,
+        batteryOptimization: true,
+        lastUpdated: new Date().toISOString()
+      };
+      
+      fs.writeFileSync(GPU_CONFIG_PATH, JSON.stringify(defaultSettings, null, 2));
+      log.info(`GPU 설정 파일이 생성되었습니다: ${GPU_CONFIG_PATH}`);
+    }
+    
+    return true;
+  } catch (error) {
+    log.error('GPU 설정 파일 생성 오류:', error);
+    return false;
+  }
+};
+
+// 저장소 인스턴스 가져오기
+function getStoreInstance() {
+  try {
+    if (!store) {
+      const Store = require('electron-store');
+      
+      // 환경 변수 기반 설정이 있는지 확인
+      const envGpuMode = process.env.GPU_MODE;
+      let initialValue = {};
+      
+      // 환경 변수 기반 설정이 있으면 적용
+      if (envGpuMode) {
+        console.log(`환경 변수 GPU_MODE: ${envGpuMode}`);
+        
+        // 'software'와 'hardware' 모드에 따른 기본 설정
+        if (envGpuMode === 'software') {
+          initialValue = {
+            gpuAcceleration: false,
+            hardwareAcceleration: false,
+            vsync: true,
+            webGLEnabled: false,
+            batteryOptimizationMode: 'auto'
+          };
+        } else if (envGpuMode === 'hardware') {
+          initialValue = {
+            gpuAcceleration: true,
+            hardwareAcceleration: true,
+            vsync: true,
+            webGLEnabled: true,
+            batteryOptimizationMode: 'performance'
+          };
+        }
+        
+        console.log('환경 변수 기반 GPU 설정:', JSON.stringify(initialValue, null, 2));
+      }
+      
+      // 저장소 초기화
+      store = new Store({
+        name: 'gpu-settings',
+        defaults: initialValue
+      });
+      
+      console.log('GPU 설정 파일에서 로드됨:', store.path);
+      
+      // 환경 변수 설정이 있는 경우 저장소 설정과 병합하되, 환경 변수 우선
+      if (Object.keys(initialValue).length > 0) {
+        const storeSettings = store.store || {};
+        const mergedSettings = { ...storeSettings, ...initialValue };
+        console.log('최종 GPU 설정 (환경변수 우선):', JSON.stringify(mergedSettings, null, 2));
+        store.store = mergedSettings;
+      }
+      
+      console.log('electron-store를 commonjs 모듈로 성공적으로 로드했습니다.');
+    }
+    return store;
+  } catch (error) {
+    console.error('electron-store 로드 오류:', error);
+    return null;
+  }
+}
+
+// 설정 가져오기 함수
+function getSetting(key, defaultValue) {
+  const store = getStoreInstance();
+  if (!store) return defaultValue;
+  
+  try {
+    return store.get(key, defaultValue);
+  } catch (error) {
+    console.error(`설정 가져오기 오류 (${key}):`, error);
+    return defaultValue;
+  }
+}
+
+// 설정 저장 함수
+function saveSetting(key, value) {
+  const store = getStoreInstance();
+  if (!store) return false;
+  
+  try {
+    store.set(key, value);
+    return true;
+  } catch (error) {
+    console.error(`설정 저장 오류 (${key}):`, error);
+    return false;
+  }
+}
 
 // 기본 설정값
 const DEFAULT_GPU_SETTINGS = {
@@ -24,217 +162,289 @@ let currentSettings = { ...DEFAULT_GPU_SETTINGS };
 
 /**
  * GPU 설정 초기화
- * @returns {Object} 현재 GPU 설정
+ * @returns {object} GPU 설정 객체
  */
-function initGpuSettings() {
+function initializeGPUSettings() {
   try {
-    // 저장된 설정 불러오기
-    currentSettings = {
-      ...DEFAULT_GPU_SETTINGS,
-      ...store.get('gpu', {}),
+    console.log('GPU 설정 초기화 중...');
+    
+    // ENV 변수에서 GPU_MODE 가져오기
+    const envGpuMode = process.env.GPU_MODE || 'software'; // 기본값을 'software'로 변경
+    console.log(`환경 변수 GPU_MODE: ${envGpuMode}`);
+    
+    // 환경변수 기반 설정 결정
+    const envBasedSettings = {
+      gpuAcceleration: envGpuMode !== 'software',
+      hardwareAcceleration: envGpuMode !== 'software',
+      vsync: true,
+      webGLEnabled: envGpuMode !== 'software',
+      batteryOptimizationMode: 'auto'
     };
-
-    log.info('GPU 설정 초기화됨:', currentSettings);
     
-    // 현재 설정 적용
-    applyGpuSettings();
+    console.log('환경 변수 기반 GPU 설정:', JSON.stringify(envBasedSettings, null, 2));
     
-    return currentSettings;
-  } catch (error) {
-    log.error('GPU 설정 초기화 오류:', error);
-    return DEFAULT_GPU_SETTINGS;
-  }
-}
-
-/**
- * GPU 설정 적용
- * @returns {boolean} 성공 여부
- */
-function applyGpuSettings() {
-  try {
-    // GPU 가속 설정
-    if (app.isReady()) {
-      // 실행 중일 때만 적용 가능한 설정들
-      
-      // 하드웨어 가속이 이미 적용된 후에는 변경할 수 없으므로
-      // 여기서는 다음 재시작 시 적용됨을 로그로 남김
-      if (app.getGPUFeatureStatus) {
-        const gpuStatus = app.getGPUFeatureStatus();
-        log.info('현재 GPU 기능 상태:', gpuStatus);
+    // 설정 파일이 존재하는지 확인
+    if (fs.existsSync(GPU_CONFIG_PATH)) {
+      try {
+        const fileContent = fs.readFileSync(GPU_CONFIG_PATH, 'utf8');
+        const savedSettings = JSON.parse(fileContent);
+        
+        // 환경변수 설정이 우선, 나머지는 파일 설정 사용
+        const mergedSettings = { 
+          ...savedSettings,
+          // 환경변수 설정이 우선함
+          gpuAcceleration: envBasedSettings.gpuAcceleration,
+          hardwareAcceleration: envBasedSettings.hardwareAcceleration,
+          webGLEnabled: envBasedSettings.webGLEnabled
+        };
+        
+        console.log('GPU 설정 파일에서 로드됨:', GPU_CONFIG_PATH);
+        console.log('최종 GPU 설정 (환경변수 우선):', JSON.stringify(mergedSettings, null, 2));
+        
+        // 앱 상태에 설정 저장
+        appState.gpuSettings = mergedSettings;
+        
+        return mergedSettings;
+      } catch (readError) {
+        console.error('GPU 설정 파일 로드 중 오류:', readError);
       }
     }
     
-    // 설정 저장
-    store.set('gpu', currentSettings);
+    // 파일이 없거나 오류가 발생한 경우 환경변수 기반 설정 사용
+    console.log('GPU 설정 초기화됨 (환경변수 기반):', envBasedSettings);
+    
+    // 앱 상태에 설정 저장
+    appState.gpuSettings = envBasedSettings;
+    
+    // 환경변수 기반 설정 파일 생성
+    try {
+      fs.writeFileSync(GPU_CONFIG_PATH, JSON.stringify(envBasedSettings, null, 2));
+    } catch (writeError) {
+      console.error('GPU 설정 파일 생성 중 오류:', writeError);
+    }
+    
+    return envBasedSettings;
+  } catch (error) {
+    console.error('GPU 설정 초기화 오류:', error);
+    
+    // 오류 시 기본값 (환경변수 기반)
+    const fallbackSettings = {
+      gpuAcceleration: false, // 기본값 false로 변경
+      hardwareAcceleration: false, // 기본값 false로 변경
+      vsync: true,
+      webGLEnabled: false, // 기본값 false로 변경
+      batteryOptimizationMode: 'auto'
+    };
+    
+    console.log('오류 발생으로 기본 설정 사용:', fallbackSettings);
+    return fallbackSettings;
+  }
+}
+
+/**
+ * GPU 설정 저장
+ * @param {object} settings 저장할 설정 객체
+ * @returns {boolean} 성공 여부
+ */
+function saveGPUSettings(settings) {
+  try {
+    // 기존 설정과 병합
+    const currentSettings = appState.gpuSettings || {};
+    const newSettings = { ...currentSettings, ...settings };
+    
+    // 설정 파일 저장
+    fs.writeFileSync(GPU_CONFIG_PATH, JSON.stringify(newSettings, null, 2));
+    
+    // 앱 상태 업데이트
+    appState.gpuSettings = newSettings;
     
     return true;
   } catch (error) {
-    log.error('GPU 설정 적용 오류:', error);
+    console.error('GPU 설정 저장 중 오류:', error);
     return false;
   }
 }
 
 /**
- * GPU 가속 활성화 여부 확인
- * @returns {boolean} GPU 가속 활성화 여부
- */
-function isAccelerationEnabled() {
-  return currentSettings.gpuAcceleration;
-}
-
-/**
- * GPU 가속 설정
- * @param {boolean} enabled - 활성화 여부
+ * GPU 가속 활성화
  * @returns {boolean} 성공 여부
  */
-function setAcceleration(enabled) {
+function enableGPUAcceleration() {
   try {
-    currentSettings.gpuAcceleration = !!enabled;
+    // 앱이 이미 실행 중이면 GPU 설정 변경 불가
+    if (app.isReady()) {
+      console.log('앱이 이미 실행 중이므로 다음 시작 시 GPU 설정이 적용됩니다.');
+      saveGPUSettings({ gpuAcceleration: true, hardwareAcceleration: true });
+      return false;
+    }
     
-    // 설정 저장 및 적용
-    store.set('gpu.gpuAcceleration', enabled);
-    
-    log.info(`GPU 가속 ${enabled ? '활성화' : '비활성화'} 설정됨 (다음 재시작 시 적용)`);
-    
-    return true;
-  } catch (error) {
-    log.error('GPU 가속 설정 오류:', error);
-    return false;
-  }
-}
-
-/**
- * 배터리 최적화 모드 설정
- * @param {boolean} enabled - 배터리 최적화 활성화 여부
- * @returns {boolean} 성공 여부
- */
-function optimizeForBattery(enabled) {
-  try {
-    // 배터리 최적화를 위한 GPU 설정 조정
-    if (enabled) {
-      // 배터리 모드 - 전력 소비 최소화 설정
-      currentSettings.vsync = false;
-      
-      // 현재 가속이 활성화된 경우에만 특정 설정 비활성화
-      if (currentSettings.gpuAcceleration) {
-        // 배터리 모드이지만 GPU 가속이 켜져 있는 경우의 최적화 설정
-        // 완전히 끄지는 않고 일부 기능만 제한
-      }
+    // 하드웨어 가속 관련 플래그 설정
+    if (app.commandLine.hasSwitch('disable-gpu')) {
+      // 이 플래그를 제거할 방법은 없으므로 설정만 변경
+      console.log('disable-gpu 플래그가 설정되어 있지만 다음 시작시 제거됩니다.');
+      saveGPUSettings({ gpuAcceleration: true, hardwareAcceleration: true });
     } else {
-      // AC 전원 모드 - 성능 우선 설정
-      currentSettings.vsync = DEFAULT_GPU_SETTINGS.vsync;
-      
-      // 원래 설정으로 복원
-      if (currentSettings.gpuAcceleration) {
-        // GPU 가속이 켜져 있는 경우 최대 성능 설정
-      }
+      // 가속 활성화 플래그 추가
+      app.commandLine.appendSwitch('enable-gpu-rasterization');
+      app.commandLine.appendSwitch('enable-zero-copy');
+      app.commandLine.appendSwitch('enable-hardware-acceleration');
+      app.commandLine.appendSwitch('ignore-gpu-blacklist');
     }
-    
-    // 현재 배터리 모드 상태 저장
-    currentSettings.onBattery = enabled;
-    
-    log.info(`배터리 최적화 모드 ${enabled ? '활성화' : '비활성화'}`);
-    
-    // 설정 적용
-    applyCurrentOptimizations();
     
     return true;
   } catch (error) {
-    log.error('배터리 최적화 모드 설정 오류:', error);
+    console.error('GPU 가속 활성화 중 오류:', error);
     return false;
   }
 }
 
 /**
- * 현재 최적화 설정 적용
- * @private
+ * GPU 가속 비활성화
+ * @returns {boolean} 성공 여부
  */
-function applyCurrentOptimizations() {
+function disableGPUAcceleration() {
   try {
-    // 현재 최적화 설정을 시스템에 적용하는 로직
-    // (실제로는 Electron 런타임 중에 완전히 적용할 수 없는 설정들이 있어 재시작이 필요할 수 있음)
-    
-    // WebGL 설정 적용 예시 (렌더러 프로세스에 전달해야 함)
+    // 앱이 이미 실행 중이면 GPU 설정 변경 불가
     if (app.isReady()) {
-      // 모든 열린 윈도우에 설정 업데이트 알림
-      const { BrowserWindow } = require('electron');
-      const windows = BrowserWindow.getAllWindows();
-      
-      for (const win of windows) {
-        if (!win.isDestroyed()) {
-          win.webContents.send('gpu-optimization-changed', {
-            vsync: currentSettings.vsync,
-            webGL: currentSettings.webGLEnabled,
-            onBattery: currentSettings.onBattery
-          });
+      console.log('앱이 이미 실행 중이므로 다음 시작 시 GPU 설정이 적용됩니다.');
+      saveGPUSettings({ gpuAcceleration: false, hardwareAcceleration: false });
+      return false;
+    }
+    
+    // 하드웨어 가속 비활성화
+    app.disableHardwareAcceleration();
+    
+    // GPU 관련 플래그 설정
+    if (!app.commandLine.hasSwitch('disable-gpu')) {
+      app.commandLine.appendSwitch('disable-gpu');
+    }
+    
+    return true;
+  } catch (error) {
+    console.error('GPU 가속 비활성화 중 오류:', error);
+    return false;
+  }
+}
+
+/**
+ * 현재 GPU 기능 상태 확인
+ * @returns {object} GPU 기능 상태 객체
+ */
+async function getGPUFeatureStatus() {
+  try {
+    if (!app.isReady()) {
+      return { error: 'GPU 기능 상태는 앱이 준비된 후에만 확인할 수 있습니다.' };
+    }
+    
+    // GPU 프로세스가 생성되어 있는지 확인
+    const gpuInfo = app.getGPUFeatureStatus();
+    
+    // 실제로 하드웨어 가속이 사용 중인지 확인
+    const isAccelerated = !gpuInfo['gpu_compositing'].includes('disabled') || 
+                        !gpuInfo['2d_canvas'].includes('disabled');
+    
+    // 설정과 실제 상태가 일치하는지 확인
+    const settings = appState.gpuSettings || { hardwareAcceleration: true };
+    
+    if (settings.hardwareAcceleration !== isAccelerated) {
+      console.log(`GPU 설정과 실제 상태가 일치하지 않습니다. 설정: ${settings.hardwareAcceleration}, 실제: ${isAccelerated}`);
+    }
+    
+    return {
+      ...gpuInfo,
+      isHardwareAccelerated: isAccelerated,
+      settingsMatch: settings.hardwareAcceleration === isAccelerated
+    };
+  } catch (error) {
+    console.error('GPU 기능 상태 확인 중 오류:', error);
+    return { error: error.message };
+  }
+}
+
+/**
+ * 앱 시작시 GPU 설정 적용
+ */
+function applyGPUSettings() {
+  try {
+    // 환경 변수에서 GPU_MODE 가져오기
+    const envGpuMode = process.env.GPU_MODE || 'auto';
+    console.log(`GPU 설정 적용 중... (모드: ${envGpuMode})`);
+    
+    // GPU 설정 로드
+    const settings = appState.gpuSettings || initializeGPUSettings();
+    
+    // 앱이 이미 시작된 경우 다음 시작 시 적용되도록 설정만 저장
+    if (app.isReady()) {
+      console.log('앱이 이미 실행 중이므로 다음 시작 시 GPU 설정이 적용됩니다.');
+      return false;
+    }
+    
+    // 환경변수 기반 하드웨어 가속 설정 적용
+    if (envGpuMode === 'software') {
+      // 소프트웨어 렌더링 모드
+      app.disableHardwareAcceleration();
+      app.commandLine.appendSwitch('disable-gpu');
+      console.log('소프트웨어 렌더링 모드 적용됨 (하드웨어 가속 비활성화)');
+    } else if (envGpuMode === 'hardware') {
+      // 하드웨어 가속 강제 활성화
+      if (!app.commandLine.hasSwitch('enable-hardware-acceleration')) {
+        app.commandLine.appendSwitch('enable-hardware-acceleration');
+      }
+      if (!app.commandLine.hasSwitch('ignore-gpu-blacklist')) {
+        app.commandLine.appendSwitch('ignore-gpu-blacklist');
+      }
+      if (!app.commandLine.hasSwitch('enable-gpu-rasterization')) {
+        app.commandLine.appendSwitch('enable-gpu-rasterization');
+      }
+      if (!app.commandLine.hasSwitch('enable-zero-copy')) {
+        app.commandLine.appendSwitch('enable-zero-copy');
+      }
+      console.log('하드웨어 가속 모드 강제 활성화됨');
+    } else {
+      // 자동 모드: 환경에 따라 설정
+      if (settings.hardwareAcceleration) {
+        console.log('자동 모드: 하드웨어 가속 사용');
+        // 하드웨어 가속 활성화
+        if (!app.commandLine.hasSwitch('enable-hardware-acceleration')) {
+          app.commandLine.appendSwitch('enable-hardware-acceleration');
+        }
+      } else {
+        console.log('자동 모드: 하드웨어 가속 비활성화');
+        // 하드웨어 가속 비활성화
+        app.disableHardwareAcceleration();
+        if (!app.commandLine.hasSwitch('disable-gpu')) {
+          app.commandLine.appendSwitch('disable-gpu');
         }
       }
     }
     
-    return true;
-  } catch (error) {
-    log.error('최적화 설정 적용 오류:', error);
-    return false;
-  }
-}
-
-/**
- * 하드웨어 가속 설정 (재시작 필요)
- * @param {boolean} enabled - 활성화 여부
- * @returns {boolean} 성공 여부
- */
-function setHardwareAcceleration(enabled) {
-  try {
-    currentSettings.hardwareAcceleration = !!enabled;
-    
-    // 설정 저장
-    store.set('gpu.hardwareAcceleration', enabled);
-    
-    log.info(`하드웨어 가속 ${enabled ? '활성화' : '비활성화'} 설정됨 (다음 재시작 시 적용)`);
-    
-    return true;
-  } catch (error) {
-    log.error('하드웨어 가속 설정 오류:', error);
-    return false;
-  }
-}
-
-/**
- * GPU 정보 가져오기
- * @returns {Object|null} GPU 정보
- */
-function getGpuInfo() {
-  try {
-    if (!app.isReady()) {
-      return null;
+    // 공통 설정: GPU 프로세스 충돌 방지
+    if (!app.commandLine.hasSwitch('disable-gpu-process-crash-limit')) {
+      app.commandLine.appendSwitch('disable-gpu-process-crash-limit');
     }
     
-    // GPU 정보 가져오기
-    const gpuInfo = {
-      features: app.getGPUFeatureStatus ? app.getGPUFeatureStatus() : null,
-      settings: { ...currentSettings },
-      acceleration: isAccelerationEnabled(),
-      hardwareAcceleration: currentSettings.hardwareAcceleration,
-      timestamp: Date.now()
-    };
+    // 로그 출력
+    if (app.isReady() && typeof app.getGPUFeatureStatus === 'function') {
+      const gpuStatus = app.getGPUFeatureStatus();
+      debugLog('현재 GPU 기능 상태:', JSON.stringify(gpuStatus, null, 2));
+    }
     
-    return gpuInfo;
+    console.log(`최종 GPU 모드: ${envGpuMode}, 하드웨어 가속: ${!app.commandLine.hasSwitch('disable-gpu')}`);
+    return true;
   } catch (error) {
-    log.error('GPU 정보 가져오기 오류:', error);
-    return null;
+    console.error('GPU 설정 적용 오류:', error);
+    return false;
   }
 }
 
-// 앱 준비 완료 시 GPU 설정 초기화
-app.whenReady().then(() => {
-  initGpuSettings();
-});
+// GPU 설정 초기화
+initializeGPUSettings();
 
 module.exports = {
-  initGpuSettings,
-  isAccelerationEnabled,
-  setAcceleration,
-  optimizeForBattery,
-  setHardwareAcceleration,
-  getGpuInfo
+  initializeGPUSettings,
+  saveGPUSettings,
+  enableGPUAcceleration,
+  disableGPUAcceleration,
+  getGPUFeatureStatus,
+  applyGPUSettings
 };

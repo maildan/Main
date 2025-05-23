@@ -181,13 +181,16 @@ export const getGpuInfo = async (): Promise<GpuInfo | null> => {
   try {
     // 네이티브 모듈 존재 확인
     if (!window.nativeModule || !window.nativeModule.getGpuInfo) {
-      console.warn('네이티브 GPU 모듈을 사용할 수 없어 기본값을 반환합니다.');
+      console.warn('네이티브 GPU 모듈을 사용할 수 없어 소프트웨어 렌더러로 폴백합니다. 전체 기능이 제한될 수 있습니다.');
       return {
-        name: 'Default GPU',
-        vendor: 'Unknown',
+        name: 'Software Renderer',
+        vendor: 'System',
         renderer: 'Software Renderer',
-        available: false,
-        accelerationEnabled: false
+        available: true,
+        accelerationEnabled: false,
+        driverInfo: '소프트웨어 렌더링으로 동작 중',
+        deviceType: 'cpu',
+        backend: 'software'
       };
     }
 
@@ -196,13 +199,33 @@ export const getGpuInfo = async (): Promise<GpuInfo | null> => {
 
     if (!response.success || !response.data) {
       console.error('GPU 정보를 가져오는 데 실패했습니다:', response.error);
-      return null;
+      // 오류가 발생해도 앱이 계속 동작할 수 있도록 기본값 반환
+      return {
+        name: 'Fallback Renderer',
+        vendor: 'System',
+        renderer: 'CPU Fallback Renderer',
+        available: true,
+        accelerationEnabled: false,
+        driverInfo: response.error || '알 수 없는 오류로 소프트웨어 렌더링 사용 중',
+        deviceType: 'cpu',
+        backend: 'software'
+      };
     }
 
     return response.data;
   } catch (error) {
     console.error('GPU 정보를 가져오는 중 오류 발생:', error);
-    return null;
+    // 오류 발생 시 기본값 반환
+    return {
+      name: 'Error Fallback Renderer',
+      vendor: 'System',
+      renderer: 'Error Recovery Renderer',
+      available: true,
+      accelerationEnabled: false,
+      driverInfo: error instanceof Error ? error.message : '알 수 없는 오류',
+      deviceType: 'cpu',
+      backend: 'software'
+    };
   }
 };
 
@@ -213,6 +236,12 @@ export const getGpuInfo = async (): Promise<GpuInfo | null> => {
  */
 export const setGpuAcceleration = async (enabled: boolean): Promise<boolean> => {
   try {
+    // 네이티브 모듈이 정의되어 있는지 확인
+    if (!window.nativeModule || !window.nativeModule.setGpuAcceleration) {
+      console.error('GPU 모듈을 사용할 수 없어 기본값을 반환합니다');
+      return false;
+    }
+    
     // 네이티브 모듈을 통해 GPU 가속 설정
     const response = await window.nativeModule.setGpuAcceleration(enabled);
 

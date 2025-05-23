@@ -29,15 +29,19 @@ function initializeDatabase() {
     }
 
     // 데이터베이스 연결
+    console.log('데이터베이스에 연결 중...');
     db = new BetterSqlite3(dbPath, { 
       verbose: process.env.NODE_ENV === 'development' ? console.log : null 
     });
+    console.log('데이터베이스 연결 성공');
     
     // WAL 모드 활성화 (성능 향상)
     db.pragma('journal_mode = WAL');
+    console.log('WAL 모드 활성화됨');
     
     // 캐시 크기 제한 (메모리 사용 제한)
     db.pragma('cache_size = -2000'); // 약 2MB 캐시 크기
+    console.log('캐시 크기 설정됨: 2MB');
     
     // 테이블 생성
     db.exec(`

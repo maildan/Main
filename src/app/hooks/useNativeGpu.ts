@@ -53,6 +53,13 @@ export function useNativeGpu() {
     setError(null);
     
     try {
+      // window.nativeModule이 정의되어 있는지 확인
+      if (!window.nativeModule || !window.nativeModule.setGpuAcceleration) {
+        console.error('GPU 가속 설정 실패: nativeModule이 정의되지 않았습니다');
+        setError('nativeModule이 정의되지 않았습니다');
+        return false;
+      }
+      
       const success = await setGpuAcceleration(enable);
       
       if (success) {

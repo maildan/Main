@@ -1,0 +1,7 @@
+{
+  "gpuAcceleration": true,
+  "hardwareAcceleration": true,
+  "vsync": true,
+  "webGLEnabled": true,
+  "batteryOptimizationMode": "auto"
+}

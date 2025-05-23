@@ -10,12 +10,24 @@
 import { MongoClient, ServerApiVersion, ObjectId } from 'mongodb';
 import dotenv from 'dotenv';
 
+// dotenv 설정 로드
 dotenv.config();
 
-// MongoDB 연결 정보
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://username:password@cluster.mongodb.net/';
-const DB_NAME = process.env.MONGO_DB_NAME || 'loop_typing_data';
+// 환경 변수 로드 성공 여부 확인
+if (process.env.MONGODB_URI) {
+  console.log('MongoDB 환경 변수가 성공적으로 로드되었습니다.');
+}
 
+// MongoDB 연결 정보
+const MONGODB_URI = process.env.MONGODB_URI;
+const DB_NAME = process.env.MONGO_DB_NAME;
+
+// 환경 변수 확인
+if (!MONGODB_URI || !DB_NAME) {
+  console.error('MongoDB 환경 변수가 설정되지 않았습니다. 서비스는 제한된 기능으로 작동합니다.');
+  console.error('필요한 환경 변수: MONGODB_URI, MONGO_DB_NAME');
+  console.error('.env 파일이나 환경 변수를 확인해주세요.');
+}
 
 // 몽고디비 접속 옵션 설정 (최신 서버 API 사용)
 const mongoOptions = {
@@ -27,6 +39,8 @@ const mongoOptions = {
   maxPoolSize: 10, // 최대 연결 풀 크기
   connectTimeoutMS: 5000, // 연결 타임아웃
   writeConcern: { w: 'majority', j: true }, // 다수 노드에 기록 보장
+  retryWrites: true, // 쓰기 작업 실패 시 자동 재시도
+  retryReads: true, // 읽기 작업 실패 시 자동 재시도
 };
 
 // MongoDB 클라이언트 인스턴스
@@ -39,9 +53,14 @@ let resumeToken = null;
 
 /**
  * MongoDB 연결 함수
- * @returns {Promise<MongoClient>} MongoDB 클라이언트
+ * @returns {Promise<MongoClient|null>} MongoDB 클라이언트 또는 null(연결 정보 누락 시)
  */
 export async function connectToMongoDB() {
+  if (!MONGODB_URI || !DB_NAME) {
+    console.error('MongoDB 연결 초기화 실패: 환경 변수가 누락되었습니다.');
+    return null;
+  }
+
   if (client && isConnected) {
     return client;
   }
@@ -54,6 +73,7 @@ export async function connectToMongoDB() {
     // Ping 명령으로 연결 확인
     await client.db('admin').command({ ping: 1 });
     console.log('MongoDB 연결 성공!');
+    console.log(`MongoDB 데이터베이스 ${DB_NAME}에 연결되었습니다`);
     
     db = client.db(DB_NAME);
     isConnected = true;
@@ -65,7 +85,8 @@ export async function connectToMongoDB() {
   } catch (error) {
     console.error('MongoDB 연결 오류:', error);
     isConnected = false;
-    throw error;
+    client = null;
+    return null;
   }
 }
 
