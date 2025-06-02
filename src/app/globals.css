@@ -437,3 +437,87 @@ h2 {
     min-height: 150px;
   }
 }
+
+/* 권한 오류 배너 스타일 */
+.permission-error-banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  background-color: #e74c3c;
+  color: white;
+  padding: 12px 16px;
+  z-index: 9999;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+  animation: slide-down 0.3s ease-out;
+  transition: all 0.3s ease;
+}
+
+.permission-error-banner.closing {
+  transform: translateY(-100%);
+  opacity: 0;
+}
+
+.permission-error-content {
+  flex: 1;
+}
+
+.permission-error-title {
+  font-weight: bold;
+  margin-bottom: 4px;
+}
+
+.permission-error-detail {
+  font-size: 0.9em;
+  opacity: 0.9;
+}
+
+.permission-error-actions {
+  display: flex;
+  gap: 8px;
+  margin-left: 16px;
+}
+
+.permission-settings-button {
+  background-color: white;
+  color: #e74c3c;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.permission-settings-button:hover {
+  background-color: #f8f8f8;
+  transform: translateY(-1px);
+}
+
+.permission-close-button {
+  background-color: transparent;
+  color: white;
+  border: 1px solid white;
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.permission-close-button:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+@keyframes slide-down {
+  from {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}

@@ -8,169 +8,188 @@ console.warn(`현재 환경: ${isDev ? '개발' : '프로덕션'}`);
 function handleCSPMetaTags() {
   try {
     if (isDev) {
-      // 로그 제어 변수 (최대 3번만 출력)
+      // 로그 제어 변수
       let cspRemovalLogCount = 0;
       const MAX_CSP_LOGS = 3;
       let lastLogTime = 0;
       const LOG_THROTTLE_MS = 2000; // 2초에 한 번만 로그 출력
       
-      // 개발 환경에서는 CSP 메타 태그를 완전히 제거
+      // 모든 CSP 메타 태그 제거 또는 대체
       const removeAllCSPMetaTags = () => {
-        const allMetaTags = document.querySelectorAll('meta');
-        let removed = 0;
-        
-        allMetaTags.forEach(tag => {
-          const httpEquiv = tag.getAttribute('http-equiv');
-          if (httpEquiv && 
-              (httpEquiv.toLowerCase() === 'content-security-policy' || 
-               httpEquiv.toLowerCase() === 'content-security-policy-report-only')) {
-            tag.remove();
-            removed++;
-          }
-        });
-        
-        // 제거된 태그가 있고 로그 출력 횟수가 제한 이내인 경우에만 로그 출력
-        if (removed > 0 && cspRemovalLogCount < MAX_CSP_LOGS) {
-          const now = Date.now();
-          if (now - lastLogTime > LOG_THROTTLE_MS || cspRemovalLogCount === 0) {
-            console.warn('동적 CSP 메타 태그 감지 및 제거됨');
-            lastLogTime = now;
-            cspRemovalLogCount++;
+        try {
+          if (!document || !document.head) return;
+          
+          const allMetaTags = document.querySelectorAll('meta');
+          let removed = 0;
+          
+          allMetaTags.forEach(tag => {
+            const httpEquiv = tag.getAttribute('http-equiv');
+            if (httpEquiv && 
+                (httpEquiv.toLowerCase() === 'content-security-policy' || 
+                 httpEquiv.toLowerCase() === 'content-security-policy-report-only')) {
+              
+              // 개발 환경에서는 태그를 완전히 제거
+              tag.remove();
+              removed++;
+            }
+          });
+          
+          // 로그 출력 제한 (빈번한 로그 방지)
+          if (removed > 0) {
+            const now = Date.now();
+            if (cspRemovalLogCount < MAX_CSP_LOGS && now - lastLogTime > LOG_THROTTLE_MS) {
+              console.debug('동적 CSP 메타 태그 감지 및 제거됨', removed);
+              lastLogTime = now;
+              cspRemovalLogCount++;
+              
+              if (cspRemovalLogCount === MAX_CSP_LOGS) {
+                console.debug('추가 CSP 메타 태그 제거 작업은 로그 없이 계속됩니다.');
+              }
+            }
             
-            // 마지막 로그 출력일 때 제한 알림
-            if (cspRemovalLogCount === MAX_CSP_LOGS) {
-              console.warn('추가 CSP 메타 태그 제거 작업은 로그 없이 계속됩니다.');
+            // 항상 완전 개방된 CSP 메타 태그 추가
+            try {
+              insertOpenCSPMetaTag();
+            } catch (e) {
+              console.error('개방 CSP 메타 태그 추가 실패:', e);
             }
           }
-        }
-        
-        // 개발용 CSP 메타 태그 추가 (모든 제한 해제)
-        const newCSPMeta = document.createElement('meta');
-        newCSPMeta.setAttribute('http-equiv', 'Content-Security-Policy');
-        newCSPMeta.setAttribute('content', 
-          "default-src * 'unsafe-inline' 'unsafe-eval' data: blob:; " +
-          "script-src * 'unsafe-inline' 'unsafe-eval' data: blob:; " +
-          "connect-src * 'unsafe-inline' data: blob:; " +
-          "img-src * data: blob:; " +
-          "style-src * 'unsafe-inline'; " +
-          "font-src * data:; " +
-          "frame-src * data: blob:; " +
-          "worker-src * data: blob:;"
-        );
-        document.head.appendChild(newCSPMeta);
-        
-        if (cspRemovalLogCount < MAX_CSP_LOGS) {
-          console.warn('개발용 완전 개방 CSP 메타 태그 추가됨');
+        } catch (e) {
+          console.error('CSP 태그 제거 중 오류:', e);
         }
       };
-      
-      // 즉시 실행 및 DOM 로드 후 실행
-      if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', removeAllCSPMetaTags);
-      } else {
-        removeAllCSPMetaTags();
-      }
-      
-      // CSP meta 태그 동적 감시 - Next.js가 런타임에 추가할 수 있음
-      const observer = new MutationObserver((mutations) => {
-        let needsUpdate = false;
-        let tagsRemoved = 0;
-        
-        mutations.forEach((mutation) => {
-          if (mutation.addedNodes && mutation.addedNodes.length) {
-            mutation.addedNodes.forEach((node) => {
-              // meta 태그 추가 확인
-              if (node.tagName === 'META') {
-                const httpEquiv = node.getAttribute('http-equiv');
-                if (httpEquiv && 
-                    (httpEquiv.toLowerCase() === 'content-security-policy' || 
-                     httpEquiv.toLowerCase() === 'content-security-policy-report-only')) {
-                  node.remove();
-                  tagsRemoved++;
-                  needsUpdate = true;
-                }
-              }
-              
-              // head나 body에 뭔가 추가되었을 때도 CSP 메타 태그 확인
-              if (node.querySelectorAll) {
-                const cspTags = node.querySelectorAll('meta[http-equiv="Content-Security-Policy"], meta[http-equiv="Content-Security-Policy-Report-Only"]');
-                if (cspTags.length > 0) {
-                  cspTags.forEach(tag => tag.remove());
-                  tagsRemoved += cspTags.length;
-                  needsUpdate = true;
-                }
-              }
-            });
-          }
-        });
-        
-        // 로그 출력을 시간 기반으로 조절
-        const now = Date.now();
-        if (needsUpdate && (cspRemovalLogCount < MAX_CSP_LOGS || now - lastLogTime > LOG_THROTTLE_MS)) {
-          if (cspRemovalLogCount < MAX_CSP_LOGS) {
-            console.warn('동적 CSP 메타 태그 감지 및 제거됨');
-            lastLogTime = now;
-            cspRemovalLogCount++;
-            
-            // 마지막 로그 출력일 때 제한 알림
-            if (cspRemovalLogCount === MAX_CSP_LOGS) {
-              console.warn('추가 CSP 메타 태그 제거 작업은 로그 없이 계속됩니다.');
-            }
+
+      // 완전 개방된 CSP 메타 태그 추가
+      const insertOpenCSPMetaTag = () => {
+        try {
+          if (!document || !document.head) return;
+          
+          // 기존 devCSP 태그 제거
+          const existingDevCsp = document.querySelector('meta[name="electron-csp-dev"]');
+          if (existingDevCsp) {
+            existingDevCsp.remove();
           }
           
-          // 개발용 CSP 메타 태그 다시 추가
-          const existingCSP = document.querySelector('meta[http-equiv="Content-Security-Policy"]');
-          if (!existingCSP) {
-            const newCSPMeta = document.createElement('meta');
-            newCSPMeta.setAttribute('http-equiv', 'Content-Security-Policy');
-            newCSPMeta.setAttribute('content', 
-              "default-src * 'unsafe-inline' 'unsafe-eval' data: blob:; " +
-              "script-src * 'unsafe-inline' 'unsafe-eval' data: blob:; " +
-              "connect-src * 'unsafe-inline' data: blob:; " +
-              "img-src * data: blob:; " +
-              "style-src * 'unsafe-inline'; " +
-              "font-src * data:; " +
-              "frame-src * data: blob:; " +
-              "worker-src * data: blob:;"
-            );
-            document.head.appendChild(newCSPMeta);
-          }
+          // 완전히 개방된 CSP 메타 태그 추가
+          const devCspMeta = document.createElement('meta');
+          devCspMeta.setAttribute('http-equiv', 'Content-Security-Policy');
+          devCspMeta.setAttribute('name', 'electron-csp-dev');
+          devCspMeta.setAttribute('content', 
+            "default-src * 'unsafe-inline' 'unsafe-eval'; " +
+            "script-src * 'unsafe-inline' 'unsafe-eval'; " + 
+            "style-src * 'unsafe-inline'; " +
+            "img-src * data: blob:; " +
+            "font-src * data:; " +
+            "connect-src * ws: wss:; " +
+            "media-src * blob:; " +
+            "object-src *;"
+          );
+          
+          document.head.appendChild(devCspMeta);
+          console.debug('개발용 완전 개방 CSP 메타 태그 추가됨');
+        } catch (e) {
+          console.error('CSP 메타 태그 추가 중 오류:', e);
         }
-      });
-      
-      // 전체 문서 변화 감시 시작 (head 뿐만 아니라)
-      observer.observe(document, { 
-        childList: true, 
-        subtree: true 
-      });
-      
-      // unsafe-eval 지원을 위한 특수 처리 (eval 직접 호출 없이 안전한 방식으로 구현)
-      try {
-        // webpack HMR을 위한 지원 코드 (안전한 방식으로 구현)
-        window.__webpack_require__ = window.__webpack_require__ || function() {};
-        window.__webpack_hash__ = window.__webpack_hash__ || '';
+      };
+
+      // 초기 로드 시 기존 CSP 메타 태그 제거
+      setTimeout(() => {
+        try {
+          removeAllCSPMetaTags();
+        } catch (e) {
+          console.error('초기 CSP 제거 오류:', e);
+        }
         
-        console.warn('eval 관련 보조 함수 설정 완료');
-      } catch (evalError) {
-        console.error('eval 관련 설정 오류:', evalError);
-      }
+        // eval 관련 에러 감지
+        try {
+          window.addEventListener('error', (event) => {
+            if (event.error && (
+                event.error.name === 'EvalError' || 
+                (event.message && event.message.includes('Content Security Policy'))
+            )) {
+              console.debug('CSP 관련 오류 감지됨:', event.error || event.message);
+              // CSP 관련 오류 발생 시 CSP 다시 확인하고 재설정
+              removeAllCSPMetaTags();
+            }
+          });
+          
+          console.debug('eval 관련 보조 함수 설정 완료');
+        } catch (evalHelperError) {
+          console.error('eval 보조 함수 설정 실패:', evalHelperError);
+        }
+        
+        // MutationObserver로 동적 CSP 메타 태그 감시 설정
+        try {
+          if (document && document.head) {
+            const observer = new MutationObserver((mutations) => {
+              let shouldRemove = false;
+              
+              mutations.forEach(mutation => {
+                if (mutation.type === 'childList') {
+                  mutation.addedNodes.forEach(node => {
+                    if (node.nodeName === 'META') {
+                      const httpEquiv = node.getAttribute && node.getAttribute('http-equiv');
+                      if (httpEquiv && httpEquiv.toLowerCase().includes('content-security-policy')) {
+                        shouldRemove = true;
+                      }
+                    }
+                  });
+                }
+              });
+              
+              if (shouldRemove) {
+                removeAllCSPMetaTags();
+              }
+            });
+            
+            // document.head 변경 감시 설정
+            observer.observe(document.head, { 
+              childList: true, 
+              subtree: true 
+            });
+          }
+        } catch (observerError) {
+          console.error('MutationObserver 설정 실패:', observerError);
+        }
+      }, 0);
+      
+      // CSP 위반 이벤트 리스너 추가
+      document.addEventListener('securitypolicyviolation', (e) => {
+        console.info('CSP 위반:', e.violatedDirective);
+        // 위반 발생 시 CSP 메타 태그 재설정
+        removeAllCSPMetaTags();
+      });
+      
+      // DOM 콘텐츠가 로드된 후 키보드 이벤트 핸들러 설정
+      window.addEventListener('DOMContentLoaded', (event) => {
+        console.debug('DOM 콘텐츠가 로드되었습니다. 키보드 이벤트 핸들러 설정 중...');
+        
+        // 현재 CSP 상태 재확인 및 개발용 메타 태그 추가
+        removeAllCSPMetaTags();
+      });
+      
+      // 키보드 이벤트 핸들러 설정 완료 통지
+      document.addEventListener('keydown', function handler() {
+        console.warn('DOM 키보드 이벤트 핸들러 설정 완료');
+        document.removeEventListener('keydown', handler);
+      });
+      
+      // 스크립트 로딩 시 CSP 메타 태그 즉시 설정 시도
+      insertOpenCSPMetaTag();
     }
   } catch (error) {
-    console.error('CSP 메타 태그 처리 중 오류:', error);
+    console.error('CSP 처리 중 오류 발생:', error);
   }
 }
 
-// DOM 로드 시 CSP 메타 태그 처리 실행
-document.addEventListener('DOMContentLoaded', () => {
-  console.warn('DOM 콘텐츠가 로드되었습니다. 키보드 이벤트 핸들러 설정 중...');
-  handleCSPMetaTags();
-  
-  // ... 기존 코드 유지 ...
-});
-
-// 페이지 로드 시에도 CSP 메타 태그 처리 실행 (추가)
-if (document.readyState === 'complete' || document.readyState === 'interactive') {
-  handleCSPMetaTags();
+// 문서가 로드되면 CSP 처리 함수 실행
+if (typeof document !== 'undefined') {
+  try {
+    handleCSPMetaTags();
+    console.warn('Electron preload 스크립트가 로드되었습니다.');
+  } catch (e) {
+    console.error('preload 스크립트 초기화 오류:', e);
+  }
 }
 
 // 안전한 IPC 통신을 위한 API 노출
@@ -190,6 +209,44 @@ contextBridge.exposeInMainWorld('electronAPI', {
     
     return () => {
       ipcRenderer.removeListener('typing-stats-update', handler);
+    };
+  },
+  
+  // 권한 오류 이벤트 수신 함수 추가
+  onPermissionError: (callback) => {
+    if (!callback || typeof callback !== 'function') {
+      console.error('유효한 콜백 함수가 필요합니다');
+      return () => {};
+    }
+
+    const handler = (_event, error) => {
+      console.warn('권한 오류 수신:', error);
+      callback(error);
+    };
+    
+    ipcRenderer.on('permission-error', handler);
+    
+    return () => {
+      ipcRenderer.removeListener('permission-error', handler);
+    };
+  },
+  
+  // 권한 상태 업데이트 이벤트 수신 함수 추가
+  onPermissionStatus: (callback) => {
+    if (!callback || typeof callback !== 'function') {
+      console.error('유효한 콜백 함수가 필요합니다');
+      return () => {};
+    }
+
+    const handler = (_event, status) => {
+      console.log('권한 상태 업데이트 수신:', status);
+      callback(status);
+    };
+    
+    ipcRenderer.on('permission-status', handler);
+    
+    return () => {
+      ipcRenderer.removeListener('permission-status', handler);
     };
   },
   
@@ -542,11 +599,3 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.send('toggle-mini-view');
   }
 });
-
-// 디버그용 로그
-console.log('Electron preload 스크립트가 로드되었습니다.');
-
-// 최대한 빨리 실행하기 위해 즉시 호출
-if (isDev) {
-  handleCSPMetaTags();
-}

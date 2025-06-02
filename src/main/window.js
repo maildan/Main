@@ -127,19 +127,30 @@ async function createWindow() {
         contextIsolation: true, // 보안을 위해 활성화
         sandbox: false, // contextIsolation이 적용되어 있으므로 sandbox는 해제
         preload: path.join(__dirname, '../preload/preload.js'), // preload.js 경로 수정
-        devTools: true, // 개발 모드에서는 항상 DevTools 활성화
+        devTools: isDev, // 개발 모드에서만 DevTools 활성화
         
-        // 보안 관련 설정
-        webSecurity: !isDev, // 개발 환경에서는 웹 보안 비활성화
-        allowRunningInsecureContent: isDev, // 개발 환경에서는 안전하지 않은 콘텐츠 허용
+        // 개발 환경에서는 보안 설정 완화
+        webSecurity: !isDev, // 개발 모드에서는 웹 보안 비활성화
+        allowRunningInsecureContent: isDev, // 개발 모드에서는 안전하지 않은 컨텐츠 허용
+        
+        // 개발 모드에서 추가 설정
+        ...(isDev ? {
+          disableDialogs: false,           // 개발 중 대화 상자 허용
+          webgl: true,                     // WebGL 활성화
+        } : {}),
       }
     });
 
-    // 개발 환경에서만 DevTools 열기
+    // 개발 모드에서 webSecurity 비활성화 이유 설명
+    if (isDev) {
+      console.log('개발 모드: 편의를 위해 webSecurity 비활성화, eval 및 인라인 스크립트 허용');
+    }
+
+    // 개발 모드에서 DevTools 열기
     if (isDev) {
       appState.mainWindow.webContents.openDevTools({ mode: 'detach', activate: false });
       
-      // 개발 환경에서 CSP 관련 회피 설정 (개선된 방식)
+      // 개발 모드에서 CSP 관련 회피 설정 (개선된 방식)
       appState.mainWindow.webContents.session.webRequest.onHeadersReceived(
         { urls: ['*://*/*'] },
         (details, callback) => {
@@ -147,12 +158,33 @@ async function createWindow() {
           
           // CSP 헤더 제거
           Object.keys(responseHeaders).forEach(key => {
-            if (key.toLowerCase().includes('content-security-policy')) {
+            if (key.toLowerCase().includes('content-security-policy') || 
+                key.toLowerCase().includes('x-content-security-policy') ||
+                key.toLowerCase().includes('content-security')) {
               delete responseHeaders[key];
             }
           });
           
+          // 완전 개방된 CSP 헤더 추가
+          responseHeaders['Content-Security-Policy'] = [
+            'default-src * \'unsafe-inline\' \'unsafe-eval\'; ' +
+            'script-src * \'unsafe-inline\' \'unsafe-eval\'; ' +
+            'style-src * \'unsafe-inline\'; ' +
+            'connect-src * ws: wss:; ' +
+            'img-src * data: blob:; ' +
+            'font-src * data:; ' +
+            'media-src * data: blob:;'
+          ];
+          
           callback({ responseHeaders });
+        }
+      );
+      
+      // 추가 개발 모드 설정: HTTP 응답 헤더 수정 차단 해제
+      appState.mainWindow.webContents.session.webRequest.onHeadersReceived(
+        { urls: ['http://localhost:*/*', 'https://localhost:*/*'] },
+        (details, callback) => {
+          callback({ cancel: false });
         }
       );
     }

@@ -34,6 +34,9 @@ let isLinux = () => process.platform === 'linux' || process.platform === 'freebs
 console.log('단축키 권한 확인:', globalShortcut.isRegistered('CommandOrControl+X'));
 debugLog('키보드 모듈 초기화 시작');
 
+// 권한 오류 추적을 위한 상태 변수
+let hasReportedScreenRecordingPermissionError = false;
+
 // 플랫폼별 키보드 이벤트 관련 설정
 const PLATFORM_KEY_CONFIGS = {
   darwin: {
@@ -925,6 +928,19 @@ function setupKeyboardListener() {
       if (appState.isTracking) {
         try {
           const activeWindowInfo = await activeWin();
+          // 권한 오류 상태 재설정 (권한이 생겼을 경우를 처리)
+          if (hasReportedScreenRecordingPermissionError && activeWindowInfo) {
+            hasReportedScreenRecordingPermissionError = false;
+            // 권한이 허용된 경우 알림
+            if (appState.mainWindow && appState.mainWindow.webContents) {
+              appState.mainWindow.webContents.send('permission-status', {
+                code: 'SCREEN_RECORDING',
+                granted: true,
+                message: '화면 기록 권한이 허용되었습니다.'
+              });
+            }
+          }
+          
           if (activeWindowInfo) {
             const currentAppName = activeWindowInfo.owner?.name || 'Unknown App';
             const currentWindowTitle = activeWindowInfo.title || 'Unknown Window';
@@ -951,9 +967,28 @@ function setupKeyboardListener() {
         } catch (error) {
           console.error('active-win 호출 오류:', error);
           debugLog('기본 창 정보 사용');
+          
+          // 화면 기록 권한 오류 확인 (stderr 메시지 검사)
+          const errorOutput = (error.stdout || '').toString() + (error.stderr || '').toString();
+          
+          // Screen Recording 권한 오류 감지
+          if (errorOutput.includes('screen recording permission') && !hasReportedScreenRecordingPermissionError) {
+            hasReportedScreenRecordingPermissionError = true;
+            
+            // 메인 윈도우에 권한 오류 이벤트 전송
+            if (appState.mainWindow && appState.mainWindow.webContents) {
+              appState.mainWindow.webContents.send('permission-error', {
+                code: 'SCREEN_RECORDING',
+                message: '화면 기록 권한이 없어 활성 윈도우 정보를 가져올 수 없습니다.',
+                detail: '시스템 환경설정 → 보안 및 개인 정보 보호 → 화면 기록 에서 권한을 허용해주세요.'
+              });
+              
+              debugLog('화면 기록 권한 오류 메시지 전송됨');
+            }
+          }
         }
       }
-    }, 2000); // 2초마다 체크 (부하 감소를 위해)
+    }, 2000);
 
     // 리소스 정리 함수 반환
     return {

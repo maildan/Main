@@ -35,8 +35,23 @@ function register() {
         title = windowInfo ? windowInfo.title : null;
         isGoogleDocs = windowInfo ? isGoogleDocsWindow(windowInfo) : false;
       } catch (activeWinError) {
-        // active-win에서 오류 발생 시 대체 방법 사용
+        // active-win에서 오류 발생 시 
         console.warn('active-win 오류, 대체 방법 사용:', activeWinError.message);
+        
+        // 화면 기록 권한 오류인지 확인
+        const errorOutput = (activeWinError.stdout || '').toString() + (activeWinError.stderr || '').toString();
+        
+        // 권한 오류 메시지 감지
+        if (errorOutput.includes('screen recording permission')) {
+          // 렌더러에 권한 오류 알림
+          event.sender.send('permission-error', {
+            code: 'SCREEN_RECORDING',
+            message: '화면 기록 권한이 없어 활성 윈도우 정보를 가져올 수 없습니다.',
+            detail: '시스템 환경설정 → 보안 및 개인 정보 보호 → 화면 기록 에서 권한을 허용해주세요.'
+          });
+          
+          debugLog('화면 기록 권한 오류 메시지 전송됨');
+        }
         
         // browser.js 모듈의 대체 함수 사용
         const { getFallbackBrowserName, getLastKnownBrowserInfo } = require('../browser');
@@ -81,22 +96,70 @@ function register() {
   });
 
   // 디버그 정보 요청
-  ipcMain.on('get-debug-info', (event) => {
+  ipcMain.handle('get-debug-info', async () => {
     try {
+      // 시스템 정보 수집
       const debugInfo = {
-        isTracking: appState.isTracking,
-        currentStats: { ...appState.currentStats },
+        version: app.getVersion(),
         platform: process.platform,
-        electronVersion: process.versions.electron,
-        nodeVersion: process.versions.node
+        arch: process.arch,
+        electron: process.versions.electron,
+        chrome: process.versions.chrome,
+        node: process.versions.node,
+        v8: process.versions.v8,
+        date: new Date().toISOString(),
+        memoryUsage: process.memoryUsage(),
+        uptime: process.uptime(),
+        windowInfo: null,
+        permissions: {
+          // 여러 권한 상태 확인
+          screenRecording: null, // macOS 화면 기록 권한
+          mediaAccess: null,     // 미디어 접근 권한
+        }
       };
       
-      event.reply('debug-info', debugInfo);
+      // active-win으로 현재 윈도우 정보 얻기
+      try {
+        debugInfo.windowInfo = await activeWin();
+        
+        // active-win이 성공했다면 화면 기록 권한 있음
+        if (debugInfo.windowInfo && process.platform === 'darwin') {
+          debugInfo.permissions.screenRecording = true;
+          
+          // 완전히 성공했을 때 렌더러에게 권한 획득 알림
+          ipcMain.emit('permission-status-update', {
+            code: 'SCREEN_RECORDING',
+            granted: true
+          });
+        }
+      } catch (activeWinError) {
+        // active-win 오류 수집 및 권한 분석
+        console.error('디버그 정보 수집 중 active-win 오류:', activeWinError);
+        
+        const errorOutput = (activeWinError.stdout || '').toString() + (activeWinError.stderr || '').toString();
+        debugInfo.windowInfo = {
+          error: activeWinError.message,
+          errorOutput: errorOutput
+        };
+        
+        // 권한 오류 식별
+        if (process.platform === 'darwin') {
+          if (errorOutput.includes('screen recording permission')) {
+            debugInfo.permissions.screenRecording = false;
+            
+            // 명시적으로 권한 없음 표시
+            debugLog('화면 기록 권한 없음 감지됨');
+          }
+        }
+      }
       
-      debugLog('디버그 정보 요청 처리 완료');
+      return debugInfo;
     } catch (error) {
-      console.error('디버그 정보 요청 처리 오류:', error);
-      event.reply('debug-info', { error: error.message });
+      console.error('디버그 정보 수집 오류:', error);
+      return {
+        error: error.message,
+        stack: error.stack
+      };
     }
   });
 

@@ -256,3 +256,13 @@
 [2025-05-21T10:26:11.414Z][ERROR][native-module] 폴백 모듈을 찾을 수 없음 {"path":"/Users/user/loop/loop_3/build/server/chunks/fallback/index.js"}
 [2025-05-21T10:26:11.422Z][INFO][native-module] 네이티브 모듈 로드 시도 {"paths":["/Users/user/loop/loop_3/build/server/chunks/typing_stats_native.node","/Users/user/loop/loop_3/node_modules/.native-modules/typing_stats_native.node"]}
 [2025-05-21T10:26:11.423Z][ERROR][native-module] 폴백 모듈을 찾을 수 없음 {"path":"/Users/user/loop/loop_3/build/server/chunks/fallback/index.js"}
+[2025-06-02T01:18:47.481Z][INFO][native-module] 네이티브 모듈 로드 시도 {"paths":["/Users/user/loop/loop_3/native-modules/target/debug/typing_stats_native.node","/Users/user/loop/loop_3/native-modules/target/release/typing_stats_native.node"]}
+[2025-06-02T01:18:47.481Z][ERROR][native-module] 폴백 모듈을 찾을 수 없음 {"path":"/Users/user/loop/loop_3/build/server/fallback/index.js"}
+[2025-06-02T01:21:07.841Z][INFO][native-module] 네이티브 모듈 로드 시도 {"paths":["/Users/user/loop/loop_3/native-modules/target/debug/typing_stats_native.node","/Users/user/loop/loop_3/native-modules/target/release/typing_stats_native.node"]}
+[2025-06-02T01:21:07.842Z][ERROR][native-module] 폴백 모듈을 찾을 수 없음 {"path":"/Users/user/loop/loop_3/build/server/fallback/index.js"}
+[2025-06-02T01:24:34.468Z][INFO][native-module] 네이티브 모듈 로드 시도 {"paths":["/Users/user/loop/loop_3/native-modules/target/debug/typing_stats_native.node","/Users/user/loop/loop_3/native-modules/target/release/typing_stats_native.node"]}
+[2025-06-02T01:24:34.475Z][ERROR][native-module] 폴백 모듈을 찾을 수 없음 {"path":"/Users/user/loop/loop_3/build/server/fallback/index.js"}
+[2025-06-02T01:45:59.305Z][INFO][native-module] 네이티브 모듈 로드 시도 {"paths":["/Users/user/loop/loop_3/native-modules/target/debug/typing_stats_native.node","/Users/user/loop/loop_3/native-modules/target/release/typing_stats_native.node"]}
+[2025-06-02T01:45:59.305Z][ERROR][native-module] 폴백 모듈을 찾을 수 없음 {"path":"/Users/user/loop/loop_3/build/server/fallback/index.js"}
+[2025-06-02T02:02:49.712Z][INFO][native-module] 네이티브 모듈 로드 시도 {"paths":["/Users/user/loop/loop_3/native-modules/target/debug/typing_stats_native.node","/Users/user/loop/loop_3/native-modules/target/release/typing_stats_native.node"]}
+[2025-06-02T02:02:49.713Z][ERROR][native-module] 폴백 모듈을 찾을 수 없음 {"path":"/Users/user/loop/loop_3/build/server/fallback/index.js"}

@@ -115,7 +115,7 @@ const platform = safeRequire('./platform', {});
 const browser = safeRequire('./browser', {});
 
 // 추가 모듈 로드 (전체 main 폴더 내 모듈)
-const security = safeRequire('./security-checks', {
+const securityChecks = safeRequire('./security-checks', {
   initializeSecuritySettings: () => debugLog('보안 설정 초기화 기본 구현 사용'),
   applySecuritySettings: () => debugLog('보안 설정 적용 기본 구현 사용'),
   setupPermissionHandler: () => debugLog('권한 핸들러 설정 기본 구현 사용'),
@@ -412,7 +412,7 @@ if (!gotSingleInstanceLock) {
     debugLog('- setupIpcHandlers:', !!setupIpcHandlers);
     debugLog('- loadSettings:', !!loadSettings);
     debugLog('- initializeNativeModule:', !!initializeNativeModule);
-    debugLog('- security:', !!security);
+    debugLog('- securityChecks:', !!securityChecks);
 
     // 앱 이벤트 리스너 처리
     if (!appEventListenersSetup) {
@@ -445,9 +445,9 @@ if (!gotSingleInstanceLock) {
       debugLog('메인 창 생성됨:', !!mainWindow);
       
       // 창에 보안 설정 적용
-      if (mainWindow && security && typeof security.applySecuritySettings === 'function') {
+      if (mainWindow && securityChecks && typeof securityChecks.applySecuritySettings === 'function') {
         try {
-          security.applySecuritySettings(mainWindow);
+          securityChecks.applySecuritySettings(mainWindow);
           debugLog('창에 보안 설정 적용됨');
         } catch (windowSecurityError) {
           console.error('창 보안 설정 적용 중 오류:', windowSecurityError);
@@ -902,101 +902,56 @@ app.on('before-quit', async (event) => {
  */
 function setupSecuritySettings() {
   try {
-    // 개발 환경 또는 보안 비활성화 환경 변수 확인
+    // 환경 변수 확인
     const isDev = process.env.NODE_ENV === 'development';
     const disableSecurity = isDev || process.env.DISABLE_SECURITY === 'true';
+    const disableCSP = isDev || process.env.DISABLE_CSP === 'true';
     
+    console.log(`보안 제한 설정: (개발 모드: ${isDev}, 보안 비활성화: ${disableSecurity}, CSP 비활성화: ${disableCSP})`);
+    
+    // 새 security-checks.js의 initializeSecuritySettings 함수 사용
+    if (securityChecks && typeof securityChecks.initializeSecuritySettings === 'function') {
+      console.log('security-checks.js의 initializeSecuritySettings 함수 호출');
+      return securityChecks.initializeSecuritySettings(app);
+    }
+    
+    // 기존 코드는 새 함수가 없을 경우 폴백으로 사용
     if (disableSecurity) {
-      console.log('개발 환경: 모든 보안 설정 비활성화');
+      console.log('보안 제한 비활성화 및 CSP 제한 제거 중...');
       
-      // 개발 환경에서는 웹 보안 완전 비활성화
+      // 개발 환경에서는 명령줄 인수 추가
       if (app && app.commandLine) {
+        // 웹 보안 비활성화
         app.commandLine.appendSwitch('disable-web-security');
         app.commandLine.appendSwitch('allow-insecure-localhost');
         app.commandLine.appendSwitch('ignore-certificate-errors');
         app.commandLine.appendSwitch('disable-site-isolation-trials');
+        
+        // 안전하지 않은 콘텐츠 실행 허용
         app.commandLine.appendSwitch('allow-running-insecure-content');
-        // CORS 비활성화
+        
+        // CORS 비활성화 (크로스 도메인 요청 허용)
         app.commandLine.appendSwitch('disable-features', 'OutOfBlinkCors');
-      }
-      
-      // 세션 기반 CSP 제거 (모든 세션에 적용)
-      if (session && session.defaultSession) {
-        // 모든 웹 요청에 대한 CSP 헤더 제거
-        session.defaultSession.webRequest.onHeadersReceived(
-          { urls: ['*://*/*'] },
-          (details, callback) => {
-            if (details && details.responseHeaders) {
-              // CSP 관련 모든 헤더 제거
-              Object.keys(details.responseHeaders).forEach((key) => {
-                if (key.toLowerCase().includes('content-security-policy')) {
-                  delete details.responseHeaders[key];
-                }
-              });
-            }
-            
-            callback({
-              responseHeaders: details.responseHeaders,
-              cancel: false
-            });
-          }
-        );
+        
+        // 추가 개발 편의 옵션
+        app.commandLine.appendSwitch('disable-http-cache');
+        app.commandLine.appendSwitch('disable-http2');
+        app.commandLine.appendSwitch('ignore-connections-limit', 'localhost');
       }
 
-      // 모든 창에 대해 웹 보안 비활성화 (기본 설정만 변경)
-      app.on('browser-window-created', (_, window) => {
-        const webContents = window.webContents;
-        if (webContents) {
-          // CSP 헤더 제거 설정
-          webContents.session.webRequest.onHeadersReceived(
-            { urls: ['*://*/*'] },
-            (details, callback) => {
-              const responseHeaders = {...details.responseHeaders};
-              
-              // CSP 헤더 제거
-              Object.keys(responseHeaders).forEach(key => {
-                if (key.toLowerCase().includes('content-security-policy')) {
-                  delete responseHeaders[key];
-                }
-              });
-              
-              callback({ responseHeaders });
-            }
-          );
-        }
-      });
+      // 모든 세션에 CSP 설정 해제 적용
+      if (securityChecks && typeof securityChecks.applyCSPToAllSessions === 'function') {
+        // 새로운 인자 전달 방식으로 변경 (isDev만 전달)
+        securityChecks.applyCSPToAllSessions(isDev);
+        console.log('모든 CSP 제한 완전히 비활성화됨');
+      }
       
       return true;
     }
     
-    // 프로덕션 환경에서는 보안 설정 적용
-    // 보안 모듈 로드
-    const security = safeRequire('./security-checks', {});
-    
-    if (security) {
-      // 보안 모듈에 Electron 객체 참조 설정
-      if (security.setElectronApp) {
-        security.setElectronApp(app);
-        debugLog('보안 모듈 Electron 참조 설정됨');
-      }
-      
-      // 보안 설정 초기화
-      if (security.initSecurity) {
-        const securityInitResult = security.initSecurity(isDev);
-        debugLog(`보안 설정 초기화 결과: ${securityInitResult}`);
-      } else {
-        debugLog('보안 모듈의 initSecurity 함수가 존재하지 않습니다');
-        return false;
-      }
-      
-      appState.securityInitialized = true;
-      return true;
-    } else {
-      console.error('보안 모듈을 로드할 수 없습니다');
-      return false;
-    }
+    return true;
   } catch (error) {
-    console.error('보안 설정 초기화 오류:', error);
+    console.error('보안 설정 초기화 중 오류:', error);
     return false;
   }
 }

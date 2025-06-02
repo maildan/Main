@@ -164,3 +164,54 @@ interface StatsData {
   accuracy: number;
   wpm: number;
 }
+
+// 권한 오류 인터페이스
+interface PermissionError {
+  code: string;
+  message: string;
+  detail?: string;
+}
+
+// 권한 상태 인터페이스
+interface PermissionStatus {
+  code: string;
+  granted: boolean;
+  message?: string;
+}
+
+// ElectronAPI 인터페이스
+interface ElectronAPI {
+  onTypingStatsUpdate: (callback: (data: any) => void) => () => void;
+  onPermissionError: (callback: (error: PermissionError) => void) => () => void;
+  onPermissionStatus: (callback: (status: PermissionStatus) => void) => () => void;
+  startTracking: () => void;
+  stopTracking: () => void;
+  saveStats: (content: any) => void;
+  getCurrentBrowserInfo: () => Promise<any>;
+  getDebugInfo: () => Promise<any>;
+  onStatsSaved: (callback: (data: any) => void) => () => void;
+  sendKeyboardEvent: (eventData: any) => Promise<any>;
+  getHangulStatus: () => Promise<any>;
+  testKeyboardInput: (key: string) => Promise<any>;
+  testHangulInput: (text: string) => Promise<any>;
+  decomposeHangul: (char: string) => string[];
+  saveSettings: (settings: any) => Promise<any>;
+  loadSettings: () => Promise<any>;
+  setDarkMode: (enabled: boolean) => Promise<any>;
+  setWindowMode: (mode: string) => Promise<any>;
+  getWindowMode: () => Promise<string>;
+  windowControl: (command: string) => void;
+  checkAutoStart: (shouldAutoStart: boolean) => void;
+  onAutoTrackingStarted: (callback: (data: any) => void) => () => void;
+  onSwitchTab: (callback: (tabName: string) => void) => () => void;
+  onOpenSaveStatsDialog: (callback: () => void) => () => void;
+  requestStatsUpdate: () => void;
+  onMiniViewStatsUpdate: (callback: (data: any) => void) => () => void;
+  toggleMiniView: () => void;
+}
+
+declare global {
+  interface Window {
+    electronAPI: ElectronAPI;
+  }
+}
