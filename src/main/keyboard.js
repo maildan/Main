@@ -671,6 +671,17 @@ function setupKeyboardListener() {
 
       debugLog('메인 윈도우에 키보드 이벤트 리스너 설정 중...');
 
+      // 기존 리스너 제거 - MaxListenersExceededWarning 방지
+      if (mainWindow.webContents) {
+        mainWindow.webContents.removeAllListeners('before-input-event');
+        mainWindow.webContents.removeAllListeners('composition-start');
+        mainWindow.webContents.removeAllListeners('composition-update');
+        mainWindow.webContents.removeAllListeners('composition-end');
+      }
+
+      // 리스너 최대 수 증가 (필요한 경우)
+      mainWindow.webContents.setMaxListeners(20); // 필요에 따라 조정
+
       // 전역 키보드 이벤트 처리
       mainWindow.webContents.on('before-input-event', (event, input) => {
         if (!appState.isTracking) return;
@@ -852,6 +863,18 @@ function setupKeyboardListener() {
     // MacOS 특화 키보드 지원 설정
     const setupMacOSKeyboardSupport = (window) => {
       debugLog('MacOS 특화 키보드 지원 설정 중...');
+      
+      if (!window || window.isDestroyed() || !window.webContents) {
+        debugLog('유효하지 않은 윈도우: MacOS 키보드 지원 설정 실패');
+        return;
+      }
+      
+      // 기존 리스너 제거 - MaxListenersExceededWarning 방지
+      window.webContents.removeAllListeners('before-input-event');
+      window.webContents.removeAllListeners('input-event');
+      
+      // 최대 리스너 수 설정
+      window.webContents.setMaxListeners(25); // MacOS는 추가 이벤트가 있으므로 더 많이 설정
       
       // MacOS에서는 Command 키 이벤트를 추가로 처리
       window.webContents.on('before-input-event', (event, input) => {

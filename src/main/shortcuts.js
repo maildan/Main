@@ -104,25 +104,39 @@ function unregisterAllGlobalShortcuts() {
  */
 function registerLocalShortcut(window, accelerator, callback) {
   if (!window || window.isDestroyed()) {
-    console.error('유효하지 않은 윈도우입니다.');
     return false;
   }
 
   try {
-    // 윈도우 ID 가져오기
     const windowId = window.id;
 
-    // 윈도우 단축키 맵 초기화
+    // 이 창에 등록된 단축키 목록 가져오기
     if (!localShortcuts.has(windowId)) {
       localShortcuts.set(windowId, new Map());
     }
 
     const windowShortcuts = localShortcuts.get(windowId);
 
-    // 이미 등록된 단축키인지 확인
+    // 이미 등록된 단축키면 이전 등록 취소
     if (windowShortcuts.has(accelerator)) {
-      console.warn(`해당 윈도우에 이미 등록된 단축키입니다: ${accelerator}`);
-      return false;
+      try {
+        const existing = windowShortcuts.get(accelerator);
+        // 필요하다면 이전 리스너를 명시적으로 제거하는 코드 추가 가능
+        console.log(`이미 등록된 단축키 재등록: ${accelerator}`);
+      } catch (err) {
+        console.error('이전 단축키 제거 오류:', err);
+      }
+    }
+    
+    // 기존에 등록된 before-input-event 리스너가 있다면 제거하거나 최대 리스너 수 증가
+    if (window.webContents) {
+      const currentListenerCount = window.webContents.listenerCount('before-input-event');
+      if (currentListenerCount >= window.webContents.getMaxListeners() - 2) {
+        // 리스너가 거의 최대치에 도달한 경우, 최대 리스너 수 증가
+        const newMaxListeners = Math.max(20, window.webContents.getMaxListeners() * 1.5);
+        window.webContents.setMaxListeners(newMaxListeners);
+        console.log(`단축키 리스너 최대 수 증가: ${newMaxListeners}`);
+      }
     }
 
     // 단축키 리스너 추가

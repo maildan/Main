@@ -2,6 +2,57 @@
 module.exports = {
   // 웹팩 설정 커스터마이징
   webpack: (config, { dev, isServer }) => {
+    // 서버 사이드 번들링에서 네이티브 모듈 외부화 처리
+    if (isServer) {
+      // webpack-node-externals 패키지 사용
+      const nodeExternals = require('webpack-node-externals');
+      
+      // 기존 externals 설정을 배열로 변환
+      const externals = [...(Array.isArray(config.externals) 
+        ? config.externals 
+        : config.externals ? [config.externals] : [])];
+      
+      // webpack-node-externals 설정 추가
+      externals.push(nodeExternals({
+        allowlist: [
+          /^next/,
+          /^@next/,
+          /^react/,
+          /^react-dom/,
+          /^@babel\/runtime/,
+          /^styled-jsx/
+        ]
+      }));
+      
+      // 특정 네이티브 모듈 외부화 (동적 require 문제 해결)
+      externals.push({
+        'active-win': 'commonjs active-win',
+        '../native-modules/target/debug/typing_stats_native.node': 'commonjs ../native-modules/target/debug/typing_stats_native.node',
+        '../native-modules/target/release/typing_stats_native.node': 'commonjs ../native-modules/target/release/typing_stats_native.node',
+        '../native-modules/libtyping_stats_native.dylib': 'commonjs ../native-modules/libtyping_stats_native.dylib',
+        '../native-modules/libtyping_stats_native.so': 'commonjs ../native-modules/libtyping_stats_native.so',
+        '../native-modules/typing_stats_native.dll': 'commonjs ../native-modules/typing_stats_native.dll'
+      });
+      
+      // 업데이트된 externals 설정 적용
+      config.externals = externals;
+    }
+    
+    // .node 네이티브 모듈 파일 처리 규칙 추가
+    config.module.rules.push({
+      test: /\.node$/,
+      use: 'null-loader'
+    });
+
+    // 네이티브 바이너리 파일 처리 규칙
+    config.module.rules.push({
+      test: /\.(dylib|dll|so)$/,
+      use: 'null-loader'
+    });
+
+    // 추가 파일 확장자 지원 (네이티브 모듈 확장자 포함)
+    config.resolve.extensions.push('.node', '.dylib', '.dll', '.so');
+
     // 개발 모드에서 CSP 호환 설정
     if (dev) {
       // Next.js 개발 모드에서도 작동하는 설정
@@ -97,6 +148,7 @@ module.exports = {
     domains: ['localhost'],
     deviceSizes: [640, 750, 828, 1080, 1200, 1920],
     imageSizes: [16, 32, 48, 64, 96, 128, 256, 384],
+    unoptimized: true
   },
 
   // 개발 환경에서 추가 설정
@@ -106,4 +158,10 @@ module.exports = {
 
   // 변환 진행 중 CSP 관련 설정
   transpilePackages: ['@babel/preset-env'],
+
+  // 출력 내보내기 설정
+  output: 'export',
+
+  // 트레일링 슬래시 설정
+  trailingSlash: true,
 }
