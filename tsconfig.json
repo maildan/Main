@@ -39,12 +39,13 @@
     "**/*.ts",
     "**/*.tsx",
     ".next/types/**/*.ts",
+    "build/types/**/*.ts",
     "dist/types/**/*.ts",
     "next-env.d.ts",
     "src/**/*.ts",
     "src/**/*.tsx",
     "src/app/utils/performance-optimizer.tsx",
-    "build/types/**/*.ts"
+    "dist/app/types/**/*.ts"
   ],
   "exclude": [
     "node_modules",

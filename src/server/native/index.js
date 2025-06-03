@@ -10,7 +10,18 @@
 const path = require('path');
 const fs = require('fs');
 const { performance } = require('perf_hooks');
-const { createLogger } = require('./utils/logger');
+// utils/logger 가져오기 (사용 가능한 경우)
+let createLogger;
+try {
+  createLogger = require('./utils/logger').createLogger;
+} catch (err) {
+  createLogger = (name) => ({
+    info: console.log.bind(console, `[${name}]`),
+    error: console.error.bind(console, `[${name}]`),
+    warning: console.warn.bind(console, `[${name}]`),
+    debug: console.debug.bind(console, `[${name}]`)
+  });
+}
 
 // 로거 인스턴스 생성
 const logger = createLogger('native-module');
@@ -57,8 +68,7 @@ const loadFallbackModule = () => {
   try {
     logWarning('네이티브 모듈 사용 불가, 폴백 JavaScript 구현으로 전환');
     // 폴백 모듈 로드 (정적 경로)
-    const fallbackPath = path.join(__dirname, './fallback/index.js');
-    moduleState.nativeModule = require(fallbackPath);
+    moduleState.nativeModule = require('./fallback');
     setModuleAvailability(true, true);
   } catch (fallbackError) {
     logError('폴백 모듈 로드 실패:', fallbackError);
@@ -76,35 +86,49 @@ const initializeModule = () => {
   }
 
   try {
-    // 가능한 모든 네이티브 모듈 경로 시도 (정적 방식)
-    const possiblePaths = [
-      // 릴리즈 빌드 경로
-      path.join(__dirname, '../native-modules/target/release/typing_stats_native.node'),
-      // 디버그 빌드 경로 
-      path.join(__dirname, '../native-modules/target/debug/typing_stats_native.node'),
-      // macOS 동적 라이브러리 (.dylib)
-      path.join(__dirname, '../native-modules/libtyping_stats_native.dylib'),
-      // Linux 동적 라이브러리 (.so)
-      path.join(__dirname, '../native-modules/libtyping_stats_native.so'),
-      // Windows 동적 라이브러리 (.dll)
-      path.join(__dirname, '../native-modules/typing_stats_native.dll')
-    ];
+    // 바이너리 경로 (Webpack 경고를 피하기 위해 정적 문자열로 체크)
+    const debugBinaryPath = '../native-modules/target/debug/typing_stats_native.node';
+    const releaseBinaryPath = '../native-modules/target/release/typing_stats_native.node';
+    
+    // 경로 확인용 (로그용)
+    const debugBinaryFullPath = path.join(__dirname, debugBinaryPath);
+    const releaseBinaryFullPath = path.join(__dirname, releaseBinaryPath);
 
-    // 모든 가능한 경로에서 모듈 로드 시도
-    for (const modulePath of possiblePaths) {
-      if (fs.existsSync(modulePath)) {
-        logInfo(`네이티브 모듈 발견: ${modulePath}`);
-        moduleState.nativeModule = require(modulePath);
-        setModuleAvailability(true, false);
-        break;
+    logInfo('네이티브 모듈 로딩 시작...');
+    
+    // 개발 모드에서는 디버그 바이너리 먼저 시도
+    if (process.env.NODE_ENV !== 'production') {
+      try {
+        if (fs.existsSync(debugBinaryFullPath)) {
+          logInfo(`디버그 빌드 발견: ${debugBinaryFullPath}`);
+          // 웹팩이 정적으로 분석할 수 있는 리터럴 문자열 사용
+          moduleState.nativeModule = require('../native-modules/target/debug/typing_stats_native.node');
+          logInfo('디버그 빌드 성공적으로 로드됨');
+          setModuleAvailability(true, false);
+          return moduleState.nativeModule;
+        }
+      } catch (debugError) {
+        logWarning('디버그 빌드 로드 실패:', debugError);
       }
     }
-
-    // 모듈을 찾지 못한 경우 폴백으로 전환
-    if (moduleState.nativeModule === null) {
-      logWarning('네이티브 모듈을 찾을 수 없음');
-      loadFallbackModule();
+    
+    // 릴리즈 바이너리 시도
+    try {
+      if (fs.existsSync(releaseBinaryFullPath)) {
+        logInfo(`릴리즈 빌드 발견: ${releaseBinaryFullPath}`);
+        // 웹팩이 정적으로 분석할 수 있는 리터럴 문자열 사용
+        moduleState.nativeModule = require('../native-modules/target/release/typing_stats_native.node');
+        logInfo('릴리즈 빌드 성공적으로 로드됨');
+        setModuleAvailability(true, false);
+        return moduleState.nativeModule;
+      }
+    } catch (releaseError) {
+      logWarning('릴리즈 빌드 로드 실패:', releaseError);
     }
+    
+    // 네이티브 모듈을 찾지 못했거나 로드 실패 시 폴백 사용
+    logWarning('네이티브 모듈을 찾을 수 없거나 로드 실패. 폴백으로 전환합니다.');
+    loadFallbackModule();
   } catch (error) {
     logError('네이티브 모듈 로드 중 오류 발생:', error);
     moduleState.lastError = error;
@@ -140,7 +164,7 @@ const withPerformanceTracking = (fn) => {
       moduleState.metrics.lastDuration = duration;
       moduleState.metrics.avgExecutionTime = 
         moduleState.metrics.totalTime / moduleState.metrics.calls;
-      
+
       return result;
     } catch (error) {
       moduleState.metrics.errors++;

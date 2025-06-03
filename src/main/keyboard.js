@@ -9,8 +9,12 @@ const { getSettings } = require('./settings');
 const fs = require('fs');
 const path = require('path');
 
+// 키보드 핸들러 등록 여부 추적을 위한 전역 플래그
+let keyboardHandlersRegistered = false;
+
 // 키 입력 처리 함수 - 동적 로드
 let processKeyInput = null;
+
 function getProcessKeyInput() {
   if (!processKeyInput) {
     try {
@@ -70,6 +74,17 @@ const HANGUL_STATUS = {
   isHangul: false        // 현재 한글 입력 모드인지 여부
 };
 
+// IME Composition 이벤트 관리를 위한 객체
+const IME_COMPOSITION = {
+  isComposing: false,
+  lastComposedText: '',
+  compositionStart: 0,
+  compositionBuffer: '',
+  lastCompletedText: '',
+  lastWindowInfo: null,
+  totalTypingCount: 0
+};
+
 // 전역 변수 및 상수
 let keyboardInitialized = false;
 let keyPressCount = 0;
@@ -90,6 +105,49 @@ const MAX_QUEUE_SIZE = 20;
 
 // 기본 설정 가져오기 (현재 OS에 맞게)
 const currentOSConfig = PLATFORM_KEY_CONFIGS[process.platform] || PLATFORM_KEY_CONFIGS.win32;
+
+// 한글 자모 테이블 정의
+const CHOSEONG_TABLE = {
+  'ㄱ': 0, 'ㄲ': 1, 'ㄴ': 2, 'ㄷ': 3, 'ㄸ': 4, 'ㄹ': 5, 'ㅁ': 6, 'ㅂ': 7,
+  'ㅃ': 8, 'ㅅ': 9, 'ㅆ': 10, 'ㅇ': 11, 'ㅈ': 12, 'ㅉ': 13, 'ㅊ': 14, 'ㅋ': 15,
+  'ㅌ': 16, 'ㅍ': 17, 'ㅎ': 18
+};
+
+const JUNGSEONG_TABLE = {
+  'ㅏ': 0, 'ㅐ': 1, 'ㅑ': 2, 'ㅒ': 3, 'ㅓ': 4, 'ㅔ': 5, 'ㅕ': 6, 'ㅖ': 7,
+  'ㅗ': 8, 'ㅘ': 9, 'ㅙ': 10, 'ㅚ': 11, 'ㅛ': 12, 'ㅜ': 13, 'ㅝ': 14, 'ㅞ': 15,
+  'ㅟ': 16, 'ㅠ': 17, 'ㅡ': 18, 'ㅢ': 19, 'ㅣ': 20
+};
+
+const JONGSEONG_TABLE = {
+  '': 0,  // 종성 없음
+  'ㄱ': 1, 'ㄲ': 2, 'ㄳ': 3, 'ㄴ': 4, 'ㄵ': 5, 'ㄶ': 6, 'ㄷ': 7,
+  'ㄹ': 8, 'ㄺ': 9, 'ㄻ': 10, 'ㄼ': 11, 'ㄽ': 12, 'ㄾ': 13, 'ㄿ': 14, 'ㅀ': 15,
+  'ㅁ': 16, 'ㅂ': 17, 'ㅄ': 18, 'ㅅ': 19, 'ㅆ': 20, 'ㅇ': 21, 'ㅈ': 22, 'ㅊ': 23,
+  'ㅋ': 24, 'ㅌ': 25, 'ㅍ': 26, 'ㅎ': 27
+};
+
+// 복합 자모 테이블 (두 개의 자모가 합쳐질 때)
+const COMPLEX_JUNGSEONG = {
+  'ㅗㅏ': 'ㅘ', 'ㅗㅐ': 'ㅙ', 'ㅗㅣ': 'ㅚ',
+  'ㅜㅓ': 'ㅝ', 'ㅜㅔ': 'ㅞ', 'ㅜㅣ': 'ㅟ',
+  'ㅡㅣ': 'ㅢ'
+};
+
+const COMPLEX_JONGSEONG = {
+  'ㄱㅅ': 'ㄳ', 'ㄴㅈ': 'ㄵ', 'ㄴㅎ': 'ㄶ',
+  'ㄹㄱ': 'ㄺ', 'ㄹㅁ': 'ㄻ', 'ㄹㅂ': 'ㄼ', 'ㄹㅅ': 'ㄽ',
+  'ㄹㅌ': 'ㄾ', 'ㄹㅍ': 'ㄿ', 'ㄹㅎ': 'ㅀ', 'ㅂㅅ': 'ㅄ'
+};
+
+// 자모 버퍼 변수
+let composerState = {
+  choBuffer: '',
+  jungBuffer: '',
+  jongBuffer: '',
+  compositionState: 0, // 0: 초성 대기, 1: 중성 대기, 2: 종성 대기
+  result: ''
+};
 
 // 키 이벤트 처리 함수 (전역 스코프로 이동)
 function processKeyEventQueue() {
@@ -193,913 +251,429 @@ function updateAppTypingStats(appName, windowTitle, url, typingCount = 1, typing
   }
 }
 
-// IPC를 통한 키보드 이벤트 처리
-function setupKeyboardIpcHandlers() {
-  try {
-    // 기존 IPC 핸들러 제거 시도
-    try {
-      ipcMain.removeHandler('keyboard-event');
-      ipcMain.removeHandler('sendKeyboardEvent');
-      ipcMain.removeAllListeners('keyboard-event');
-      ipcMain.removeAllListeners('sendKeyboardEvent');
-      console.log('기존 키보드 IPC 핸들러가 제거되었습니다.');
-    } catch (error) {
-      console.log('키보드 IPC 핸들러 제거 시도 중:', error.message);
-    }
+/**
+ * 한글 자모를 조합하여 완성형 한글 음절 생성
+ * @param {string} cho - 초성 문자
+ * @param {string} jung - 중성 문자
+ * @param {string} jong - 종성 문자 (또는 빈 문자열)
+ * @returns {string} 완성형 한글 음절
+ */
+function composeHangul(cho, jung, jong = '') {
+  // 유효성 검사
+  if (!CHOSEONG_TABLE.hasOwnProperty(cho) ||
+      !JUNGSEONG_TABLE.hasOwnProperty(jung) ||
+      (!jong || !JONGSEONG_TABLE.hasOwnProperty(jong))) {
+    return '';
+  }
 
-    // 새 핸들러 등록
-    ipcMain.handle('keyboard-event', async (event, data) => {
-      if (!appState.isTracking) return { success: false, reason: 'tracking-disabled' };
-      
-      try {
-        debugLog(`IPC 키보드 이벤트 수신: ${JSON.stringify(data)}`);
-        
-        // 키 이벤트 큐에 추가
-        keyEventQueue.push({
-          key: data.key,
-          code: data.code || '',
-          timestamp: Date.now(),
-          type: data.type || 'keyDown',
-          ...(data.text && { text: data.text })
-        });
-        
-        // 디바운스 타이머 설정 (연속 입력 최적화)
-        clearTimeout(keyEventProcessTimer);
-        keyEventProcessTimer = setTimeout(processKeyEventQueue, DEBOUNCE_TIME);
-        
-        return { success: true };
-      } catch (error) {
-        console.error('키보드 이벤트 처리 오류:', error);
-        return { success: false, error: error.message };
+  const LIndex = CHOSEONG_TABLE[cho];
+  const VIndex = JUNGSEONG_TABLE[jung];
+  const TIndex = JONGSEONG_TABLE[jong || ''];
+
+  // Unicode 음절 계산 공식
+  const SBase = 0xAC00;
+  const LCount = 19;   // 초성 개수
+  const VCount = 21;   // 중성 개수
+  const TCount = 28;   // 종성 개수
+  const NCount = VCount * TCount; // 588
+  const TOffset = SBase + (LIndex * NCount) + (VIndex * TCount) + TIndex;
+
+  return String.fromCharCode(TOffset);
+}
+
+/**
+ * 한글 완성형 문자를 초성, 중성, 종성으로 분해
+ * @param {string} syllable - 한글 완성형 음절 (예: '간')
+ * @returns {object} 분해된 초성, 중성, 종성 객체
+ */
+function decomposeHangul(syllable) {
+  if (!/^[가-힣]$/.test(syllable)) {
+    return { cho: '', jung: '', jong: '' };
+  }
+
+  const code = syllable.charCodeAt(0) - 0xAC00;
+  
+  const jong = code % 28;
+  const jung = Math.floor((code % 588) / 28);
+  const cho = Math.floor(code / 588);
+  
+  const choList = ['ㄱ', 'ㄲ', 'ㄴ', 'ㄷ', 'ㄸ', 'ㄹ', 'ㅁ', 'ㅂ', 'ㅃ', 'ㅅ', 'ㅆ', 'ㅇ', 'ㅈ', 'ㅉ', 'ㅊ', 'ㅋ', 'ㅌ', 'ㅍ', 'ㅎ'];
+  const jungList = ['ㅏ', 'ㅐ', 'ㅑ', 'ㅒ', 'ㅓ', 'ㅔ', 'ㅕ', 'ㅖ', 'ㅗ', 'ㅘ', 'ㅙ', 'ㅚ', 'ㅛ', 'ㅜ', 'ㅝ', 'ㅞ', 'ㅟ', 'ㅠ', 'ㅡ', 'ㅢ', 'ㅣ'];
+  const jongList = ['', 'ㄱ', 'ㄲ', 'ㄳ', 'ㄴ', 'ㄵ', 'ㄶ', 'ㄷ', 'ㄹ', 'ㄺ', 'ㄻ', 'ㄼ', 'ㄽ', 'ㄾ', 'ㄿ', 'ㅀ', 'ㅁ', 'ㅂ', 'ㅄ', 'ㅅ', 'ㅆ', 'ㅇ', 'ㅈ', 'ㅊ', 'ㅋ', 'ㅌ', 'ㅍ', 'ㅎ'];
+  
+  return {
+    cho: choList[cho],
+    jung: jungList[jung],
+    jong: jongList[jong]
+  };
+}
+
+/**
+ * 개별 자모 입력을 처리하여 한글 조합
+ * @param {string} char - 입력된 자모 문자
+ * @returns {object} 조합 상태 및 결과
+ */
+function processJamo(char) {
+  // 영문이나 숫자, 특수문자인 경우 바로 반환
+  if (!/^[ㄱ-ㅎㅏ-ㅣ]$/.test(char)) {
+    // 이전 조합 완료
+    const result = finishComposition();
+    return {
+      result: result + char,
+      reset: true
+    };
+  }
+  
+  // 상태에 따른 처리
+  switch (composerState.compositionState) {
+    // 초성 대기 상태
+    case 0:
+      if (char in CHOSEONG_TABLE) {
+        composerState.choBuffer = char;
+        composerState.compositionState = 1;
+        return { result: '', reset: false };
       }
-    });
+      // 중성이 먼저 들어온 경우 (외래어 등)
+      if (char in JUNGSEONG_TABLE) {
+        return { result: char, reset: true };
+      }
+      return { result: char, reset: true };
     
-    // 클라이언트에서 전송된 키 이벤트 처리
-    ipcMain.handle('sendKeyboardEvent', async (event, data) => {
-      try {
-        debugLog(`클라이언트에서 키 이벤트 수신: ${JSON.stringify(data)}`);
-        
-        // 키 이벤트 큐에 추가
-        keyEventQueue.push({
-          ...data,
-          timestamp: Date.now(),
-          fromRenderer: true
-        });
-        
-        // 디바운스 타이머 설정
-        clearTimeout(keyEventProcessTimer);
-        keyEventProcessTimer = setTimeout(processKeyEventQueue, DEBOUNCE_TIME);
-        
-        return { success: true };
-      } catch (error) {
-        console.error('클라이언트 키 이벤트 처리 오류:', error);
-        return { success: false, error: error.message };
+    // 중성 대기 상태
+    case 1:
+      if (char in JUNGSEONG_TABLE) {
+        composerState.jungBuffer = char;
+        composerState.compositionState = 2;
+        return {
+          result: composeHangul(composerState.choBuffer, composerState.jungBuffer),
+          reset: false
+        };
+      } else {
+        // 불가능한 조합: 초성만 있고 다음 글자가 초성인 경우
+        const result = composerState.choBuffer;
+        composerState.choBuffer = char;
+        composerState.compositionState = char in CHOSEONG_TABLE ? 1 : 0;
+        return { result, reset: false };
       }
-    });
-
-    // 일반 IPC 이벤트 핸들러 등록 (비동기 방식)
-    ipcMain.on('keyboard-event', (event, data) => {
-      try {
-        debugLog(`IPC 키보드 이벤트(on) 수신: ${JSON.stringify(data)}`);
-        
-        // 키 이벤트 큐에 추가
-        keyEventQueue.push({
-          key: data.key,
-          code: data.code || '',
-          timestamp: Date.now(),
-          type: data.type || 'keyDown',
-          ...(data.text && { text: data.text }),
-          fromIpcOn: true
-        });
-        
-        // 디바운스 타이머 설정
-        clearTimeout(keyEventProcessTimer);
-        keyEventProcessTimer = setTimeout(processKeyEventQueue, DEBOUNCE_TIME);
-      } catch (error) {
-        console.error('IPC 키보드 이벤트(on) 처리 오류:', error);
-      }
-    });
     
-    // 추가 키보드 이벤트 핸들러 (대체 API)
-    ipcMain.on('sendKeyboardEvent', (event, data) => {
-      try {
-        debugLog(`대체 키보드 이벤트 API 사용: ${JSON.stringify(data)}`);
-        
-        // 키 이벤트 큐에 추가
-        keyEventQueue.push({
-          ...data,
-          timestamp: Date.now(),
-          fromRendererOn: true
-        });
-        
-        // 디바운스 타이머 설정
-        clearTimeout(keyEventProcessTimer);
-        keyEventProcessTimer = setTimeout(processKeyEventQueue, DEBOUNCE_TIME);
-      } catch (error) {
-        console.error('대체 키보드 API 이벤트 처리 오류:', error);
+    // 종성 대기 상태
+    case 2:
+      if (char in JONGSEONG_TABLE) {
+        composerState.jongBuffer = char;
+        return {
+          result: composeHangul(
+            composerState.choBuffer,
+            composerState.jungBuffer,
+            composerState.jongBuffer
+          ),
+          reset: false
+        };
+      } else if (char in CHOSEONG_TABLE) {
+        // 다음 글자의 초성이 들어온 경우
+        const result = composeHangul(
+          composerState.choBuffer,
+          composerState.jungBuffer,
+          composerState.jongBuffer
+        );
+        composerState.choBuffer = char;
+        composerState.jungBuffer = '';
+        composerState.jongBuffer = '';
+        composerState.compositionState = 1;
+        return { result, reset: false };
+      } else if (char in JUNGSEONG_TABLE) {
+        // 다음 글자의 중성이 들어온 경우 (이전 글자 종료 후, 초성 없는 상태로)
+        const result = composeHangul(
+          composerState.choBuffer,
+          composerState.jungBuffer,
+          composerState.jongBuffer
+        );
+        composerState.choBuffer = '';
+        composerState.jungBuffer = char;
+        composerState.jongBuffer = '';
+        composerState.compositionState = 1;
+        return { result, reset: false };
       }
-    });
-
-    console.log('키보드 IPC 핸들러가 성공적으로 설정되었습니다.');
-    return true;
-  } catch (error) {
-    console.error('키보드 IPC 핸들러 설정 오류:', error);
-    return false;
+      return { result: char, reset: true };
+    
+    default:
+      return { result: char, reset: true };
   }
 }
 
 /**
- * 키보드 이벤트 감지 로직 개선
- * - 중복 키 입력 처리 로직 추가
- * - 특수 문자 구분 처리 (ex: /와 ? 구분)
- * - Command+Tab / Alt+Tab 감지 개선
+ * 현재 조합 중인 글자 완료하고 상태 초기화
+ * @returns {string} 조합 완료된 글자
  */
-function setupKeyboardListener() {
+function finishComposition() {
+  let result = '';
+  
+  // 조합 상태에 따라 다른 처리
+  if (composerState.compositionState === 0) {
+    // 초성 대기 상태 - 아무것도 없음
+    result = '';
+  } else if (composerState.compositionState === 1) {
+    // 중성 대기 상태 - 초성만 있음
+    result = composerState.choBuffer;
+  } else if (composerState.compositionState === 2) {
+    // 종성 대기 상태 - 초성+중성 또는 초성+중성+종성
+    result = composeHangul(
+      composerState.choBuffer,
+      composerState.jungBuffer,
+      composerState.jongBuffer
+    );
+  }
+  
+  // 상태 초기화
+  composerState.choBuffer = '';
+  composerState.jungBuffer = '';
+  composerState.jongBuffer = '';
+  composerState.compositionState = 0;
+  
+  return result;
+}
+
+/**
+ * IME Composition 이벤트 처리 함수
+ * 한글 자모 조합 결과를 처리합니다.
+ * @param {Object} event - IPC 이벤트 객체
+ * @param {Object} data - IME Composition 이벤트 데이터
+ */
+function handleImeCompositionEvent(event, data) {
+  if (!data) return;
+  
   try {
-    debugLog('키보드 리스너 설정 중...');
-    debugLog(`현재 플랫폼: ${process.platform}`);
-
-    // 이미 등록된 단축키가 있으면 해제
-    globalShortcut.unregisterAll();
-
-    // IPC 핸들러 등록
-    setupKeyboardIpcHandlers();
-
-    // 현재 눌린 특수 키 추적 (개선된 버전)
-    const pressedModifiers = {
-      alt: false,
-      ctrl: false,
-      shift: false,
-      meta: false, // Command (macOS) 또는 Windows 키
-      lastPressTime: {} // 각 키별 마지막 입력 시간 추적
-    };
-
-    // 키 입력 이벤트 큐 (빠른 연속 입력 처리 최적화)
-    keyEventQueue = [];
-    keyEventProcessTimer = null;
+    const { type, text, timestamp = Date.now() } = data;
     
-    // 디바운스 시간 최적화 (중복 키 입력 방지)
-    const DEBOUNCE_TIME = 50; // ms
-    const KEY_PRESS_COOLDOWN = 50; // 같은 키 재입력 대기 시간 (ms)
-
-    // 마지막 키 이벤트 타임스탬프
-    let lastKeyEventTime = Date.now();
-    
-    // 활성 상태 체크 타이머
-    activeCheckTimer = null;
-    
-    // 앱 전환 감지 변수
-    lastActiveApp = '';
-    lastWindowTitle = '';
-    isAppSwitching = false;
-    let appSwitchTimer = null;
-    
-    // 이미 처리된 키 추적 (중복 처리 방지)
-    let processedKeys = new Map();
-    
-    // 마지막으로 처리된 키와 카운트
-    let lastKeyPressed = '';
-    let keyPressCount = 0;
-
-    // 한글 자모음 조합 상태 추적 개선
-    const hangulState = {
-      isComposing: false,
-      buffer: '',
-      startTime: 0,
-      lastChar: '',
-      composingKeys: new Set()
-    };
-    
-    // 특수 키 목록 (처리하지 않을 키)
-    const SPECIAL_KEYS = [
-      'Alt', 'AltGraph', 'CapsLock', 'Control', 'Fn', 'FnLock', 
-      'Hyper', 'Meta', 'NumLock', 'ScrollLock', 'Shift', 'Super', 
-      'Tab', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 
-      'End', 'Home', 'PageDown', 'PageUp', 'Escape', 'F1', 'F2', 
-      'F3', 'F4', 'F5', 'F6', 'F7', 'F8', 'F9', 'F10', 'F11', 'F12'
-    ];
-
-    // 플랫폼별 키 매핑 구성
-    const getModifierKeyByPlatform = (key) => {
-      if (!key) return null;
-      if (key === 'Alt' || key.toLowerCase() === 'alt') return 'alt';
-      if (key === 'Control' || key.toLowerCase() === 'control' || key === 'ctrl') return 'ctrl';
-      if (key === 'Shift' || key.toLowerCase() === 'shift') return 'shift';
-      if (key === 'Meta' || key === 'Command' || key === 'Super' || key === 'Win') return 'meta';
-      return null;
-    };
-
-    
-    /**
-     * 앱 전환 감지 함수 (개선된 버전)
-     * @param {string} key - 입력된 키
-     * @param {Object} modifiers - 수정자 키 상태
-     * @returns {boolean} - 앱 전환 여부
-     */
-    const detectAppSwitching = (key, modifiers) => {
-      try {
-        // Command+Tab (macOS) 또는 Alt+Tab (Windows/Linux) 감지
-        const isMac = process.platform === 'darwin';
-        const isAppSwitchingCombo = (
-          (isMac && key === 'Tab' && modifiers.meta) || 
-          (!isMac && key === 'Tab' && modifiers.alt)
-        );
+    switch (type) {
+      case 'compositionstart':
+        // 조합 시작
+        IME_COMPOSITION.isComposing = true;
+        IME_COMPOSITION.compositionStart = timestamp;
+        IME_COMPOSITION.compositionBuffer = '';
+        debugLog(`IME 조합 시작: ${timestamp}`);
+        break;
         
-        if (isAppSwitchingCombo) {
-          // 앱 전환 상태 설정 및 로깅
-          isAppSwitching = true;
-          
-          // 디버깅 메시지 추가 (화면 전환 감지)
-          debugLog(`화면 전환 감지: ${isMac ? 'Command+Tab' : 'Alt+Tab'} 조합이 눌렸습니다.`);
-          
-          // 앱 전환 타이머 설정 (이전 타이머가 있으면 제거)
-          if (appSwitchTimer) {
-            clearTimeout(appSwitchTimer);
-          }
-          
-          // 앱 전환 후 일정 시간 후에 새 앱의 정보를 가져옴
-          appSwitchTimer = setTimeout(async () => {
-            try {
-              // 활성 창 정보 가져오기
-              const activeWindowInfo = await activeWin();
-              
-              if (activeWindowInfo) {
-                const newAppName = activeWindowInfo.owner?.name || 'Unknown App';
-                const newWindowTitle = activeWindowInfo.title || 'Unknown Window';
-                
-                // 앱이 실제로 변경되었는지 확인
-                if (newAppName !== lastActiveApp || newWindowTitle !== lastWindowTitle) {
-                  debugLog(`화면 전환 완료: ${lastActiveApp || 'Unknown'} -> ${newAppName}`);
-                  debugLog(`새 창 제목: ${newWindowTitle}`);
-                  
-                  // 브라우저 감지 시도
-                  const browserName = detectBrowserName(activeWindowInfo);
-                  const url = activeWindowInfo.url || '';
-                  
-                  // URL 정보 출력 (디버깅)
-                  if (browserName) {
-                    debugLog(`감지된 브라우저: ${browserName}, URL: ${url || 'N/A'}`);
-                  }
-                  
-                  // 앱/웹사이트 통계 업데이트
-                  updateAppTypingStats(
-                    newAppName,
-                    newWindowTitle,
-                    url,
-                    5, // 가상 타이핑 수 증가
-                    200 // 타이핑 시간 (ms)
-                  );
-                  
-                  // 마지막 감지된 앱 정보 업데이트
-                  lastActiveApp = newAppName;
-                  lastWindowTitle = newWindowTitle;
-                } else {
-                  debugLog('화면 전환 감지되었으나 동일한 앱/창으로 전환됨');
-                }
-              } else {
-                debugLog('활성 창 정보를 가져올 수 없음');
-              }
-              
-              // 앱 전환 상태 초기화
-              isAppSwitching = false;
-            } catch (error) {
-              console.error('앱 전환 처리 오류:', error);
-              isAppSwitching = false;
-            }
-          }, 300); // 앱 전환이 완료될 때까지 300ms 대기
-          
-          return true;
+      case 'compositionupdate':
+        // 조합 중간 업데이트
+        if (IME_COMPOSITION.isComposing) {
+          IME_COMPOSITION.compositionBuffer = text;
+          debugLog(`IME 조합 업데이트: ${text}`);
         }
+        break;
         
-        return false;
-      } catch (error) {
-        console.error('앱 전환 감지 오류:', error);
-        return false;
-      }
-    };
-
-    /**
-     * 키 이벤트 큐 처리 함수 (개선된 버전)
-     */
-    const processKeyEventQueue = () => {
-      try {
-        if (keyEventQueue.length === 0) return;
-        
-        // 현재 처리할 이벤트만 가져오고 큐에서 제거 (메모리 압력 감소)
-        const keyEvents = [...keyEventQueue];
-        keyEventQueue = [];
-        
-        // 중복 키 제거 로직 (같은 키가 연속으로 눌리는 경우 첫 번째만 유지)
-        const uniqueEvents = [];
-        const seenKeys = new Set();
-        
-        for (const keyEvent of keyEvents) {
-          // undefined 키는 무시 (text가 있으면 처리)
-          if (keyEvent.key === undefined && !keyEvent.text) {
-            debugLog('정의되지 않은 키 입력 무시: undefined');
-            continue;
-          }
+      case 'compositionend':
+        // 조합 완료
+        if (IME_COMPOSITION.isComposing) {
+          IME_COMPOSITION.isComposing = false;
+          IME_COMPOSITION.lastCompletedText = text;
           
-          // 한글 조합 관련 이벤트는 모두 처리
-          if (keyEvent.isComposing || keyEvent.type === 'compositionstart' || 
-              keyEvent.type === 'compositionupdate' || keyEvent.type === 'compositionend') {
-            // 한글 조합 관련 이벤트에 특별 처리 추가
-            // 스페이스바 관련 처리 추가
-            if (keyEvent.key === ' ' || keyEvent.code === 'Space') {
-              keyEvent.text = ' '; // 스페이스를 명시적으로 공백으로 처리
+          // 입력 완료 시점의 활성 창 정보 가져오기 (비동기)
+          getActiveWindowInfo().then(windowInfo => {
+            if (windowInfo) {
+              // 완성된 텍스트 길이만큼 타이핑 카운트 증가
+              const charCount = text.length;
+              IME_COMPOSITION.totalTypingCount += charCount;
+              
+              // 브라우저 정보 및 URL 감지
+              const browserName = detectBrowserName(windowInfo);
+              const isGoogleDocs = isGoogleDocsWindow(windowInfo);
+              
+              debugLog(`IME 조합 완료: '${text}' (${charCount}자), 앱: ${windowInfo.owner?.name || '알 수 없음'}, 브라우저: ${browserName || '해당 없음'}, Google Docs: ${isGoogleDocs}`);
+              
+              // 타이핑 통계 업데이트 (완성된 글자 단위로)
+              updateAppTypingStats(
+                browserName || windowInfo.owner?.name || '알 수 없음',
+                windowInfo.title || '',
+                windowInfo.url || '',
+                charCount,
+                timestamp - IME_COMPOSITION.compositionStart
+              );
+              
+              // 이벤트 처리 완료 후 저장
+              IME_COMPOSITION.lastWindowInfo = windowInfo;
             }
-            uniqueEvents.push(keyEvent);
-            continue;
-          }
-        
-          // 특수 키(수정자 키)는 항상 처리
-          const isModifier = getModifierKeyByPlatform(keyEvent.key) !== null;
+          }).catch(error => {
+            console.error('활성 창 정보 가져오기 실패:', error);
+          });
           
-          // 특수 키이거나 아직 처리되지 않은 키면 추가
-          if (isModifier || !seenKeys.has(keyEvent.key)) {
-            uniqueEvents.push(keyEvent);
-            seenKeys.add(keyEvent.key);
-          } else {
-            // 중복 키 감지 디버깅
-            debugLog(`중복 키 입력 무시: ${keyEvent.key}`);
-          }
-        }
-        
-        // 필터링된 이벤트 처리
-        for (const keyEvent of uniqueEvents) {
-          const { key, shiftKey, ctrlKey, altKey, metaKey, timestamp, isComposing } = keyEvent;
+          debugLog(`IME 조합 완료: '${text}'`);
           
-          // key가 undefined인 경우 처리하지 않음
-          if (key === undefined) {
-            continue;
-          }
-          
-          // 이미 처리된 키인지 확인 (타임스탬프로 구분)
-          const keyId = `${key}-${timestamp}`;
-          if (processedKeys.has(keyId)) {
-            continue;
-          }
-          
-          // 앱 전환 키 조합 감지
-          const modifiers = { shift: shiftKey, ctrl: ctrlKey, alt: altKey, meta: metaKey };
-          if (detectAppSwitching(key, modifiers)) {
-            continue; // 앱 전환이면 더 이상 처리하지 않음
-          }
-          
-          // 특수 문자 구분 처리 개선
-          // 예: Shift+/ = ? 처리
-          let processedKey = key;
-          
-          // Shift 키와 함께 눌린 특수 문자 매핑
-          if (shiftKey && key.length === 1) {
-            const shiftKeyMap = {
-              '/': '?',
-              '1': '!',
-              '2': '@',
-              '3': '#',
-              '4': '$',
-              '5': '%',
-              '6': '^',
-              '7': '&',
-              '8': '*',
-              '9': '(',
-              '0': ')',
-              '-': '_',
-              '=': '+',
-              '\\': '|',
-              '[': '{',
-              ']': '}',
-              ';': ':',
-              '': '"',
-              ',': '<',
-              '.': '>',
-              '`': '~'
-            };
-            
-            processedKey = shiftKeyMap[key] || key;
-          }
-          
-          // 한글 입력 이벤트 처리 - compositionupdate, compositionend 이벤트도 처리
-          if (isComposing) {
-            debugLog(`한글 입력 중: ${processedKey}`);
-            
+          // 렌더러로 완성된 텍스트 알림
+          if (event.sender) {
             try {
-              // 완성된 한글 문자인 경우만 카운트
-              if ((keyEvent.type === 'compositionend' || keyEvent.type === 'compositionupdate') && (keyEvent.text || keyEvent.key === ' ')) {
-                const processKeyInputFn = getProcessKeyInput();
-                if (processKeyInputFn) {
-                  // 스페이스바 처리 개선
-                  const textToProcess = keyEvent.key === ' ' ? ' ' : (keyEvent.text || '');
-                  
-                  processKeyInputFn({
-                    key: textToProcess,
-                    code: keyEvent.code || '',
-                    shiftKey,
-                    ctrlKey,
-                    altKey,
-                    metaKey,
+              event.sender.send('ime-composition-completed', {
+                text,
                     timestamp,
-                    isComposing: true,
-                    text: textToProcess
-                  });
-                  
-                  // 처리된 키 기록 (중복 방지)
-                  processedKeys.set(keyId, true);
-                  
-                  keyPressCount++;
-                  lastKeyPressed = keyEvent.text;
-                  debugLog(`한글 처리: ${keyEvent.text}, 총 키 입력 수: ${keyPressCount}`);
-                }
+                duration: timestamp - IME_COMPOSITION.compositionStart
+              });
+            } catch (err) {
+              console.warn('렌더러에 IME 완료 알림 실패:', err);
+            }
+          }
+        }
+        break;
+        
+      // 자모 단위 입력 처리 (외부 앱에서 IME 없이 자모 입력 시)
+      case 'jamo':
+        {
+          // 자모 입력 처리
+          const result = processJamo(text);
+          debugLog(`자모 입력 처리: ${text} → ${result.result}`);
+          
+          // 완성된 결과가 있으면 통계 업데이트
+          if (result.result) {
+            // 렌더러로 결과 알림
+            if (event.sender) {
+              try {
+                event.sender.send('jamo-processed', {
+                  input: text,
+                  result: result.result,
+                  timestamp
+                });
+              } catch (err) {
+                console.warn('렌더러에 자모 처리 결과 알림 실패:', err);
               }
-            } catch (error) {
-              console.error('한글 키 처리 오류:', error);
             }
             
-            continue; // 다음 키 처리
-          }
-          
-          // 특수 키 처리 최적화
-          if (!SPECIAL_KEYS.includes(processedKey)) {
-            try {
-              // 실제 키 입력 처리 (processKeyInput 함수 호출)
-              const processKeyInputFn = getProcessKeyInput();
-              if (processKeyInputFn) {
-                processKeyInputFn({
-                  key: processedKey,
-                  code: keyEvent.code,
-                  shiftKey,
-                  ctrlKey,
-                  altKey,
-                  metaKey,
-                  timestamp,
-                  isComposing: keyEvent.isComposing
-                });
-                
-                // 처리된 키 기록 (중복 방지)
-                processedKeys.set(keyId, true);
-                
-                // 1분 후 맵에서 제거 (메모리 관리)
-                setTimeout(() => {
-                  processedKeys.delete(keyId);
-                }, 60000);
-                
-                // 유효한 키 입력만 카운트
-                if (processedKey && typeof processedKey === 'string' && processedKey.length > 0) {
-                  keyPressCount++;
-                  lastKeyPressed = processedKey;
-                  debugLog(`총 키 입력 수: ${keyPressCount}, 마지막 키: ${lastKeyPressed}`);
+            // 완전히 조합이 완료된 경우에만 통계 업데이트
+            if (result.reset) {
+              getActiveWindowInfo().then(windowInfo => {
+                if (windowInfo) {
+                  const charCount = result.result.length;
+                  
+                  // 브라우저 정보 및 URL 감지
+                  const browserName = detectBrowserName(windowInfo);
+                  
+                  // 타이핑 통계 업데이트 (완성된 글자 단위로)
+                  updateAppTypingStats(
+                    browserName || windowInfo.owner?.name || '알 수 없음',
+                    windowInfo.title || '',
+                    windowInfo.url || '',
+                    charCount,
+                    100 // 임의의 시간 (ms)
+                  );
                 }
-              }
-            } catch (error) {
-              console.error('키 처리 오류:', error);
+              }).catch(error => {
+                console.error('활성 창 정보 가져오기 실패:', error);
+              });
             }
           }
         }
-      } catch (error) {
-        console.error('키 이벤트 큐 처리 오류:', error);
-      }
-    };
-
-    // 메인 윈도우에서 키보드 이벤트 리스너 설정
-    const registerKeyboardEvents = () => {
-      const mainWindow = BrowserWindow.getAllWindows().find(win => !win.isDestroyed());
-
-      if (!mainWindow) {
-        debugLog('메인 윈도우를 찾을 수 없어 웹 컨텐츠 키보드 이벤트를 설정할 수 없습니다');
-        return;
-      }
-
-      debugLog('메인 윈도우에 키보드 이벤트 리스너 설정 중...');
-
-      // 기존 리스너 제거 - MaxListenersExceededWarning 방지
-      if (mainWindow.webContents) {
-        mainWindow.webContents.removeAllListeners('before-input-event');
-        mainWindow.webContents.removeAllListeners('composition-start');
-        mainWindow.webContents.removeAllListeners('composition-update');
-        mainWindow.webContents.removeAllListeners('composition-end');
-      }
-
-      // 리스너 최대 수 증가 (필요한 경우)
-      mainWindow.webContents.setMaxListeners(20); // 필요에 따라 조정
-
-      // 전역 키보드 이벤트 처리
-      mainWindow.webContents.on('before-input-event', (event, input) => {
-        if (!appState.isTracking) return;
-
-        // 키 입력 로깅 (디버깅용)
-        debugLog(`키 입력 감지: ${input.key} (타입: ${input.type}, 코드: ${input.code})`);
-
-        // 특수키 상태 추적
-        const modifierKey = getModifierKeyByPlatform(input.key);
-        if (modifierKey) {
-          pressedModifiers[modifierKey] = input.type === 'keyDown';
-          debugLog(`특수키 상태 변경: ${modifierKey} = ${pressedModifiers[modifierKey]}`);
-          if (input.type === 'keyDown') return; // 모디파이어 키 누르기는 카운트하지 않음
-        }
-
-        // Tab 키는 keyDown에서 무시
-        if (input.key === 'Tab' && input.type === 'keyDown') return;
-
-        // 단축키 조합 감지 (예: ALT+TAB, CTRL+C 등)
-        if (pressedModifiers.alt || pressedModifiers.ctrl || pressedModifiers.meta) {
-          debugLog(`특수키 조합 감지: alt=${pressedModifiers.alt}, ctrl=${pressedModifiers.ctrl}, meta=${pressedModifiers.meta}`);
-          // 단축키는 카운트하지 않음
-          return;
-        }
-
-        // 기능 키, 방향키, 기타 특수키 필터링
-        if (SPECIAL_KEYS.includes(input.key)) {
-          debugLog(`특수키 무시: ${input.key}`);
-          return;
-        }
-
-        // 여기까지 왔다면 일반 입력 키로 간주하고 처리
-        if (input.type === 'keyDown') {
-          // 키 이벤트 큐에 추가
-          keyEventQueue.push({
-            key: input.key,
-            code: input.code, // 추가: 키 코드 정보
-            timestamp: Date.now(),
-            type: 'keyDown'
-          });
-          
-          // 디바운스 타이머 설정 (연속 입력 최적화)
-          clearTimeout(keyEventProcessTimer);
-          keyEventProcessTimer = setTimeout(processKeyEventQueue, DEBOUNCE_TIME);
-        }
-      });
-
-      // 직접 DOM 이벤트를 통한 키 입력 캡처 (보조 방법)
-      mainWindow.webContents.executeJavaScript(`
-        // 이미 설정된 이벤트 리스너 제거
-        if (window._loopKeyHandlersSet) {
-          document.removeEventListener('keydown', window._loopKeydownHandler);
-          document.removeEventListener('compositionstart', window._loopCompositionStartHandler);
-          document.removeEventListener('compositionupdate', window._loopCompositionUpdateHandler);
-          document.removeEventListener('compositionend', window._loopCompositionEndHandler);
-        }
+        break;
         
-        // 키 입력 이벤트 핸들러 정의
-        window._loopKeydownHandler = (e) => {
-          // 구글 문서에서 특별 처리
-          const isGoogleDocs = window.location.href.includes('docs.google.com');
-          
-          // 이벤트 전송
-          window.electronAPI.sendKeyboardEvent({
-            key: e.key,
-            code: e.code,
-            type: 'keyDown',
-            altKey: e.altKey,
-            ctrlKey: e.ctrlKey,
-            metaKey: e.metaKey,
-            shiftKey: e.shiftKey,
-            isGoogleDocs
-          });
-          
-          // 구글 문서에서는 콘솔에 추가 디버깅 메시지
-          if (isGoogleDocs) {
-            console.log('구글 문서 키 이벤트 감지:', e.key);
-          }
-        };
-        
-        // 한글 조합 이벤트 핸들러 정의
-        window._loopCompositionStartHandler = (e) => {
-          window.electronAPI.sendKeyboardEvent({
-            type: 'compositionstart'
-          });
-        };
-        
-        window._loopCompositionUpdateHandler = (e) => {
-          window.electronAPI.sendKeyboardEvent({
-            type: 'compositionupdate',
-            text: e.data
-          });
-        };
-        
-        window._loopCompositionEndHandler = (e) => {
-          window.electronAPI.sendKeyboardEvent({
-            type: 'compositionend',
-            text: e.data
-          });
-        };
-        
-        // 이벤트 리스너 등록
-        document.addEventListener('keydown', window._loopKeydownHandler);
-        document.addEventListener('compositionstart', window._loopCompositionStartHandler);
-        document.addEventListener('compositionupdate', window._loopCompositionUpdateHandler);
-        document.addEventListener('compositionend', window._loopCompositionEndHandler);
-        
-        // 플래그 설정
-        window._loopKeyHandlersSet = true;
-        
-        console.log('DOM 키보드 이벤트 핸들러 설정 완료');
-        true;
-      `).catch(err => {
-        console.error('DOM 키보드 이벤트 스크립트 주입 오류:', err);
-      });
-
-      // 한글 입력 이벤트 처리를 위한 추가 이벤트 핸들러 (IME 이벤트)
-      mainWindow.webContents.on('composition-start', () => {
-        debugLog('한글 조합 시작');
-        HANGUL_STATUS.isComposing = true;
-        HANGUL_STATUS.composeStartTime = Date.now();
-        HANGUL_STATUS.lastComposedText = '';
-        HANGUL_STATUS.intermediateChars = '';
-        
-        // 한글 조합 시작 이벤트를 큐에 추가
-        keyEventQueue.push({
-          type: 'compositionstart',
-          timestamp: Date.now()
-        });
-        
-        // 디바운스 처리
-        clearTimeout(keyEventProcessTimer);
-        keyEventProcessTimer = setTimeout(processKeyEventQueue, DEBOUNCE_TIME);
-      });
-      
-      mainWindow.webContents.on('composition-update', (event, text) => {
-        debugLog(`한글 조합 업데이트: ${text}`);
-        HANGUL_STATUS.lastComposedText = text;
-        HANGUL_STATUS.intermediateChars = text;
-        
-        // 조합 업데이트 이벤트를 큐에 추가
-        keyEventQueue.push({
-          type: 'compositionupdate',
-          text: text,
-          timestamp: Date.now()
-        });
-        
-        // 디바운스 처리
-        clearTimeout(keyEventProcessTimer);
-        keyEventProcessTimer = setTimeout(processKeyEventQueue, DEBOUNCE_TIME);
-      });
-      
-      mainWindow.webContents.on('composition-end', (event, text) => {
-        debugLog(`한글 조합 완료: ${text}`);
-        HANGUL_STATUS.isComposing = false;
-        HANGUL_STATUS.lastComposedText = text;
-        HANGUL_STATUS.intermediateChars = '';
-        
-        // 조합 완료 이벤트를 큐에 추가
-        keyEventQueue.push({
-          type: 'compositionend',
-          text: text,
-          timestamp: Date.now()
-        });
-        
-        // 디바운스 처리
-        clearTimeout(keyEventProcessTimer);
-        keyEventProcessTimer = setTimeout(processKeyEventQueue, DEBOUNCE_TIME);
-      });
-
-      // MacOS에서는 추가 이벤트 처리
-      if (isMacOS()) {
-        setupMacOSKeyboardSupport(mainWindow);
-      }
-
-      debugLog('웹 컨텐츠 키보드 이벤트가 설정되었습니다');
-    };
-
-    // MacOS 특화 키보드 지원 설정
-    const setupMacOSKeyboardSupport = (window) => {
-      debugLog('MacOS 특화 키보드 지원 설정 중...');
-      
-      if (!window || window.isDestroyed() || !window.webContents) {
-        debugLog('유효하지 않은 윈도우: MacOS 키보드 지원 설정 실패');
-        return;
-      }
-      
-      // 기존 리스너 제거 - MaxListenersExceededWarning 방지
-      window.webContents.removeAllListeners('before-input-event');
-      window.webContents.removeAllListeners('input-event');
-      
-      // 최대 리스너 수 설정
-      window.webContents.setMaxListeners(25); // MacOS는 추가 이벤트가 있으므로 더 많이 설정
-      
-      // MacOS에서는 Command 키 이벤트를 추가로 처리
-      window.webContents.on('before-input-event', (event, input) => {
-        if (input.key === 'Meta' || input.key === 'Command') {
-          pressedModifiers.meta = input.type === 'keyDown';
-          debugLog(`macOS Command 키 상태: ${pressedModifiers.meta ? '누름' : '뗌'}`);
-        }
-      });
-      
-      // MacOS에서 한글/영문 전환 감지 ('ko', 'en')
-      window.webContents.on('input-event', (event, inputEvent) => {
-        if (inputEvent.type === 'keyDown' && 
-            (inputEvent.code === 'Space' && pressedModifiers.shift)) {
-          debugLog('한/영 전환 키 감지됨');
-        }
-      });
-      
-      // 추가: MacOS에서 input-event 이벤트도 사용
-      window.webContents.on('input-event', (event, inputEvent) => {
-        // mouseMove, mouseWheel, scroll 이벤트는 무시 (성능 향상을 위해)
-        if (inputEvent.type === 'mouseMove' || 
-            inputEvent.type === 'mouseWheel' || 
-            inputEvent.type === 'scroll' || 
-            inputEvent.type === 'wheel' || 
-            inputEvent.type.toLowerCase().includes('mouse') || 
-            inputEvent.type.toLowerCase().includes('scroll')) {
-          return;
-        }
-        
-        debugLog(`MacOS input-event: ${JSON.stringify(inputEvent)}`);
-        if (inputEvent.type === 'keyDown' && !SPECIAL_KEYS.includes(inputEvent.key)) {
-          keyEventQueue.push({
-            key: inputEvent.key || 'Unknown',
-            code: inputEvent.code || 'Unknown',
-            timestamp: Date.now(),
-            type: 'keyDown',
-            isMacEvent: true
-          });
-          
-          clearTimeout(keyEventProcessTimer);
-          keyEventProcessTimer = setTimeout(processKeyEventQueue, DEBOUNCE_TIME);
-        }
-      });
-      
-      debugLog('MacOS 특화 키보드 이벤트 설정 완료');
-    };
-
-    // 애플리케이션 전체 단축키 등록
-    registerGlobalShortcuts();
-
-    // 메인 윈도우가 생성될 때 이벤트 리스너 등록
-    app.on('browser-window-created', (_, window) => {
-      debugLog('새 브라우저 윈도우 생성됨, 이벤트 리스너 등록 예정');
-      window.webContents.on('did-finish-load', () => {
-        debugLog('윈도우 로드 완료, 키보드 이벤트 등록');
-        registerKeyboardEvents();
-      });
-    });
-
-    // 이미 생성된 윈도우에 이벤트 리스너 등록
-    registerKeyboardEvents();
-
-    debugLog('키보드 리스너가 설정되었습니다.');
-
-    // 초기화 및 이벤트 등록
-    registerKeyboardEvents();
-    
-    // 활성 창 변경 감지를 위한 주기적 체크
-    if (activeCheckTimer) {
-      clearInterval(activeCheckTimer);
+      default:
+        debugLog(`알 수 없는 IME 이벤트 타입: ${type}`);
     }
     
-    activeCheckTimer = setInterval(async () => {
-      if (appState.isTracking) {
-        try {
-          const activeWindowInfo = await activeWin();
-          // 권한 오류 상태 재설정 (권한이 생겼을 경우를 처리)
-          if (hasReportedScreenRecordingPermissionError && activeWindowInfo) {
-            hasReportedScreenRecordingPermissionError = false;
-            // 권한이 허용된 경우 알림
-            if (appState.mainWindow && appState.mainWindow.webContents) {
-              appState.mainWindow.webContents.send('permission-status', {
-                code: 'SCREEN_RECORDING',
-                granted: true,
-                message: '화면 기록 권한이 허용되었습니다.'
-              });
-            }
-          }
-          
-          if (activeWindowInfo) {
-            const currentAppName = activeWindowInfo.owner?.name || 'Unknown App';
-            const currentWindowTitle = activeWindowInfo.title || 'Unknown Window';
-            const currentUrl = activeWindowInfo.url || '';
-            
-            // 앱이 변경되었는지 확인
-            if (lastActiveApp && lastActiveApp !== currentAppName) {
-              debugLog(`주기적 체크: 앱 전환 감지 ${lastActiveApp} -> ${currentAppName}`);
-              
-              // 앱 전환 후 타이핑 통계 업데이트
-              updateAppTypingStats(
-                currentAppName,
-                currentWindowTitle,
-                currentUrl,
-                3, // 가상 타이핑 수
-                150 // 타이핑 시간 (ms)
-              );
-            }
-            
-            // 앱 정보 업데이트
-            lastActiveApp = currentAppName;
-            lastWindowTitle = currentWindowTitle;
-          }
-        } catch (error) {
-          console.error('active-win 호출 오류:', error);
-          debugLog('기본 창 정보 사용');
-          
-          // 화면 기록 권한 오류 확인 (stderr 메시지 검사)
-          const errorOutput = (error.stdout || '').toString() + (error.stderr || '').toString();
-          
-          // Screen Recording 권한 오류 감지
-          if (errorOutput.includes('screen recording permission') && !hasReportedScreenRecordingPermissionError) {
-            hasReportedScreenRecordingPermissionError = true;
-            
-            // 메인 윈도우에 권한 오류 이벤트 전송
-            if (appState.mainWindow && appState.mainWindow.webContents) {
-              appState.mainWindow.webContents.send('permission-error', {
-                code: 'SCREEN_RECORDING',
-                message: '화면 기록 권한이 없어 활성 윈도우 정보를 가져올 수 없습니다.',
-                detail: '시스템 환경설정 → 보안 및 개인 정보 보호 → 화면 기록 에서 권한을 허용해주세요.'
-              });
-              
-              debugLog('화면 기록 권한 오류 메시지 전송됨');
-            }
-          }
-        }
-      }
-    }, 2000);
-
-    // 리소스 정리 함수 반환
-    return {
-      dispose: () => {
-        debugLog('키보드 리스너 정리 중...');
-        if (activeCheckTimer) {
-          clearInterval(activeCheckTimer);
-          activeCheckTimer = null;
-        }
-        
-        if (appSwitchTimer) {
-          clearTimeout(appSwitchTimer);
-          appSwitchTimer = null;
-        }
-        
-        if (keyEventProcessTimer) {
-          clearInterval(keyEventProcessTimer);
-          keyEventProcessTimer = null;
-        }
-        
-        // 글로벌 단축키 등록 해제
-        globalShortcut.unregisterAll();
-        
-        // 상태 초기화
-        keyEventQueue = [];
-        processedKeys.clear();
-        debugLog('키보드 리스너 정리 완료');
-      }
-    };
   } catch (error) {
-    console.error('키보드 리스너 설정 오류:', error);
+    console.error('IME Composition 이벤트 처리 중 오류 발생:', error);
+  }
+}
+
+/**
+ * 현재 활성화된 창의 정보를 가져옵니다.
+ * @returns {Promise<Object>} 활성 창 정보
+ */
+async function getActiveWindowInfo() {
+  try {
+    return await activeWin();
+  } catch (error) {
+    console.error('활성 창 정보 가져오기 실패:', error);
     return null;
   }
 }
 
-/**
- * 전역 단축키 등록
- */
-function registerGlobalShortcuts() {
+// IPC를 통한 키보드 이벤트 처리
+function setupKeyboardIpcHandlers() {
   try {
-    // 이미 등록된 단축키가 있으면 해제
-    globalShortcut.unregisterAll();
+    // 이미 등록되었는지 확인
+    if (keyboardHandlersRegistered) {
+      console.log('키보드 IPC 핸들러가 이미 등록되어 있습니다.');
+      return true;
+    }
     
-    // 모니터링 시작/중지 단축키
-    globalShortcut.register('CommandOrControl+Shift+M', () => {
-      if (appState.isTracking) {
-        // 모니터링 중지
-        ipcMain.emit('stop-tracking');
-      } else {
-        // 모니터링 시작
-        ipcMain.emit('start-tracking');
+    // 기존 IPC 핸들러 제거 시도
+    try {
+      ipcMain.removeHandler('keyboard-event');
+      ipcMain.removeAllListeners('keyboard-event');
+      ipcMain.removeHandler('ime-composition-event');
+      ipcMain.removeAllListeners('ime-composition-event');
+      ipcMain.removeHandler('get-last-completed-text');
+      ipcMain.removeHandler('process-jamo'); 
+      ipcMain.removeHandler('finish-hangul-composition');
+      ipcMain.removeHandler('decompose-hangul');
+      console.log('기존 키보드 IPC 핸들러가 제거되었습니다.');
+    } catch (error) {
+      console.warn('기존 핸들러 제거 중 오류 (무시 가능):', error.message);
+    }
+
+    // 키보드 이벤트 핸들러 등록
+    ipcMain.on('keyboard-event', (event, data) => {
+      try {
+        if (!data) return;
+        
+        // IME 조합 중인 경우 처리하지 않음
+        if (data.isComposing) {
+          debugLog('IME 조합 중 - 키보드 이벤트 무시');
+          return;
+        }
+        
+        // 키 이벤트 처리 로직
+        debugLog(`클라이언트에서 키 이벤트 수신: ${JSON.stringify(data)}`);
+        
+        // 기존 키 이벤트 처리 로직 호출
+        const processKeyInputFn = getProcessKeyInput();
+        if (processKeyInputFn) {
+          processKeyInputFn(data);
+        }
+      } catch (error) {
+        console.error('키보드 이벤트 처리 중 오류:', error);
       }
     });
     
-    // 앱 전환 감지 단축키 (Command+Tab / Alt+Tab)
-    const appSwitchShortcut = process.platform === 'darwin' ? 'Command+Tab' : 'Alt+Tab';
-    globalShortcut.register(appSwitchShortcut, () => {
-      debugLog('앱 전환 단축키 감지');
-      
-      // 앱 전환 상태 설정
-      isAppSwitching = true;
-      
-      // 앱 전환 타이머 설정
-      if (appSwitchTimer) clearTimeout(appSwitchTimer);
-      appSwitchTimer = setTimeout(async () => {
-        try {
-          // 활성 창 정보 가져오기
-          const activeWindowInfo = await activeWin();
-          if (activeWindowInfo && appState.isTracking) {
-            const appName = activeWindowInfo.owner?.name || 'Unknown App';
-            const windowTitle = activeWindowInfo.title || 'Unknown Window';
-            const url = activeWindowInfo.url || '';
-            
-            // 타이핑 통계 업데이트
-            updateAppTypingStats(appName, windowTitle, url, 5, 500);
-          }
-        } catch (error) {
-          console.error('앱 전환 감지 오류:', error);
-        }
-        
-        isAppSwitching = false;
-      }, 500);
+    // IME Composition 이벤트 핸들러 등록
+    ipcMain.on('ime-composition-event', handleImeCompositionEvent);
+    
+    // 마지막으로 완성된 텍스트 요청 핸들러
+    ipcMain.handle('get-last-completed-text', () => {
+      return IME_COMPOSITION.lastCompletedText || '';
     });
     
-    debugLog('글로벌 단축키 등록 완료');
+    // 자모 처리 API - 중복 등록 방지 확인 추가
+    try {
+      // 이미 등록된 핸들러인지 확인
+      const existingHandlers = ipcMain._invokeHandlers || {};
+      const hasProcessJamoHandler = existingHandlers['process-jamo'] !== undefined;
+      
+      if (!hasProcessJamoHandler) {
+        ipcMain.handle('process-jamo', (event, char) => {
+          return processJamo(char);
+        });
+        console.log('process-jamo 핸들러 등록됨');
+      } else {
+        console.log('process-jamo 핸들러가 이미 등록되어 있어 중복 등록하지 않음');
+      }
+    } catch (error) {
+      console.error('process-jamo 핸들러 등록 중 오류:', error);
+    }
+    
+    // 한글 합성 완료 처리
+    ipcMain.handle('finish-hangul-composition', (event) => {
+      return finishComposition();
+    });
+    
+    // 한글 분해
+    ipcMain.handle('decompose-hangul', (event, syllable) => {
+      return decomposeHangul(syllable);
+    });
+    
+    // 성공적으로 등록 완료
+    keyboardHandlersRegistered = true;
+    console.log('키보드 IPC 핸들러가 성공적으로 설정되었습니다.');
     return true;
   } catch (error) {
-    console.error('글로벌 단축키 등록 오류:', error);
+    console.error('키보드 IPC 핸들러 설정 오류:', error);
+    keyboardHandlersRegistered = false;
     return false;
   }
 }
@@ -1129,9 +703,104 @@ function simulateKeyPress(key) {
   }
 }
 
+// 키보드 이벤트 리스너 설정
+/**
+ * 키보드 이벤트 리스너 설정
+ * @returns {Object} 키보드 리스너 인스턴스
+ */
+function setupKeyboardListener() {
+  try {
+    console.log('키보드 이벤트 리스너 설정 중...');
+    
+    // 기존 키보드 이벤트 핸들러 제거
+    try {
+      ipcMain.removeAllListeners('keyboard-event');
+      ipcMain.removeAllListeners('ime-composition-event');
+      ipcMain.removeHandler('sendKeyboardEvent');
+      ipcMain.removeHandler('keyboard-event');
+      ipcMain.removeHandler('ime-composition-event');
+      console.log('기존 키보드 이벤트 핸들러가 제거되었습니다.');
+    } catch (err) {
+      // 무시
+    }
+    
+    // 중복 호출을 방지하기 위해 플래그 확인
+    if (!keyboardHandlersRegistered) {
+      const result = setupKeyboardIpcHandlers();
+      if (result) {
+        keyboardHandlersRegistered = true;
+        console.log('키보드 이벤트 IPC 핸들러가 설정되었습니다.');
+      }
+    } else {
+      console.log('키보드 IPC 핸들러가 이미 등록되어 있습니다.');
+    }
+    
+    // 마지막 활성 창 정보 업데이트 타이머 설정
+    if (activeCheckTimer) {
+      clearInterval(activeCheckTimer);
+    }
+    
+    activeCheckTimer = setInterval(async () => {
+      try {
+        if (!appState.isTracking) return;
+        
+        // 현재 활성 창 정보 가져오기
+        const windowInfo = await getActiveWindowInfo();
+        
+        if (windowInfo) {
+          if (windowInfo.app !== lastActiveApp || windowInfo.title !== lastWindowTitle) {
+            // 앱 전환 감지
+            const prevApp = lastActiveApp;
+            const prevTitle = lastWindowTitle;
+            
+            lastActiveApp = windowInfo.app;
+            lastWindowTitle = windowInfo.title;
+            
+            // 앱 전환 이벤트 발생
+            isAppSwitching = true;
+            console.log(`앱 전환: ${prevApp} -> ${lastActiveApp}`);
+            
+            // 현재 창의 브라우저 타입 감지
+            const browserType = detectBrowserName(windowInfo);
+            IME_COMPOSITION.browserType = browserType;
+            
+            // 2초 후 앱 전환 플래그 해제
+            setTimeout(() => {
+              isAppSwitching = false;
+            }, 2000);
+          }
+        }
+      } catch (error) {
+        console.error('활성 창 정보 가져오기 실패:', error);
+      }
+    }, 1000);
+    
+    console.log('키보드 이벤트 리스너 설정 완료');
+    
+    // 키보드 리스너 인스턴스 반환
+    return {
+      active: true,
+      started: Date.now(),
+      dispose: () => {
+        if (activeCheckTimer) {
+          clearInterval(activeCheckTimer);
+          activeCheckTimer = null;
+        }
+      }
+    };
+  } catch (error) {
+    console.error('키보드 이벤트 리스너 설정 실패:', error);
+    return null;
+  }
+}
+
 module.exports = {
+  setupKeyboardIpcHandlers,
   setupKeyboardListener,
-  registerGlobalShortcuts,
-  simulateKeyPress, // 테스트용 함수 추가
-  setupKeyboardIpcHandlers, // 이 함수 내보내기 추가
+  handleImeCompositionEvent,
+  processJamo,
+  composeHangul,
+  decomposeHangul,
+  finishComposition,
+  registerGlobalShortcuts: () => console.log('전역 단축키 등록을 아직 구현하지 않았습니다')
 };

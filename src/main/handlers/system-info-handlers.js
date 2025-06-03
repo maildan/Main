@@ -3,7 +3,7 @@
  * 
  * 브라우저 정보, 디버그 정보 등 시스템 관련 정보를 제공하는 핸들러를 처리합니다.
  */
-const { ipcMain } = require('electron');
+const { ipcMain, app } = require('electron');
 const activeWin = require('active-win');
 const { appState } = require('../constants');
 const { debugLog } = require('../utils');
@@ -14,7 +14,7 @@ const { debugLog } = require('../utils');
 function register() {
   debugLog('시스템 정보 관련 IPC 핸들러 등록 중...');
 
-  // 브라우저 정보 요청
+  // 브라우저 정보 요청 (on 이벤트)
   ipcMain.on('get-current-browser-info', async (event) => {
     try {
       let browserName = null;
@@ -92,6 +92,64 @@ function register() {
         isGoogleDocs: false,
         error: error.message
       });
+    }
+  });
+
+  // 브라우저 정보 요청 (handle 이벤트 추가)
+  ipcMain.handle('get-current-browser-info', async () => {
+    try {
+      let browserName = null;
+      let title = null;
+      let isGoogleDocs = false;
+      
+      try {
+        const windowInfo = await activeWin();
+        // 브라우저 모듈 기능 사용
+        const { 
+          detectBrowserName, 
+          isGoogleDocsWindow,
+          getLastKnownBrowserInfo,
+          getFallbackBrowserName
+        } = require('../browser');
+        
+        browserName = windowInfo ? detectBrowserName(windowInfo) : null;
+        title = windowInfo ? windowInfo.title : null;
+        isGoogleDocs = windowInfo ? isGoogleDocsWindow(windowInfo) : false;
+      } catch (activeWinError) {
+        console.warn('active-win 오류, 대체 방법 사용:', activeWinError.message);
+        
+        // browser.js 모듈의 대체 함수 사용
+        const { getFallbackBrowserName, getLastKnownBrowserInfo } = require('../browser');
+        
+        // 대체 브라우저 이름 추정
+        browserName = getFallbackBrowserName();
+        
+        // 마지막 알려진 정보 가져오기
+        const lastKnown = getLastKnownBrowserInfo();
+        title = lastKnown.title || appState.currentStats.currentWindow || 'Unknown Window';
+        
+        // 구글 독스 여부 추정 (제목에서)
+        isGoogleDocs = title && (
+          title.toLowerCase().includes('google docs') || 
+          title.toLowerCase().includes('문서') ||
+          title.toLowerCase().includes('document')
+        );
+      }
+      
+      // 결과 반환
+      return {
+        browserName,
+        title,
+        isGoogleDocs
+      };
+    } catch (error) {
+      console.error('브라우저 정보 요청 처리 오류:', error);
+      return {
+        browserName: null,
+        title: null,
+        isGoogleDocs: false,
+        error: error.message
+      };
     }
   });
 

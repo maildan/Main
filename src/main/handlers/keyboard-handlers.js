@@ -9,39 +9,40 @@ const { debugLog } = require('../utils');
 const { setupKeyboardListener } = require('../keyboard');
 const { getSettings } = require('../settings');
 
-// 키보드 리스너 인스턴스 관리
-let keyboardListenerInstance = null;
+// 키보드 핸들러 등록 상태 추적 플래그
+let keyboardHandlersRegistered = false;
 
 /**
- * 필요한 경우 키보드 리스너 설정
+ * 필요할 경우에만 키보드 리스너 설정
  * @returns {boolean} 설정 성공 여부
  */
 function setupKeyboardListenerIfNeeded() {
   try {
-    // 모니터링 중이 아니면 키보드 리스너를 설정하지 않음
-    if (!appState.isTracking) {
-      debugLog('모니터링 중이 아니므로 키보드 리스너를 설정하지 않음');
-      return false;
+    // 이미 키보드 핸들러가 등록되어 있는지 확인
+    if (keyboardHandlersRegistered) {
+      debugLog('키보드 IPC 핸들러가 이미 등록되어 있어 추가 설정하지 않습니다.');
+      return true;
     }
     
-    // 이미 리스너가 있으면 정리
-    cleanupKeyboardListener();
-    
-    // 새 키보드 리스너 설정
-    debugLog('키보드 리스너 설정 중...');
-    keyboardListenerInstance = setupKeyboardListener();
-    
-    if (keyboardListenerInstance) {
-      debugLog('키보드 리스너 설정 성공');
+    // 키보드 리스너 초기화
+    if (!appState.keyboardListener) {
+      debugLog('키보드 리스너 초기화 중...');
+      appState.keyboardListener = setupKeyboardListener();
       
-      // 설정에서 추적할 앱/웹사이트 목록 로드
-      const settings = getSettings();
-      debugLog(`모니터링 설정: ${settings.monitoredApps?.length || 0}개 앱, ${settings.monitoredWebsites?.length || 0}개 웹사이트 정의됨`);
-      
-      return true;
+      // 성공 확인
+      if (appState.keyboardListener && appState.keyboardListener.active) {
+        keyboardHandlersRegistered = true;
+        debugLog('키보드 리스너 초기화 성공');
+        return true;
+      } else {
+        debugLog('키보드 리스너 초기화 실패');
+        return false;
+      }
     } else {
-      debugLog('키보드 리스너 설정 실패');
-      return false;
+      // 이미 존재하는 경우
+      keyboardHandlersRegistered = true;
+      debugLog('이미 키보드 리스너가 존재합니다.');
+      return true;
     }
   } catch (error) {
     console.error('키보드 리스너 설정 오류:', error);
@@ -50,24 +51,24 @@ function setupKeyboardListenerIfNeeded() {
 }
 
 /**
- * 키보드 리스너 정리
+ * 키보드 리스너 자원 정리
  */
 function cleanupKeyboardListener() {
-  if (keyboardListenerInstance) {
-    try {
-      debugLog('기존 키보드 리스너 정리 중...');
-      if (typeof keyboardListenerInstance.dispose === 'function') {
-        keyboardListenerInstance.dispose();
+  try {
+    if (appState.keyboardListener) {
+      if (typeof appState.keyboardListener.dispose === 'function') {
+        appState.keyboardListener.dispose();
       }
-      keyboardListenerInstance = null;
-      debugLog('키보드 리스너 정리 완료');
+      appState.keyboardListener = null;
+      keyboardHandlersRegistered = false;
+      debugLog('키보드 리스너 자원 정리 완료');
       return true;
-    } catch (error) {
-      console.error('키보드 리스너 정리 오류:', error);
-      return false;
     }
+    return false;
+  } catch (error) {
+    console.error('키보드 리스너 정리 중 오류:', error);
+    return false;
   }
-  return true; // 이미 리스너가 없으면 성공으로 간주
 }
 
 /**
@@ -107,27 +108,29 @@ function getJamoCount(char) {
 function register() {
   debugLog('키보드 관련 IPC 핸들러 등록 중...');
 
-  // 키보드 테스트 입력 처리
-  ipcMain.handle('test-keyboard-input', async (event, key) => {
+  try {
+    // 이미 등록된 핸들러 제거
     try {
-      debugLog(`키보드 테스트 입력 요청: ${key}`);
-      
-      // keyboard 모듈 가져오기
-      const keyboard = require('../keyboard');
-      
-      // 시뮬레이션 함수 호출
-      if (typeof keyboard.simulateKeyPress === 'function') {
-        const result = keyboard.simulateKeyPress(key);
-        return { success: true, result };
-      } else {
-        debugLog('키보드 시뮬레이션 함수를 찾을 수 없음');
-        return { success: false, error: 'simulateKeyPress 함수를 찾을 수 없음' };
-      }
-    } catch (error) {
-      console.error('키보드 테스트 입력 처리 오류:', error);
-      return { success: false, error: error.message };
+      ipcMain.removeHandler('process-jamo');
+      ipcMain.removeHandler('test-hangul-input');
+    } catch (err) {
+      // 무시 - 핸들러가 없을 수 있음
     }
-  });
+
+    // 자모 처리 IPC 핸들러
+    ipcMain.handle('process-jamo', (event, char) => {
+      try {
+        // keyboard.js의 processJamo 함수 사용
+        const { processJamo } = require('../keyboard');
+        return processJamo(char);
+      } catch (error) {
+        console.error('자모 처리 중 오류:', error);
+        return { error: error.message };
+      }
+    });
+  } catch (error) {
+    console.error('키보드 핸들러 등록 중 오류:', error);
+  }
 
   // 한글 입력 테스트 핸들러
   ipcMain.handle('test-hangul-input', async (event, options) => {
@@ -191,35 +194,29 @@ function register() {
       const durationSec = durationMs / 1000;
       const durationMin = durationSec / 60;
       
-      // WPM 계산 (1 word = 5 keystrokes 기준)
-      const grossWPM = Math.round((keyPressCount / 5) / durationMin);
+      // 분당 단어 수 (WPM) - 한글은 1글자당 1단어로 계산
+      const wpm = testOptions.measureWpm ? Math.round(completedChars / durationMin) : null;
       
-      // 정확도 계산
-      const accuracy = errorCount > 0
-        ? Math.round(((keyPressCount - errorCount) / keyPressCount) * 100)
-        : 100;
+      // 정확도
+      const accuracy = testOptions.measureAccuracy ? 
+        Math.round(((keyPressCount - errorCount) / keyPressCount) * 100) : null;
       
-      // 테스트 결과
-      const result = {
-        success: true,
-        text: testText,
-        keystrokes: keyPressCount,
-        completedChars: completedChars,
-        errors: errorCount,
-        duration: durationSec,
-        wpm: grossWPM,
-        accuracy: accuracy,
-        timestamp: new Date().toISOString()
-      };
-      
-      debugLog('한글 입력 테스트 결과:', result);
-      return result;
-    } catch (error) {
-      console.error('한글 입력 테스트 오류:', error);
       return {
-        success: false,
-        error: error.message || '한글 입력 테스트 중 오류가 발생했습니다'
+        success: true,
+        result: {
+          completedChars,
+          keyPressCount,
+          errorCount,
+          durationMs,
+          durationSec,
+          wpm,
+          accuracy,
+          charJamoCounts
+        }
       };
+    } catch (error) {
+      console.error('한글 입력 테스트 중 오류:', error);
+      return { success: false, error: error.message };
     }
   });
 

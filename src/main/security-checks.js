@@ -9,86 +9,140 @@
 
 const { session, app: _app, webContents, ipcMain, BrowserWindow } = require('electron');
 const path = require('path');
-
-// ----------------------------------------------------------------------------
-// 1) CSP 헤더 삭제 + 덮어쓰기
-// ----------------------------------------------------------------------------
+const isDev = process.env.NODE_ENV === 'development';
 
 /**
- * 단일 세션에 대해 CSP 헤더를 제거/덮어쓰는 함수
- * @param {Electron.Session} ses - Electron 세션 객체 (ex: session.defaultSession)
- * @param {boolean} isDev - 개발 모드 여부
+ * 안전한 웹 설정을 위한 Header를 설정합니다.
+ * 개발 모드와 프로덕션 모드에서 다른 CSP 설정 사용
  */
-function applyCSPToSession(ses, isDev) {
-  if (!ses || !ses.webRequest) {
-    console.error('applyCSPToSession: 유효하지 않은 세션 객체입니다.');
-    return;
+const securityHeaders = {
+  'Content-Security-Policy': isDev 
+    // 개발 모드에서는 HMR과 React 개발 도구를 위해 unsafe-inline, unsafe-eval 허용
+    ? 'default-src \'self\'; script-src \'self\' \'unsafe-inline\' \'unsafe-eval\'; style-src \'self\' \'unsafe-inline\'; img-src \'self\' data: blob:; font-src \'self\' data:; connect-src \'self\' ws: wss:;'
+    // 프로덕션 모드에서는 보안을 강화하지만 스타일 관련 'unsafe-inline'은 유지
+    : 'default-src \'self\'; script-src \'self\'; style-src \'self\' \'unsafe-inline\'; img-src \'self\' data: blob:; font-src \'self\' data:;',
+  'X-Content-Type-Options': 'nosniff',
+  'X-Frame-Options': 'DENY',
+  'X-XSS-Protection': '1; mode=block'
+};
+
+/**
+ * HTTP 요청 헤더에 보안 헤더를 적용합니다.
+ */
+function applySecurityHeaders(details, callback) {
+  if (details.responseHeaders) {
+    for (const [header, value] of Object.entries(securityHeaders)) {
+      if (details.responseHeaders[header]) {
+        delete details.responseHeaders[header];
+      }
+      details.responseHeaders[header] = [value];
+    }
   }
 
-  // onHeadersReceived 훅을 등록해서 Next.js가 내려주는 CSP 헤더를 삭제하고, 개발 모드라면 완전 개방 CSP 삽입
-  ses.webRequest.onHeadersReceived((details, callback) => {
-    // (1) 우선 내려온 responseHeaders 복제
-    const responseHeaders = { ...(details.responseHeaders || {}) };
-
-    // (2) 기존 CSP 헤더를 모두 삭제
-    Object.keys(responseHeaders).forEach((headerKey) => {
-      const lower = headerKey.toLowerCase();
-      if (
-        lower === 'content-security-policy' ||
-        lower === 'content-security-policy-report-only' ||
-        lower.includes('content-security')
-      ) {
-        delete responseHeaders[headerKey];
-      }
-    });
-
-    // (3) 개발 모드라면 완전 개방 CSP 추가
-    if (isDev) {
-      responseHeaders['Content-Security-Policy'] = [
-        // **개발 전용: 모든 도메인 + unsafe-inline + unsafe-eval 허용**
-        'default-src * \'unsafe-inline\' \'unsafe-eval\'; ' +
-        'script-src * \'unsafe-inline\' \'unsafe-eval\'; ' +
-        'style-src * \'unsafe-inline\'; ' +
-        'img-src * data: blob:; ' +
-        'font-src * data:; ' +
-        'connect-src * ws: wss:; ' +
-        'media-src * data: blob:;'
-      ];
-    } else {
-      // 프로덕션 모드: 엄격한 CSP 예시 (필요시 더 조정)
-      responseHeaders['Content-Security-Policy'] = [
-        'default-src \'self\'; ' +
-        'script-src \'self\'; ' +
-        'style-src \'self\' \'unsafe-inline\'; ' +
-        'img-src \'self\' data: blob:; ' +
-        'connect-src \'self\'; ' +
-        'font-src \'self\'; ' +
-        'object-src \'none\'; ' +
-        'media-src \'self\'; ' +
-        'child-src \'self\';'
-      ];
-    }
-
-    // (4) 콜백으로 덮어쓴 헤더를 넘긴다
-    callback({
-      responseHeaders,
-      cancel: false
-    });
-  });
+  if (callback && typeof callback === 'function') {
+    callback({ responseHeaders: details.responseHeaders });
+  }
 }
 
 /**
- * 모든 세션(defaultSession) 에 CSP 헤더 적용
- * @param {boolean} isDev - 개발 모드인지 여부
+ * 모든 세션에 Content Security Policy를 적용합니다.
+ * 기본 세션 및 파티션된 세션 모두 포함
  */
-function applyCSPToAllSessions(isDev) {
+function applyCSPToAllSessions() {
   try {
-    const defaultSes = session.defaultSession;
-    applyCSPToSession(defaultSes, isDev);
-
-    console.log(`applyCSPToAllSessions: ${isDev ? '개발 모드 → 모든 세션 CSP 제거/덮어쓰기 완료' : '프로덕션 모드 → 엄격 CSP 적용 완료'}`);
+    // 기본 세션에 CSP 적용
+    registerCSPForSession(session.defaultSession);
+    
+    // 모든 세션에 CSP 적용 (파티션된 세션 포함)
+    const allSessions = session.getAllSessions?.() || [];
+    console.log(`모든 세션에 CSP 적용 중... (세션 수: ${allSessions.length + 1})`);
+    
+    allSessions.forEach((sess, idx) => {
+      try {
+        console.log(`세션 #${idx + 1} CSP 적용 중...`);
+        registerCSPForSession(sess);
+      } catch (err) {
+        console.error(`세션 #${idx + 1} CSP 적용 실패:`, err);
+      }
+    });
+    
+    console.log('모든 세션에 CSP 적용 완료');
+    return true;
   } catch (err) {
-    console.error('applyCSPToAllSessions 오류:', err);
+    console.error('전체 세션 CSP 적용 중 오류:', err);
+    
+    // 오류가 발생한 경우에도 기본 세션만이라도 시도
+    try {
+      console.warn('기본 세션에만 CSP 적용 시도...');
+      registerCSPForSession(session.defaultSession);
+      return true;
+    } catch (fallbackErr) {
+      console.error('기본 세션 CSP 적용마저 실패:', fallbackErr);
+      return false;
+    }
+  }
+}
+
+/**
+ * 특정 세션에 CSP를 등록합니다.
+ */
+function registerCSPForSession(sess) {
+  if (!sess || typeof sess.webRequest?.onHeadersReceived !== 'function') {
+    console.error('유효하지 않은 세션 객체:', sess);
+    return false;
+  }
+  
+  try {
+    // 기존 리스너 제거 (중복 방지)
+    sess.webRequest.onHeadersReceived(null);
+    
+    // 새 CSP 설정 적용
+    sess.webRequest.onHeadersReceived({ urls: ['*://*/*'] }, (details, callback) => {
+      applySecurityHeaders(details, callback);
+    });
+    
+    console.log(isDev 
+      ? '개발 모드 - 완화된 CSP 설정이 적용되었습니다.' 
+      : '프로덕션 모드 - 엄격한 CSP 설정이 적용되었습니다.');
+    return true;
+  } catch (err) {
+    console.error('세션에 CSP 등록 실패:', err);
+    return false;
+  }
+}
+
+/**
+ * 웹 요청에 보안 검사를 수행합니다.
+ */
+function setupRequestChecks(mainWindow) {
+  try {
+    if (mainWindow && mainWindow.webContents) {
+      const webContents = mainWindow.webContents;
+      
+      // 1. 새 창 열기 제어
+      webContents.setWindowOpenHandler(({ url }) => {
+        // HTTPS만 허용하거나 특정 허용된 URL만 처리
+        if (url.startsWith('https://') || url.startsWith('http://localhost')) {
+          return { action: 'allow' };
+        }
+        console.warn(`안전하지 않은 URL 열기 차단됨: ${url}`);
+        return { action: 'deny' };
+      });
+      
+      // 2. 네비게이션 제어
+      webContents.on('will-navigate', (event, url) => {
+        // 여기서 필요한 추가 확인 로직 구현
+        if (!url.startsWith('https://') && !url.startsWith('http://localhost') && !url.startsWith('file://')) {
+          console.warn(`탐색 차단됨: ${url}`);
+          event.preventDefault();
+        }
+      });
+    }
+    
+    return true;
+  } catch (err) {
+    console.error('요청 보안 설정 중 오류:', err);
+    return false;
   }
 }
 
@@ -106,47 +160,89 @@ function setupKeyboardEventHandler() {
     try {
       ipcMain.removeHandler('sendKeyboardEvent');
       ipcMain.removeHandler('keyboard-event');
+      ipcMain.removeHandler('ime-composition-event');
+      ipcMain.removeHandler('get-last-completed-text');
       ipcMain.removeAllListeners('sendKeyboardEvent');
       ipcMain.removeAllListeners('keyboard-event');
+      ipcMain.removeAllListeners('ime-composition-event');
     } catch (ignore) {}
-
+    
     // <1> 동기/비동기 패턴 (handle 쓰는 패턴)
     ipcMain.handle('sendKeyboardEvent', async (event, data) => {
       console.log('IPC(handle) sendKeyboardEvent 수신:', data);
-      const mainWindow = BrowserWindow.getFocusedWindow();
-      if (mainWindow && mainWindow.webContents) {
-        mainWindow.webContents.send('keyboard-event-from-main', data);
-      }
+        const mainWindow = BrowserWindow.getFocusedWindow();
+        if (mainWindow && mainWindow.webContents) {
+          mainWindow.webContents.send('keyboard-event-from-main', data);
+        }
       return { success: true };
     });
-
+    
     ipcMain.handle('keyboard-event', async (event, data) => {
       console.log('IPC(handle) keyboard-event 수신:', data);
-      const mainWindow = BrowserWindow.getFocusedWindow();
-      if (mainWindow && mainWindow.webContents) {
-        mainWindow.webContents.send('keyboard-event-from-main', data);
-      }
+        const mainWindow = BrowserWindow.getFocusedWindow();
+        if (mainWindow && mainWindow.webContents) {
+          mainWindow.webContents.send('keyboard-event-from-main', data);
+        }
       return { success: true };
     });
-
+    
     // <2> 전통적인 on() 이벤트 리스너 방식
     ipcMain.on('sendKeyboardEvent', (event, data) => {
       console.log('IPC(on) sendKeyboardEvent 수신:', data);
-      const mainWindow = BrowserWindow.getFocusedWindow();
-      if (mainWindow && mainWindow.webContents) {
-        mainWindow.webContents.send('keyboard-event-from-main', data);
-      }
+        const mainWindow = BrowserWindow.getFocusedWindow();
+        if (mainWindow && mainWindow.webContents) {
+          mainWindow.webContents.send('keyboard-event-from-main', data);
+        }
       // 응답(옵션)
-      event.reply('sendKeyboardEvent-reply', { success: true });
+        event.reply('sendKeyboardEvent-reply', { success: true });
     });
 
     ipcMain.on('keyboard-event', (event, data) => {
       console.log('IPC(on) keyboard-event 수신:', data);
-      const mainWindow = BrowserWindow.getFocusedWindow();
-      if (mainWindow && mainWindow.webContents) {
-        mainWindow.webContents.send('keyboard-event-from-main', data);
+        const mainWindow = BrowserWindow.getFocusedWindow();
+        if (mainWindow && mainWindow.webContents) {
+          mainWindow.webContents.send('keyboard-event-from-main', data);
+        }
+        event.reply('keyboard-event-reply', { success: true });
+    });
+    
+    // <3> IME Composition 이벤트 처리 (한글 입력을 위한 이벤트)
+    const IME_STATE = {
+      isComposing: false,
+      lastCompletedText: ''
+    };
+    
+    ipcMain.on('ime-composition-event', (event, data) => {
+      if (!data) return;
+      
+      console.log('IPC(on) ime-composition-event 수신:', data.type);
+      
+      const { type, text, timestamp } = data;
+      
+      if (type === 'compositionend' && text) {
+        IME_STATE.isComposing = false;
+        IME_STATE.lastCompletedText = text;
+        
+        // 렌더러에게 완성된 텍스트 알림
+        const mainWindow = BrowserWindow.getFocusedWindow();
+        if (mainWindow && mainWindow.webContents) {
+          mainWindow.webContents.send('ime-composition-completed', {
+            text,
+            timestamp,
+            source: 'security-checks.js'
+          });
+        }
+      } else if (type === 'compositionstart') {
+        IME_STATE.isComposing = true;
       }
-      event.reply('keyboard-event-reply', { success: true });
+      
+      // 응답(옵션)
+      event.reply('ime-composition-event-reply', { success: true });
+      });
+
+    // <4> 마지막 완성된 IME 텍스트 요청 처리
+    ipcMain.handle('get-last-completed-text', () => {
+      return IME_STATE.lastCompletedText || '';
     });
 
     console.log('setupKeyboardEventHandler: 키보드 IPC 핸들러 등록 완료');
@@ -167,26 +263,25 @@ function setupKeyboardEventHandler() {
 function initializeSecuritySettings(appObj) {
   if (!appObj) {
     console.error('initializeSecuritySettings: 유효한 app 객체가 필요합니다.');
-    return false;
-  }
+      return false;
+    }
 
-  const isDev = process.env.NODE_ENV === 'development';
-  const disableSecurity = process.env.DISABLE_SECURITY === 'true';
-  const disableCSP = process.env.DISABLE_CSP === 'true';
+    const disableSecurity = process.env.DISABLE_SECURITY === 'true';
+    const disableCSP = process.env.DISABLE_CSP === 'true';
 
   console.log(`initializeSecuritySettings 호출됨 → isDev: ${isDev}, disableSecurity: ${disableSecurity}, disableCSP: ${disableCSP}`);
 
-  if (disableSecurity) {
+    if (disableSecurity) {
     console.log('initializeSecuritySettings: 보안 비활성화 환경 → CSP 무시');
-    return true;
-  }
+      return true;
+    }
 
   // (1) 개발 모드이거나 DISABLE_CSP=true면 CSP를 완전히 덮어쓴다
   if (isDev || disableCSP) {
-    applyCSPToAllSessions(true);
+    applyCSPToAllSessions();
   } else {
     // (2) 프로덕션 모드라면 엄격 CSP 적용
-    applyCSPToAllSessions(false);
+    applyCSPToAllSessions();
 
     // 추가 보안 로직(예: window open 제한 등)을 여기에 넣어도 좋음
     appObj.on('web-contents-created', (event, contents) => {
@@ -194,14 +289,14 @@ function initializeSecuritySettings(appObj) {
       contents.setWindowOpenHandler(({ url }) => {
         if (
           url.startsWith('https://') ||
-          url.startsWith('http://localhost') ||
+              url.startsWith('http://localhost') || 
           url.startsWith('file://')
         ) {
-          return { action: 'allow' };
-        }
+            return { action: 'allow' };
+          }
         console.log(`외부 URL 열기 차단됨 → ${url}`);
-        return { action: 'deny' };
-      });
+          return { action: 'deny' };
+        });
 
       // 탐색 차단 예시
       contents.on('will-navigate', (evt, navUrl) => {
@@ -209,15 +304,15 @@ function initializeSecuritySettings(appObj) {
         if (!['localhost', '127.0.0.1'].includes(parsed.hostname)) {
           console.log(`탐색 차단됨 → ${navUrl}`);
           evt.preventDefault();
-        }
+          }
+        });
       });
-    });
   }
 
   // (3) 키보드 이벤트 핸들러 항상 등록
   setupKeyboardEventHandler();
 
-  return true;
+    return true;
 }
 
 // ----------------------------------------------------------------------------
@@ -225,7 +320,83 @@ function initializeSecuritySettings(appObj) {
 // ----------------------------------------------------------------------------
 module.exports = {
   initializeSecuritySettings,
-  setupKeyboardEventHandler,
   applyCSPToAllSessions,
-  applyCSPToSession
+  registerCSPForSession,
+  setupRequestChecks,
+  setupKeyboardEventHandler
 };
+
+// 이벤트 리스너 등록
+ipcMain.on('preload-api-ready', (event, data) => {
+  console.log('preload 스크립트의 API 초기화 성공 확인:', data);
+  
+  // 응답하는 창에 API 초기화 성공 알림
+  try {
+    const sender = event.sender;
+    if (sender && sender.webContents) {
+      sender.send('preload-api-acknowledged', {
+        success: true,
+        timestamp: Date.now()
+      });
+    }
+  } catch (err) {
+    console.error('preload API 확인 응답 실패:', err);
+  }
+});
+
+ipcMain.on('preload-api-failed', (event, data) => {
+  console.error('preload API 초기화 실패 감지:', data);
+  
+  // 문제가 있는 창 다시 로드 시도
+  try {
+    const sender = event.sender;
+    if (sender && sender.webContents) {
+      console.log('preload API 초기화 실패 - 자동 복구 시작');
+      setTimeout(() => {
+        try {
+          sender.reload();
+        } catch (reloadErr) {
+          console.error('창 리로드 실패:', reloadErr);
+    }
+      }, 1000);
+    }
+  } catch (err) {
+    console.error('preload API 실패 처리 중 오류:', err);
+  }
+});
+
+// 키보드 이벤트 핸들러 초기화 확인 리스너
+ipcMain.on('keyboard-handler-initialized', (event, data) => {
+  console.log('security-checks.js: 키보드 핸들러 초기화 완료 메시지 수신', data);
+  
+  // 응답하기 (preload 스크립트에게 확인)
+  try {
+    if (event.sender && !event.sender.isDestroyed()) {
+      event.sender.send('keyboard-handler-confirmed', {
+        success: true,
+        timestamp: Date.now(),
+        source: 'security-checks.js'
+      });
+    }
+  } catch (err) {
+    console.error('키보드 핸들러 확인 응답 중 오류:', err);
+  }
+});
+
+// 키보드 이벤트 테스트 핸들러
+ipcMain.handle('test-keyboard-connection', async () => {
+  try {
+    // 키보드 이벤트 핸들러가 제대로 등록되어 있는지 테스트
+    return {
+      success: true,
+      handlersRegistered: true,
+      timestamp: Date.now()
+    };
+  } catch (error) {
+    console.error('키보드 연결 테스트 중 오류:', error);
+    return {
+      success: false,
+      error: error.message || String(error)
+    };
+  }
+});

@@ -9,8 +9,9 @@ const {
 } = require('./constants');
 const { debugLog } = require('./utils');
 const path = require('path');
-const { app, BrowserWindow } = require('electron');
+const { app, BrowserWindow, ipcMain } = require('electron');
 const url = require('url');
+const activeWin = require('active-win');
 
 // 마지막으로 알려진 브라우저 정보를 캐싱
 let lastKnownBrowserInfo = {
@@ -390,6 +391,141 @@ function cleanupUrlCache() {
   }
 }
 
+/**
+ * 현재 브라우저 정보를 가져오는 IPC 핸들러 등록
+ * 이 함수는 get-current-browser-info 핸들러를 등록합니다.
+ * main.js에서 앱 초기화 후 호출되어야 합니다.
+ */
+function setupCurrentBrowserInfoHandler() {
+  // 기존 핸들러 제거를 시도합니다 (중복 등록 방지)
+  try {
+    ipcMain.removeHandler('get-current-browser-info');
+    ipcMain.removeAllListeners('get-current-browser-info');
+  } catch (error) {
+    console.log('브라우저 정보 핸들러 제거 오류 (무시 가능):', error.message);
+  }
+
+  // 핸들러 등록 (invoke - 응답이 필요한 경우)
+  ipcMain.handle('get-current-browser-info', async () => {
+    try {
+      // 활성 창 정보 가져오기
+      let windowInfo = null;
+      let browserName = null;
+      let title = null;
+      let url = null;
+      let isGoogleDocs = false;
+
+      try {
+        windowInfo = await activeWin();
+        browserName = windowInfo ? detectBrowserName(windowInfo) : null;
+        title = windowInfo ? windowInfo.title : null;
+        url = windowInfo ? windowInfo.url : null;
+        isGoogleDocs = windowInfo ? isGoogleDocsWindow(windowInfo) : false;
+      } catch (activeWinError) {
+        console.warn('active-win 오류, 대체 방법 사용:', activeWinError.message);
+        
+        // 권한 오류 메시지 감지
+        const errorOutput = (activeWinError.stdout || '').toString() + (activeWinError.stderr || '').toString();
+        if (errorOutput.includes('screen recording permission')) {
+          // 권한 오류 이벤트 발생
+          if (BrowserWindow.getAllWindows().length > 0) {
+            BrowserWindow.getAllWindows()[0].webContents.send('permission-error', {
+              code: 'SCREEN_RECORDING',
+              message: '화면 기록 권한이 필요합니다',
+              detail: '키보드 입력 모니터링을 위해 화면 기록 권한이 필요합니다. 시스템 설정을 열어 권한을 허용해주세요.'
+            });
+          }
+        }
+        
+        // 마지막 알려진 정보 사용
+        const lastKnown = getLastKnownBrowserInfo();
+        browserName = lastKnown.name || appState.currentStats?.currentBrowser || 'Unknown Browser';
+        title = lastKnown.title || appState.currentStats?.currentWindow || 'Unknown Window';
+        url = lastKnown.url || '';
+        
+        // 구글 독스 여부 추정 (제목에서)
+        isGoogleDocs = title && (
+          title.toLowerCase().includes('google docs') || 
+          title.toLowerCase().includes('문서') ||
+          title.toLowerCase().includes('document')
+        );
+      }
+      
+      // 결과 반환
+      return {
+        browserName,
+        title,
+        url,
+        isGoogleDocs,
+        timestamp: Date.now()
+      };
+    } catch (error) {
+      console.error('브라우저 정보 요청 처리 오류:', error);
+      return {
+        browserName: null,
+        title: null,
+        url: null,
+        isGoogleDocs: false,
+        error: error.message,
+        timestamp: Date.now()
+      };
+    }
+  });
+
+  // 이벤트 리스너 등록 (on - 단방향 이벤트)
+  ipcMain.on('get-current-browser-info', async (event) => {
+    try {
+      let browserName = null;
+      let title = null;
+      let url = null;
+      let isGoogleDocs = false;
+      
+      try {
+        const windowInfo = await activeWin();
+        browserName = windowInfo ? detectBrowserName(windowInfo) : null;
+        title = windowInfo ? windowInfo.title : null;
+        url = windowInfo ? windowInfo.url : null;
+        isGoogleDocs = windowInfo ? isGoogleDocsWindow(windowInfo) : false;
+      } catch (activeWinError) {
+        console.warn('active-win 오류, 대체 방법 사용:', activeWinError.message);
+        
+        // 마지막 알려진 정보 사용
+        const lastKnown = getLastKnownBrowserInfo();
+        browserName = lastKnown.name || appState.currentStats?.currentBrowser || 'Unknown Browser';
+        title = lastKnown.title || appState.currentStats?.currentWindow || 'Unknown Window';
+        url = lastKnown.url || '';
+        isGoogleDocs = title && (
+          title.toLowerCase().includes('google docs') || 
+          title.toLowerCase().includes('문서') ||
+          title.toLowerCase().includes('document')
+        );
+      }
+      
+      // 응답 전송
+      event.sender.send('current-browser-info', {
+        browserName,
+        title,
+        url,
+        isGoogleDocs,
+        timestamp: Date.now()
+      });
+    } catch (error) {
+      console.error('브라우저 정보 요청 처리 오류:', error);
+      event.sender.send('current-browser-info', {
+        browserName: null,
+        title: null,
+        url: null,
+        isGoogleDocs: false,
+        error: error.message,
+        timestamp: Date.now()
+      });
+    }
+  });
+
+  console.log('브라우저 정보 IPC 핸들러 등록 완료');
+  return true;
+}
+
 // 주기적인 캐시 정리 (10분마다)
 setInterval(cleanupUrlCache, 10 * 60 * 1000);
 
@@ -401,5 +537,6 @@ module.exports = {
   isGoogleDocsWindow,
   getLastKnownBrowserInfo,
   getFallbackBrowserName,
-  cleanupUrlCache
+  cleanupUrlCache,
+  setupCurrentBrowserInfoHandler
 };

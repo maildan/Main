@@ -1,7 +1,80 @@
 /** @type {import('next').NextConfig} */
-module.exports = {
+const path = require('path');
+const isDev = process.env.NODE_ENV === 'development';
+console.log(`Next.js 구성: ${isDev ? '개발' : '프로덕션'} 환경`);
+
+const nextConfig = {
+  // 개발 환경에서는 output: 'export' 제외, 프로덕션에서만 적용
+  ...(isDev ? {} : { output: 'export' }),
+  
+  // 최상위로 이동한 설정
+  serverExternalPackages: ['typing_stats_native', 'active-win'],
+  swcMinify: true,
+  
+  experimental: {
+    esmExternals: true
+  },
+  
+  // 개발 시 빌드 최적화 설정
+  reactStrictMode: true,
+  
+  // 트레일링 슬래시 설정
+  trailingSlash: true,
+  
+  // 이미지 최적화 설정
+  images: {
+    disableStaticImages: true,
+    unoptimized: true
+  },
+
+  // Electron과 함께 사용하기 위한 추가 설정
+  basePath: '', // 기본 경로 설정
+  assetPrefix: './', // 에셋 경로 접두사
+
+  // 개발 모드에서는 HMR을 위해 더 유연한 CSP 설정 사용
+  // 프로덕션 모드에서는 보안성 높은 설정 유지
+  async headers() {
+    return [
+      {
+        source: "/(.*)",
+        headers: [
+          {
+            key: "Content-Security-Policy",
+            value: isDev 
+              ? "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' ws: wss:;"
+              : "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:;"
+          },
+          {
+            key: "X-Content-Type-Options",
+            value: "nosniff",
+          },
+          {
+            key: "X-Frame-Options",
+            value: "DENY",
+          },
+          {
+            key: "X-XSS-Protection",
+            value: "1; mode=block",
+          }
+        ],
+      },
+    ];
+  },
+
   // 웹팩 설정 커스터마이징
   webpack: (config, { dev, isServer }) => {
+    // ───────────────────────────────────────────────────────────────
+    // (1) 파일 워치 제외 옵션 설정 - Electron 파일 감시 제외
+    // ───────────────────────────────────────────────────────────────
+    config.watchOptions = {
+      ignored: [
+        // 프로젝트 루트 내 Electron 메인 프로세스 코드 및 바이너리 제외
+        path.resolve(__dirname, 'src/main/**'),
+        '**/native-modules/**',
+        path.resolve(__dirname, 'dist/**'),
+      ],
+    };
+    
     // 서버 사이드 번들링에서 네이티브 모듈 외부화 처리
     if (isServer) {
       // webpack-node-externals 패키지 사용
@@ -38,20 +111,28 @@ module.exports = {
       config.externals = externals;
     }
     
-    // .node 네이티브 모듈 파일 처리 규칙 추가
-    config.module.rules.push({
-      test: /\.node$/,
-      use: 'null-loader'
-    });
+    // .node 네이티브 모듈 파일 처리 규칙 추가 (클라이언트 번들에만 적용)
+    if (!isServer) {
+      config.module.rules.push({
+        test: /\.node$/,
+        use: 'null-loader'
+      });
 
-    // 네이티브 바이너리 파일 처리 규칙
-    config.module.rules.push({
-      test: /\.(dylib|dll|so)$/,
-      use: 'null-loader'
-    });
+      // 네이티브 바이너리 파일 처리 규칙
+      config.module.rules.push({
+        test: /\.(dylib|dll|so)$/,
+        use: 'null-loader'
+      });
+    }
 
     // 추가 파일 확장자 지원 (네이티브 모듈 확장자 포함)
     config.resolve.extensions.push('.node', '.dylib', '.dll', '.so');
+
+    // 웹팩 경고 무시 설정 추가
+    config.ignoreWarnings = [
+      // 동적 require 경고 무시
+      /Critical dependency/,
+    ];
 
     // 개발 모드에서 CSP 호환 설정
     if (dev) {
@@ -92,76 +173,13 @@ module.exports = {
     return config;
   },
 
-  // CSP 헤더 설정
-  async headers() {
-    // 개발 환경인지 확인
-    const isDev = process.env.NODE_ENV === 'development';
-    
-    // 개발 환경에서는 완전 개방된 CSP 헤더 설정
-    if (isDev) {
-      console.log('Next.js: 개발 환경 - 완전 개방된 CSP 헤더 설정');
-      return [
-        {
-          source: '/(.*)',
-          headers: [
-            {
-              key: 'Content-Security-Policy',
-              value: "default-src * 'unsafe-inline' 'unsafe-eval'; script-src * 'unsafe-inline' 'unsafe-eval'; style-src * 'unsafe-inline'; img-src * data: blob:; font-src * data:; connect-src * ws: wss:; media-src * data: blob:;"
-            }
-          ]
-        }
-      ];
-    }
-    
-    // 프로덕션 환경에서만 엄격한 CSP 헤더 설정
-    console.log('Next.js: 프로덕션 환경 - 엄격한 CSP 헤더 설정');
-    return [
-      {
-        source: '/(.*)',
-        headers: [
-          {
-            key: 'Content-Security-Policy',
-            value: "default-src 'self'; " +
-              "script-src 'self' 'unsafe-inline'; " + // 프로덕션에서도 'unsafe-inline' 허용
-              "connect-src 'self'; " +
-              "img-src 'self' data: blob:; " +
-              "style-src 'self' 'unsafe-inline'; " +
-              "font-src 'self' data:; " +
-              "frame-src 'self';"
-          }
-        ]
-      }
-    ];
-  },
-
-  // 기타 Next.js 설정
-  reactStrictMode: false,
-  
-  // 빌드 설정
-  distDir: 'build',
-  
   // 빌드 중 소스맵 생성
   productionBrowserSourceMaps: true,
   
-  // 이미지 최적화 설정
-  images: {
-    domains: ['localhost'],
-    deviceSizes: [640, 750, 828, 1080, 1200, 1920],
-    imageSizes: [16, 32, 48, 64, 96, 128, 256, 384],
-    unoptimized: true
-  },
-
-  // 개발 환경에서 추가 설정
-  experimental: {
-    esmExternals: true
-  },
-
   // 변환 진행 중 CSP 관련 설정
   transpilePackages: ['@babel/preset-env'],
 
-  // 출력 내보내기 설정
-  output: 'export',
-
-  // 트레일링 슬래시 설정
-  trailingSlash: true,
+  distDir: 'dist/app',
 }
+
+module.exports = nextConfig;

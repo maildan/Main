@@ -22,6 +22,8 @@ const { debugLog, safeRequire } = require('./utils');
 const fs = require('fs');
 const http = require('http');
 const url = require('url');
+// 액티브 윈도우 패키지 가져오기 (권한 확인용)
+const activeWin = require('active-win');
 
 // 앱 준비 이전에 하드웨어 가속 설정 
 // GPU 가속 제어 - 앱 준비 전에 호출해야 함
@@ -421,13 +423,14 @@ if (!gotSingleInstanceLock) {
       debugLog('앱 이벤트 리스너 설정 완료 (main.js)');
     }
     
-    // 보안 설정 초기화
+    // 기본 보안 설정 초기화 (창이 필요없는 부분만)
     try {
       console.log('개발 환경: 모든 보안 설정 비활성화');
-      const securityResult = setupSecuritySettings();
-      debugLog(`보안 설정 초기화 결과: ${securityResult}`);
+      if (securityChecks && typeof securityChecks.initializeSecuritySettings === 'function') {
+        securityChecks.initializeSecuritySettings();
+      }
     } catch (securityError) {
-      console.error('보안 설정 초기화 오류:', securityError);
+      console.error('기본 보안 설정 초기화 오류:', securityError);
     }
     
     try {
@@ -444,14 +447,12 @@ if (!gotSingleInstanceLock) {
       
       debugLog('메인 창 생성됨:', !!mainWindow);
       
-      // 창에 보안 설정 적용
-      if (mainWindow && securityChecks && typeof securityChecks.applySecuritySettings === 'function') {
-        try {
-          securityChecks.applySecuritySettings(mainWindow);
-          debugLog('창에 보안 설정 적용됨');
-        } catch (windowSecurityError) {
-          console.error('창 보안 설정 적용 중 오류:', windowSecurityError);
-        }
+      // 창에 보안 설정 적용 (mainWindow 인자와 함께)
+      try {
+        setupSecuritySettings(mainWindow);
+        debugLog('창에 보안 설정 적용됨');
+      } catch (windowSecurityError) {
+        console.error('창 보안 설정 적용 중 오류:', windowSecurityError);
       }
       
       // 개발 모드에서만 Next.js 서버 확인
@@ -601,10 +602,21 @@ async function initializeApp() {
     // 보안 설정 초기화
     try {
       console.log('개발 환경: 모든 보안 설정 비활성화');
-      const securityResult = setupSecuritySettings();
+      // 메인 윈도우 객체 가져오기
+      const mainWindow = appState.mainWindow || BrowserWindow.getAllWindows().find(w => !w.isDestroyed());
+      const securityResult = setupSecuritySettings(mainWindow);
       debugLog(`보안 설정 초기화 결과: ${securityResult}`);
     } catch (securityError) {
       console.error('보안 설정 초기화 오류:', securityError);
+    }
+
+    // 권한 핸들러 설정
+    try {
+      console.log('권한 핸들러 설정 중...');
+      const permissionResult = setupPermissionHandlers();
+      debugLog(`권한 핸들러 설정 결과: ${permissionResult}`);
+    } catch (permissionError) {
+      console.error('권한 핸들러 설정 오류:', permissionError);
     }
 
     // 그 외 초기화 작업들
@@ -616,13 +628,13 @@ async function initializeApp() {
     try {
       // 메모리 관리 초기화 함수 호출
       setupMemoryManagement();
-      
+
       // 메모리 최적화 이벤트 설정
       setupMemoryOptimizationEvents();
     } catch (err) {
       console.error('메모리 초기화 중 오류:', err);
     }
-    
+
     // GPU 가속 설정
     console.log('GPU 가속 설정 중...');
     try {
@@ -630,14 +642,37 @@ async function initializeApp() {
     } catch (error) {
       console.error('GPU 가속 설정 오류:', error);
     }
-    
+
+    // 브라우저 정보 핸들러 초기화
+    try {
+      console.log('브라우저 정보 핸들러 초기화 중...');
+      if (browser && browser.setupCurrentBrowserInfoHandler) {
+        const browserInfoResult = browser.setupCurrentBrowserInfoHandler();
+        console.log('브라우저 정보 핸들러 등록 완료:', browserInfoResult);
+      } else {
+        console.warn('브라우저 정보 핸들러 모듈을 찾을 수 없습니다');
+      }
+    } catch (browserInfoError) {
+      console.error('브라우저 정보 핸들러 초기화 오류:', browserInfoError);
+    }
+
+    // IPC 핸들러 설정
+    try {
+      console.log('IPC 핸들러 설정 중...');
+      if (ipcHandlers && typeof ipcHandlers.setupIpcHandlers === 'function') {
+        ipcHandlers.setupIpcHandlers();
+      }
+    } catch (ipcError) {
+      console.error('IPC 핸들러 설정 오류:', ipcError);
+    }
+
     // 키보드 이벤트 리스너 설정 (보안 설정 이후에 실행)
     try {
       setupKeyboardListening();
     } catch (keyboardError) {
       console.error('키보드 리스너 설정 오류:', keyboardError);
     }
-    
+
     return true;
   } catch (error) {
     console.error('앱 초기화 중 오류:', error);
@@ -900,58 +935,38 @@ app.on('before-quit', async (event) => {
  * 보안 설정을 초기화합니다.
  * 개발 환경에서는 보안 설정을 완화합니다.
  */
-function setupSecuritySettings() {
+function setupSecuritySettings(win) {
   try {
-    // 환경 변수 확인
-    const isDev = process.env.NODE_ENV === 'development';
-    const disableSecurity = isDev || process.env.DISABLE_SECURITY === 'true';
-    const disableCSP = isDev || process.env.DISABLE_CSP === 'true';
+    console.log('현재 환경:', process.env.NODE_ENV, '(보안 설정 적용 중...)');
     
-    console.log(`보안 제한 설정: (개발 모드: ${isDev}, 보안 비활성화: ${disableSecurity}, CSP 비활성화: ${disableCSP})`);
+    // 기본적인 보안 설정 적용 (win 인자 필요 없음)
+    securityChecks.initializeSecuritySettings(app);
     
-    // 새 security-checks.js의 initializeSecuritySettings 함수 사용
-    if (securityChecks && typeof securityChecks.initializeSecuritySettings === 'function') {
-      console.log('security-checks.js의 initializeSecuritySettings 함수 호출');
-      return securityChecks.initializeSecuritySettings(app);
+    // 모든 세션에 CSP 적용 (개발/프로덕션 모드에 따라 자동 설정)
+    const cspApplied = securityChecks.applyCSPToAllSessions();
+    
+    if (cspApplied) {
+      console.log('Content Security Policy가 성공적으로 적용되었습니다.');
+      
+      // win 인자가 있을 때만 DOM ready 이벤트 리스너 등록
+      if (win && win.webContents) {
+        win.webContents.on('dom-ready', () => {
+          console.log('메인 윈도우 DOM 로드 완료 - CSP 메타태그 확인 중...');
+        });
+      }
+    } else {
+      console.error('Content Security Policy 적용 실패! 보안에 취약할 수 있습니다.');
     }
     
-    // 기존 코드는 새 함수가 없을 경우 폴백으로 사용
-    if (disableSecurity) {
-      console.log('보안 제한 비활성화 및 CSP 제한 제거 중...');
-      
-      // 개발 환경에서는 명령줄 인수 추가
-      if (app && app.commandLine) {
-        // 웹 보안 비활성화
-        app.commandLine.appendSwitch('disable-web-security');
-        app.commandLine.appendSwitch('allow-insecure-localhost');
-        app.commandLine.appendSwitch('ignore-certificate-errors');
-        app.commandLine.appendSwitch('disable-site-isolation-trials');
-        
-        // 안전하지 않은 콘텐츠 실행 허용
-        app.commandLine.appendSwitch('allow-running-insecure-content');
-        
-        // CORS 비활성화 (크로스 도메인 요청 허용)
-        app.commandLine.appendSwitch('disable-features', 'OutOfBlinkCors');
-        
-        // 추가 개발 편의 옵션
-        app.commandLine.appendSwitch('disable-http-cache');
-        app.commandLine.appendSwitch('disable-http2');
-        app.commandLine.appendSwitch('ignore-connections-limit', 'localhost');
-      }
-
-      // 모든 세션에 CSP 설정 해제 적용
-      if (securityChecks && typeof securityChecks.applyCSPToAllSessions === 'function') {
-        // 새로운 인자 전달 방식으로 변경 (isDev만 전달)
-        securityChecks.applyCSPToAllSessions(isDev);
-        console.log('모든 CSP 제한 완전히 비활성화됨');
-      }
-      
-      return true;
+    // 추가 보안 설정 (요청 검증, 새 창 열기 제한 등)
+    // win 인자가 있을 때만 setupRequestChecks 호출
+    if (win && securityChecks.setupRequestChecks) {
+      securityChecks.setupRequestChecks(win);
     }
     
     return true;
   } catch (error) {
-    console.error('보안 설정 초기화 중 오류:', error);
+    console.error('보안 설정 적용 중 오류 발생:', error);
     return false;
   }
 }
@@ -1094,7 +1109,96 @@ function setupPlatformSpecificConfigurations() {
 }
 
 /**
- * 최종 설정 적용
+ * 권한 관련 핸들러 설정
+ */
+function setupPermissionHandlers() {
+  try {
+    console.log('권한 핸들러 설정 중...');
+    
+    // 권한 확인 함수
+    ipcMain.handle('check-permissions', async () => {
+      try {
+        if (process.platform !== 'darwin') {
+          return { hasAllPermissions: true };
+        }
+        
+        // macOS에서 화면 기록 권한 확인
+        let screenCaptureStatus = false;
+        
+        try {
+          // macOS에서 권한 확인을 위해 activeWin 테스트
+          const windowInfo = await activeWin();
+          screenCaptureStatus = !!windowInfo;
+        } catch (error) {
+          const errorOutput = (error.stderr || error.stdout || '').toString();
+          if (errorOutput.includes('screen recording permission')) {
+            screenCaptureStatus = false;
+            
+            // 권한 없음을 렌더러에 알림
+            if (appState.mainWindow && !appState.mainWindow.isDestroyed()) {
+              appState.mainWindow.webContents.send('permission-error', {
+                code: 'SCREEN_RECORDING',
+                message: '화면 기록 권한이 필요합니다',
+                detail: '키보드 입력 모니터링을 위해 화면 기록 권한이 필요합니다. 시스템 설정을 열어 권한을 허용해주세요.'
+              });
+            }
+          }
+        }
+        
+        return {
+          screenCapture: screenCaptureStatus
+        };
+      } catch (error) {
+        console.error('권한 확인 중 오류:', error);
+        return { error: error.message };
+      }
+    });
+    
+    // 시스템 설정 열기
+    ipcMain.handle('open-system-preferences', (event, permissionType) => {
+      try {
+        if (process.platform !== 'darwin') {
+          return { success: false, message: '지원되지 않는 플랫폼' };
+        }
+        
+        let urlScheme = 'x-apple.systempreferences:';
+        
+        switch (permissionType) {
+          case 'SCREEN_RECORDING':
+            // 화면 기록 설정으로 이동
+            urlScheme = 'x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture';
+            break;
+          default:
+            urlScheme = 'x-apple.systempreferences:com.apple.preference.security?Privacy';
+            break;
+        }
+        
+        // URL 스킴으로 설정 앱 열기
+        shell.openExternal(urlScheme)
+          .then(() => {
+            console.log('시스템 설정 앱 실행 성공');
+          })
+          .catch(err => {
+            console.error('시스템 설정 앱 실행 실패:', err);
+          });
+        
+        return { success: true };
+      } catch (error) {
+        console.error('시스템 설정 열기 오류:', error);
+        return { success: false, error: error.message };
+      }
+    });
+    
+    console.log('권한 핸들러 설정 완료');
+    return true;
+  } catch (error) {
+    console.error('권한 핸들러 설정 중 오류 발생:', error);
+    return false;
+  }
+}
+
+/**
+ * 최종 구성 마무리
  */
 function finalizeConfiguration() {
   try {
@@ -1145,3 +1249,81 @@ function finalizeConfiguration() {
     return false;
   }
 }
+
+// 키보드 이벤트 리스너를 수동으로 초기화
+try {
+  const securityChecks = require('./security-checks');
+  if (securityChecks && typeof securityChecks.setupKeyboardEventHandler === 'function') {
+    console.log('키보드 이벤트 리스너 수동 초기화 시작');
+    securityChecks.setupKeyboardEventHandler();
+    console.log('키보드 이벤트 리스너 수동 초기화 완료');
+  } else {
+    console.error('security-checks.js 모듈에서 setupKeyboardEventHandler 함수를 찾을 수 없습니다');
+  }
+} catch (err) {
+  console.error('키보드 이벤트 리스너 초기화 중 오류:', err);
+}
+
+// 키보드 이벤트 핸들러 초기화 관련 IPC 리스너
+ipcMain.on('keyboard-handler-initialized', (event, data) => {
+  console.log('키보드 이벤트 핸들러 초기화 완료 메시지 수신:', data);
+  
+  // 이벤트를 전송한 창의 webContents 가져오기
+  const sender = event.sender;
+  if (!sender || sender.isDestroyed()) return;
+  
+  try {
+    // 초기화 확인 응답 전송
+    sender.send('keyboard-handler-init-ack', {
+      success: true,
+      timestamp: Date.now()
+    });
+    
+    // 키보드 이벤트 처리 준비 완료 표시
+    appState.keyboardHandlerInitialized = true;
+    console.log('키보드 이벤트 처리 준비 완료');
+  } catch (error) {
+    console.error('키보드 핸들러 초기화 응답 전송 중 오류:', error);
+  }
+});
+
+// 키보드 이벤트 핸들러 오류 처리 리스너
+ipcMain.on('keyboard-handler-error', (event, data) => {
+  console.error('키보드 이벤트 핸들러 오류 메시지 수신:', data);
+  
+  // 이벤트를 전송한 창의 webContents 가져오기
+  const sender = event.sender;
+  if (!sender || sender.isDestroyed()) return;
+  
+  // 원인에 따라 다른 조치 수행
+  try {
+    // 오류 로그 기록
+    const errorLog = {
+      timestamp: new Date().toISOString(),
+      errorMessage: data.error || '알 수 없는 오류',
+      source: 'preload.js:setupKeyboardEventHandlers',
+      sender: {
+        id: sender.id,
+        url: sender.getURL()
+      }
+    };
+    
+    console.error('키보드 이벤트 핸들러 오류 정보:', errorLog);
+    
+    // 필요한 경우 창 리로드
+    if (data.needsReload) {
+      console.log('키보드 핸들러 오류로 인해 창 리로드 시작');
+      setTimeout(() => {
+        try {
+          if (!sender.isDestroyed()) {
+            sender.reload();
+          }
+        } catch (reloadError) {
+          console.error('창 리로드 중 오류:', reloadError);
+        }
+      }, 1000);
+    }
+  } catch (error) {
+    console.error('키보드 핸들러 오류 처리 중 문제 발생:', error);
+  }
+});

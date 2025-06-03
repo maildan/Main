@@ -1,4 +1,10 @@
-const { BrowserWindow, app, screen } = require('electron');
+/**
+ * window.js
+ * 
+ * 메인 창(BrowserWindow) 생성 및 관리 모듈
+ */
+
+const { BrowserWindow, screen, shell, Menu, MenuItem, app } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const url = require('url');
@@ -126,7 +132,7 @@ async function createWindow() {
         nodeIntegration: false, // 보안을 위해 비활성화
         contextIsolation: true, // 보안을 위해 활성화
         sandbox: false, // contextIsolation이 적용되어 있으므로 sandbox는 해제
-        preload: path.join(__dirname, '../preload/preload.js'), // preload.js 경로 수정
+        preload: path.join(__dirname, '../preload.js'), // preload.js 경로 수정
         devTools: isDev, // 개발 모드에서만 DevTools 활성화
         
         // 개발 환경에서는 보안 설정 완화
@@ -200,7 +206,9 @@ async function createWindow() {
     // 보안 설정 적용
     try {
       debugLog('창에 보안 설정 적용됨');
-      securityChecks.applySecuritySettings(appState.mainWindow, isDev);
+      securityChecks.initializeSecuritySettings(app);
+      // 키보드 이벤트 핸들러 설정
+      securityChecks.setupKeyboardEventHandler();
     } catch (error) {
       console.error('보안 설정 적용 중 오류:', error);
     }
@@ -211,9 +219,31 @@ async function createWindow() {
       // 오류 페이지 표시 (필요시)
     });
 
-    // DOM 준비 이벤트
+    // DOM 준비 이벤트 처리
     appState.mainWindow.webContents.on('dom-ready', () => {
       debugLog('DOM이 준비됨, 문서 렌더링 중...');
+      
+      // 개발 모드에서 Fast Refresh를 위한 설정
+      if (isDev) {
+        // 페이지 새로고침 방지 (개발 모드 최적화)
+        appState.mainWindow.webContents.executeJavaScript(`
+          if (window.electronDevModeInitialized !== true) {
+            window.electronDevModeInitialized = true;
+            console.debug("개발 모드 최적화: Fast Refresh 설정됨");
+            
+            // React의 Fast Refresh가 전체 페이지를 새로 고치지 않도록 방지
+            window.addEventListener('beforeunload', (e) => {
+              // webpack HMR 여부 확인
+              if (window.__webpack_hot_middleware_reporter__ && 
+                  window.__webpack_hot_middleware_reporter__.state === 'idle') {
+                e.preventDefault();
+                console.debug("Fast Refresh 감지: 전체 새로고침 방지됨");
+                return false;
+              }
+            });
+          }
+        `).catch(err => console.warn('개발 모드 최적화 스크립트 오류:', err));
+      }
     });
 
     // 렌더러 프로세스의 콘솔 메시지 캡처
@@ -273,6 +303,20 @@ async function createWindow() {
       // 로드 URL - 개발 모드 (GPU 관련 매개변수 삭제)
       loadUrl = `http://localhost:${nextPort}`;
       debugLog(`메인 윈도우 URL 로딩 시작 (개발): ${loadUrl}`);
+      
+      // 개발 모드에서 Fast Refresh가 작동하도록 전체 페이지 리로드 방지
+      appState.mainWindow.webContents.on('did-finish-load', () => {
+        debugLog('Next.js 서버 준비됨');
+      });
+      
+      // Fast Refresh 시 창 전체를 리로드하지 않도록 설정
+      appState.mainWindow.webContents.on('did-fail-provisional-load', (event) => {
+        // 개발 서버 HMR에 의한 임시 로드 실패는 무시 (Fast Refresh 관련)
+        if (event.url.startsWith(`http://localhost:${nextPort}`)) {
+          debugLog('개발 모드 HMR 로드 이벤트 감지 - 창 리로드 방지');
+          event.preventDefault();
+        }
+      });
     } else {
       // 프로덕션 모드에서는 미리 빌드된 앱을 로드
       loadUrl = url.format({
@@ -282,11 +326,6 @@ async function createWindow() {
       });
       debugLog(`메인 윈도우 URL 로딩 시작 (프로덕션): ${loadUrl}`);
     }
-
-    // DOM 준비 이벤트 처리
-    appState.mainWindow.webContents.on('dom-ready', () => {
-      debugLog('DOM이 준비됨, 문서 렌더링 중...');
-    });
 
     // 로딩 시작 진단
     debugLog(`URL 로딩 시작: ${loadUrl}`);

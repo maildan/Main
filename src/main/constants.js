@@ -99,9 +99,47 @@ const BROWSER_PROCESS_NAMES = {
   'Firefox': ['firefox', 'mozilla firefox'],
   'Safari': ['safari', 'webkit'],
   'Edge': ['edge', 'msedge', 'microsoft edge'],
-  'Opera': ['opera'],
+  'Opera': ['opera', 'operagx', 'operaair'],
   'Brave': ['brave'],
-  'Vivaldi': ['vivaldi']
+  'Vivaldi': ['vivaldi'],
+  'Arc': ['arc'],
+  'Whale': ['whale', 'naver whale'],
+  'Yandex': ['yandex'],
+  'Maxthon': ['maxthon'],
+  'QQBrowser': ['qqbrowser'],
+  'Tor Browser': ['tor browser', 'torbrowser'],
+  'Falkon': ['falkon'],
+  'Konqueror': ['konqueror'],
+  'Midori': ['midori'],
+  'Waterfox': ['waterfox'],
+  'SeaMonkey': ['seamonkey'],
+  'Pale Moon': ['palemoon'],
+  'UC Browser': ['ucbrowser', 'uc browser'],
+  'Coccoc': ['coccoc'],
+  'Iridium': ['iridium'],
+  'Slimjet': ['slimjet'],
+  'Epic': ['epic'],
+  'K-Meleon': ['k-meleon'],
+  'Cent': ['cent browser', 'centbrowser'],
+  'SRWare Iron': ['iron'],
+  'Comodo Dragon': ['dragon'],
+  'Sleipnir': ['sleipnir'],
+  'Torch': ['torch'],
+  'Basilisk': ['basilisk'],
+  'Otter': ['otter browser', 'otterbrowser'],
+  'Cliqz': ['cliqz'],
+  'Chromodo': ['chromodo'],
+  'Beaker': ['beaker'],
+  'Kiwi': ['kiwi'],
+  'Matter': ['matter'],
+  'Maiar': ['maiar'],
+  'DuckDuckGo': ['duckduckgo', 'ddg'],
+  'Sidekick': ['sidekick'],
+  'Min': ['min'],
+  'SigmaOS': ['sigmaos'],
+  'ZenBrowser': ['zenbrowser', 'zen'],
+  'Orion': ['orion'],
+  'zen' : 'zenbrowser'
 };
 
 // 브라우저 표시 이름 매핑
@@ -126,7 +164,38 @@ const BROWSER_DISPLAY_NAMES = {
   'iron': 'SRWare Iron',
   'torch': 'Torch Browser',
   'whale': '네이버 웨일',
-  'naver': '네이버 브라우저'
+  'naver': '네이버 브라우저',
+  'qqbrowser': 'QQ Browser',
+  'torbrowser': 'Tor Browser',
+  'tor': 'Tor Browser',
+  'falkon': 'Falkon',
+  'konqueror': 'Konqueror',
+  'midori': 'Midori',
+  'waterfox': 'Waterfox',
+  'seamonkey': 'SeaMonkey',
+  'palemoon': 'Pale Moon',
+  'ucbrowser': 'UC Browser',
+  'coccoc': 'Cốc Cốc',
+  'iridium': 'Iridium Browser',
+  'slimjet': 'Slimjet',
+  'epic': 'Epic Privacy Browser',
+  'k-meleon': 'K-Meleon',
+  'centbrowser': 'Cent Browser',
+  'sleipnir': 'Sleipnir',
+  'basilisk': 'Basilisk',
+  'otterbrowser': 'Otter Browser',
+  'cliqz': 'Cliqz',
+  'chromodo': 'Chromodo Browser',
+  'beaker': 'Beaker Browser',
+  'kiwi': 'Kiwi Browser',
+  'matter': 'Matter Browser',
+  'maiar': 'Maiar Browser',
+  'duckduckgo': 'DuckDuckGo Privacy Browser',
+  'ddg': 'DuckDuckGo Privacy Browser',
+  'sidekick': 'Sidekick',
+  'min': 'Min Browser',
+  'sigmaos': 'SigmaOS',
+  'orion': 'Orion Browser'
 };
 
 // 지원되는 웹사이트 카테고리
@@ -139,6 +208,16 @@ const SUPPORTED_WEBSITES = {
     { pattern: 'notion.so', name: 'Notion' },
     { pattern: 'onenote.com', name: 'OneNote' },
     { pattern: 'evernote.com', name: 'Evernote' },
+    { pattern: 'quip.com', name: 'Quip' },
+    { pattern: 'dropbox.com/paper', name: 'Dropbox Paper' },
+    { pattern: 'roamresearch.com', name: 'Roam Research' },
+    { pattern: 'hackmd.io', name: 'HackMD' },
+    { pattern: 'workflowy.com', name: 'WorkFlowy' },
+    { pattern: 'dynalist.io', name: 'Dynalist' },
+    { pattern: 'coda.io', name: 'Coda' },
+    { pattern: 'obsidian.md', name: 'Obsidian' },
+    { pattern: 'bear.app', name: 'Bear' },
+    { pattern: 'craft.do', name: 'Craft' }
   ],
   
   // 오피스 웹앱
@@ -148,6 +227,17 @@ const SUPPORTED_WEBSITES = {
     { pattern: 'office.com/excel', name: 'Excel 온라인' },
     { pattern: 'office.com/powerpoint', name: 'PowerPoint 온라인' },
     { pattern: 'hancom.com', name: '한컴오피스' },
+    { pattern: 'zoho.com/docs', name: 'Zoho Docs' },
+    { pattern: 'zoho.com/writer', name: 'Zoho Writer' },
+    { pattern: 'zoho.com/sheet', name: 'Zoho Sheet' },
+    { pattern: 'zoho.com/show', name: 'Zoho Show' },
+    { pattern: 'office365.com', name: 'Office 365' },
+    { pattern: 'microsoft365.com', name: 'Microsoft 365' },
+    { pattern: 'onedrive.com', name: 'OneDrive' },
+    { pattern: 'sharepoint.com', name: 'SharePoint' },
+    { pattern: 'onlyoffice.com', name: 'ONLYOFFICE' },
+    { pattern: 'libreoffice.org/online', name: 'LibreOffice Online' },
+    { pattern: 'cryptpad.fr', name: 'CryptPad' }
   ],
   
   // 코딩 관련
@@ -158,6 +248,17 @@ const SUPPORTED_WEBSITES = {
     { pattern: 'codesandbox.io', name: 'CodeSandbox' },
     { pattern: 'codepen.io', name: 'CodePen' },
     { pattern: 'replit.com', name: 'Replit' },
+    { pattern: 'jsfiddle.net', name: 'JSFiddle' },
+    { pattern: 'stackblitz.com', name: 'StackBlitz' },
+    { pattern: 'playcode.io', name: 'PlayCode' },
+    { pattern: 'glitch.com', name: 'Glitch' },
+    { pattern: 'stackoverflow.com', name: 'Stack Overflow' },
+    { pattern: 'github.dev', name: 'GitHub Dev' },
+    { pattern: 'gitpod.io', name: 'Gitpod' },
+    { pattern: 'vscode.dev', name: 'VS Code Web' },
+    { pattern: 'observable.com', name: 'Observable' },
+    { pattern: 'jupyter.org', name: 'Jupyter' },
+    { pattern: 'kaggle.com', name: 'Kaggle' }
   ],
   
   // SNS/메신저
@@ -168,15 +269,44 @@ const SUPPORTED_WEBSITES = {
     { pattern: 'slack.com', name: 'Slack' },
     { pattern: 'discord.com', name: 'Discord' },
     { pattern: 'telegram.org', name: 'Telegram' },
+    { pattern: 'linkedin.com', name: 'LinkedIn' },
+    { pattern: 'reddit.com', name: 'Reddit' },
+    { pattern: 'pinterest.com', name: 'Pinterest' },
+    { pattern: 'tumblr.com', name: 'Tumblr' },
+    { pattern: 'whatsapp.com', name: 'WhatsApp' },
+    { pattern: 'tiktok.com', name: 'TikTok' },
+    { pattern: 'snapchat.com', name: 'Snapchat' },
+    { pattern: 'teams.microsoft.com', name: 'Microsoft Teams' },
+    { pattern: 'web.skype.com', name: 'Skype' },
+    { pattern: 'line.me', name: 'LINE' },
+    { pattern: 'kakaotalk.com', name: 'KakaoTalk' },
+    { pattern: 'wechat.com', name: 'WeChat' },
+    { pattern: 'weibo.com', name: 'Weibo' }
   ],
+  
+  // 이메일
+  email: [
+    { pattern: 'mail.google.com', name: 'Gmail' },
+    { pattern: 'outlook.live.com', name: 'Outlook' },
+    { pattern: 'outlook.office.com', name: 'Outlook (Office)' },
+    { pattern: 'mail.yahoo.com', name: 'Yahoo Mail' },
+    { pattern: 'protonmail.com', name: 'ProtonMail' },
+    { pattern: 'tutanota.com', name: 'Tutanota' },
+    { pattern: 'zoho.com/mail', name: 'Zoho Mail' },
+    { pattern: 'mail.ru', name: 'Mail.ru' },
+    { pattern: 'gmx.com', name: 'GMX' },
+    { pattern: 'fastmail.com', name: 'FastMail' },
+    { pattern: 'hey.com', name: 'HEY' }
+  ]
 };
 
 // 웹사이트 URL 패턴 정의
 const WEBSITE_URL_PATTERNS = {
-  'docs': ['docs.google.com', 'sheets.google.com', 'slides.google.com'],
-  'office': ['office.com', 'microsoft365.com', 'onedrive.com', 'sharepoint.com'],
-  'coding': ['github.com', 'stackoverflow.com', 'gitlab.com', 'bitbucket.org'],
-  'sns': ['facebook.com', 'twitter.com', 'instagram.com', 'linkedin.com']
+  'docs': ['docs.google.com', 'sheets.google.com', 'slides.google.com', 'notion.so', 'evernote.com', 'onenote.com', 'dropbox.com/paper', 'coda.io', 'quip.com', 'roamresearch.com'],
+  'office': ['office.com', 'microsoft365.com', 'onedrive.com', 'sharepoint.com', 'office365.com', 'zoho.com/docs', 'hancom.com', 'onlyoffice.com'],
+  'coding': ['github.com', 'stackoverflow.com', 'gitlab.com', 'bitbucket.org', 'codesandbox.io', 'replit.com', 'codepen.io', 'github.dev', 'gitpod.io'],
+  'sns': ['facebook.com', 'twitter.com', 'instagram.com', 'linkedin.com', 'slack.com', 'discord.com', 'telegram.org', 'reddit.com'],
+  'email': ['mail.google.com', 'outlook.live.com', 'outlook.office.com', 'mail.yahoo.com', 'protonmail.com']
 };
 
 // Google Docs URL 패턴
@@ -191,7 +321,9 @@ const GOOGLE_DOCS_TITLE_PATTERNS = [
   'google docs',
   'google 문서',
   'google 스프레드시트',
-  'google 프레젠테이션'
+  'google 프레젠테이션',
+  'google sheets',
+  'google slides'
 ];
 
 // 설정 파일 경로

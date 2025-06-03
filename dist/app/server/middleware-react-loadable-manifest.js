@@ -1,0 +1,1 @@
+self.__REACT_LOADABLE_MANIFEST="{\"app/page.tsx -> ./components/NativeModuleTest\":{\"id\":\"app/page.tsx -> ./components/NativeModuleTest\",\"files\":[\"static/css/_app-pages-browser_src_app_components_NativeModuleTest_tsx.css\",\"static/chunks/_app-pages-browser_src_app_components_NativeModuleTest_tsx.js\"]}}"
