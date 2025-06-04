@@ -86,44 +86,27 @@ const initializeModule = () => {
   }
 
   try {
-    // 바이너리 경로 (Webpack 경고를 피하기 위해 정적 문자열로 체크)
-    const debugBinaryPath = '../native-modules/target/debug/typing_stats_native.node';
-    const releaseBinaryPath = '../native-modules/target/release/typing_stats_native.node';
+    // 실제 빌드된 .dylib 파일 경로로 변경
+    const dylibPath = '../../src/native-modules/libtyping_stats_native.dylib';
     
     // 경로 확인용 (로그용)
-    const debugBinaryFullPath = path.join(__dirname, debugBinaryPath);
-    const releaseBinaryFullPath = path.join(__dirname, releaseBinaryPath);
+    const dylibFullPath = path.join(__dirname, dylibPath);
 
     logInfo('네이티브 모듈 로딩 시작...');
     
-    // 개발 모드에서는 디버그 바이너리 먼저 시도
-    if (process.env.NODE_ENV !== 'production') {
       try {
-        if (fs.existsSync(debugBinaryFullPath)) {
-          logInfo(`디버그 빌드 발견: ${debugBinaryFullPath}`);
-          // 웹팩이 정적으로 분석할 수 있는 리터럴 문자열 사용
-          moduleState.nativeModule = require('../native-modules/target/debug/typing_stats_native.node');
-          logInfo('디버그 빌드 성공적으로 로드됨');
-          setModuleAvailability(true, false);
-          return moduleState.nativeModule;
-        }
-      } catch (debugError) {
-        logWarning('디버그 빌드 로드 실패:', debugError);
-      }
-    }
-    
-    // 릴리즈 바이너리 시도
-    try {
-      if (fs.existsSync(releaseBinaryFullPath)) {
-        logInfo(`릴리즈 빌드 발견: ${releaseBinaryFullPath}`);
-        // 웹팩이 정적으로 분석할 수 있는 리터럴 문자열 사용
-        moduleState.nativeModule = require('../native-modules/target/release/typing_stats_native.node');
-        logInfo('릴리즈 빌드 성공적으로 로드됨');
+      if (fs.existsSync(dylibFullPath)) {
+        logInfo(`라이브러리 파일 발견: ${dylibFullPath}`);
+        // 실제 .dylib 파일 로드
+        moduleState.nativeModule = require(dylibPath);
+        logInfo('.dylib 모듈 성공적으로 로드됨');
         setModuleAvailability(true, false);
         return moduleState.nativeModule;
+      } else {
+        logWarning(`라이브러리 파일을 찾을 수 없음: ${dylibFullPath}`);
       }
-    } catch (releaseError) {
-      logWarning('릴리즈 빌드 로드 실패:', releaseError);
+    } catch (loadError) {
+      logWarning('라이브러리 로드 실패:', loadError);
     }
     
     // 네이티브 모듈을 찾지 못했거나 로드 실패 시 폴백 사용

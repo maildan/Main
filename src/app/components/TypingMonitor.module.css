@@ -769,3 +769,59 @@
   color: #777777; /* 가이드의 비활성 텍스트 */
   opacity: 0.7;
 }
+
+.typingMonitor {
+  position: relative;
+  width: 100%;
+  max-width: 100%;
+}
+
+.hiddenInput {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+  top: 0;
+  left: 0;
+  z-index: -1;
+  border: none;
+  background: transparent;
+  color: transparent;
+  outline: none;
+}
+
+.debugInfo {
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  background-color: rgba(255, 255, 255, 0.05);
+  font-size: 12px;
+  max-width: 400px;
+  word-break: break-word;
+}
+
+.debugInfo h4 {
+  margin-top: 0;
+  margin-bottom: 8px;
+  color: #ccc;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.debugInfo p {
+  margin: 4px 0;
+  line-height: 1.4;
+}
+
+.error {
+  color: #ff5757;
+  font-weight: 500;
+}
+
+@media (prefers-color-scheme: dark) {
+  .debugInfo {
+    border-color: #444;
+    background-color: rgba(0, 0, 0, 0.3);
+  }
+}

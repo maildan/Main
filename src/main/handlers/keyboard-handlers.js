@@ -28,12 +28,12 @@ function setupKeyboardListenerIfNeeded() {
     if (!appState.keyboardListener) {
       debugLog('키보드 리스너 초기화 중...');
       appState.keyboardListener = setupKeyboardListener();
-      
+    
       // 성공 확인
       if (appState.keyboardListener && appState.keyboardListener.active) {
         keyboardHandlersRegistered = true;
         debugLog('키보드 리스너 초기화 성공');
-        return true;
+      return true;
       } else {
         debugLog('키보드 리스너 초기화 실패');
         return false;
@@ -65,10 +65,10 @@ function cleanupKeyboardListener() {
       return true;
     }
     return false;
-  } catch (error) {
+    } catch (error) {
     console.error('키보드 리스너 정리 중 오류:', error);
-    return false;
-  }
+      return false;
+    }
 }
 
 /**
@@ -128,9 +128,9 @@ function register() {
         return { error: error.message };
       }
     });
-  } catch (error) {
+    } catch (error) {
     console.error('키보드 핸들러 등록 중 오류:', error);
-  }
+    }
 
   // 한글 입력 테스트 핸들러
   ipcMain.handle('test-hangul-input', async (event, options) => {

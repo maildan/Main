@@ -215,3 +215,50 @@ declare global {
     electronAPI: ElectronAPI;
   }
 }
+
+// 전역 인터페이스 확장
+interface Window {
+  electronAPI?: ElectronAPI;
+}
+
+// Electron API 인터페이스 정의
+interface ElectronAPI {
+  // 창 컨트롤 관련
+  windowControl?: (action: string) => void;
+  minimizeWindow?: () => void;
+  maximizeWindow?: () => void;
+  closeWindow?: () => void;
+  
+  // 타이핑 통계 관련
+  onTypingStatsUpdate?: (callback: (data: any) => void) => (() => void);
+  onStatsSaved?: (callback: (data: any) => void) => (() => void);
+  startTracking?: () => Promise<void> | void;
+  stopTracking?: () => Promise<void> | void;
+  saveStats?: (data?: any) => Promise<boolean> | void;
+  
+  // 설정 관련
+  loadSettings?: () => Promise<any> | any;
+  saveSettings?: (settings: any) => Promise<boolean> | boolean;
+  
+  // 파일 시스템 관련
+  readFile?: (path: string) => Promise<string> | string;
+  writeFile?: (path: string, content: string) => Promise<boolean> | boolean;
+  
+  // 앱 관련
+  onShowRestartLoading?: (callback: (data: any) => void) => (() => void);
+  
+  // 권한 관련
+  onPermissionError?: (callback: (error: any) => void) => (() => void);
+  onPermissionStatus?: (callback: (status: any) => void) => (() => void);
+  checkPermissions?: () => Promise<{
+    screenRecording: boolean | null;
+    accessibility: boolean | null;
+  }>;
+  openPermissionsSettings?: () => Promise<boolean>;
+  
+  // 기타 메서드들
+  [key: string]: any;
+}
+
+// 기타 타입 선언
+type ElementType<T extends ReadonlyArray<unknown>> = T extends ReadonlyArray<infer ElementType> ? ElementType : never;

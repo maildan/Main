@@ -886,6 +886,55 @@ function analyzeTypingPattern(typingData = null) {
   }
 }
 
+/**
+ * 현재 타이핑 통계 가져오기
+ * @returns {Object} 통계 데이터
+ */
+function getStats() {
+  try {
+    // appState에서 현재 타이핑 통계 복사 (깊은 복사)
+    const stats = JSON.parse(JSON.stringify(appState.stats || {}));
+    
+    // 세션 정보 추가
+    stats.sessionInfo = {
+      startTime: appState.sessionStartTime || Date.now(),
+      duration: appState.sessionStartTime 
+        ? Date.now() - appState.sessionStartTime 
+        : 0,
+      isTracking: appState.isTracking || false
+    };
+    
+    // WPM 및 정확도 계산
+    if (!stats.wpm) {
+      const wpm = calculateWPM();
+      stats.wpm = wpm.wpm;
+      stats.rawWpm = wpm.rawWpm;
+    }
+    
+    // 앱/웹사이트별 통계 추가
+    stats.appStats = appState.appStats || {};
+    
+    return stats;
+  } catch (error) {
+    console.error('통계 정보 가져오기 오류:', error);
+    return {
+      keyCount: 0,
+      errorCount: 0,
+      charCount: 0,
+      wordCount: 0,
+      accuracy: 100,
+      wpm: 0,
+      rawWpm: 0,
+      sessionInfo: {
+        startTime: Date.now(),
+        duration: 0,
+        isTracking: false
+      },
+      appStats: {}
+    };
+  }
+}
+
 module.exports = {
   processKeyInput,
   updateAndSendStats,
@@ -901,5 +950,6 @@ module.exports = {
   switchToLowMemoryMode,
   restoreNormalMode,
   getProcessingMode: () => processingMode,
-  getHangulState: () => ({ ...hangulState })
+  getHangulState: () => ({ ...hangulState }),
+  getStats
 };

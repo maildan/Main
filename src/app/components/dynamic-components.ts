@@ -7,7 +7,13 @@ export const DynamicMemoryUsageMonitor = dynamic(() => Promise.resolve(MemoryUsa
   ssr: false,
 });
 
-// 클라이언트 측에서만 렌더링되는 다른 컴포넌트들도 필요에 따라 추가
+// 클라이언트 측에서만 렌더링되는 권한 배너 컴포넌트
+export const DynamicPermissionBanner = dynamic(
+  () => import('./PermissionBanner').then(mod => mod.default),
+  { ssr: false }
+);
+
+// 클라이언트 측에서만 렌더링되는 네이티브 모듈 상태 컴포넌트
 export const DynamicNativeModuleStatus = dynamic(
   () => import('./NativeModuleStatus').then(mod => mod.default),
   { ssr: false }

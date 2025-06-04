@@ -3,47 +3,19 @@
     "docs": true,
     "office": true,
     "coding": true,
-    "sns": true
+    "sns": true,
+    "web": true,
+    "apps": true
   },
   "autoStartMonitoring": true,
   "resumeAfterIdle": true,
-  "darkMode": true,
+  "darkMode": false,
   "windowMode": "windowed",
   "minimizeToTray": true,
   "showTrayNotifications": true,
   "reduceMemoryInBackground": true,
   "enableMiniView": true,
   "useHardwareAcceleration": true,
-  "processingMode": "gpu-intensive",
-  "maxMemoryThreshold": 100,
-  "monitoredApps": [
-    "Chrome",
-    "Firefox",
-    "Safari",
-    "Edge",
-    "Visual Studio Code",
-    "Word",
-    "Excel",
-    "PowerPoint",
-    "Slack",
-    "Discord",
-    "Terminal",
-    "iTerm",
-    "Finder",
-    "Explorer"
-  ],
-  "monitoredWebsites": [
-    "google.com",
-    "github.com",
-    "stackoverflow.com",
-    "docs.google.com",
-    "office.com",
-    "microsoft365.com",
-    "notion.so",
-    "figma.com",
-    "trello.com",
-    "asana.com",
-    "jira.com",
-    "slack.com"
-  ]
+  "processingMode": "cpu-intensive",
+  "maxMemoryThreshold": 100
 }

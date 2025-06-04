@@ -12,16 +12,15 @@ interface RestartAPI {
   closeWindow: () => void;
 }
 
-/**
- * Window 인터페이스 확장
- */
+// 기존 Window 인터페이스는 유지하고, 추가 속성만 명확히 정의
 declare global {
   interface Window {
     restartAPI?: RestartAPI;
-    electronAPI?: {
+  }
+  
+  interface ElectronAPI {
       restartApp?: () => void;
       getDarkMode?: () => Promise<boolean>;
-    };
   }
 }
 
@@ -103,7 +102,14 @@ const RestartPrompt: React.FC<RestartPromptProps> = ({
         
         setTimeout(() => {
           try {
-            window.electronAPI?.restartApp();
+            // 타입 안전 호출로 수정
+            const restartFn = window.electronAPI?.restartApp;
+            if (typeof restartFn === 'function') {
+              restartFn();
+            } else {
+              console.warn('electronAPI.restartApp이 함수가 아닙니다');
+              setIsRestarting(false);
+            }
           } catch (error) {
             console.error('재시작 실행 중 오류 (electronAPI):', error);
             setIsRestarting(false); // 오류 시 재시작 상태 해제

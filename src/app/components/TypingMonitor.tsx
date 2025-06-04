@@ -1,416 +1,493 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import styles from './TypingMonitor.module.css';
 
-interface TypingMonitorProps {
-  stats: {
-    keyCount: number;
-    typingTime: number;
-    windowTitle: string;
-    browserName?: string;
-    totalChars?: number;
-    totalCharsNoSpace?: number;
-    totalWords?: number;
-    pages?: number;
-    accuracy?: number;
-  };
-  isTracking: boolean;
-  onStartTracking: () => void;
-  onStopTracking: () => void;
-  onSaveStats: (content: string) => void;
+// ErrorBoundary를 사용할 수 없는 경우를 위한 기본 래퍼 컴포넌트
+const SimpleWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  return <>{children}</>;
+};
+
+interface KeyPressData {
+  key: string;
+  eventTime: number;
+  isMetaKey?: boolean;
+  isCompositionChar?: boolean;
 }
 
-// 포맷 함수를 컴포넌트 외부로 이동하여 렌더링마다 재생성되지 않도록 함
-const formatTime = (seconds: number): string => {
-  if (seconds < 60) return `${seconds}초`;
-  
-  const minutes = Math.floor(seconds / 60);
-  const remainingSeconds = seconds % 60;
-  
-  if (minutes < 60) {
-    return `${minutes}분 ${remainingSeconds}초`;
-  }
-  
-  const hours = Math.floor(minutes / 60);
-  const remainingMinutes = minutes % 60;
-  
-  return `${hours}시간 ${remainingMinutes}분 ${remainingSeconds}초`;
-};
+interface TypingMonitorProps {
+  onKeyPress?: (data: KeyPressData) => void;
+  disabled?: boolean;
+  debugMode?: boolean;
+  stats?: any;
+  isTracking?: boolean;
+  onStartTracking?: () => void;
+  onStopTracking?: () => void;
+  onSaveStats?: (content: string) => void;
+}
 
-// 평균 속도 계산 함수도 외부로 이동
-const getAverageSpeed = (keyCount: number, time: number): string => {
-  if (time <= 0) return '0 타/분';
-  return `${Math.round((keyCount / time) * 60)} 타/분`;
-};
+interface PermissionStatusType {
+  screenRecording: boolean | null;
+  accessibility: boolean | null;
+  error: string | null;
+}
 
-export const TypingMonitor = React.memo(function TypingMonitor({ 
+const _COMPOSITION_TIMEOUT = 1000; // 조합 타임아웃: 1초
+
+/**
+ * 키보드 입력을 모니터링하는 컴포넌트
+ * 한글 등 조합형 문자 입력도 지원
+ */
+const TypingMonitor: React.FC<TypingMonitorProps> = ({
+  onKeyPress,
+  disabled = false,
+  debugMode = false,
   stats, 
   isTracking, 
   onStartTracking, 
   onStopTracking,
-  onSaveStats
-}: TypingMonitorProps) {
-  const [description, setDescription] = useState('');
-  const [lastAction, setLastAction] = useState<string>('');
-  const [activeWebsiteTab, setActiveWebsiteTab] = useState<string>('docs');
-  const [activeStatsTab, setActiveStatsTab] = useState<string>('typing'); 
-  
-  // 브라우저 체크 결과를 ref로 변경하여 리렌더링 방지
-  const browserCheckResultRef = React.useRef<{
-    name: string | null;
-    isGoogleDocs: boolean;
-    title: string | null;
-  } | null>(null);
+  onSaveStats,
+}) => {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const compositionRef = useRef<string>('');
+  const isComposingRef = useRef<boolean>(false);
+  const lastKeyTimeRef = useRef<number>(0);
+  const [isMonitoring, setIsMonitoring] = useState<boolean>(false);
+  const [permissionStatus, setPermissionStatus] = useState<PermissionStatusType>({
+    screenRecording: null,
+    accessibility: null,
+    error: null
+  });
+  const [isInitialized, setIsInitialized] = useState<boolean>(false);
+  const [lastError, setLastError] = useState<string | null>(null);
+  const errorCountRef = useRef<number>(0);
+  const reconnectTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // 브라우저 정보 확인 함수 메모이제이션
-  const checkBrowserInfo = useCallback(async () => {
-    if (window.electronAPI?.getCurrentBrowserInfo) {
-      try {
-        const info = await window.electronAPI.getCurrentBrowserInfo();
-        browserCheckResultRef.current = info;
+  // 사용자가 화면에 집중하고 있는지 여부를 추적
+  const isUserActiveRef = useRef<boolean>(true);
+  const inactivityTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  /**
+   * 비활동 타이머 재설정
+   */
+  const resetInactivityTimer = useCallback(() => {
+    if (inactivityTimerRef.current) {
+      clearTimeout(inactivityTimerRef.current);
+    }
+    
+    inactivityTimerRef.current = setTimeout(() => {
+      isUserActiveRef.current = false;
+    }, 60000); // 1분간 활동이 없으면 비활성 상태로 간주
+  }, []);
+
+  /**
+   * 키 이벤트를 처리하고 상위 컴포넌트로 전달하는 함수
+   */
+  const handleKeyEvent = useCallback((key: string, isComposition: boolean = false): void => {
+    if (disabled || !onKeyPress) return;
+
+    const now = Date.now();
+    lastKeyTimeRef.current = now;
+
+    try {
+      const keyData: KeyPressData = {
+        key,
+        eventTime: now,
+        isMetaKey: key.startsWith('Meta') || key.startsWith('Control'),
+        isCompositionChar: isComposition,
+      };
+
+      onKeyPress(keyData);
+
+      if (debugMode) {
+        console.log('[TypingMonitor] 키 입력:', keyData);
+      }
+
+      // 오류 카운터 리셋
+      if (errorCountRef.current > 0) {
+        errorCountRef.current = 0;
+        setLastError(null);
+      }
       } catch (error) {
-        console.error('브라우저 정보 확인 오류:', error);
+      errorCountRef.current++;
+      const errorMessage = error instanceof Error ? error.message : '알 수 없는 오류';
+      setLastError(`키 이벤트 처리 중 오류: ${errorMessage}`);
+      
+      if (errorCountRef.current >= 3) {
+        console.error('[TypingMonitor] 반복적인 오류 발생:', errorMessage);
+      }
+      
+      console.error('[TypingMonitor] 키 이벤트 처리 중 오류:', error);
+    }
+  }, [disabled, onKeyPress, debugMode]);
+
+  /**
+   * 조합 완료 이벤트 핸들러
+   */
+  const handleCompositionEnd = useCallback((e: CompositionEvent): void => {
+    if (debugMode) {
+      console.log('[TypingMonitor] 조합 완료:', e.data);
+    }
+    
+    isComposingRef.current = false;
+    
+    if (e.data) {
+      // 완성된 글자가 있을 경우
+      for (let i = 0; i < e.data.length; i++) {
+        handleKeyEvent(e.data[i], true);
       }
     }
-  }, []);
-
-  // 정기적으로 브라우저 정보 업데이트 (5초 → 30초로 변경하여 부하 대폭 감소)
-  useEffect(() => {
-    if (isTracking) {
-      // 초기 확인
-      checkBrowserInfo();
-      
-      // 더 긴 간격(30초)으로 업데이트하여 리소스 사용 감소
-      const interval = setInterval(checkBrowserInfo, 30000);
-      return () => clearInterval(interval);
-    }
-  }, [isTracking, checkBrowserInfo]);
-
-  // 메모이제이션된 핸들러 함수들
-  const handleDescriptionChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setDescription(e.target.value);
-  }, []);
-
-  const handleSave = useCallback(() => {
-    onSaveStats(description);
-    setDescription('');
-    setLastAction('저장됨');
     
-    // 2초 후 메시지 제거
-    setTimeout(() => {
-      setLastAction('');
-    }, 2000);
-  }, [description, onSaveStats]);
+    compositionRef.current = '';
+  }, [handleKeyEvent, debugMode]);
 
-  const handleToggleTracking = useCallback(() => {
-    if (isTracking) {
-      onStopTracking();
-      setLastAction('모니터링 중지됨');
+  /**
+   * 조합 시작 이벤트 핸들러
+   */
+  const handleCompositionStart = useCallback((): void => {
+    if (debugMode) {
+      console.log('[TypingMonitor] 조합 시작');
+    }
+    isComposingRef.current = true;
+    compositionRef.current = '';
+  }, [debugMode]);
+
+  /**
+   * 조합 업데이트 이벤트 핸들러
+   */
+  const handleCompositionUpdate = useCallback((e: CompositionEvent): void => {
+    if (debugMode) {
+      console.log('[TypingMonitor] 조합 업데이트:', e.data);
+    }
+    
+    isComposingRef.current = true;
+    compositionRef.current = e.data || '';
+    
+    // 조합 중인 문자 처리를 위한 IPC 이벤트 발송
+    try {
+      if (window.electronAPI && typeof window.electronAPI.processJamo === 'function') {
+        window.electronAPI.processJamo({ char: e.data });
+      }
+    } catch (error) {
+      console.error('[TypingMonitor] 자모 처리 중 오류:', error);
+    }
+  }, [debugMode]);
+
+  /**
+   * 키다운 이벤트 핸들러
+   */
+  const handleKeyDown = useCallback((e: KeyboardEvent): void => {
+    // 조합 중이면 키 이벤트를 처리하지 않음
+    if (isComposingRef.current) return;
+
+    // 사용자 활동 표시
+    isUserActiveRef.current = true;
+    resetInactivityTimer();
+
+    // 일반 키는 그대로 처리
+    const key = e.key;
+    
+    // 일부 특수 키는 무시 (Tab, Shift만 단독으로 누른 경우 등)
+    if (['Tab', 'Shift', 'Alt', 'Control', 'Meta', 'CapsLock'].includes(key)) {
+      return;
+    }
+    
+    // 단축키 (조합키) 처리
+    if (e.ctrlKey || e.metaKey || e.altKey) {
+      let modifierPrefix = '';
+      if (e.ctrlKey) modifierPrefix += 'Control+';
+      if (e.metaKey) modifierPrefix += 'Meta+';
+      if (e.altKey) modifierPrefix += 'Alt+';
       
-      // 상태 표시
-      setTimeout(() => {
-        setLastAction('');
-      }, 2000);
-    } else {
-      onStartTracking();
-      setLastAction('모니터링 시작됨');
+      handleKeyEvent(`${modifierPrefix}${key}`);
+      return;
+    }
+
+    // 일반 키 처리
+    handleKeyEvent(key);
+  }, [handleKeyEvent, resetInactivityTimer]);
+
+  /**
+   * 키보드 이벤트 리스너 설정
+   */
+  const setupKeyboardListeners = useCallback(() => {
+    if (disabled) return;
+    
+    // 이미 모니터링 중인 경우 재설정 방지
+    if (isMonitoring) return;
+
+    try {
+      // 이벤트 리스너 등록
+      document.addEventListener('keydown', handleKeyDown);
       
-      // 상태 표시
-      setTimeout(() => {
-        setLastAction('키보드 입력 감지 중...');
-      }, 2000);
+      if (inputRef.current) {
+        inputRef.current.addEventListener('compositionstart', handleCompositionStart as EventListener);
+        inputRef.current.addEventListener('compositionupdate', handleCompositionUpdate as EventListener);
+        inputRef.current.addEventListener('compositionend', handleCompositionEnd as EventListener);
+      }
       
-      // 타이핑 시작 메시지 표시를 위해 5초 후 메시지 업데이트
+      setIsMonitoring(true);
+      
+      if (debugMode) {
+        console.log('[TypingMonitor] 키보드 모니터링 시작');
+      }
+      
+      // 권한 확인 - 함수 직접 호출 대신에 setTimeout으로 지연 호출
       setTimeout(() => {
-        if (stats.keyCount > 0) {
-          setLastAction('타이핑 감지됨');
-        } else {
-          setLastAction('키보드 입력 대기 중...');
+        if (typeof checkPermissions === 'function') {
+          checkPermissions();
         }
-      }, 5000);
+      }, 0);
+      
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : '알 수 없는 오류';
+      console.error('[TypingMonitor] 키보드 리스너 설정 중 오류:', error);
+      
+      // 에러 로깅
+      console.error('[TypingMonitor] 키보드 모니터링 초기화 오류:', errorMessage);
     }
-  }, [isTracking, onStartTracking, onStopTracking, stats.keyCount]);
+  }, [
+    disabled, 
+    isMonitoring, 
+    handleKeyDown, 
+    handleCompositionStart, 
+    handleCompositionUpdate, 
+    handleCompositionEnd, 
+    debugMode
+  ]);
 
-  const handleWebsiteTabChange = useCallback((tab: string) => {
-    setActiveWebsiteTab(tab);
+  /**
+   * 권한 확인 함수
+   */
+  const checkPermissions = useCallback(async () => {
+    try {
+      if (!window.electronAPI || !window.electronAPI.checkPermissions) {
+        return;
+      }
+      
+      const permissions = await window.electronAPI.checkPermissions();
+      
+      // 타입 안전성을 위해 필요한 속성만 추출
+      const safePermissions: PermissionStatusType = {
+        screenRecording: typeof permissions.screenRecording === 'boolean' ? permissions.screenRecording : null,
+        accessibility: typeof permissions.accessibility === 'boolean' ? permissions.accessibility : null,
+        // @ts-ignore - PermissionStatusType에서 error 속성을 인식하지 못하는 문제
+        error: permissions.error || null
+      };
+      
+      setPermissionStatus(safePermissions);
+      
+      if (safePermissions.error || 
+         (safePermissions.screenRecording === false && typeof process !== 'undefined' && process.platform === 'darwin')) {
+        console.warn('[TypingMonitor] 권한 부족:', safePermissions);
+      }
+    } catch (error) {
+      console.error('[TypingMonitor] 권한 확인 중 오류:', error);
+      setPermissionStatus({
+        screenRecording: null,
+        accessibility: null,
+        // @ts-ignore - PermissionStatusType에서 error 속성을 인식하지 못하는 문제
+        error: error instanceof Error ? error.message : '알 수 없는 오류'
+      });
+    }
   }, []);
 
-  const handleStatsTabChange = useCallback((tab: string) => {
-    setActiveStatsTab(tab);
+  /**
+   * 권한 설정 창 열기
+   */
+  const openPermissionsSettings = useCallback(() => {
+    try {
+      if (window.electronAPI && window.electronAPI.openPermissionsSettings) {
+        window.electronAPI.openPermissionsSettings();
+      }
+    } catch (error) {
+      console.error('[TypingMonitor] 권한 설정 열기 중 오류:', error);
+    }
   }, []);
 
-  // 웹사이트 탭 컨텐츠 메모이제이션
-  const websiteTabContent = useMemo(() => {
-    switch (activeWebsiteTab) {
-      case 'docs':
-        return (
-          <div className={styles.websiteLinks}>
-            <a href="https://docs.google.com/document/" target="_blank" rel="noopener noreferrer" className={styles.websiteLink}>
-              구글 문서 열기
-            </a>
-            <a href="https://docs.google.com/spreadsheets/" target="_blank" rel="noopener noreferrer" className={styles.websiteLink}>
-              구글 스프레드시트 열기
-            </a>
-            <a href="https://docs.google.com/presentation/" target="_blank" rel="noopener noreferrer" className={styles.websiteLink}>
-              구글 프레젠테이션 열기
-            </a>
-            <a href="https://www.notion.so/" target="_blank" rel="noopener noreferrer" className={styles.websiteLink}>
-              Notion 열기
-            </a>
-          </div>
-        );
-      case 'office':
-        return (
-          <div className={styles.websiteLinks}>
-            <a href="https://www.office.com/launch/word" target="_blank" rel="noopener noreferrer" className={styles.websiteLink}>
-              Word 온라인 열기
-            </a>
-            <a href="https://www.office.com/launch/excel" target="_blank" rel="noopener noreferrer" className={styles.websiteLink}>
-              Excel 온라인 열기
-            </a>
-            <a href="https://www.office.com/launch/powerpoint" target="_blank" rel="noopener noreferrer" className={styles.websiteLink}>
-              PowerPoint 온라인 열기
-            </a>
-            <a href="https://www.hancom.com/main/main.do" target="_blank" rel="noopener noreferrer" className={styles.websiteLink}>
-              한글과컴퓨터 열기
-            </a>
-          </div>
-        );
-      case 'coding':
-        return (
-          <div className={styles.websiteLinks}>
-            <a href="https://github.com/" target="_blank" rel="noopener noreferrer" className={styles.websiteLink}>
-              GitHub 열기
-            </a>
-            <a href="https://gitlab.com/" target="_blank" rel="noopener noreferrer" className={styles.websiteLink}>
-              GitLab 열기
-            </a>
-            <a href="https://codesandbox.io/" target="_blank" rel="noopener noreferrer" className={styles.websiteLink}>
-              CodeSandbox 열기
-            </a>
-            <a href="https://codepen.io/" target="_blank" rel="noopener noreferrer" className={styles.websiteLink}>
-              CodePen 열기
-            </a>
-          </div>
-        );
-      case 'sns':
-        return (
-          <div className={styles.websiteLinks}>
-            <a href="https://slack.com/" target="_blank" rel="noopener noreferrer" className={styles.websiteLink}>
-              Slack 열기
-            </a>
-            <a href="https://discord.com/" target="_blank" rel="noopener noreferrer" className={styles.websiteLink}>
-              Discord 열기
-            </a>
-            <a href="https://www.messenger.com/" target="_blank" rel="noopener noreferrer" className={styles.websiteLink}>
-              Messenger 열기
-            </a>
-            <a href="https://mail.google.com/" target="_blank" rel="noopener noreferrer" className={styles.websiteLink}>
-              Gmail 열기
-            </a>
-          </div>
-        );
-      default:
-        return null;
+  /**
+   * 키보드 모니터링 중지
+   */
+  const stopMonitoring = useCallback(() => {
+    try {
+      document.removeEventListener('keydown', handleKeyDown);
+      
+      if (inputRef.current) {
+        inputRef.current.removeEventListener('compositionstart', handleCompositionStart as EventListener);
+        inputRef.current.removeEventListener('compositionupdate', handleCompositionUpdate as EventListener);
+        inputRef.current.removeEventListener('compositionend', handleCompositionEnd as EventListener);
+      }
+      
+      setIsMonitoring(false);
+      
+      if (debugMode) {
+        console.log('[TypingMonitor] 키보드 모니터링 중지');
+      }
+    } catch (error) {
+      console.error('[TypingMonitor] 키보드 모니터링 중지 중 오류:', error);
     }
-  }, [activeWebsiteTab]);
+  }, [handleKeyDown, handleCompositionStart, handleCompositionUpdate, handleCompositionEnd, debugMode]);
 
-  // 통계 탭 컨텐츠 메모이제이션
-  const statsTabContent = useMemo(() => {
-    switch (activeStatsTab) {
-      case 'typing':
-        return (
-          <div className={styles.statsGroup}>
-            <div className={styles.statCard}>
-              <div className={styles.statLabel}>타자 수</div>
-              <div className={styles.statValue}>{stats.keyCount.toLocaleString()}</div>
-            </div>
-            
-            <div className={styles.statCard}>
-              <div className={styles.statLabel}>타이핑 시간</div>
-              <div className={styles.statValue}>{formatTime(stats.typingTime)}</div>
-            </div>
-            
-            <div className={styles.statCard}>
-              <div className={styles.statLabel}>평균 속도</div>
-              <div className={styles.statValue}>{getAverageSpeed(stats.keyCount, stats.typingTime)}</div>
-            </div>
-          </div>
-        );
-      case 'document':
-        return (
-          <div className={styles.statsGroup}>
-            <div className={styles.statCard}>
-              <div className={styles.statLabel}>페이지 수</div>
-              <div className={styles.statValue}>{stats.pages?.toFixed(1) || '0.0'}</div>
-            </div>
-            
-            <div className={styles.statCard}>
-              <div className={styles.statLabel}>단어 수</div>
-              <div className={styles.statValue}>{stats.totalWords?.toLocaleString() || '0'}</div>
-            </div>
-            
-            <div className={styles.statCard}>
-              <div className={styles.statLabel}>글자 수</div>
-              <div className={styles.statValue}>{stats.totalChars?.toLocaleString() || '0'}</div>
-            </div>
-          </div>
-        );
-      case 'accuracy':
-        return (
-          <div className={styles.statsGroup}>
-            <div className={styles.statCard}>
-              <div className={styles.statLabel}>글자 수 (공백 제외)</div>
-              <div className={styles.statValue}>{stats.totalCharsNoSpace?.toLocaleString() || '0'}</div>
-            </div>
-            
-            <div className={styles.statCard}>
-              <div className={styles.statLabel}>정확도</div>
-              <div className={styles.statValue}>{stats.accuracy || 100}%</div>
-            </div>
-          </div>
-        );
-      default:
-        return null;
+  /**
+   * 권한 오류 이벤트 처리
+   */
+  useEffect(() => {
+    const handlePermissionError = (data: any) => {
+      setPermissionStatus(prev => ({
+        ...prev,
+        // @ts-ignore - PermissionStatusType에서 error 속성을 인식하지 못하는 문제
+        [data.type.toLowerCase()]: false,
+        error: data.message
+      }));
+      
+      console.warn('[TypingMonitor] 권한 오류:', data.message);
+    };
+    
+    // Electron API를 통한 권한 오류 리스너 등록
+    let unsubscribe: (() => void) | undefined;
+    
+    if (window.electronAPI && window.electronAPI.onPermissionError) {
+      unsubscribe = window.electronAPI.onPermissionError(handlePermissionError);
     }
-  }, [activeStatsTab, stats]);
+    
+    // 권한 상태 업데이트 리스너 등록
+    let unsubscribeStatus: (() => void) | undefined;
+    
+    if (window.electronAPI && window.electronAPI.onPermissionStatus) {
+      unsubscribeStatus = window.electronAPI.onPermissionStatus((status: any) => {
+        const safeStatus: PermissionStatusType = {
+          screenRecording: status.screenRecording ?? null,
+          accessibility: status.accessibility ?? null,
+          error: status.error || null
+        };
+        setPermissionStatus(safeStatus);
+      });
+    }
+    
+    // 클린업
+    return () => {
+      if (unsubscribe && typeof unsubscribe === 'function') {
+        unsubscribe();
+      }
+      
+      if (unsubscribeStatus && typeof unsubscribeStatus === 'function') {
+        unsubscribeStatus();
+      }
+    };
+  }, [openPermissionsSettings]);
+
+  /**
+   * 자동 재연결 및 에러 복구
+   */
+  useEffect(() => {
+    if (lastError && !reconnectTimerRef.current) {
+      reconnectTimerRef.current = setTimeout(() => {
+        console.log('[TypingMonitor] 자동 재연결 시도');
+        stopMonitoring();
+        setTimeout(setupKeyboardListeners, 500);
+        reconnectTimerRef.current = null;
+      }, 5000); // 5초 후 재연결 시도
+    }
+    
+    return () => {
+      if (reconnectTimerRef.current) {
+        clearTimeout(reconnectTimerRef.current);
+        reconnectTimerRef.current = null;
+      }
+    };
+  }, [lastError, stopMonitoring, setupKeyboardListeners]);
+
+  /**
+   * 컴포넌트 초기화 및 정리
+   */
+  useEffect(() => {
+    if (!isInitialized && !disabled) {
+      setupKeyboardListeners();
+      setIsInitialized(true);
+    }
+    
+    // 포커스 유지를 위한 클릭 이벤트 리스너
+    const handleDocumentClick = () => {
+      if (inputRef.current) {
+        inputRef.current.focus();
+      }
+    };
+    
+    document.addEventListener('click', handleDocumentClick);
+    
+    // 사용자 활동 감지 초기화
+    resetInactivityTimer();
+    
+    // 컴포넌트 언마운트 시 정리
+    return () => {
+      stopMonitoring();
+      document.removeEventListener('click', handleDocumentClick);
+      
+      if (inactivityTimerRef.current) {
+        clearTimeout(inactivityTimerRef.current);
+      }
+    };
+  }, [disabled, isInitialized, setupKeyboardListeners, stopMonitoring, resetInactivityTimer]);
+
+  /**
+   * props 변경에 따른 모니터링 상태 업데이트
+   */
+  useEffect(() => {
+    if (disabled && isMonitoring) {
+      stopMonitoring();
+    } else if (!disabled && !isMonitoring && isInitialized) {
+      setupKeyboardListeners();
+    }
+  }, [disabled, isMonitoring, isInitialized, stopMonitoring, setupKeyboardListeners]);
+
+  /**
+   * 투명 입력 필드 포커스 유지
+   */
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (inputRef.current && document.activeElement !== inputRef.current && !disabled) {
+        inputRef.current.focus();
+      }
+    }, 1000);
+    
+    return () => clearInterval(interval);
+  }, [disabled]);
+
+  const retryPermissionCheck = useCallback(() => {
+    checkPermissions(); // 직접 함수 호출
+  }, [checkPermissions]);
 
   return (
-    <div className={styles.container}>
-      <div className={styles.monitorHeader}>
-        <h2>타이핑 모니터링</h2>
-        <button 
-          className={`${styles.trackingButton} ${isTracking ? styles.trackingActive : ''}`}
-          onClick={handleToggleTracking}
-        >
-          {isTracking ? '모니터링 중지' : '모니터링 시작'}
-        </button>
-      </div>
-
-      <div className={styles.statusIndicator}>
-        <div className={`${styles.indicator} ${isTracking ? styles.active : ''}`}></div>
-        <span>모니터링 상태: <strong>{isTracking ? '활성화' : '비활성화'}</strong></span>
+    <SimpleWrapper>
+      <div className={styles.typingMonitor}>
+        <input
+          ref={inputRef}
+          type="text"
+          className={styles.hiddenInput}
+          autoFocus
+          value=""
+          onChange={(e) => {
+            // 조합 중이 아닐 때만 입력값 초기화
+            if (!isComposingRef.current) {
+              e.target.value = '';
+            }
+          }}
+          aria-hidden="true"
+        />
         
-        {lastAction && (
-          <div className={styles.actionFeedback}>{lastAction}</div>
+        {debugMode && (
+          <div className={styles.debugInfo}>
+            <h4>디버그 정보</h4>
+            <p>모니터링: {isMonitoring ? '활성화' : '비활성화'}</p>
+            <p>조합 상태: {isComposingRef.current ? '조합중' : '기본'}</p>
+            <p>조합 텍스트: {compositionRef.current}</p>
+            <p>화면기록 권한: {permissionStatus.screenRecording === null ? '확인안됨' : permissionStatus.screenRecording ? '허용' : '거부'}</p>
+            {lastError && <p className={styles.error}>마지막 오류: {lastError}</p>}
+          </div>
         )}
       </div>
-      
-      <div className={styles.contentWrapper}>
-        <div className={styles.leftPanel}>
-          <div className={styles.browserStatus}>
-            <h3>브라우저 상태</h3>
-            <div className={styles.browserInfo}>
-              <div className={styles.browserRow}>
-                <span>감지된 브라우저:</span>
-                <span className={styles.browserValue}>
-                  {stats.browserName || browserCheckResultRef.current?.name || '없음'}
-                </span>
-              </div>
-              
-              <div className={styles.browserRow}>
-                <span>구글 문서 감지:</span>
-                <span className={styles.browserValue}>
-                  {browserCheckResultRef.current?.isGoogleDocs ? (
-                    <span className={styles.detectedBadge}>감지됨 ✓</span>
-                  ) : (
-                    <span className={styles.notDetectedBadge}>아님 ⨯</span>
-                  )}
-                </span>
-              </div>
-              
-              <div className={styles.browserRow}>
-                <span>현재 창:</span>
-                <span className={styles.browserValue} title={stats.windowTitle || browserCheckResultRef.current?.title || ''}>
-                  {(stats.windowTitle || browserCheckResultRef.current?.title || '없음').substring(0, 60)}
-                  {(stats.windowTitle || browserCheckResultRef.current?.title || '').length > 60 ? '...' : ''}
-                </span>
-              </div>
-            </div>
-          </div>
-          
-          <div className={styles.websiteTabs}>
-            <div className={styles.websiteTabHeader}>
-              <button 
-                className={`${styles.websiteTabButton} ${activeWebsiteTab === 'docs' ? styles.activeWebsiteTab : ''}`}
-                onClick={() => handleWebsiteTabChange('docs')}
-              >
-                구글 문서
-              </button>
-              <button 
-                className={`${styles.websiteTabButton} ${activeWebsiteTab === 'office' ? styles.activeWebsiteTab : ''}`}
-                onClick={() => handleWebsiteTabChange('office')}
-              >
-                오피스
-              </button>
-              <button 
-                className={`${styles.websiteTabButton} ${activeWebsiteTab === 'coding' ? styles.activeWebsiteTab : ''}`}
-                onClick={() => handleWebsiteTabChange('coding')}
-              >
-                코딩
-              </button>
-              <button 
-                className={`${styles.websiteTabButton} ${activeWebsiteTab === 'sns' ? styles.activeWebsiteTab : ''}`}
-                onClick={() => handleWebsiteTabChange('sns')}
-              >
-                SNS/메신저
-              </button>
-            </div>
-            
-            <div className={styles.websiteTabContent}>
-              {websiteTabContent}
-            </div>
-          </div>
-        </div>
-        
-        <div className={styles.rightPanel}>
-          {/* 통계 패널을 탭 형식으로 변경 */}
-          <div className={styles.statsTabs}>
-            <button
-              className={`${styles.statsTabButton} ${activeStatsTab === 'typing' ? styles.activeStatsTab : ''}`}
-              onClick={() => handleStatsTabChange('typing')}
-            >
-              타이핑 정보
-            </button>
-            <button
-              className={`${styles.statsTabButton} ${activeStatsTab === 'document' ? styles.activeStatsTab : ''}`}
-              onClick={() => handleStatsTabChange('document')}
-            >
-              문서 정보
-            </button>
-            <button
-              className={`${styles.statsTabButton} ${activeStatsTab === 'accuracy' ? styles.activeStatsTab : ''}`}
-              onClick={() => handleStatsTabChange('accuracy')}
-            >
-              정확도 & 속도
-            </button>
-          </div>
-          
-          <div className={styles.statsTabContent}>
-            {statsTabContent}
-          </div>
-          
-          <div className={styles.saveSection}>
-            <h3>세션 저장</h3>
-            <p>작업한 내용에 대한 설명을 입력하세요</p>
-            <textarea
-              className={styles.descriptionInput}
-              value={description}
-              onChange={handleDescriptionChange}
-              placeholder="작업 내용 (예: 보고서 작성, 논문 작성 등)"
-              rows={4}
-            />
-            <button 
-              className={styles.saveButton} 
-              onClick={handleSave}
-              disabled={stats.keyCount === 0 || !description.trim()}
-            >
-              통계 저장
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
+    </SimpleWrapper>
   );
-});
+};
+
+export default TypingMonitor;

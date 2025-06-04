@@ -1,4 +1,4 @@
-const { globalShortcut, app, BrowserWindow, ipcMain } = require('electron');
+const { globalShortcut, app, BrowserWindow, ipcMain, shell } = require('electron');
 const activeWin = require('active-win');
 const { appState, SPECIAL_KEYS, SUPPORTED_WEBSITES } = require('./constants');
 const { detectBrowserName, isGoogleDocsWindow } = require('./browser');
@@ -8,6 +8,12 @@ const { debugLog } = require('./utils');
 const { getSettings } = require('./settings');
 const fs = require('fs');
 const path = require('path');
+const { execSync } = require('child_process');
+const { spawn } = require('child_process');
+const { setupKeyboardEventHandler } = require('./handlers/keyboard-handlers');
+
+// 에러 핸들러 모듈 가져오기
+const errorHandler = require('./error-handler');
 
 // 키보드 핸들러 등록 여부 추적을 위한 전역 플래그
 let keyboardHandlersRegistered = false;
@@ -40,6 +46,12 @@ debugLog('키보드 모듈 초기화 시작');
 
 // 권한 오류 추적을 위한 상태 변수
 let hasReportedScreenRecordingPermissionError = false;
+
+// 권한 상태 저장 객체
+let permissionStatus = {
+  screenRecording: null, // null: 확인 안됨, true: 허용, false: 거부
+  accessibility: null
+};
 
 // 플랫폼별 키보드 이벤트 관련 설정
 const PLATFORM_KEY_CONFIGS = {
@@ -583,97 +595,48 @@ async function getActiveWindowInfo() {
   }
 }
 
-// IPC를 통한 키보드 이벤트 처리
+// 핸들러 등록 상태를 관리하기 위한 변수
+let isKeyboardIpcHandlersSetup = false;
+
 function setupKeyboardIpcHandlers() {
+  // 핸들러가 이미 설정되어 있으면 중복 등록 방지
+  if (isKeyboardIpcHandlersSetup) {
+    console.log('키보드 IPC 핸들러가 이미 등록되어 있습니다.');
+    return true;
+  }
+
+  // 안전하게 기존 핸들러 제거 시도
   try {
-    // 이미 등록되었는지 확인
-    if (keyboardHandlersRegistered) {
-      console.log('키보드 IPC 핸들러가 이미 등록되어 있습니다.');
-      return true;
-    }
-    
-    // 기존 IPC 핸들러 제거 시도
-    try {
-      ipcMain.removeHandler('keyboard-event');
-      ipcMain.removeAllListeners('keyboard-event');
-      ipcMain.removeHandler('ime-composition-event');
-      ipcMain.removeAllListeners('ime-composition-event');
-      ipcMain.removeHandler('get-last-completed-text');
-      ipcMain.removeHandler('process-jamo'); 
-      ipcMain.removeHandler('finish-hangul-composition');
-      ipcMain.removeHandler('decompose-hangul');
+    ipcMain.removeHandler('check-permissions');
+    ipcMain.removeHandler('process-jamo');
       console.log('기존 키보드 IPC 핸들러가 제거되었습니다.');
     } catch (error) {
-      console.warn('기존 핸들러 제거 중 오류 (무시 가능):', error.message);
+    console.log('핸들러 제거 중 오류 (무시 가능):', error.message);
     }
 
-    // 키보드 이벤트 핸들러 등록
-    ipcMain.on('keyboard-event', (event, data) => {
+  try {
+    // 권한 확인 핸들러
+    ipcMain.handle('check-permissions', async () => {
       try {
-        if (!data) return;
-        
-        // IME 조합 중인 경우 처리하지 않음
-        if (data.isComposing) {
-          debugLog('IME 조합 중 - 키보드 이벤트 무시');
-          return;
-        }
-        
-        // 키 이벤트 처리 로직
-        debugLog(`클라이언트에서 키 이벤트 수신: ${JSON.stringify(data)}`);
-        
-        // 기존 키 이벤트 처리 로직 호출
-        const processKeyInputFn = getProcessKeyInput();
-        if (processKeyInputFn) {
-          processKeyInputFn(data);
-        }
+        const result = await checkMacOSPermissions();
+        return result;
       } catch (error) {
-        console.error('키보드 이벤트 처리 중 오류:', error);
+        console.error('권한 확인 실패:', error);
+        return { accessibility: false, screenRecording: false, error: error.message };
       }
     });
     
-    // IME Composition 이벤트 핸들러 등록
-    ipcMain.on('ime-composition-event', handleImeCompositionEvent);
-    
-    // 마지막으로 완성된 텍스트 요청 핸들러
-    ipcMain.handle('get-last-completed-text', () => {
-      return IME_COMPOSITION.lastCompletedText || '';
+    // 자모 처리기 핸들러
+    ipcMain.handle('process-jamo', async (event, data) => {
+      const result = processJamo(data.char);
+      return result;
     });
-    
-    // 자모 처리 API - 중복 등록 방지 확인 추가
-    try {
-      // 이미 등록된 핸들러인지 확인
-      const existingHandlers = ipcMain._invokeHandlers || {};
-      const hasProcessJamoHandler = existingHandlers['process-jamo'] !== undefined;
-      
-      if (!hasProcessJamoHandler) {
-        ipcMain.handle('process-jamo', (event, char) => {
-          return processJamo(char);
-        });
-        console.log('process-jamo 핸들러 등록됨');
-      } else {
-        console.log('process-jamo 핸들러가 이미 등록되어 있어 중복 등록하지 않음');
-      }
-    } catch (error) {
-      console.error('process-jamo 핸들러 등록 중 오류:', error);
-    }
-    
-    // 한글 합성 완료 처리
-    ipcMain.handle('finish-hangul-composition', (event) => {
-      return finishComposition();
-    });
-    
-    // 한글 분해
-    ipcMain.handle('decompose-hangul', (event, syllable) => {
-      return decomposeHangul(syllable);
-    });
-    
-    // 성공적으로 등록 완료
-    keyboardHandlersRegistered = true;
-    console.log('키보드 IPC 핸들러가 성공적으로 설정되었습니다.');
+
+    console.log('process-jamo 핸들러 등록됨');
+    isKeyboardIpcHandlersSetup = true;
     return true;
   } catch (error) {
     console.error('키보드 IPC 핸들러 설정 오류:', error);
-    keyboardHandlersRegistered = false;
     return false;
   }
 }
@@ -709,30 +672,19 @@ function simulateKeyPress(key) {
  * @returns {Object} 키보드 리스너 인스턴스
  */
 function setupKeyboardListener() {
+  // 이미 설정된 경우 중복 설정 방지
+  if (keyboardHandlersRegistered) {
+    debugLog('키보드 핸들러가 이미 등록되어 있습니다.');
+    return true;
+  }
+
   try {
-    console.log('키보드 이벤트 리스너 설정 중...');
-    
-    // 기존 키보드 이벤트 핸들러 제거
-    try {
-      ipcMain.removeAllListeners('keyboard-event');
-      ipcMain.removeAllListeners('ime-composition-event');
-      ipcMain.removeHandler('sendKeyboardEvent');
-      ipcMain.removeHandler('keyboard-event');
-      ipcMain.removeHandler('ime-composition-event');
-      console.log('기존 키보드 이벤트 핸들러가 제거되었습니다.');
-    } catch (err) {
-      // 무시
-    }
-    
-    // 중복 호출을 방지하기 위해 플래그 확인
-    if (!keyboardHandlersRegistered) {
-      const result = setupKeyboardIpcHandlers();
-      if (result) {
-        keyboardHandlersRegistered = true;
-        console.log('키보드 이벤트 IPC 핸들러가 설정되었습니다.');
-      }
-    } else {
-      console.log('키보드 IPC 핸들러가 이미 등록되어 있습니다.');
+    // IPC 핸들러 설정
+    setupKeyboardIpcHandlers();
+
+    // macOS에서 권한 확인
+    if (process.platform === 'darwin') {
+      checkMacOSPermissions();
     }
     
     // 마지막 활성 창 정보 업데이트 타이머 설정
@@ -794,13 +746,478 @@ function setupKeyboardListener() {
   }
 }
 
+/**
+ * macOS에서 필요한 권한 상태를 확인합니다.
+ * @returns {Promise<Object>} 권한 상태 객체
+ */
+async function checkMacOSPermissions() {
+  if (process.platform !== 'darwin') {
+    return { accessibility: true, screenRecording: true };
+  }
+
+  try {
+    // 접근성 권한 확인
+    const accessibilityPermission = await checkAccessibilityPermission();
+    
+    // 화면 기록 권한 확인 (active-win 또는 get-windows 사용)
+    let screenRecordingPermission = false;
+    try {
+      const activeWin = require('active-win');
+      // active-win을 사용하여 현재 창 정보를 가져옵니다.
+      // 성공적으로 가져오면 화면 기록 권한이 있는 것으로 간주합니다.
+      const windowInfo = await activeWin();
+      screenRecordingPermission = !!windowInfo;
+    } catch (error) {
+      console.error('화면 기록 권한 확인 실패:', error);
+      screenRecordingPermission = false;
+    }
+    
+    // 권한 상태 업데이트 (전역 객체 및 렌더러에 전달)
+    permissionStatus = {
+      accessibility: accessibilityPermission,
+      screenRecording: screenRecordingPermission
+    };
+    
+    // 권한 상태 렌더러에 전달
+    sendPermissionStatusToRenderer();
+    
+    return permissionStatus;
+  } catch (error) {
+    console.error('macOS 권한 확인 실패:', error);
+    sendPermissionErrorToRenderer(error);
+    return { accessibility: false, screenRecording: false };
+  }
+}
+
+// 권한 상태 렌더러에 전송
+function sendPermissionStatusToRenderer() {
+  if (!appState.mainWindow || appState.mainWindow.isDestroyed()) return;
+  
+  appState.mainWindow.webContents.send('permission-status', {
+    code: 'macos-permissions',
+    granted: permissionStatus.screenRecording && permissionStatus.accessibility,
+    details: {
+      screenRecording: permissionStatus.screenRecording,
+      accessibility: permissionStatus.accessibility
+    }
+  });
+}
+
+// 권한 오류 정보 렌더러에 전송
+function sendPermissionErrorToRenderer(error) {
+  if (!appState.mainWindow || appState.mainWindow.isDestroyed()) return;
+  
+  appState.mainWindow.webContents.send('permission-error', {
+    code: 'macos-permissions',
+    message: '화면 기록 또는 접근성 권한이 필요합니다.',
+    detail: error.message || '활성 창 정보를 가져오기 위한 권한이 없습니다.',
+    permissions: {
+      screenRecording: permissionStatus.screenRecording,
+      accessibility: permissionStatus.accessibility
+    }
+  });
+}
+
+/**
+ * macOS에서 접근성 권한을 확인합니다.
+ * @returns {Promise<boolean>} 접근성 권한 있으면 true, 없으면 false
+ */
+async function checkAccessibilityPermission() {
+  if (process.platform !== 'darwin') {
+    return true; // macOS가 아닌 경우 항상 true 반환
+  }
+
+  try {
+    // 시스템 명령어 실행을 위한 모듈
+    const { execSync } = require('child_process');
+    
+    // 접근성 권한 확인을 위한 AppleScript 실행
+    // 접근성 권한이 있으면 정상 종료, 없으면 오류 발생
+    try {
+      execSync('osascript -e \'tell application "System Events" to keystroke ""\'', {
+        stdio: 'ignore'
+      });
+      return true; // 오류가 없으면 권한 있음
+    } catch (error) {
+      // osascript 실행 오류는 권한 없음을 의미할 수 있음
+      return false;
+    }
+  } catch (error) {
+    console.error('접근성 권한 확인 중 오류:', error);
+    return false;
+  }
+}
+
+/**
+ * 키보드 모듈 초기화
+ * @param {Object} options 초기화 옵션
+ * @returns {Boolean} 초기화 성공 여부
+ */
+function initializeKeyboard(options = {}) {
+  try {
+    debugLog('키보드 모듈 초기화');
+    
+    // 이미 초기화된 경우 중복 방지
+    if (keyboardInitialized) {
+      debugLog('키보드 모듈이 이미 초기화되어 있습니다.');
+      return true;
+    }
+    
+    // 키보드 이벤트 리스너 설정
+    setupKeyboardListener();
+    
+    // IPC 핸들러 등록
+    setupKeyboardIpcHandlers();
+    
+    // 플랫폼별 초기화
+    if (process.platform === 'darwin') {
+      // macOS에서 필요한 권한 확인
+      checkMacOSPermissions()
+        .then(result => {
+          permissionStatus.screenRecording = result;
+          sendPermissionStatusToRenderer();
+        })
+        .catch(error => {
+          console.error('macOS 권한 확인 오류:', error);
+          sendPermissionErrorToRenderer(error);
+        });
+    }
+    
+    // 초기화 완료 표시
+    keyboardInitialized = true;
+    
+    return true;
+  } catch (error) {
+    console.error('키보드 모듈 초기화 오류:', error);
+    return false;
+  }
+}
+
+// 키 처리 상태 변수
+let isProcessingKey = false;
+let keyQueue = [];
+let consecutiveErrorCount = 0;
+const MAX_CONSECUTIVE_ERRORS = 5;
+let errorTimeoutId = null;
+let keyboardMonitoringActive = false;
+let permissionErrorNotified = false;
+
+// 권한 재확인 인터벌
+let permissionCheckIntervalId = null;
+const PERMISSION_CHECK_INTERVAL = 60000; // 60초마다 권한 확인
+
+// 폴백 모드 상태
+let isInFallbackMode = false;
+let lastBrowserName = '';
+
+/**
+ * 네이티브 키보드 모니터링에 권한이 있는지 확인하는 함수
+ * 폴백 메커니즘 포함
+ */
+async function checkKeyboardPermissions() {
+  // 1초 내에 여러 번 호출되는 것을 방지
+  if (isProcessingKey) return true;
+  
+  try {
+    // active-win 모듈을 사용하여 권한 확인
+    const windowInfo = await activeWin();
+    
+    // 권한이 있으면 폴백 모드 비활성화
+    if (windowInfo) {
+      isInFallbackMode = false;
+      lastWindowTitle = windowInfo.title || '';
+      lastBrowserName = windowInfo.owner?.name || '';
+      permissionStatus.screenRecording = true;
+      
+      // 이전에 권한 오류 알림을 보여줬다면 이제 권한이 있다는 알림 표시
+      if (permissionErrorNotified && appState.mainWindow && !appState.mainWindow.isDestroyed()) {
+        appState.mainWindow.webContents.send('permission-restored', {
+          type: 'SCREEN_RECORDING',
+          message: '화면 기록 권한이 복원되었습니다'
+        });
+        permissionErrorNotified = false;
+      }
+      
+      return true;
+    } else {
+      debugLog('활성 창 정보를 가져올 수 없음 (권한 부족 가능성)');
+      isInFallbackMode = true;
+      permissionStatus.screenRecording = false;
+      return false;
+    }
+  } catch (error) {
+    debugLog(`키보드 권한 확인 중 오류: ${error.message}`);
+    isInFallbackMode = true;
+    permissionStatus.screenRecording = false;
+    
+    // 권한 오류 알림을 아직 표시하지 않았다면 표시
+    if (!permissionErrorNotified && appState.mainWindow && !appState.mainWindow.isDestroyed()) {
+      errorHandler.handlePermissionError(
+        appState.mainWindow, 
+        'SCREEN_RECORDING',
+        '화면 기록 권한이 필요합니다',
+        {
+          detail: '키보드 입력 모니터링 및 브라우저 정보 확인을 위해 화면 기록 권한이 필요합니다. 시스템 설정에서 권한을 허용해주세요.',
+          fallbackAvailable: true
+        }
+      );
+      permissionErrorNotified = true;
+    }
+    
+    return false;
+  }
+}
+
+/**
+ * 키보드 이벤트를 로컬에서 처리하는 함수
+ * 폴백 모드에서 사용됨
+ */
+function processKeyLocally(key, eventTime) {
+  try {
+    // 키 처리 로직
+    if (typeof appState.stats.processKeyInput === 'function') {
+      const windowInfo = {
+        title: lastWindowTitle,
+        owner: { name: lastBrowserName }
+      };
+      
+      appState.stats.processKeyInput({
+        key, 
+        eventTime,
+        isMetaKey: key.startsWith('Meta') || key.startsWith('Control'),
+        windowTitle: windowInfo.title,
+        browserName: windowInfo.owner.name,
+        fallbackMode: true
+      });
+      
+      return true;
+    }
+    return false;
+  } catch (error) {
+    debugLog(`로컬 키 처리 중 오류: ${error.message}`);
+    return false;
+  }
+}
+
+/**
+ * 정기적으로 권한을 확인하는 함수
+ * 권한이 없을 때 폴백 모드로 전환하고, 권한이 다시 부여되면 정상 모드로 돌아감
+ */
+function startPermissionChecking() {
+  if (permissionCheckIntervalId) {
+    clearInterval(permissionCheckIntervalId);
+  }
+  
+  permissionCheckIntervalId = setInterval(async () => {
+    await checkKeyboardPermissions();
+  }, PERMISSION_CHECK_INTERVAL);
+}
+
+/**
+ * 권한 확인 중지
+ */
+function stopPermissionChecking() {
+  if (permissionCheckIntervalId) {
+    clearInterval(permissionCheckIntervalId);
+    permissionCheckIntervalId = null;
+  }
+}
+
+/**
+ * 키 이벤트 처리 함수
+ * 오류 처리 및 재시도 로직 포함
+ */
+async function processKey(data) {
+  if (!keyboardMonitoringActive) return;
+  
+  try {
+    // 이미 처리 중이면 큐에 추가
+    if (isProcessingKey) {
+      keyQueue.push(data);
+      return;
+    }
+    
+    isProcessingKey = true;
+    
+    // 권한 확인
+    const hasPermission = await checkKeyboardPermissions();
+    
+    if (hasPermission) {
+      // 권한이 있으면 표준 처리
+      if (typeof appState.stats.processKeyInput === 'function') {
+        const windowInfo = await activeWin();
+        
+        if (windowInfo) {
+          appState.stats.processKeyInput({
+            key: data.key,
+            eventTime: data.eventTime,
+            isMetaKey: data.key.startsWith('Meta') || data.key.startsWith('Control'),
+            windowTitle: windowInfo.title,
+            browserName: windowInfo.owner?.name,
+            fallbackMode: false
+          });
+        }
+      }
+      
+      // 에러 카운터 초기화
+      consecutiveErrorCount = 0;
+    } else if (isInFallbackMode) {
+      // 폴백 모드에서는 로컬에서 처리
+      processKeyLocally(data.key, data.eventTime);
+    }
+    
+    isProcessingKey = false;
+    
+    // 대기열에 있는 다음 키 처리
+    if (keyQueue.length > 0) {
+      const nextKey = keyQueue.shift();
+      processKey(nextKey);
+    }
+  } catch (error) {
+    debugLog(`키 처리 중 오류: ${error.message}`);
+    errorHandler.logErrorToFile(error, 'keyboard-processKey');
+    
+    // 연속 오류 카운트 증가
+    consecutiveErrorCount++;
+    
+    if (consecutiveErrorCount >= MAX_CONSECUTIVE_ERRORS) {
+      // 너무 많은 연속 오류가 발생하면 잠시 모니터링 중지
+      debugLog(`연속 오류 과다: ${consecutiveErrorCount}회. 모니터링 일시 중지`);
+      
+      if (keyboardMonitoringActive && appState.mainWindow && !appState.mainWindow.isDestroyed()) {
+        appState.mainWindow.webContents.send('keyboard-monitoring-error', {
+          message: '키보드 모니터링 오류가 과도하게 발생하여 일시 중지되었습니다.',
+          autoRestart: true
+        });
+      }
+      
+      // 30초 후 자동 재개 시도
+      if (errorTimeoutId) clearTimeout(errorTimeoutId);
+      errorTimeoutId = setTimeout(() => {
+        debugLog('키보드 모니터링 자동 재개 시도');
+        consecutiveErrorCount = 0;
+        isProcessingKey = false;
+      }, 30000);
+    } else {
+      isProcessingKey = false;
+      
+      // 대기열에 있는 다음 키 처리
+      if (keyQueue.length > 0) {
+        const nextKey = keyQueue.shift();
+        processKey(nextKey);
+      }
+    }
+  }
+}
+
+/**
+ * 키보드 모니터링 시작
+ */
+function startKeyboardMonitoring() {
+  debugLog('키보드 모니터링 시작');
+  keyboardMonitoringActive = true;
+  
+  // 권한 확인 시작
+  startPermissionChecking();
+  
+  return true;
+}
+
+/**
+ * 키보드 모니터링 중지
+ */
+function stopKeyboardMonitoring() {
+  debugLog('키보드 모니터링 중지');
+  keyboardMonitoringActive = false;
+  
+  // 권한 확인 중지
+  stopPermissionChecking();
+  
+  return true;
+}
+
+/**
+ * IPC 핸들러 설정
+ */
+function setupKeyboardEventHandler() {
+  // 핸들러가 이미 설정되어 있으면 중복 등록 방지
+  if (keyboardHandlersRegistered) {
+    debugLog('키보드 IPC 핸들러가 이미 등록되어 있습니다.');
+    return true;
+  }
+
+  // 안전하게 기존 핸들러 제거 시도
+  try {
+    ipcMain.removeHandler('process-jamo');
+    debugLog('기존 키보드 IPC 핸들러가 제거되었습니다.');
+  } catch (error) {
+    debugLog('핸들러 제거 중 오류 (무시 가능):', error.message);
+  }
+
+  try {
+    // 자모 처리기 핸들러
+    ipcMain.handle('process-jamo', async (event, data) => {
+      return processJamo(data);
+    });
+
+    debugLog('process-jamo 핸들러 등록됨');
+    keyboardHandlersRegistered = true;
+    return true;
+  } catch (error) {
+    debugLog(`키보드 IPC 핸들러 설정 중 오류: ${error.message}`);
+    return false;
+  }
+}
+
+/**
+ * 자모 조합 처리 함수
+ * 한국어, 일본어, 중국어 등의 복합 문자 처리
+ */
+function processJamo(data) {
+  if (!keyboardMonitoringActive) return { success: false, reason: '모니터링 비활성화' };
+  
+  try {
+    if (typeof appState.stats.processKeyInput === 'function') {
+      // 권한이 없거나 폴백 모드일 경우
+      if (isInFallbackMode) {
+        processKeyLocally(data.char, Date.now());
+      } else {
+        // 정상 모드
+        activeWin()
+          .then(windowInfo => {
+            if (windowInfo) {
+              appState.stats.processKeyInput({
+                key: data.char,
+                eventTime: Date.now(),
+                isMetaKey: false,
+                windowTitle: windowInfo.title,
+                browserName: windowInfo.owner?.name,
+                fallbackMode: false,
+                isCompositionChar: true
+              });
+            }
+          })
+          .catch(error => {
+            // 권한 오류 시 폴백으로 처리
+            processKeyLocally(data.char, Date.now());
+          });
+      }
+      return { success: true };
+    }
+    return { success: false, reason: '처리 함수 없음' };
+  } catch (error) {
+    debugLog(`자모 처리 중 오류: ${error.message}`);
+    return { success: false, error: error.message };
+  }
+}
+
+// 모듈 내보내기
 module.exports = {
-  setupKeyboardIpcHandlers,
-  setupKeyboardListener,
-  handleImeCompositionEvent,
+  setupKeyboardEventHandler,
+  initializeKeyboard,
+  startKeyboardMonitoring,
+  stopKeyboardMonitoring,
+  processKey,
   processJamo,
-  composeHangul,
-  decomposeHangul,
-  finishComposition,
-  registerGlobalShortcuts: () => console.log('전역 단축키 등록을 아직 구현하지 않았습니다')
+  checkKeyboardPermissions
 };

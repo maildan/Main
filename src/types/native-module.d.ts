@@ -1,7 +1,6 @@
 /**
  * 네이티브 모듈 타입 정의
- * 
- * Rust로 작성된 네이티브 모듈과의 인터페이스를 정의합니다.
+ * 이 파일은 src/server/native/index.js에서 내보내는 모듈의 타입을 정의합니다.
  */
 
 /**
@@ -267,3 +266,93 @@ export interface GpuAccelerationResponse {
   error?: string;
   timestamp: number;
 }
+
+/**
+ * 네이티브 모듈 메트릭스 인터페이스
+ */
+interface NativeModuleMetrics {
+  calls: number;
+  errors: number;
+  avgExecutionTime: number;
+  lastDuration: number;
+  totalTime: number;
+}
+
+/**
+ * 네이티브 모듈 상태 인터페이스
+ */
+interface NativeModuleState {
+  available: boolean;
+  isFallback: boolean;
+  metrics: NativeModuleMetrics;
+}
+
+/**
+ * 메모리 최적화 매개변수
+ */
+interface MemoryOptimizationOptions {
+  level?: number;
+  emergency?: boolean;
+}
+
+/**
+ * 네이티브 모듈 타입 정의
+ */
+declare module '../../../../server/native' {
+  const nativeModule: {
+    // 모듈 상태 관련 메서드
+    getModuleState(): NativeModuleState;
+    getLastError(): any | null;
+    isNativeModuleAvailable?(): boolean;
+    isFallbackMode?(): boolean;
+
+    // 버전 및 정보 메서드
+    getNativeModuleVersion?(): string;
+    getNativeModuleInfo?(): Record<string, any>;
+
+    // GPU 관련 메서드
+    getGpuInfo?(): GpuInfo | string;
+    isGpuAccelerationAvailable?(): boolean;
+    getGpuAccelerationStatus?(): GpuAccelerationStatus | string;
+    performGpuComputation?(data: string | object, type: string): any;
+
+    // 메모리 관련 메서드
+    getMemoryInfo?(): MemoryInfo | string;
+    optimizeMemory?(level?: number, emergency?: boolean): OptimizationResult | string;
+    
+    // 패턴 분석 및 예측 메서드
+    analyzePattern?(data: string | any[]): any;
+    predictPattern?(data: string | any[]): any;
+    
+    // 통계 관련 메서드
+    calculateStatistics?(data: any[]): any;
+    getTypingSpeed?(data: any[]): number;
+
+    // Worker 관련 메서드
+    runWorker?(jobType: string, jobData: any): Promise<any>;
+    stopWorker?(workerId: string): boolean;
+  };
+
+  export default nativeModule;
+}
+
+// 다른 경로에서 import할 때 사용하는 타입
+declare module '../../../server/native' {
+  import nativeModule from '../../../../server/native';
+  export default nativeModule;
+}
+
+declare module '../../../../native/index' {
+  import nativeModule from '../../../../server/native';
+  export default nativeModule;
+}
+
+// 내보내기를 위한 타입
+export type {
+  GpuInfo,
+  MemoryInfo,
+  OptimizationResult,
+  GpuAccelerationStatus,
+  NativeModuleState,
+  NativeModuleMetrics
+};

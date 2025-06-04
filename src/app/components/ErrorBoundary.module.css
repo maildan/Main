@@ -1,0 +1,110 @@
+.errorContainer {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 300px;
+  width: 100%;
+  padding: 1rem;
+}
+
+.errorCard {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-error);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  padding: 1.5rem;
+  max-width: 600px;
+  width: 100%;
+}
+
+.errorTitle {
+  color: var(--text-error);
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin-bottom: 1rem;
+  border-bottom: 1px solid var(--border-light);
+  padding-bottom: 0.75rem;
+}
+
+.errorDetails {
+  margin-bottom: 1.5rem;
+}
+
+.errorMessage {
+  font-size: 1rem;
+  line-height: 1.5;
+  color: var(--text-primary);
+  margin-bottom: 1rem;
+}
+
+.errorStack {
+  font-family: monospace;
+  background-color: var(--bg-code);
+  border-radius: 4px;
+  padding: 1rem;
+  margin-top: 1rem;
+  overflow-x: auto;
+}
+
+.errorStack summary {
+  cursor: pointer;
+  font-weight: 500;
+  color: var(--text-secondary);
+  margin-bottom: 0.5rem;
+}
+
+.errorStack pre {
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: var(--text-code);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.errorActions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.retryButton {
+  background-color: var(--bg-button);
+  color: var(--text-button);
+  border: none;
+  border-radius: 4px;
+  padding: 0.5rem 1rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.retryButton:hover {
+  background-color: var(--bg-button-hover);
+}
+
+/* 다크 모드 대응 */
+:global(.dark-mode) .errorCard {
+  background-color: var(--bg-card-dark);
+}
+
+:global(.dark-mode) .errorStack {
+  background-color: var(--bg-code-dark);
+}
+
+:global(.dark-mode) .errorMessage {
+  color: var(--text-primary-dark);
+}
+
+@media (prefers-color-scheme: dark) {
+  :global(html:not(.light-mode)) .errorCard {
+    background-color: var(--bg-card-dark);
+  }
+
+  :global(html:not(.light-mode)) .errorStack {
+    background-color: var(--bg-code-dark);
+  }
+
+  :global(html:not(.light-mode)) .errorMessage {
+    color: var(--text-primary-dark);
+  }
+} 

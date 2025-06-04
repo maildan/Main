@@ -1,109 +1,152 @@
 'use client';
 
-import { ReactNode, useEffect, useState } from 'react';
+import React, { ReactNode, useEffect, useState } from 'react';
 import { ThemeProvider } from './ThemeProvider';
-import { ToastProvider } from './ToastContext';
-import { shell } from 'electron';
+import { ToastProvider, useToast } from './ToastContext';
+import { DynamicPermissionBanner } from './dynamic-components';
 
 interface ClientLayoutProps {
   children: ReactNode;
 }
 
-// 권한 오류 타입 정의
 interface PermissionError {
   code: string;
   message: string;
   detail?: string;
+  permissions?: {
+    screenRecording?: boolean | null;
+    accessibility?: boolean | null;
+  };
+}
+
+interface PermissionStatus {
+  screenRecording: boolean | null;
+  accessibility: boolean | null;
 }
 
 export default function ClientLayout({ children }: ClientLayoutProps) {
-  // 권한 오류 상태
-  const [permissionError, setPermissionError] = useState<PermissionError | null>(null);
-  // 배너 닫기 애니메이션 상태
-  const [isClosing, setIsClosing] = useState(false);
+  const { showToast } = useToast();
+  const [_permissionError, setPermissionError] = useState<PermissionError | null>(null);
+  const [permissionStatus, setPermissionStatus] = useState<PermissionStatus>({
+    screenRecording: null,
+    accessibility: null
+  });
+  const [bannerClosed, setBannerClosed] = useState(false);
 
   useEffect(() => {
-    // 권한 오류 이벤트 리스너
+    // Electron API 확인
+    const electronAPI = window.electronAPI;
+    if (!electronAPI) return;
+
+    // 권한 오류 리스너
     const handlePermissionError = (error: PermissionError) => {
       console.log('권한 오류 발생:', error);
-      setIsClosing(false); // 새로운 오류가 발생하면 닫기 상태 초기화
       setPermissionError(error);
-    };
-
-    // 권한 상태 업데이트 이벤트 리스너
-    const handlePermissionStatus = (status: { code: string, granted: boolean }) => {
-      if (status.granted && permissionError?.code === status.code) {
-        // 권한이 허용되면 닫기 애니메이션 후 오류 상태 제거
-        handleCloseBanner();
+      
+      if (error.code === 'macos-permissions') {
+        setPermissionStatus({
+          screenRecording: error.permissions?.screenRecording ?? null,
+          accessibility: error.permissions?.accessibility ?? null
+        });
+        
+        showToast(`권한 오류: ${error.message}`, 'warning');
       }
     };
 
-    // IPC 이벤트 리스너 등록
-    let removePermissionErrorListener: () => void = () => {};
-    let removePermissionStatusListener: () => void = () => {};
+    // 권한 상태 업데이트 리스너
+    const handlePermissionStatus = (status: { 
+      code: string,
+      details?: {
+        screenRecording?: boolean | null;
+        accessibility?: boolean | null;
+      }
+    }) => {
+      if (status.code === 'macos-permissions') {
+        setPermissionStatus({
+          screenRecording: status.details?.screenRecording ?? null,
+          accessibility: status.details?.accessibility ?? null
+        });
+      }
+    };
 
-    if (typeof window !== 'undefined' && window.electronAPI) {
-      // 권한 오류 이벤트 수신
-      removePermissionErrorListener = window.electronAPI.onPermissionError(handlePermissionError);
-      // 권한 상태 업데이트 이벤트 수신
-      removePermissionStatusListener = window.electronAPI.onPermissionStatus(handlePermissionStatus);
+    // 리스너 등록
+    let removePermissionErrorListener: (() => void) | undefined;
+    let removePermissionStatusListener: (() => void) | undefined;
+
+    if (electronAPI.onPermissionError) {
+      removePermissionErrorListener = electronAPI.onPermissionError(handlePermissionError);
+    }
+    
+    if (electronAPI.onPermissionStatus) {
+      removePermissionStatusListener = electronAPI.onPermissionStatus(handlePermissionStatus);
+    }
+    
+    // 초기 권한 확인
+    if (electronAPI.checkPermissions) {
+      electronAPI.checkPermissions()
+        .then((status: PermissionStatus) => {
+          setPermissionStatus({
+            screenRecording: status.screenRecording,
+            accessibility: status.accessibility
+          });
+        })
+        .catch(console.error);
     }
 
+    // 클린업
     return () => {
-      // 컴포넌트 언마운트 시 이벤트 리스너 제거
-      removePermissionErrorListener();
-      removePermissionStatusListener();
+      if (removePermissionErrorListener) removePermissionErrorListener();
+      if (removePermissionStatusListener) removePermissionStatusListener();
     };
-  }, [permissionError]);
+  }, [showToast]);
 
-  // macOS 시스템 환경설정 열기
+  // 시스템 환경설정 열기
   const openSystemPreferences = () => {
-    if (permissionError?.code === 'SCREEN_RECORDING') {
-      // macOS 화면 기록 권한 설정 페이지 열기
-      shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenRecording');
+    if (window.electronAPI?.openPermissionsSettings) {
+      window.electronAPI.openPermissionsSettings()
+        .then((success: boolean) => {
+          if (!success) {
+            showToast('시스템 설정을 여는 데 실패했습니다.', 'error');
+          }
+        })
+        .catch(() => {
+          showToast('시스템 설정을 열 수 없습니다.', 'error');
+        });
+    } else {
+      showToast('시스템 설정을 열 수 없습니다.', 'error');
     }
   };
 
-  // 배너 닫기 애니메이션 처리
+  // 권한 배너 닫기
   const handleCloseBanner = () => {
-    setIsClosing(true); // 먼저 애니메이션 시작
+    setBannerClosed(true);
+  };
+  
+  // 권한 배너가 필요한지 확인
+  const needsPermissionBanner = () => {
+    if (bannerClosed) return false;
     
-    // 애니메이션 완료 후 상태 제거
-    setTimeout(() => {
-      setPermissionError(null);
-      setIsClosing(false);
-    }, 300); // 애니메이션 시간과 일치
+    // macOS에서만 표시
+    if (typeof navigator !== 'undefined' && !navigator.userAgent.includes('Mac OS')) {
+      return false;
+    }
+    
+    // 권한 중 하나라도 false인 경우 배너 표시 필요
+    return permissionStatus.screenRecording === false || 
+           permissionStatus.accessibility === false;
   };
 
   return (
     <ThemeProvider>
       <ToastProvider>
-        {/* 권한 오류 배너 */}
-        {permissionError && (
-          <div className={`permission-error-banner ${isClosing ? 'closing' : ''}`}>
-            <div className="permission-error-content">
-              <div className="permission-error-title">⚠️ 권한 오류: {permissionError.message}</div>
-              {permissionError.detail && (
-                <div className="permission-error-detail">{permissionError.detail}</div>
-              )}
-            </div>
-            <div className="permission-error-actions">
-              <button 
-                className="permission-settings-button" 
-                onClick={openSystemPreferences}
-              >
-                설정 열기
-              </button>
-              <button 
-                className="permission-close-button" 
-                onClick={handleCloseBanner}
-              >
-                닫기
-              </button>
-            </div>
-          </div>
+        {needsPermissionBanner() && (
+          <DynamicPermissionBanner
+            screenRecording={permissionStatus.screenRecording}
+            accessibility={permissionStatus.accessibility}
+            onOpenSettings={openSystemPreferences}
+            onClose={handleCloseBanner}
+          />
         )}
-
         {children}
       </ToastProvider>
     </ThemeProvider>

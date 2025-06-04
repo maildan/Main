@@ -55,9 +55,6 @@ export const TypingChart = React.memo(function TypingChart({ logs }: TypingChart
   // 다크 모드 상태 추적
   const [isDarkMode, setIsDarkMode] = useState(false);
   
-  // 차트 인스턴스 참조 저장
-  const chartRefs = useRef<any[]>([]);
-  
   // 컴포넌트 마운트/언마운트 감지
   const isMountedRef = useRef(true);
   
@@ -92,25 +89,16 @@ export const TypingChart = React.memo(function TypingChart({ logs }: TypingChart
     
     // 컴포넌트 마운트 상태 설정
     isMountedRef.current = true;
-    
-    return () => {
+      return () => {
       // 컴포넌트 언마운트 시 모든 리소스 해제
       isMountedRef.current = false;
-      observer.disconnect();
-      window.removeEventListener('darkmode-changed', handleDarkModeChange as EventListener);
-      
-      // 차트 인스턴스 정리
-      chartRefs.current.forEach(chart => {
-        if (chart && chart.destroy) {
-          chart.destroy();
-        }
-      });
+      observer.disconnect();      window.removeEventListener('darkmode-changed', handleDarkModeChange as EventListener);
       
       // 메모리 정리 요청
       if (window.gc) {
         try {
           window.gc();
-        } catch (e) {
+        } catch {
           console.log('GC 호출 실패');
         }
       }
@@ -328,7 +316,6 @@ export const TypingChart = React.memo(function TypingChart({ logs }: TypingChart
       ],
     };
   }, []);
-
   // 메모이제이션된 차트 데이터 (함수로 생성)
   const speedChartData = useMemo(() => 
     createChartData(
@@ -337,32 +324,7 @@ export const TypingChart = React.memo(function TypingChart({ logs }: TypingChart
       '평균 타이핑 속도 (타/분)',
       isDarkMode ? 'rgb(3, 218, 198)' : 'rgb(75, 192, 192)',
       isDarkMode ? 'rgba(3, 218, 198, 0.5)' : 'rgba(75, 192, 192, 0.5)'
-    ),
-  [chartData.labels, chartData.speedData, isDarkMode, createChartData]);
-
-  // 더 효율적인 렌더링을 위한 지연 로딩 상태
-  const [shouldRenderCharts, setShouldRenderCharts] = useState(false);
-
-  // 지연 로딩 설정
-  useEffect(() => {
-    if (!shouldRenderCharts && filteredLogs.length > 0) {
-      // 약간의 지연 후 차트 렌더링 시작
-      const timer = setTimeout(() => {
-        if (isMountedRef.current) {
-          setShouldRenderCharts(true);
-        }
-      }, 100);
-      
-      return () => clearTimeout(timer);
-    }
-  }, [filteredLogs.length, shouldRenderCharts]);
-
-  // 차트 참조 설정 콜백
-  const setChartRef = useCallback((instance: any) => {
-    if (instance) {
-      chartRefs.current.push(instance);
-    }
-  }, []);
+    ),  [chartData.labels, chartData.speedData, isDarkMode, createChartData]);
 
   return (
     <div className={styles.chartContainer}>
@@ -370,63 +332,55 @@ export const TypingChart = React.memo(function TypingChart({ logs }: TypingChart
       
       {filteredLogs.length > 0 ? (
         <div className={styles.charts}>
-          {/* 차트 렌더링에 지연 로딩 및 조건부 렌더링 적용 */}
-          {shouldRenderCharts && chartData.labels.length > 0 && (
+          {/* 차트를 즉시 렌더링 */}
+          {chartData.labels.length > 0 && (
             <div className={styles.chartItem}>
               <h3>일별 평균 타이핑 속도</h3>
-              <div className={styles.chartWrapper}>
-                <Line 
+              <div className={styles.chartWrapper}>                <Line 
                   data={speedChartData} 
                   options={getChartOptions('일별 평균 속도 (타/분)')}
                   redraw={false}
-                  ref={setChartRef}
                 />
               </div>
             </div>
           )}
           
-          {/* 다른 차트들은 사용자가 탭을 전환할 때만 렌더링하도록 지연 로딩 처리 */}
-          {shouldRenderCharts && (
-            <>
-              <div className={styles.chartItem}>
-                <h3>일별 총 타자 수</h3>
-                <div className={styles.chartWrapper}>
-                  <Bar 
-                    data={{
-                      labels: chartData.labels,
-                      datasets: [{
-                        label: '총 타자 수',
-                        data: chartData.keyCountData,
-                        backgroundColor: isDarkMode ? 'rgba(30, 136, 229, 0.7)' : 'rgba(54, 162, 235, 0.5)',
-                      }]
-                    }}
-                    options={getChartOptions('일별 총 타자 수')}
-                    redraw={false}
-                    ref={setChartRef}
-                  />
-                </div>
+          {/* 다른 차트들도 즉시 렌더링 */}
+          <>
+            <div className={styles.chartItem}>
+              <h3>일별 총 타자 수</h3>
+              <div className={styles.chartWrapper}>
+                <Bar 
+                  data={{
+                    labels: chartData.labels,
+                    datasets: [{
+                      label: '총 타자 수',
+                      data: chartData.keyCountData,
+                      backgroundColor: isDarkMode ? 'rgba(30, 136, 229, 0.7)' : 'rgba(54, 162, 235, 0.5)',
+                    }]
+                  }}                  options={getChartOptions('일별 총 타자 수')}
+                  redraw={false}
+                />
               </div>
-              
-              <div className={styles.chartItem}>
-                <h3>일별 총 타이핑 시간</h3>
-                <div className={styles.chartWrapper}>
-                  <Bar 
-                    data={{
-                      labels: chartData.labels,
-                      datasets: [{
-                        label: '총 타이핑 시간 (분)',
-                        data: chartData.timeData,
-                        backgroundColor: isDarkMode ? 'rgba(207, 102, 121, 0.7)' : 'rgba(255, 99, 132, 0.5)',
-                      }]
-                    }}
-                    options={getChartOptions('일별 총 타이핑 시간 (분)')}
-                    redraw={false}
-                    ref={setChartRef}
-                  />
-                </div>
+            </div>
+            
+            <div className={styles.chartItem}>
+              <h3>일별 총 타이핑 시간</h3>
+              <div className={styles.chartWrapper}>
+                <Bar 
+                  data={{
+                    labels: chartData.labels,
+                    datasets: [{
+                      label: '총 타이핑 시간 (분)',
+                      data: chartData.timeData,
+                      backgroundColor: isDarkMode ? 'rgba(207, 102, 121, 0.7)' : 'rgba(255, 99, 132, 0.5)',
+                    }]
+                  }}                  options={getChartOptions('일별 총 타이핑 시간 (분)')}
+                  redraw={false}
+                />
               </div>
-            </>
-          )}
+            </div>
+          </>
         </div>
       ) : (
         <p className={styles.noData}>저장된 타이핑 데이터가 없습니다.</p>

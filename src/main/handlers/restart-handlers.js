@@ -51,10 +51,13 @@ function restartApplication() {
     // 안전한 종료를 위한 플래그 설정
     appState.allowQuit = true;
     
-    // 설정 저장 확인
-    saveSettings(appState.settings)
-      .then(() => {
-        debugLog('재시작 전 설정 저장 완료');
+    // 설정 저장
+    try {
+      const saved = saveSettings(appState.settings);
+      debugLog('재시작 전 설정 저장 완료: ' + (saved ? '성공' : '실패'));
+    } catch (error) {
+      console.error('재시작 전 설정 저장 중 오류:', error);
+    }
         
         // 약간의 지연 후 재시작 (로딩 화면을 보여주기 위해)
         setTimeout(() => {
@@ -66,15 +69,6 @@ function restartApplication() {
             console.error('앱 재시작 실행 중 오류:', error);
           }
         }, 1000);
-      })
-      .catch(error => {
-        console.error('재시작 전 설정 저장 중 오류:', error);
-        // 오류가 있어도 재시작 시도
-        setTimeout(() => {
-          app.relaunch();
-          app.exit(0);
-        }, 1000);
-      });
   } catch (error) {
     console.error('앱 재시작 처리 중 오류:', error);
     
@@ -167,10 +161,13 @@ function register() {
       // 모든 창 정리
       cleanupWindows();
       
-      // 설정 저장 후 재시작
-      saveSettings(appState.settings)
-        .then(() => {
-          debugLog('재시작 전 설정 저장 완료');
+      // 설정 저장
+      try {
+        const saved = saveSettings(appState.settings);
+        debugLog('재시작 전 설정 저장 완료: ' + (saved ? '성공' : '실패'));
+      } catch (error) {
+        console.error('재시작 전 설정 저장 중 오류:', error);
+      }
           
           // 약간의 지연 후 재시작 (로딩 화면을 보여주기 위해)
           setTimeout(() => {
@@ -178,16 +175,6 @@ function register() {
             app.relaunch();
             app.exit(0);
           }, 1000);
-        })
-        .catch(error => {
-          console.error('재시작 전 설정 저장 중 오류:', error);
-          
-          // 오류가 있어도 재시작 시도
-          setTimeout(() => {
-            app.relaunch();
-            app.exit(0);
-          }, 1000);
-        });
     } catch (error) {
       console.error('앱 재시작 처리 중 오류 (대화 상자):', error);
       

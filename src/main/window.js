@@ -14,57 +14,242 @@ const { applyWindowMode, loadSettings } = require('./settings');
 const { debugLog } = require('./utils');
 const { setupTray } = require('./tray');
 const securityChecks = require('./security-checks');
+const errorHandler = require('./error-handler');
 
 // 개발 모드 여부 직접 확인
 const isDev = process.env.NODE_ENV === 'development';
 // Next.js 서버 포트 (3000으로 고정)
 const nextPort = process.env.NEXT_PORT || 3000;
+// 연결 재시도 최대 횟수 증가
+const maxRetries = 15;
+// 타임아웃 시간 증가 (20초)
+const timeout = 20000;
 
 /**
  * Next.js 서버가 준비되었는지 확인하는 함수
+ * 개선된 버전으로 재시도 로직 및 에러 처리 추가
  */
 function checkIfNextServerReady() {
   return new Promise((resolve, reject) => {
     debugLog('Next.js 서버 준비 상태 확인 중...');
-    
     debugLog(`포트 ${nextPort} 확인 중...`);
 
-    // 타임아웃 설정
-    const timeout = setTimeout(() => {
-      debugLog('Next.js 서버 연결 타임아웃. 기본 3000 포트 사용');
-      resolve(3000); // 기본값으로 3000 반환
-    }, 10000);
+    let retries = 0;
+    let checkComplete = false;
 
     const checkServer = () => {
-      const options = {
-        hostname: 'localhost',
-        port: nextPort,
-        path: '/',
-        method: 'HEAD',
-        timeout: 2000
-      };
+      if (checkComplete) return;
+      
+      retries += 1;
+      debugLog(`Next.js 서버 연결 시도 중... (시도 ${retries}/${maxRetries})`);
 
-      const req = http.request(options, (res) => {
-        clearTimeout(timeout);
-        if (res.statusCode === 200 || res.statusCode === 304) {
+      const req = http.get(`http://localhost:${nextPort}`, (res) => {
+        if (res.statusCode === 200) {
+          checkComplete = true;
           debugLog(`Next.js 서버가 포트 ${nextPort}에서 실행 중입니다.`);
-          resolve(nextPort);
+          
+          // 번들링이 완료되었는지 추가 확인
+          setTimeout(() => {
+            debugLog('Next.js 번들링이 완료되었습니다.');
+            resolve(true);
+          }, 2000);
         } else {
-          debugLog(`Next.js 서버 응답 코드: ${res.statusCode}, 다시 시도 중...`);
+          if (retries < maxRetries) {
           setTimeout(checkServer, 1000);
+          } else {
+            checkComplete = true;
+            const error = new Error(`Next.js 서버가 응답했지만 상태 코드가 200이 아닙니다: ${res.statusCode}`);
+            debugLog(`Next.js 서버 오류: ${error.message}`);
+            reject(error);
+          }
         }
       });
 
       req.on('error', (error) => {
-        debugLog(`Next.js 서버 연결 오류: ${error.message}, 다시 시도 중...`);
+        if (retries < maxRetries && !checkComplete) {
         setTimeout(checkServer, 1000);
+        } else if (!checkComplete) {
+          checkComplete = true;
+          debugLog('Next.js 서버 연결 시간 초과');
+          reject(new Error('Next.js 서버 연결 시간 초과'));
+        }
       });
 
-      req.end();
+      req.setTimeout(2000, () => {
+        req.abort();
+        if (retries < maxRetries && !checkComplete) {
+          setTimeout(checkServer, 1000);
+        } else if (!checkComplete) {
+          checkComplete = true;
+          debugLog('Next.js 서버 연결 시간 초과');
+          reject(new Error('Next.js 서버 연결 시간 초과'));
+        }
+      });
     };
 
-    // 서버 준비 상태 확인 시작
+    // 처음 시도
     checkServer();
+    
+    // 전체 타임아웃
+    setTimeout(() => {
+      if (!checkComplete) {
+        checkComplete = true;
+        debugLog(`Next.js 서버 연결 전체 타임아웃 (${timeout / 1000}초)`);
+        reject(new Error(`Next.js 서버 연결 타임아웃 (${timeout / 1000}초 후)`));
+      }
+    }, timeout);
+  });
+}
+
+/**
+ * Next.js 개발 서버 상태를 확인하는 함수
+ * 주기적으로 서버 상태를 체크하고, 문제가 있으면 알림
+ */
+function setupNextServerHealthCheck(mainWindow) {
+  if (!isDev) return;
+  
+  const healthCheckInterval = 30000; // 30초마다 체크
+  
+  const checkServerHealth = async () => {
+    try {
+      const req = http.get(`http://localhost:${nextPort}/api/health`, (res) => {
+        if (res.statusCode === 200) {
+          // 서버가 정상이면 아무 작업 없음
+          debugLog('Next.js 서버 상태 확인: 정상');
+        } else {
+          // 비정상 응답 코드
+          const error = new Error(`Next.js 서버 상태 이상 (상태 코드: ${res.statusCode})`);
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            errorHandler.notifyRendererOfError(mainWindow, 'next-server-warning', '개발 서버 상태 이상', {
+              statusCode: res.statusCode,
+              retry: true
+            });
+          }
+        }
+      });
+      
+      req.on('error', (error) => {
+        debugLog(`Next.js 서버 상태 확인 실패: ${error.message}`);
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          errorHandler.notifyRendererOfError(mainWindow, 'next-server-error', '개발 서버 연결 실패', {
+            error: error.message,
+            retry: true
+          });
+        }
+      });
+      
+      req.setTimeout(5000, () => {
+        req.abort();
+        debugLog('Next.js 서버 상태 확인 시간 초과');
+      });
+    } catch (error) {
+      debugLog(`Next.js 서버 상태 확인 중 예외 발생: ${error.message}`);
+    }
+  };
+  
+  // 초기 지연 후 시작
+  setTimeout(() => {
+    checkServerHealth();
+    return setInterval(checkServerHealth, healthCheckInterval);
+  }, 10000);
+}
+
+// 기본 웹 서버 로딩 URL
+let defaultLoadURL = '';
+
+/**
+ * 기본 URL 설정
+ */
+function setDefaultLoadURL(mode) {
+  if (mode === 'development' || isDev) {
+    defaultLoadURL = `http://localhost:${nextPort}`;
+  } else {
+    defaultLoadURL = url.format({
+      pathname: path.join(__dirname, '../../client/out/index.html'),
+      protocol: 'file:',
+      slashes: true
+    });
+  }
+}
+
+// 앱 시작 시 기본 URL 설정
+setDefaultLoadURL(process.env.NODE_ENV);
+
+/**
+ * React 앱이 마운트 되었는지 확인하는 함수
+ */
+function checkIfReactAppMounted(window) {
+  if (!window || window.isDestroyed()) return;
+  
+  window.webContents.executeJavaScript(`
+    new Promise((resolve) => {
+      if (document.getElementById('__next') && document.getElementById('__next').children.length > 0) {
+        console.warn('[Loop App] React/Next.js 앱이 마운트 되었습니다!');
+        resolve(true);
+      } else {
+        console.warn('[Loop App] React/Next.js 앱이 아직 마운트되지 않았습니다. 기다리는 중...');
+        
+        // DOM 변화 관찰
+        const observer = new MutationObserver((mutations) => {
+          if (document.getElementById('__next') && document.getElementById('__next').children.length > 0) {
+            console.warn('[Loop App] React/Next.js 앱이 마운트 되었습니다!');
+            observer.disconnect();
+            resolve(true);
+          }
+        });
+        
+        observer.observe(document.body, {
+          childList: true,
+          subtree: true
+        });
+        
+        // 10초 후 타임아웃
+        setTimeout(() => {
+          observer.disconnect();
+          console.warn('[Loop App] React 앱 마운트 확인 타임아웃');
+          resolve(false);
+        }, 10000);
+      }
+    });
+  `)
+  .then((mounted) => {
+    if (mounted) {
+      debugLog('Next.js 서버 준비됨, 페이지 로딩 완료');
+      
+      // 로딩 화면 제거 (필요한 경우)
+      removeLoadingScreen(window);
+      
+      // 개발 모드에서 자동으로 DevTools 열기
+      if (isDev && window && !window.isDestroyed()) {
+        window.webContents.openDevTools({ mode: 'right' });
+        debugLog('개발 모드: DevTools 자동으로 열림');
+      }
+    }
+  })
+  .catch((error) => {
+    debugLog(`React 앱 마운트 확인 중 오류: ${error.message}`);
+  });
+}
+
+/**
+ * 로딩 화면 제거 함수
+ */
+function removeLoadingScreen(window) {
+  if (!window || window.isDestroyed()) return;
+  
+  window.webContents.executeJavaScript(`
+    if (document.getElementById('app-loading-screen')) {
+      const loadingScreen = document.getElementById('app-loading-screen');
+      loadingScreen.style.opacity = '0';
+      setTimeout(() => {
+        if (loadingScreen && loadingScreen.parentNode) {
+          loadingScreen.parentNode.removeChild(loadingScreen);
+        }
+      }, 500);
+    }
+  `)
+  .catch(error => {
+    debugLog(`로딩 화면 제거 중 오류: ${error.message}`);
   });
 }
 
@@ -133,7 +318,7 @@ async function createWindow() {
         contextIsolation: true, // 보안을 위해 활성화
         sandbox: false, // contextIsolation이 적용되어 있으므로 sandbox는 해제
         preload: path.join(__dirname, '../preload.js'), // preload.js 경로 수정
-        devTools: isDev, // 개발 모드에서만 DevTools 활성화
+        devTools: true, // 항상 DevTools 활성화
         
         // 개발 환경에서는 보안 설정 완화
         webSecurity: !isDev, // 개발 모드에서는 웹 보안 비활성화
@@ -147,61 +332,102 @@ async function createWindow() {
       }
     });
 
-    // 개발 모드에서 webSecurity 비활성화 이유 설명
+    // 개발 모드에서 DevTools 자동 열기 및 Next.js 로딩 문제 해결
     if (isDev) {
-      console.log('개발 모드: 편의를 위해 webSecurity 비활성화, eval 및 인라인 스크립트 허용');
-    }
+      debugLog('개발 모드: 자동 DevTools 열기 및 Next.js 로딩 최적화 적용');
 
-    // 개발 모드에서 DevTools 열기
-    if (isDev) {
+      // DevTools를 분리 모드로 열어 Next.js 로딩 문제 해결 (강제 로드 트리거)
       appState.mainWindow.webContents.openDevTools({ mode: 'detach', activate: false });
       
-      // 개발 모드에서 CSP 관련 회피 설정 (개선된 방식)
-      appState.mainWindow.webContents.session.webRequest.onHeadersReceived(
-        { urls: ['*://*/*'] },
-        (details, callback) => {
-          const responseHeaders = {...details.responseHeaders};
-          
-          // CSP 헤더 제거
-          Object.keys(responseHeaders).forEach(key => {
-            if (key.toLowerCase().includes('content-security-policy') || 
-                key.toLowerCase().includes('x-content-security-policy') ||
-                key.toLowerCase().includes('content-security')) {
-              delete responseHeaders[key];
-            }
-          });
-          
-          // 완전 개방된 CSP 헤더 추가
-          responseHeaders['Content-Security-Policy'] = [
-            'default-src * \'unsafe-inline\' \'unsafe-eval\'; ' +
-            'script-src * \'unsafe-inline\' \'unsafe-eval\'; ' +
-            'style-src * \'unsafe-inline\'; ' +
-            'connect-src * ws: wss:; ' +
-            'img-src * data: blob:; ' +
-            'font-src * data:; ' +
-            'media-src * data: blob:;'
-          ];
-          
-          callback({ responseHeaders });
+      // Next.js 로딩 화면 표시 및 실제 로딩 대기 로직 추가
+      appState.mainWindow.once('ready-to-show', () => {
+        debugLog('창 표시 준비됨 (ready-to-show)');
+        
+        // 로딩 표시를 위한 간단한 HTML 삽입
+        appState.mainWindow.webContents.executeJavaScript(`
+          if (!document.getElementById('next-loading-screen')) {
+            const loadingDiv = document.createElement('div');
+            loadingDiv.id = 'next-loading-screen';
+            loadingDiv.style.position = 'fixed';
+            loadingDiv.style.top = '0';
+            loadingDiv.style.left = '0';
+            loadingDiv.style.width = '100%';
+            loadingDiv.style.height = '100%';
+            loadingDiv.style.display = 'flex';
+            loadingDiv.style.flexDirection = 'column';
+            loadingDiv.style.alignItems = 'center';
+            loadingDiv.style.justifyContent = 'center';
+            loadingDiv.style.backgroundColor = '#000';
+            loadingDiv.style.color = '#fff';
+            loadingDiv.style.fontFamily = 'Arial, sans-serif';
+            loadingDiv.style.zIndex = '10000';
+            
+            const spinnerDiv = document.createElement('div');
+            spinnerDiv.style.border = '4px solid rgba(255, 255, 255, 0.3)';
+            spinnerDiv.style.borderTop = '4px solid #fff';
+            spinnerDiv.style.borderRadius = '50%';
+            spinnerDiv.style.width = '50px';
+            spinnerDiv.style.height = '50px';
+            spinnerDiv.style.animation = 'spin 1s linear infinite';
+            
+            const style = document.createElement('style');
+            style.textContent = '@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }';
+            
+            const messageDiv = document.createElement('div');
+            messageDiv.textContent = 'Next.js 개발 서버 로딩 중...';
+            messageDiv.style.marginTop = '20px';
+            
+            // 재시도 버튼 추가
+            const retryButton = document.createElement('button');
+            retryButton.textContent = '연결 재시도';
+            retryButton.style.marginTop = '15px';
+            retryButton.style.padding = '8px 16px';
+            retryButton.style.backgroundColor = '#4A90E2';
+            retryButton.style.color = 'white';
+            retryButton.style.border = 'none';
+            retryButton.style.borderRadius = '4px';
+            retryButton.style.cursor = 'pointer';
+            retryButton.onclick = () => {
+              messageDiv.textContent = 'Next.js 서버에 재연결 시도 중...';
+              window.location.reload();
+            };
+            
+            // 상태 메시지 추가 영역 생성
+            const statusDiv = document.createElement('div');
+            statusDiv.id = 'server-status';
+            statusDiv.style.marginTop = '10px';
+            statusDiv.style.fontSize = '12px';
+            statusDiv.style.color = '#aaa';
+            statusDiv.textContent = '서버 연결 확인 중...';
+            
+            loadingDiv.appendChild(spinnerDiv);
+            loadingDiv.appendChild(messageDiv);
+            loadingDiv.appendChild(statusDiv);
+            loadingDiv.appendChild(retryButton);
+            document.head.appendChild(style);
+            document.body.appendChild(loadingDiv);
+            
+            // 서버 연결 상태 주기적으로 확인하는 기능 추가
+            window.checkServerStatus = setInterval(() => {
+              fetch('http://localhost:${nextPort}/api/health', { method: 'HEAD' })
+                .then(response => {
+                  if (response.ok) {
+                    statusDiv.textContent = '서버 연결됨. 잠시 기다려주세요...';
+                    statusDiv.style.color = '#8efa8e';
         }
-      );
-      
-      // 추가 개발 모드 설정: HTTP 응답 헤더 수정 차단 해제
-      appState.mainWindow.webContents.session.webRequest.onHeadersReceived(
-        { urls: ['http://localhost:*/*', 'https://localhost:*/*'] },
-        (details, callback) => {
-          callback({ cancel: false });
-        }
-      );
-    }
-
-    // 준비되면 창 보여주기
-    appState.mainWindow.once('ready-to-show', () => {
-      debugLog('창이 표시 준비됨, 보여주기 시작');
+                })
+                .catch(err => {
+                  statusDiv.textContent = '서버 연결 실패. 개발 서버가 실행 중인지 확인하세요.';
+                  statusDiv.style.color = '#ff6b6b';
+                });
+            }, 3000);
+          }
+        `).catch(err => debugLog('로딩 화면 삽입 오류:', err));
+        
+        // 창은 일단 보여주기 (로딩 메시지가 표시됨)
       appState.mainWindow.show();
-      debugLog('메인 윈도우 표시 완료');
-      debugLog('메인 윈도우 준비됨');
     });
+    }
 
     // 보안 설정 적용
     try {
@@ -216,12 +442,120 @@ async function createWindow() {
     // 렌더링 실패 이벤트 모니터링
     appState.mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
       console.error('페이지 로딩 실패:', errorCode, errorDescription);
-      // 오류 페이지 표시 (필요시)
+      
+      // 개발 모드에서 로딩 실패 시 오류 메시지와 재시도 버튼 표시
+      if (isDev) {
+        appState.mainWindow.webContents.executeJavaScript(`
+          if (!document.getElementById('next-error-screen')) {
+            const errorDiv = document.createElement('div');
+            errorDiv.id = 'next-error-screen';
+            errorDiv.style.position = 'fixed';
+            errorDiv.style.top = '0';
+            errorDiv.style.left = '0';
+            errorDiv.style.width = '100%';
+            errorDiv.style.height = '100%';
+            errorDiv.style.display = 'flex';
+            errorDiv.style.flexDirection = 'column';
+            errorDiv.style.alignItems = 'center';
+            errorDiv.style.justifyContent = 'center';
+            errorDiv.style.backgroundColor = '#1a1a1a';
+            errorDiv.style.color = '#fff';
+            errorDiv.style.fontFamily = 'Arial, sans-serif';
+            errorDiv.style.zIndex = '10000';
+            errorDiv.style.padding = '20px';
+            
+            const errorTitle = document.createElement('h2');
+            errorTitle.textContent = 'Next.js 개발 서버 연결 오류';
+            errorTitle.style.color = '#ff5555';
+            
+            const errorMessage = document.createElement('div');
+            errorMessage.innerHTML = '<p>개발 서버에 연결할 수 없습니다. 다음 사항을 확인하세요:</p>' +
+              '<ul style="text-align: left; margin-bottom: 20px;">' +
+              '<li>터미널에서 <code>yarn dev</code> 명령어가 실행 중인지 확인</li>' +
+              '<li>포트 ${nextPort}가 사용 가능한지 확인</li>' +
+              '<li>오류 코드: ${errorCode} - ${errorDescription}</li>' +
+              '</ul>';
+            
+            const retryButton = document.createElement('button');
+            retryButton.textContent = '새로고침';
+            retryButton.style.padding = '10px 20px';
+            retryButton.style.backgroundColor = '#4A90E2';
+            retryButton.style.color = 'white';
+            retryButton.style.border = 'none';
+            retryButton.style.borderRadius = '4px';
+            retryButton.style.cursor = 'pointer';
+            retryButton.style.marginTop = '20px';
+            retryButton.onclick = () => window.location.reload();
+            
+            errorDiv.appendChild(errorTitle);
+            errorDiv.appendChild(errorMessage);
+            errorDiv.appendChild(retryButton);
+            document.body.appendChild(errorDiv);
+          }
+        `).catch(err => console.error('에러 화면 삽입 중 오류:', err));
+      } else {
+        // 프로덕션 모드에서는 간단한 오류 페이지 표시
+        appState.mainWindow.webContents.executeJavaScript(`
+          document.body.innerHTML = '<div style="padding: 20px"><h1>로딩 오류</h1><p>${errorDescription}</p></div>';
+        `).catch(err => console.error('에러 페이지 표시 중 오류:', err));
+      }
     });
 
     // DOM 준비 이벤트 처리
     appState.mainWindow.webContents.on('dom-ready', () => {
       debugLog('DOM이 준비됨, 문서 렌더링 중...');
+      
+      // React/Next.js 마운트 확인 스크립트 주입
+      if (isDev) {
+        // React 앱이 마운트됐는지 확인하는 스크립트
+        appState.mainWindow.webContents.executeJavaScript(`
+          // React 루트 요소 찾기 (Next.js의 일반적인 루트 ID)
+          const checkReactMounted = () => {
+            const reactRoots = document.querySelectorAll('div#__next, [data-reactroot], main, #app');
+            return reactRoots.length > 0 && Array.from(reactRoots).some(el => el.children.length > 0);
+          };
+          
+          // 로딩 화면 정리 함수
+          const cleanupLoadingScreen = () => {
+            // Next.js 로딩 인터벌 정리
+            if (window.checkServerStatus) {
+              clearInterval(window.checkServerStatus);
+              window.checkServerStatus = null;
+            }
+            
+            // 로딩 스크린 제거
+            const loadingScreen = document.getElementById('next-loading-screen');
+            if (loadingScreen) {
+              loadingScreen.style.opacity = '0';
+              loadingScreen.style.transition = 'opacity 0.5s ease';
+              setTimeout(() => {
+                loadingScreen.remove();
+              }, 500);
+            }
+            
+            // 에러 스크린 제거
+            const errorScreen = document.getElementById('next-error-screen');
+            if (errorScreen) {
+              errorScreen.remove();
+            }
+          };
+          
+          // React 앱이 마운트될 때까지 기다리기
+          if (!checkReactMounted()) {
+            console.log("[Loop App] React/Next.js 앱이 아직 마운트되지 않았습니다. 기다리는 중...");
+            const waitForReact = setInterval(() => {
+              if (checkReactMounted()) {
+                console.log("[Loop App] React/Next.js 앱이 마운트 되었습니다!");
+                clearInterval(waitForReact);
+                cleanupLoadingScreen();
+              }
+            }, 100);
+          } else {
+            console.log("[Loop App] React/Next.js 앱이 이미 마운트 되어 있습니다.");
+            cleanupLoadingScreen();
+          }
+        `).catch(err => console.warn('React 마운트 확인 스크립트 오류:', err));
+      }
       
       // 개발 모드에서 Fast Refresh를 위한 설정
       if (isDev) {
@@ -252,24 +586,6 @@ async function createWindow() {
       console.log(`[렌더러-${LEVELS[level] || 'info'}] ${message}`);
     });
 
-    // 로드 실패 이벤트 처리
-    appState.mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL) => {
-      console.error(`[로드 실패] 코드: ${errorCode}, 설명: ${errorDescription}, URL: ${validatedURL}`);
-      
-      // 로드 실패 시 간단한 오류 페이지 표시
-      appState.mainWindow.webContents.executeJavaScript(`
-        document.body.innerHTML = '<div style="padding: 20px; font-family: Arial, sans-serif;">' +
-          '<h2>페이지 로딩 실패</h2>' +
-          '<p>오류 코드: ${errorCode}</p>' +
-          '<p>설명: ${errorDescription}</p>' +
-          '<p>URL: ${validatedURL}</p>' +
-          '<button onclick="location.reload()">다시 시도</button>' +
-        '</div>';
-        document.body.style.backgroundColor = "#f9f9f9";
-        document.body.style.color = "#333";
-      `).catch(err => console.error('에러 페이지 표시 중 오류:', err));
-    });
-
     // 렌더링 프로세스 충돌 처리
     appState.mainWindow.webContents.on('render-process-gone', (event, details) => {
       console.error(`[렌더러 충돌] 이유: ${details.reason}, 종료 코드: ${details.exitCode}`);
@@ -297,10 +613,11 @@ async function createWindow() {
     if (isDev) {
       debugLog('개발 모드 감지됨, Next.js 서버 확인 중...');
       
+      try {
       // Next.js 서버 준비 상태 확인
       await checkIfNextServerReady();
       
-      // 로드 URL - 개발 모드 (GPU 관련 매개변수 삭제)
+        // 로드 URL - 개발 모드
       loadUrl = `http://localhost:${nextPort}`;
       debugLog(`메인 윈도우 URL 로딩 시작 (개발): ${loadUrl}`);
       
@@ -317,6 +634,86 @@ async function createWindow() {
           event.preventDefault();
         }
       });
+      } catch (serverError) {
+        console.error('Next.js 서버 연결 실패:', serverError.message);
+        
+        // 오류 시에도 기본 URL은 설정
+        loadUrl = `http://localhost:${nextPort}`;
+        
+        // 서버 연결 실패 시 오류 메시지를 보여주는 HTML 로드
+        const errorHtml = `
+          <html>
+            <head>
+              <style>
+                body {
+                  font-family: Arial, sans-serif;
+                  background-color: #1a1a1a;
+                  color: #f0f0f0;
+                  display: flex;
+                  flex-direction: column;
+                  align-items: center;
+                  justify-content: center;
+                  height: 100vh;
+                  margin: 0;
+                  padding: 20px;
+                  text-align: center;
+                }
+                h1 { color: #ff5555; }
+                pre {
+                  background-color: #2a2a2a;
+                  padding: 10px;
+                  border-radius: 4px;
+                  white-space: pre-wrap;
+                  text-align: left;
+                  max-width: 80%;
+                  overflow-x: auto;
+                }
+                button {
+                  background-color: #4A90E2;
+                  color: white;
+                  border: none;
+                  padding: 10px 20px;
+                  border-radius: 4px;
+                  cursor: pointer;
+                  margin-top: 20px;
+                }
+                .tips {
+                  margin-top: 20px;
+                  text-align: left;
+                  background-color: #333;
+                  padding: 15px;
+                  border-radius: 4px;
+                  max-width: 600px;
+                }
+                .tip-title {
+                  color: #4A90E2;
+                  margin-bottom: 5px;
+                }
+              </style>
+            </head>
+            <body>
+              <h1>Next.js 개발 서버 연결 실패</h1>
+              <p>개발 서버에 연결할 수 없습니다. 다음을 확인해 주세요:</p>
+              <pre>${serverError.message}</pre>
+              
+              <div class="tips">
+                <div class="tip-title">해결 방법:</div>
+                <ol>
+                  <li>터미널에서 <code>yarn dev</code> 명령어가 실행 중인지 확인하세요.</li>
+                  <li>포트 ${nextPort}가 다른 프로세스에 의해 사용 중인지 확인하세요.</li>
+                  <li>개발 서버가 정상적으로 시작되었는지 터미널 출력을 확인하세요.</li>
+                  <li>문제가 지속되면 프로젝트를 재시작해 보세요.</li>
+                </ol>
+              </div>
+              
+              <button onclick="window.location.reload()">다시 시도</button>
+            </body>
+          </html>
+        `;
+        
+        // data URI로 HTML 로드
+        loadUrl = `data:text/html;charset=utf-8,${encodeURIComponent(errorHtml)}`;
+      }
     } else {
       // 프로덕션 모드에서는 미리 빌드된 앱을 로드
       loadUrl = url.format({
@@ -332,9 +729,23 @@ async function createWindow() {
 
     // 윈도우 로딩 처리
     try {
-      // 개발 모드에서는 URL 직접 로드
+      // URL 로드
       appState.mainWindow.loadURL(loadUrl);
       debugLog('loadURL 메서드 호출 완료');
+      
+      // 페이지 로딩이 완료되면 명시적으로 창 보여주기
+      appState.mainWindow.webContents.on('did-finish-load', () => {
+        debugLog('페이지 로딩 완료, 창 표시 중...');
+        // 창이 아직 표시되지 않았다면 표시
+        if (appState.mainWindow && !appState.mainWindow.isDestroyed() && !appState.mainWindow.isVisible()) {
+          appState.mainWindow.show();
+          debugLog('메인 윈도우 표시됨 (did-finish-load 이벤트)');
+        }
+        
+        if (isDev) {
+          debugLog('Next.js 서버 준비됨, 페이지 로딩 완료');
+        }
+      });
     } catch (error) {
       console.error('URL 로드 오류:', error);
       
@@ -807,5 +1218,9 @@ module.exports = {
   toggleMiniView,
   createRestartPromptWindow,
   createRestartWindow,
-  getMainWindow  // 이 함수 추가
+  getMainWindow,
+  checkIfNextServerReady,
+  setupNextServerHealthCheck,
+  checkIfReactAppMounted,
+  removeLoadingScreen
 };

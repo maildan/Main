@@ -349,20 +349,19 @@ try {
       return ipcRenderer.invoke('decompose-hangul', syllable);
     },
     
-    // 권한 관련 API 함수 추가
-    checkPermissions: () => {
-      return ipcRenderer.invoke('check-permissions');
-    },
+    // 권한 관련 API
+    checkPermissions: () => ipcRenderer.invoke('check-permissions'),
+    openPermissionsSettings: () => ipcRenderer.invoke('open-permissions-settings'),
     
-    openSystemPreferences: (permissionType) => {
-      return ipcRenderer.invoke('open-system-preferences', permissionType);
-    },
-    
-    // 권한 오류 수신 리스너
+    // 권한 상태 및 오류 이벤트
     onPermissionError: (callback) => {
-      ipcRenderer.on('permission-error', (_, errorInfo) => {
-        callback(errorInfo);
-      });
+      ipcRenderer.on('permission-error', (_, data) => callback(data));
+      return () => ipcRenderer.removeListener('permission-error', callback);
+    },
+    
+    onPermissionStatus: (callback) => {
+      ipcRenderer.on('permission-status', (_, data) => callback(data));
+      return () => ipcRenderer.removeListener('permission-status', callback);
     },
     
     // 테스트용 메서드
@@ -392,9 +391,14 @@ try {
       finishHangulComposition: () => ipcRenderer.invoke('finish-hangul-composition'),
       decomposeHangul: (syllable) => ipcRenderer.invoke('decompose-hangul', syllable),
       checkPermissions: () => ipcRenderer.invoke('check-permissions'),
-      openSystemPreferences: (permissionType) => ipcRenderer.invoke('open-system-preferences', permissionType),
+      openPermissionsSettings: () => ipcRenderer.invoke('open-permissions-settings'),
       onPermissionError: (callback) => {
-        ipcRenderer.on('permission-error', (_, errorInfo) => callback(errorInfo));
+        ipcRenderer.on('permission-error', (_, data) => callback(data));
+        return () => ipcRenderer.removeListener('permission-error', callback);
+      },
+      onPermissionStatus: (callback) => {
+        ipcRenderer.on('permission-status', (_, data) => callback(data));
+        return () => ipcRenderer.removeListener('permission-status', callback);
       },
       isAPIAvailable: () => true
     };

@@ -24,6 +24,7 @@ interface ThemeProviderProps {
 
 export function ThemeProvider({ children }: ThemeProviderProps) {
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
+  const [mounted, setMounted] = useState(false);
   
   // 다크 모드 설정 함수
   const setDarkMode = (enabled: boolean) => {
@@ -75,9 +76,24 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     }
   }, []);
 
-  return (
+  useEffect(() => {
+    // 클라이언트에서만 실행
+    const darkMode = localStorage.getItem('darkMode') === 'true' || 
+                     window.matchMedia('(prefers-color-scheme: dark)').matches;
+    
+    if (darkMode) {
+      document.documentElement.classList.add('dark-mode');
+    } else {
+      document.documentElement.classList.remove('dark-mode');
+    }
+    
+    setMounted(true);
+  }, []);
+
+  // 서버 렌더링 시에는 아무것도 하지 않음
+  return mounted ? (
     <ThemeContext.Provider value={{ theme, toggleTheme, setDarkMode }}>
       {children}
     </ThemeContext.Provider>
-  );
+  ) : null;
 }

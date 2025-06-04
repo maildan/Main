@@ -12,15 +12,13 @@ interface TypingStats {
   accuracy: number;
 }
 
-// 일렉트론 API 타입 정의
+// ElectronAPI 인터페이스 확장 - Window 인터페이스는 재정의하지 않음
 declare global {
-  interface Window {
-    electronAPI?: {
-      onStatsUpdate?: (callback: (newStats: TypingStats) => void) => () => void;
-      requestCurrentStats?: () => void;
-      getTrackingStatus?: () => Promise<boolean>;
-      toggleTracking?: () => Promise<boolean>;
-    };
+  interface ElectronAPI {
+    onStatsUpdate?: (callback: (newStats: TypingStats) => void) => () => void;
+    requestCurrentStats?: () => void;
+    getTrackingStatus?: () => Promise<boolean>;
+    toggleTracking?: () => Promise<boolean>;
   }
 }
 

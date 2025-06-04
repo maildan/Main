@@ -29,6 +29,15 @@ export interface ElectronAPI {
   // 앱 관련
   onShowRestartLoading?: (callback: (data: any) => void) => () => void;
   
+  // 권한 관련
+  onPermissionError?: (callback: (error: any) => void) => (() => void);
+  onPermissionStatus?: (callback: (status: any) => void) => (() => void);
+  checkPermissions?: () => Promise<{
+    screenRecording: boolean | null;
+    accessibility: boolean | null;
+  }>;
+  openPermissionsSettings?: () => Promise<boolean>;
+
   // 기타 메서드들
   [key: string]: any;
 

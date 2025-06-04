@@ -7,7 +7,7 @@
  * - 키보드 이벤트 IPC 핸들러를 등록
  */
 
-const { session, app: _app, webContents, ipcMain, BrowserWindow } = require('electron');
+const { session, app, webContents, ipcMain, BrowserWindow } = require('electron');
 const path = require('path');
 const isDev = process.env.NODE_ENV === 'development';
 
@@ -258,11 +258,22 @@ function setupKeyboardEventHandler() {
 /**
  * 앱이 준비된 시점에 보안 설정(특히 CSP)을 초기화합니다.
  * 반드시 BrowserWindow 생성 전(또는 거의 직후)에 호출해야 합니다.
- * @param {Electron.App} appObj - Electron 앱 객체
+ * @param {Electron.App} appObj - Electron 앱 객체 (선택적)
  */
 function initializeSecuritySettings(appObj) {
-  if (!appObj) {
-    console.error('initializeSecuritySettings: 유효한 app 객체가 필요합니다.');
+  // 전달된 app 객체가 없으면 전역 app 객체 사용
+  const applicationObj = appObj || app || require('electron').app;
+  
+  try {
+    if (!applicationObj || typeof applicationObj !== 'object') {
+      console.error('initializeSecuritySettings: 유효한 app 객체를 찾을 수 없습니다.');
+      console.warn('폴백 앱 객체 사용 시도 중...');
+      // 최종 폴백: 전역 Electron에서 직접 가져오기
+      const electron = require('electron');
+      if (electron && electron.app) {
+        console.log('폴백: electron.app 사용');
+        return initializeSecuritySettings(electron.app);
+      }
       return false;
     }
 
@@ -284,7 +295,7 @@ function initializeSecuritySettings(appObj) {
     applyCSPToAllSessions();
 
     // 추가 보안 로직(예: window open 제한 등)을 여기에 넣어도 좋음
-    appObj.on('web-contents-created', (event, contents) => {
+      applicationObj.on('web-contents-created', (event, contents) => {
       // 팝업 차단 예시
       contents.setWindowOpenHandler(({ url }) => {
         if (
@@ -313,6 +324,10 @@ function initializeSecuritySettings(appObj) {
   setupKeyboardEventHandler();
 
     return true;
+  } catch (error) {
+    console.error('보안 설정 초기화 중 오류 발생:', error);
+    return false;
+  }
 }
 
 // ----------------------------------------------------------------------------

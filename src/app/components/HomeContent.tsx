@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useCallback, useEffect } from 'react';
-import { TypingMonitor } from './TypingMonitor';
+import TypingMonitor from './TypingMonitor';
 import { TypingChart } from './TypingChart';
 import { TabNavigation } from './TabNavigation';
 import { MainLayout } from './MainLayout';
