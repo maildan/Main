@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@tauri-apps/api": "^2.4.1",
+    "@tauri-apps/plugin-dialog": "~2",
     "@tauri-apps/plugin-opener": "^2",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
@@ -27,7 +28,7 @@
   "config": {
     "argv": false,
     "version-commit-hooks": false,
-    "version-git-message": false, 
+    "version-git-message": false,
     "version-git-tag": false,
     "version-tag-prefix": false
   }
