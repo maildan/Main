@@ -1,6 +1,6 @@
-use crate::progress_manager::{PROGRESS_MANAGER};
-use crate::error::KakaoError;
-use crate::types::AESKeyCandidate;
+use crate::core::analysis::{PROGRESS_MANAGER};
+use crate::shared::error::KakaoError;
+use crate::shared::types::AESKeyCandidate;
 
 /// 동적 분석 시작
 pub fn start_dynamic_analysis() -> Result<Vec<AESKeyCandidate>, KakaoError> {

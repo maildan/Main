@@ -1,9 +1,9 @@
 import { useState } from "react";
 
-// 컴포넌트 임포트
-import ErrorMessage from "./components/ErrorMessage";
-import KakaoSection from "./components/KakaoSection";
-import SplashScreen from "./components/SplashScreen";
+// 컴포넌트 임포트 - 새로운 모듈 구조
+import ErrorMessage from "./shared/components/ErrorMessage";
+import KakaoSection from "./features/kakao/components/KakaoSection";
+import SplashScreen from "./shared/components/SplashScreen";
 
 // CSS 임포트
 import "./styles/base.css";

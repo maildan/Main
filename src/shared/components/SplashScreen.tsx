@@ -86,10 +86,8 @@ const SplashScreen = ({ onComplete }: SplashScreenProps) => {
         {/* 앱 아이콘 */}
         <div className="app-icon">
           <img src="/tauri.svg" alt="앱 아이콘" />
-        </div>
-        
-        {/* 앱 제목 */}
-        <h1 className="app-title">KakaoTalk Decryptor</h1>
+        </div>        {/* 앱 제목 */}
+        <h1 className="app-title">Loop_pro</h1>
         
         {/* 진행률 바 */}
         <div className="progress-container">
@@ -101,14 +99,8 @@ const SplashScreen = ({ onComplete }: SplashScreenProps) => {
           </div>
           <div className="progress-text">{progress}%</div>
         </div>
-        
-        {/* 상태 텍스트 */}
+          {/* 상태 텍스트 */}
         <div className="status-text">{status}</div>
-        
-        {/* 로딩 애니메이션 */}
-        <div className="loading-spinner">
-          <div className="spinner"></div>
-        </div>
       </div>
     </div>
   );

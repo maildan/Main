@@ -1,5 +1,5 @@
 use std::sync::{Arc, Mutex};
-use crate::types::AnalysisProgress;
+use crate::shared::types::AnalysisProgress;
 
 #[derive(Debug, Clone)]
 pub enum DynamicAnalysisStep {

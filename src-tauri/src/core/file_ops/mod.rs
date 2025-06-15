@@ -1,6 +1,11 @@
 use std::fs;
 use std::path::{Path, PathBuf};
-use crate::error::KakaoError;
+use crate::shared::error::KakaoError;
+
+pub mod user_detection;
+
+// Re-export user detection functions
+pub use user_detection::get_user_id;
 
 /// EDB 파일들을 재귀적으로 찾기 (chatLogs_{숫자ID}.edb 형식만)
 pub fn find_edb_files_recursive(root_path: &Path) -> Result<Vec<PathBuf>, KakaoError> {

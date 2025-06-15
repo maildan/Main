@@ -1,18 +1,16 @@
-mod dynamic_analysis;
-mod progress_manager;
-mod types;
-mod error;
-mod user_detection;
-mod file_operations;
-mod crypto_utils;
-mod decryption;
+// 모듈 선언
+mod core;
+mod infrastructure;
+mod shared;
+mod components;
 
-// 필요한 모듈들만 import
-use user_detection::get_user_id;
-use file_operations::find_kakao_files;
-use decryption::decrypt_kakao_edb;
-use progress_manager::{init_progress_manager, PROGRESS_MANAGER};
-use types::AnalysisProgress;
+// 모듈에서 필요한 것들 import
+use core::file_ops::{get_user_id, find_kakao_files};
+use core::decryption::decrypt_kakao_edb;
+use core::analysis::{init_progress_manager, PROGRESS_MANAGER};
+use shared::types::AnalysisProgress;
+use winreg::RegKey;
+use winreg::enums::*;
 
 #[tauri::command]
 fn greet(name: &str) -> String {
@@ -111,9 +109,6 @@ async fn perform_key_analysis() -> Result<(), String> {
 
 /// FolderDescriptions 레지스트리 경로 중심 분석
 pub async fn analyze_folder_descriptions_registry() -> Result<Vec<String>, String> {
-    use winreg::RegKey;
-    use winreg::enums::*;
-    
     let mut found_keys = Vec::new();
     
     // 핵심 FolderDescriptions 경로

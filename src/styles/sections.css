@@ -1,20 +1,21 @@
 /* 카카오톡 복호화 - 깔끔한 미니멀 디자인 */
 
-/* 메인 컨테이너 */
+/* 메인 컨테이너 - 디스코드 스타일 */
 .section-panel {
-  background: #1c1c1c;
-  color: #ffffff;
-  border: 1px solid #2a2a2a;
+  background: #36393f;
+  color: #dcddde;
+  border: none;
   border-radius: 8px;
   margin: 16px auto;
-  width: 95%;
-  max-width: 900px;
+  width: 96%;
+  max-width: 1200px;
   min-height: calc(100vh - 32px);
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
   padding: 0;
   overflow: hidden;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
 }
 
 /* 카카오톡 섹션 */
@@ -22,49 +23,49 @@
   display: flex;
   flex-direction: column;
   height: 100%;
-  padding: 24px;
-  gap: 24px;
+  padding: 20px;
+  gap: 20px;
 }
 
-/* 헤더 - 심플하게 */
+/* 헤더 - 디스코드 스타일 */
 .section-header {
   text-align: center;
-  margin-bottom: 32px;
+  margin-bottom: 24px;
   padding-bottom: 16px;
-  border-bottom: 1px solid #2a2a2a;
+  border-bottom: 1px solid #42454a;
 }
 
 .section-header h2 {
-  margin: 0 0 6px 0;
-  font-size: 1.6rem;
-  font-weight: 500;
+  margin: 0 0 8px 0;
+  font-size: 1.5rem;
+  font-weight: 600;
   color: #ffffff;
 }
 
 .section-header p {
   margin: 0;
-  color: #999;
-  font-size: 0.875rem;
+  color: #b9bbbe;
+  font-size: 0.9rem;
 }
 
-/* 컨트롤 패널 - 기능 섹션 */
+/* 컨트롤 패널 - 디스코드 스타일 */
 .control-panel {
-  background: #242424;
-  border: 1px solid #2a2a2a;
-  border-radius: 6px;
+  background: #2f3136;
+  border: none;
+  border-radius: 8px;
   padding: 20px;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 16px;
 }
 
 .control-panel h3 {
   margin: 0 0 12px 0;
-  font-size: 1rem;
-  font-weight: 500;
-  color: #ffffff;
-  padding-bottom: 8px;
-  border-bottom: 1px solid #2a2a2a;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #b9bbbe;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 /* 버튼 그룹 */
@@ -74,48 +75,53 @@
   flex-wrap: wrap;
 }
 
-/* 버튼 스타일 - 깔끔하고 기능적 */
+/* 버튼 스타일 - 디스코드 스타일 */
 .btn-primary, .btn-secondary, .btn-info {
-  padding: 8px 16px;
-  border: 1px solid #3a3a3a;
+  padding: 10px 16px;
+  border: none;
   border-radius: 4px;
   font-size: 0.875rem;
-  font-weight: 400;
+  font-weight: 500;
   cursor: pointer;
   transition: all 0.15s ease;
-  background: #2a2a2a;
+  background: #5865f2;
   color: #ffffff;
+  min-height: 38px;
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: #3a3a3a;
-  border-color: #4a4a4a;
+  background: #4752c4;
+}
+
+.btn-secondary {
+  background: #4f545c;
 }
 
 .btn-secondary:hover:not(:disabled) {
-  background: #3a3a3a;
-  border-color: #4a4a4a;
+  background: #5d6269;
+}
+
+.btn-info {
+  background: #4f545c;
 }
 
 .btn-info:hover:not(:disabled) {
-  background: #3a3a3a;
-  border-color: #4a4a4a;
+  background: #5d6269;
 }
 
 .btn-primary:disabled, .btn-secondary:disabled, .btn-info:disabled {
   opacity: 0.5;
   cursor: not-allowed;
-  background: #1a1a1a;
-  border-color: #2a2a2a;
+  background: #4f545c;
 }
 
 /* 파일 목록 */
 .file-list {
-  margin-top: 12px;
-  border: 1px solid #2a2a2a;
+  margin-top: 8px;
+  border: none;
   border-radius: 4px;
-  background: #1e1e1e;
-  max-height: 160px;
+  background: #40444b;
+  max-height: 200px;
   overflow-y: auto;
 }
 

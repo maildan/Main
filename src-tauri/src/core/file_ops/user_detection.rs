@@ -1,7 +1,7 @@
 use std::path::Path;
 use std::fs;
 use std::sync::{Mutex, OnceLock};
-use crate::error::KakaoError;
+use crate::shared::error::KakaoError;
 
 // 사용자 ID 캐시
 static USER_ID_CACHE: OnceLock<Mutex<Option<String>>> = OnceLock::new();

@@ -1,10 +1,9 @@
 use std::path::Path;
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
-use crate::error::KakaoError;
-use crate::crypto_utils::decrypt_aes_cbc;
-use crate::dynamic_analysis::start_dynamic_analysis;
-use crate::types::AESKeyCandidate;
+use crate::shared::error::KakaoError;
+use crate::infrastructure::crypto::decrypt_aes_cbc;
+use crate::shared::types::AESKeyCandidate;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct KakaoMessage {
@@ -22,9 +21,8 @@ pub fn decrypt_kakao_edb(file_path: String) -> Result<Vec<KakaoMessage>, String>
     // 파일 존재 확인
     if !Path::new(&file_path).exists() {
         return Err("파일이 존재하지 않습니다".to_string());
-    }
-      // 동적 분석으로 AES 키 후보 찾기
-    let key_candidates = match start_dynamic_analysis() {
+    }    // 동적 분석으로 AES 키 후보 찾기
+    let key_candidates = match crate::core::analysis::dynamic_analysis::start_dynamic_analysis() {
         Ok(keys) => keys,
         Err(e) => {
             println!("⚠️ 동적 분석 실패, 기본 키 사용: {}", e);

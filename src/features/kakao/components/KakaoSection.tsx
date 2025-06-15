@@ -2,8 +2,8 @@ import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from '@tauri-apps/plugin-dialog';
 import { listen } from '@tauri-apps/api/event';
-import { KakaoMessage, KakaoFile, KakaoDecryptionResult, AnalysisProgress } from "../types";
-import { AnalysisProgress as AnalysisProgressComponent } from "./AnalysisProgress";
+import { KakaoMessage, KakaoFile, KakaoDecryptionResult, AnalysisProgress } from "../../../shared/types";
+import { AnalysisProgress as AnalysisProgressComponent } from "../../analysis/components/AnalysisProgress";
 
 interface KakaoSectionProps {
   // props 제거
@@ -248,13 +248,16 @@ const KakaoSection = ({ }: KakaoSectionProps) => {
             </div>
           )}
         </div>        <div className="decrypt-section">
-          <h3>2. 복호화 실행</h3><button
-            onClick={decryptFile}
-            disabled={isLoading || !selectedFile}
-            className="btn-primary decrypt-btn"
-          >
-            {isLoading ? "복호화 중..." : "복호화 시작"}
-          </button>
+          <h3>2. 복호화 실행</h3>
+          <div className="button-group">
+            <button
+              onClick={decryptFile}
+              disabled={isLoading || !selectedFile}
+              className="btn-primary decrypt-btn"
+            >
+              {isLoading ? "복호화 중..." : "복호화 시작"}
+            </button>
+          </div>
         </div>
       </div>
 
