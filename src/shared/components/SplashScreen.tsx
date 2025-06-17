@@ -82,12 +82,10 @@ const SplashScreen = ({ onComplete }: SplashScreenProps) => {
 
   return (
     <div className={`splash-screen ${!isVisible ? 'fade-out' : ''}`}>
-      <div className="splash-content">
-        {/* 앱 아이콘 */}
+      <div className="splash-content">        {/* 앱 아이콘 */}
         <div className="app-icon">
           <img src="/tauri.svg" alt="앱 아이콘" />
-        </div>        {/* 앱 제목 */}
-        <h1 className="app-title">Loop_pro</h1>
+        </div>
         
         {/* 진행률 바 */}
         <div className="progress-container">

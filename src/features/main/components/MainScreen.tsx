@@ -1,0 +1,172 @@
+import { useState } from 'react';
+
+interface MainScreenProps {
+  onNavigateToKakao: () => void;
+}
+
+/**
+ * 메인 화면 컴포넌트
+ * 심플한 검은 테마의 검색 인터페이스를 제공합니다.
+ * - 애플리케이션 명: Loop Pro
+ * - Google 스타일 자동완성 검색바
+ */
+const MainScreen = ({ onNavigateToKakao }: MainScreenProps) => {
+  const [searchQuery, setSearchQuery] = useState('');  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
+  const [isSearchExpanded, setIsSearchExpanded] = useState(false);
+  const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(-1);
+  // 검색 추천 데이터
+  const searchData = [
+    '카카오톡 복호화'
+  ];
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (searchQuery.trim().toLowerCase().includes('카카오')) {
+      onNavigateToKakao();
+    }
+  };
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setSearchQuery(value);
+    setSelectedSuggestionIndex(-1); // 입력 시 선택 초기화
+
+    if (value.trim()) {
+      // 자동완성 로직: 입력값과 일치하는 추천어 필터링
+      const filtered = searchData.filter(item =>
+        item.toLowerCase().includes(value.toLowerCase()) ||
+        getKoreanInitials(item).includes(value.toLowerCase())
+      );
+      setSuggestions(filtered);
+      setShowSuggestions(filtered.length > 0);
+    } else {
+      setSuggestions([]);
+      setShowSuggestions(false);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!showSuggestions || suggestions.length === 0) return;
+
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault();
+        setSelectedSuggestionIndex(prev => 
+          prev < suggestions.length - 1 ? prev + 1 : 0
+        );
+        break;
+      case 'ArrowUp':
+        e.preventDefault();
+        setSelectedSuggestionIndex(prev => 
+          prev > 0 ? prev - 1 : suggestions.length - 1
+        );
+        break;
+      case 'Enter':
+        if (selectedSuggestionIndex >= 0) {
+          e.preventDefault();
+          handleSuggestionClick(suggestions[selectedSuggestionIndex]);
+        }
+        break;
+      case 'Escape':
+        setShowSuggestions(false);
+        setSelectedSuggestionIndex(-1);
+        break;
+    }
+  };
+  const handleSuggestionClick = (suggestion: string) => {
+    setSearchQuery(suggestion);
+    setShowSuggestions(false);
+    setIsSearchFocused(false);
+    setIsSearchExpanded(false);
+    if (suggestion.includes('카카오')) {
+      onNavigateToKakao();
+    }
+  };
+
+  const handleSuggestionMouseDown = (e: React.MouseEvent) => {
+    // 마우스 다운 시 blur 이벤트 방지
+    e.preventDefault();
+  };
+  const handleInputFocus = () => {
+    setIsSearchFocused(true);
+    setIsSearchExpanded(true);
+    if (searchQuery.trim() && suggestions.length > 0) {
+      setShowSuggestions(true);
+    }
+  };
+  const handleInputBlur = () => {
+    setIsSearchFocused(false);
+    setIsSearchExpanded(false);
+    // 클릭 이벤트가 처리될 수 있도록 충분한 지연 시간 제공
+    setTimeout(() => setShowSuggestions(false), 300);
+  };
+
+  const handleInputMouseEnter = () => {
+    setIsSearchExpanded(true);
+  };
+
+  const handleInputMouseLeave = () => {
+    if (!isSearchFocused) {
+      setIsSearchExpanded(false);
+    }
+  };
+
+  // 한글 초성 추출 함수
+  const getKoreanInitials = (text: string): string => {
+    const initials = ['ㄱ', 'ㄲ', 'ㄴ', 'ㄷ', 'ㄸ', 'ㄹ', 'ㅁ', 'ㅂ', 'ㅃ', 'ㅅ', 'ㅆ', 'ㅇ', 'ㅈ', 'ㅉ', 'ㅊ', 'ㅋ', 'ㅌ', 'ㅍ', 'ㅎ'];
+    return text.replace(/[가-힣]/g, (char) => {
+      const code = char.charCodeAt(0) - 44032;
+      const initialIndex = Math.floor(code / 588);
+      return initials[initialIndex] || char;
+    });
+  };
+
+  return (
+    <div className="main-screen">
+      <div className="main-content">
+        {/* 애플리케이션 로고 섹션 */}
+        <div className="logo-section">
+          <h1 className="app-title">Loop Pro</h1>
+        </div>        {/* 검색바 섹션 */}
+        <div className="search-section">
+          <div className="search-container">            <form onSubmit={handleSearch} className={`search-form ${isSearchExpanded ? 'expanded' : ''}`}>
+              <input
+                type="text"
+                className={`search-input ${isSearchFocused ? 'focused' : ''}`}
+                placeholder="기능을 검색하세요"
+                value={searchQuery}
+                onChange={handleInputChange}
+                onKeyDown={handleKeyDown}
+                onFocus={handleInputFocus}
+                onBlur={handleInputBlur}
+                onMouseEnter={handleInputMouseEnter}
+                onMouseLeave={handleInputMouseLeave}
+                autoComplete="off"
+              />
+              <button type="submit" className="search-button">
+                ⌕
+              </button>
+            </form>
+              {/* 자동완성 드롭다운 */}
+            {showSuggestions && (
+              <div className="suggestions-dropdown">
+                {suggestions.map((suggestion, index) => (                  <div
+                    key={index}
+                    className={`suggestion-item ${index === selectedSuggestionIndex ? 'selected' : ''}`}
+                    onClick={() => handleSuggestionClick(suggestion)}
+                    onMouseDown={handleSuggestionMouseDown}
+                  >
+                    {suggestion}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default MainScreen;

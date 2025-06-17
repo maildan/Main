@@ -1,0 +1,245 @@
+/* 메인 화면 스타일 - 심플한 다크 테마 */
+.main-screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  width: 100%;
+  background: #1a1a1a;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.main-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  max-width: 600px;
+  padding: 2rem;
+}
+
+/* 애플리케이션 로고 섹션 */
+.logo-section {
+  margin-bottom: 3rem;
+}
+
+.app-title {
+  font-size: 4rem;
+  font-weight: 300;
+  color: #ffffff;
+  margin: 0;
+  letter-spacing: 0.02em;
+  cursor: default;
+  user-select: none;
+}
+
+.app-title:hover {
+  opacity: 0.8;
+  transition: opacity 0.2s ease;
+}
+
+/* 검색바 섹션 */
+.search-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  max-width: 500px;
+}
+
+.search-container {
+  position: relative;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+.search-form {
+  display: flex;
+  position: relative;
+  transition: all 0.3s ease;
+  width: 300px;
+}
+
+.search-input {
+  flex: 1;
+  padding: 0.875rem 1rem;
+  font-size: 1rem;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 24px;
+  color: #ffffff;
+  outline: none;
+  transition: all 0.3s ease;
+  padding-right: 3rem;
+  width: 100%;
+}
+
+.search-input::placeholder {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.search-input:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.search-input:focus,
+.search-input.focused {
+  border-color: rgba(255, 255, 255, 0.5);
+  background: transparent;
+  box-shadow: none;
+}
+
+.search-form.expanded {
+  width: 400px;
+}
+
+.search-button {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  font-size: 1.2rem;
+  color: rgba(255, 255, 255, 0.6);
+  cursor: pointer;
+  padding: 0.5rem;
+  transition: color 0.2s ease;
+  z-index: 2;
+  filter: none;
+  text-shadow: none;
+  box-shadow: none;
+}
+
+.search-button:hover {
+  color: rgba(255, 255, 255, 0.9);
+  background: none;
+}
+
+/* 자동완성 드롭다운 */
+.suggestions-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  background: rgba(42, 42, 42, 0.8);
+  border: 1px solid rgba(58, 58, 58, 0.5);
+  border-radius: 8px;
+  margin-top: 4px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(10px);
+  z-index: 10;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.suggestion-item {
+  padding: 0.75rem 1rem;
+  color: #cccccc;
+  cursor: pointer;
+  transition: background 0.2s ease;
+  border-bottom: 1px solid rgba(58, 58, 58, 0.3);
+  display: flex;
+  align-items: center;
+}
+
+.suggestion-item:last-child {
+  border-bottom: none;
+}
+
+.suggestion-item:hover {
+  background: #333333;
+  color: #ffffff;
+}
+
+.suggestion-item.selected {
+  background: #4285f4;
+  color: #ffffff;
+}
+
+/* 뒤로 가기 네비게이션 - 기존 스타일 유지 */
+.back-navigation {
+  position: fixed;
+  top: 2rem;
+  left: 2rem;
+  z-index: 100;
+}
+
+.back-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  background: rgba(66, 133, 244, 0.1);
+  color: #4285f4;
+  border: 1px solid #dadce0;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.back-button:hover {
+  background: rgba(66, 133, 244, 0.15);
+  border-color: #4285f4;
+  transform: translateX(-2px);
+}
+
+.back-button:active {
+  transform: translateX(0);
+}
+
+/* 반응형 디자인 */
+@media (max-width: 768px) {
+  .app-title {
+    font-size: 4rem;
+  }
+  
+  .main-content {
+    padding: 1rem;
+  }
+  
+  .logo-section {
+    margin-bottom: 3rem;
+  }
+  
+  .kakao-shortcut {
+    min-width: 100px;
+    min-height: 100px;
+    padding: 1rem;
+  }
+  
+  .shortcut-icon {
+    font-size: 2.5rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .app-title {
+    font-size: 3rem;
+  }
+  
+  .logo-section {
+    margin-bottom: 2rem;
+  }
+  
+  .kakao-shortcut {
+    min-width: 80px;
+    min-height: 80px;
+    padding: 0.75rem;
+  }
+  
+  .shortcut-icon {
+    font-size: 2rem;
+  }
+  
+  .shortcut-label {
+    font-size: 0.75rem;
+  }
+}

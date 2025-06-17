@@ -3,7 +3,12 @@ use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
 use crate::shared::error::KakaoError;
 use crate::infrastructure::crypto::decrypt_aes_cbc;
-use crate::shared::types::AESKeyCandidate;
+
+// 하드코딩된 pragma 키 (16바이트)
+const PRAGMA_KEY: [u8; 16] = [
+    0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC, 0xDE, 0xF0,
+    0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88
+];
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct KakaoMessage {
@@ -21,38 +26,25 @@ pub fn decrypt_kakao_edb(file_path: String) -> Result<Vec<KakaoMessage>, String>
     // 파일 존재 확인
     if !Path::new(&file_path).exists() {
         return Err("파일이 존재하지 않습니다".to_string());
-    }    // 동적 분석으로 AES 키 후보 찾기
-    let key_candidates = match crate::core::analysis::dynamic_analysis::start_dynamic_analysis() {
-        Ok(keys) => keys,
-        Err(e) => {
-            println!("⚠️ 동적 분석 실패, 기본 키 사용: {}", e);
-            vec![AESKeyCandidate {
-                key: [0u8; 16],
-                confidence: 50,
-                source: "기본".to_string(),
-            }]
-        }
-    };
+    }
+
+    // pragma 키로 복호화 시도
+    println!("🔑 pragma 키로 복호화 시도");
     
-    // 각 키 후보로 복호화 시도
-    for (index, candidate) in key_candidates.iter().enumerate() {
-        println!("🔑 키 후보 {} 시도: {:?}", index + 1, hex::encode(&candidate.key));
-        
-        match try_decrypt_with_key(&file_path, &candidate.key) {
-            Ok(messages) => {
-                if !messages.is_empty() {
-                    println!("✅ 복호화 성공! {} 개의 메시지 발견", messages.len());
-                    return Ok(messages);
-                }
-            },
-            Err(e) => {
-                println!("❌ 키 후보 {} 실패: {}", index + 1, e);
-                continue;
+    match try_decrypt_with_key(&file_path, &PRAGMA_KEY) {
+        Ok(messages) => {
+            if !messages.is_empty() {
+                println!("✅ 복호화 성공! {} 개의 메시지 발견", messages.len());
+                return Ok(messages);
+            } else {
+                return Err("복호화는 성공했지만 메시지를 찾을 수 없습니다".to_string());
             }
+        },
+        Err(e) => {
+            println!("❌ pragma 키로 복호화 실패: {:?}", e);
+            return Err(format!("복호화 실패: {:?}", e));
         }
     }
-    
-    Err("모든 키 후보로 복호화 실패".to_string())
 }
 
 /// 특정 키로 복호화 시도
