@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { MAIN_BRANDING, COMPLETION_MESSAGE, getRandomFunnyMessage } from '../constants/messages';
 
 interface SplashScreenProps {
   onComplete: () => void;
@@ -6,7 +7,7 @@ interface SplashScreenProps {
 
 const SplashScreen = ({ onComplete }: SplashScreenProps) => {
   const [progress, setProgress] = useState(0);
-  const [status, setStatus] = useState("앱 초기화 중...");
+  const [status, setStatus] = useState(MAIN_BRANDING);
   const [isVisible, setIsVisible] = useState(true);
 
   useEffect(() => {
@@ -14,40 +15,25 @@ const SplashScreen = ({ onComplete }: SplashScreenProps) => {
     
     const initializeApp = async () => {
       try {
-        // 1. 초기화 시작
-        setStatus("앱 초기화 중...");
+        // 1. 브랜딩 문구 시작
+        setStatus(MAIN_BRANDING);
         setProgress(20);
-        await sleep(500);
-        
-        if (!isMounted) return;        // 2. 사용자 ID 자동 감지 시도
-        setStatus("사용자 ID 자동 감지 중...");
-        setProgress(50);
-        
-        try {
-          const { invoke } = await import("@tauri-apps/api/core");
-          await invoke<string>("get_user_id"); // 결과는 사용하지 않고 감지만 수행
-          
-          if (!isMounted) return;
-          
-          setStatus("사용자 ID 감지 완료");
-          setProgress(80);
-          await sleep(800);
-        } catch (error) {
-          console.log("사용자 ID 자동 감지 실패:", error);
-          
-          if (!isMounted) return;
-          
-          setStatus("사용자 ID 수동 입력 필요");
-          setProgress(80);
-          await sleep(800);
-        }
+        await sleep(1000);
         
         if (!isMounted) return;
+
+        // 2. 개그성 문구 랜덤 표시
+        const randomMessage = getRandomFunnyMessage();
+        setStatus(randomMessage);
+        setProgress(60);
+        await sleep(1500);
         
-        // 3. 로딩 완료
-        setStatus("초기화 완료!");
+        if (!isMounted) return;
+
+        // 3. 완료 문구
+        setStatus(COMPLETION_MESSAGE);
         setProgress(100);
-        await sleep(500);
+        await sleep(800);
         
         if (!isMounted) return;
         
@@ -57,14 +43,12 @@ const SplashScreen = ({ onComplete }: SplashScreenProps) => {
         
         if (!isMounted) return;
           // 5. 메인 화면으로 전환
-        onComplete();
-        
-      } catch (error) {
+        onComplete();      } catch (error) {
         console.error("앱 초기화 중 오류:", error);
         
         if (!isMounted) return;
         
-        setStatus("초기화 완료");
+        setStatus(COMPLETION_MESSAGE);
         setProgress(100);
         await sleep(300);
         setIsVisible(false);
