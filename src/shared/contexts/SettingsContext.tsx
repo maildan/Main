@@ -1,6 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { AppSettings, DEFAULT_SETTINGS } from '../types/settings';
-import { SettingsManager } from '../utils/settingsManager';
 
 interface SettingsContextType {
   settings: AppSettings;
@@ -37,13 +36,11 @@ export const SettingsProvider: React.FC<SettingsProviderProps> = ({ children }) 
       const savedSettings = localStorage.getItem('app-settings');
       
       if (savedSettings) {
-        const parsed = JSON.parse(savedSettings);
-        // 기본 설정과 병합하여 누락된 설정 보완
+        const parsed = JSON.parse(savedSettings);        // 기본 설정과 병합하여 누락된 설정 보완
         const mergedSettings = {
           ...DEFAULT_SETTINGS,
           ...parsed,
-          general: { ...DEFAULT_SETTINGS.general, ...parsed.general },
-          advanced: { ...DEFAULT_SETTINGS.advanced, ...parsed.advanced }
+          general: { ...DEFAULT_SETTINGS.general, ...parsed.general }
         };
         setSettings(mergedSettings);
       }
@@ -63,22 +60,17 @@ export const SettingsProvider: React.FC<SettingsProviderProps> = ({ children }) 
       console.error('설정 저장 실패:', error);
     }
   };
-
   const updateSettings = (newSettings: Partial<AppSettings>) => {
     setSettings(prev => ({
       ...prev,
       ...newSettings,
       // 중첩된 객체 병합
-      general: { ...prev.general, ...newSettings.general },
-      advanced: { ...prev.advanced, ...newSettings.advanced }
+      general: { ...prev.general, ...newSettings.general }
     }));
-  };
-  const resetSettings = () => {
-    // 최신 기본 설정 가져오기 (설정 JSON이 업데이트되었을 수 있음)
-    const freshDefaults = SettingsManager.getDefaultSettings() as AppSettings;
-    setSettings(freshDefaults);
+  };  const resetSettings = () => {
+    setSettings(DEFAULT_SETTINGS);
     localStorage.removeItem('app-settings');
-    console.log('설정이 기본값으로 초기화되었습니다:', freshDefaults);
+    console.log('설정이 기본값으로 초기화되었습니다');
   };
 
   const value: SettingsContextType = {

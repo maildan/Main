@@ -61,27 +61,15 @@
       "icon": "🇨🇳",
       "rtl": false
     }
-  ],
-  "defaultSettings": {
+  ],  "defaultSettings": {
     "theme": "dark",
     "language": "ko",
     "general": {
       "autoSave": true,
-      "showNotifications": true,
-      "enableSounds": false,
-      "defaultSearchEngine": "google",
       "animationSpeed": "normal",
       "fontSize": "medium"
-    },
-    "advanced": {
-      "enableDebugMode": false,
-      "cacheSize": 100,
-      "maxLogEntries": 1000,
-      "enableAnalytics": false,
-      "autoUpdate": true,
-      "experimentalFeatures": false
     }
-  },  "settingsMenu": [
+  },"settingsMenu": [
     {
       "id": "general",
       "type": "modal",

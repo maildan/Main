@@ -1,7 +1,6 @@
 import React from 'react';
 import { useSettings } from '../contexts/SettingsContext';
-import { SettingsManager } from '../utils/settingsManager';
-import { THEME_OPTIONS } from '../types/settings';
+import { getAppInfo, getHelpSections, getContactInfo, getThemes } from '../config';
 
 interface SettingsModalProps {
   type: 'general' | 'about' | 'help';
@@ -19,7 +18,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ type, isOpen, onClose }) 
       onClose();
     }
   };
-
   const handleGeneralSettingChange = (key: keyof typeof settings.general, value: any) => {
     updateSettings({
       general: {
@@ -27,17 +25,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ type, isOpen, onClose }) 
         [key]: value
       }
     });
-  };
-
-  const handleAdvancedSettingChange = (key: keyof typeof settings.advanced, value: any) => {
-    updateSettings({
-      advanced: {
-        ...settings.advanced,
-        [key]: value
-      }
-    });
-  };
-  const renderGeneralSettings = () => {
+  };  const renderGeneralSettings = () => {
     const animationSpeedOptions = [
       { value: 'slow', label: '느리게' },
       { value: 'normal', label: '보통' },
@@ -50,8 +38,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ type, isOpen, onClose }) 
       { value: 'large', label: '크게' }
     ];
     
-    const experimentalFeatures = SettingsManager.getExperimentalFeatures();
-    
     return (
       <div className="settings-content">
         <h3>일반 설정</h3>
@@ -61,9 +47,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ type, isOpen, onClose }) 
           
           {/* 테마 설정 추가 */}
           <div className="setting-item">
-            <label className="setting-label">테마</label>
-            <div className="theme-options">
-              {THEME_OPTIONS.map(theme => (
+            <label className="setting-label">테마</label>            <div className="theme-options">
+              {getThemes().map((theme: any) => (
                 <div 
                   key={theme.value} 
                   className={`theme-option ${settings.theme === theme.value ? 'selected' : ''}`}
@@ -110,8 +95,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ type, isOpen, onClose }) 
             <p className="setting-description">UI의 글꼴 크기를 조정합니다</p>
           </div>
         </div>
-        
-        <div className="settings-group">
+          <div className="settings-group">
           <h4>기본 설정</h4>
           
           <div className="setting-item">
@@ -125,99 +109,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ type, isOpen, onClose }) 
             </label>
             <p className="setting-description">변경사항을 자동으로 저장합니다</p>
           </div>
-
-          <div className="setting-item">
-            <label className="setting-label">
-              <input
-                type="checkbox"
-                checked={settings.general.showNotifications}
-                onChange={(e) => handleGeneralSettingChange('showNotifications', e.target.checked)}
-              />
-              알림 표시
-            </label>
-            <p className="setting-description">시스템 알림을 표시합니다</p>
-          </div>
-
-          <div className="setting-item">
-            <label className="setting-label">
-              <input
-                type="checkbox"
-                checked={settings.general.enableSounds}
-                onChange={(e) => handleGeneralSettingChange('enableSounds', e.target.checked)}
-              />
-              소리 효과
-            </label>
-            <p className="setting-description">버튼 클릭 시 소리를 재생합니다</p>
-          </div>
-        </div>
-
-        <div className="settings-group">
-          <h4>고급 설정</h4>
-          
-          <div className="setting-item">
-            <label className="setting-label">
-              <input
-                type="checkbox"
-                checked={settings.advanced.enableDebugMode}
-                onChange={(e) => handleAdvancedSettingChange('enableDebugMode', e.target.checked)}
-              />
-              디버그 모드
-            </label>
-            <p className="setting-description">개발자 도구를 활성화합니다</p>
-          </div>
-
-          <div className="setting-item">
-            <label className="setting-label">
-              캐시 크기: {settings.advanced.cacheSize}MB
-              <input
-                type="range"
-                min="50"
-                max="500"
-                value={settings.advanced.cacheSize}
-                onChange={(e) => handleAdvancedSettingChange('cacheSize', parseInt(e.target.value))}
-              />
-            </label>
-            <p className="setting-description">앱 캐시 크기를 설정합니다</p>
-          </div>
-          
-          <div className="setting-item">
-            <label className="setting-label">
-              <input
-                type="checkbox"
-                checked={settings.advanced.autoUpdate}
-                onChange={(e) => handleAdvancedSettingChange('autoUpdate', e.target.checked)}
-              />
-              자동 업데이트
-            </label>
-            <p className="setting-description">앱 업데이트 자동 설치</p>
-          </div>
-        </div>
-        
-        {/* 실험적 기능 섹션 */}
-        <div className="settings-group">
-          <h4>실험적 기능</h4>
-          <p className="settings-group-description">아직 개발 중인 기능들입니다. 불안정할 수 있습니다.</p>
-          
-          <div className="setting-item">
-            <label className="setting-label">
-              <input
-                type="checkbox"
-                checked={settings.advanced.experimentalFeatures}
-                onChange={(e) => handleAdvancedSettingChange('experimentalFeatures', e.target.checked)}
-              />
-              실험적 기능 활성화
-            </label>
-          </div>
-          
-          {settings.advanced.experimentalFeatures && experimentalFeatures.map(feature => (
-            <div className="experimental-feature" key={feature.id}>
-              <div className="feature-header">
-                <h5>{feature.name}</h5>
-                {!feature.stable && <span className="feature-badge">베타</span>}
-              </div>
-              <p className="feature-description">{feature.description}</p>
-            </div>
-          ))}
         </div>
 
         <div className="settings-actions">
@@ -227,10 +118,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ type, isOpen, onClose }) 
         </div>
       </div>
     );
-  };
-  const renderAboutInfo = () => {
-    const appInfo = SettingsManager.getAppInfo();
-    const contactInfo = SettingsManager.getContactInfo();
+  };  const renderAboutInfo = () => {
+    const appInfo = getAppInfo();
+    const contactInfo = getContactInfo();
     
     return (
       <div className="settings-content">
@@ -255,20 +145,19 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ type, isOpen, onClose }) 
         </div>
       </div>
     );
-  };
-  const renderHelpInfo = () => {
-    const helpSections = SettingsManager.getHelpSections();
-    const contactInfo = SettingsManager.getContactInfo();
+  };  const renderHelpInfo = () => {
+    const helpSections = getHelpSections();
+    const contactInfo = getContactInfo();
     
     return (
       <div className="settings-content">
         <h3>도움말</h3>
         <div className="help-content">
-          {helpSections.map(section => (
+          {helpSections.map((section: any) => (
             <div className="help-section" key={section.id}>
               <h4>{section.icon} {section.title}</h4>
               <ul>
-                {section.content.map((item, index) => (
+                {section.content.map((item: any, index: number) => (
                   <li key={index}>{item}</li>
                 ))}
               </ul>

@@ -177,11 +177,10 @@ const MainScreen = ({ onNavigateToKakao }: MainScreenProps) => {
           <h1 className="app-title">Loop Pro</h1>
         </div>        {/* 검색바 섹션 */}
         <div className="search-section">
-          <div className="search-container">            <form onSubmit={handleSearch} className={`search-form ${isSearchExpanded ? 'expanded' : ''}`}>
-              <input
+          <div className="search-container">            <form onSubmit={handleSearch} className={`search-form ${isSearchExpanded ? 'expanded' : ''}`}>              <input
                 type="text"
                 className={`search-input ${isSearchFocused ? 'focused' : ''}`}
-                placeholder="기능을 검색하세요"
+                placeholder=""
                 value={searchQuery}
                 onChange={handleInputChange}
                 onKeyDown={handleKeyDown}
