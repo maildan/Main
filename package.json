@@ -1,7 +1,8 @@
 {
-  "name": "loop",
+  "name": "loop-pro",
   "private": true,
   "version": "0.1.0",
+  "description": "AI Document Analysis Tool - Smart document processing with AI-powered analysis",
   "type": "module",
   "scripts": {
     "dev": "tauri dev",

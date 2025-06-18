@@ -1,10 +1,6 @@
 import { useState } from 'react';
-import SettingsDropdown from '../../../shared/components/SettingsDropdown';
-import SettingsModal from '../../../shared/components/SettingsModal';
-
-interface MainScreenProps {
-  onNavigateToKakao: () => void;
-}
+import SettingsDropdown from './SettingsDropdown';
+import SettingsModal from './SettingsModal';
 
 /**
  * 메인 화면 컴포넌트
@@ -12,7 +8,7 @@ interface MainScreenProps {
  * - 애플리케이션 명: Loop Pro
  * - Google 스타일 자동완성 검색바
  */
-const MainScreen = ({ onNavigateToKakao }: MainScreenProps) => {
+const MainScreen = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -21,17 +17,17 @@ const MainScreen = ({ onNavigateToKakao }: MainScreenProps) => {
   const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(-1);  const [showSettings, setShowSettings] = useState(false);
   // 설정 모달 상태
   const [showSettingsModal, setShowSettingsModal] = useState(false);
-  const [settingsModalType, setSettingsModalType] = useState<'general' | 'about' | 'help' | null>(null);
-  // 검색 추천 데이터
+  const [settingsModalType, setSettingsModalType] = useState<'general' | 'about' | 'help' | null>(null);  // 검색 추천 데이터
   const searchData = [
-    '카카오톡 복호화'
+    '문서 분석',
+    '텍스트 요약',
+    'PDF 처리'
   ];
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    if (searchQuery.trim().toLowerCase().includes('카카오')) {
-      onNavigateToKakao();
-    }
+    // TODO: 새로운 문서 분석 기능 구현
+    console.log('검색어:', searchQuery);
   };
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
@@ -80,14 +76,12 @@ const MainScreen = ({ onNavigateToKakao }: MainScreenProps) => {
         break;
     }
   };
-  const handleSuggestionClick = (suggestion: string) => {
-    setSearchQuery(suggestion);
+  const handleSuggestionClick = (suggestion: string) => {    setSearchQuery(suggestion);
     setShowSuggestions(false);
     setIsSearchFocused(false);
     setIsSearchExpanded(false);
-    if (suggestion.includes('카카오')) {
-      onNavigateToKakao();
-    }
+    // TODO: 선택된 추천어에 따른 동작 구현
+    console.log('선택된 기능:', suggestion);
   };
 
   const handleSuggestionMouseDown = (e: React.MouseEvent) => {

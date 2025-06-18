@@ -1,6 +1,6 @@
 import React from 'react';
 import { useSettings } from '../contexts/SettingsContext';
-import { getLanguages } from '../config';
+import { getLanguages } from '../config/config';
 
 interface SettingsDropdownProps {
   isOpen: boolean;

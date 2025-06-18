@@ -1,6 +1,6 @@
 import React from 'react';
 import { useSettings } from '../contexts/SettingsContext';
-import { getAppInfo, getHelpSections, getContactInfo, getThemes } from '../config';
+import { getAppInfo, getHelpSections, getContactInfo, getThemes } from '../config/config';
 
 interface SettingsModalProps {
   type: 'general' | 'about' | 'help';
