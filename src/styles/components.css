@@ -269,28 +269,29 @@
 .splash-content {
   text-align: center;
   color: #ffffff;
-  max-width: 400px;
+  width: 400px;
   padding: 2rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
 }
 
-.app-icon {
-  margin-bottom: 1.5rem;
-}
-
-.app-icon img {
-  width: 80px;
-  height: 80px;
-}
-
+/* 앱 타이틀 - 스플래시와 메인 화면 공통 */
 .app-title {
   font-size: 2rem;
   font-weight: 600;
   margin-bottom: 2rem;
   color: #ffffff;
+  text-shadow: 0 0 10px rgba(79, 195, 247, 0.3);
 }
 
 .progress-container {
   margin-bottom: 1rem;
+  width: 300px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 .progress-bar {
@@ -315,12 +316,13 @@
   color: #b9bbbe;
 }
 
-.status-text {
-  font-size: 1rem;
+.status-text {  font-size: 1rem;
   margin-bottom: 1rem;
   color: #b9bbbe;
   font-weight: 400;
   min-height: 1.5rem;
+  width: 300px;
+  text-align: center;
 }
 
 .loading-spinner {

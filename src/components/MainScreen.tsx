@@ -165,11 +165,10 @@ const MainScreen = () => {
         </div>
       </header>
 
-      <div className="main-content">
-        {/* 애플리케이션 로고 섹션 */}
+      <div className="main-content">        {/* 애플리케이션 로고 섹션 */}
         <div className="logo-section">
           <h1 className="app-title">Loop Pro</h1>
-        </div>        {/* 검색바 섹션 */}
+        </div>{/* 검색바 섹션 */}
         <div className="search-section">
           <div className="search-container">            <form onSubmit={handleSearch} className={`search-form ${isSearchExpanded ? 'expanded' : ''}`}>              <input
                 type="text"
