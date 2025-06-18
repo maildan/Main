@@ -60,9 +60,7 @@ const KakaoSection = ({}: KakaoSectionProps) => {  // 상태 관리
     } finally {
       setIsLoading(false);
     }
-  };
-
-  // 수동 파일 선택
+  };  // 수동 파일 선택
   const handleManualFileSelect = async () => {
     try {
       const result = await open({
@@ -76,6 +74,29 @@ const KakaoSection = ({}: KakaoSectionProps) => {  // 상태 관리
 
       if (result) {
         setSelectedFile(result as string);
+        
+        // 파일명에서 ID 추출하여 chatLog_{ID 요약} 형태로 표시
+        const fileName = (result as string).split('\\').pop() || (result as string).split('/').pop() || "선택된 파일";
+        let displayName = "선택된 파일"; // 기본값
+        
+        if (fileName.startsWith("chatLogs_") && fileName.endsWith(".edb")) {
+          // chatLogs_{숫자ID}.edb에서 숫자 추출
+          const idPart = fileName.slice(9, -4); // "chatLogs_"와 ".edb" 제거
+          if (idPart.match(/^\d+$/)) {
+            // ID를 6자리로 요약 (마지막 6자리 사용)
+            const id = parseInt(idPart);
+            const shortId = String(id % 1000000).padStart(6, '0');
+            displayName = `chatLogs_${shortId}`;
+          }
+        }
+        
+        // 수동 선택 시에는 기존 목록을 대체 (하나만 선택 가능)
+        setAvailableFiles([{
+          path: result as string,
+          name: displayName,
+          size: 0 // 수동 선택 시에는 크기 정보 없음
+        }]);
+        
         setErrorMessage(null);
         console.log("수동 선택된 파일:", result);
       }
@@ -95,12 +116,16 @@ const KakaoSection = ({}: KakaoSectionProps) => {  // 상태 관리
     try {
       setIsLoading(true);
       setErrorMessage(null);
-      setMessages([]);
-
-      console.log("복호화 시작:", selectedFile);
+      setMessages([]);      console.log("복호화 시작:", selectedFile);
+      
+      if (!userId) {
+        setErrorMessage("사용자 ID를 입력해주세요");
+        return;
+      }
       
       const result = await invoke<KakaoMessage[]>("decrypt_kakao_edb", { 
-        filePath: selectedFile 
+        filePath: selectedFile,
+        userId: userId
       });
 
       if (result && result.length > 0) {
@@ -115,15 +140,7 @@ const KakaoSection = ({}: KakaoSectionProps) => {  // 상태 관리
       setErrorMessage(`복호화 실패: ${error}`);
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  // 파일 선택 (자동 감지된 파일)
-  const handleFileSelect = (filePath: string) => {
-    setSelectedFile(filePath);
-    setErrorMessage(null);
-    console.log("선택된 파일:", filePath);
-  };
+    }  };
 
   // 사용자 ID 변경
   const handleUserIdChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -193,34 +210,21 @@ const KakaoSection = ({}: KakaoSectionProps) => {  // 상태 관리
             {isLoading ? "처리 중..." : (isManualMode ? "파일 선택" : "파일 검색")}
           </button>
         </div>
-      </div>      {/* 자동 감지된 파일 목록 (자동 모드일 때만 표시) */}
-      {!isManualMode && availableFiles.length > 0 && (
+      </div>      {/* 자동 감지된 파일 개수만 표시 */}      {!isManualMode && availableFiles.length > 0 && (
         <div className="auto-files-section">
-          <h3>감지된 카카오톡 파일:</h3>
-          <div className="file-list">
-            {availableFiles.map((file, index) => (
-              <div 
-                key={index} 
-                className={`file-item ${selectedFile === file.path ? 'selected' : ''}`}
-                onClick={() => handleFileSelect(file.path)}
-              >
-                <div className="file-info">
-                  <div className="file-name">{file.name}</div>
-                  <div className="file-path">{file.path}</div>
-                  <div className="file-size">{file.size} bytes</div>
-                </div>
-              </div>
-            ))}
+          <div className="file-status-card">
+            <h3 className="file-status-title found">검색 완료</h3>
+            <p className="file-status-content">{availableFiles.length}개 파일 발견</p>
           </div>
         </div>
       )}
 
-      {/* 선택된 파일 표시 */}
-      {selectedFile && (
+      {/* 수동 모드일 때 선택된 파일 표시 */}
+      {isManualMode && selectedFile && (
         <div className="selected-file-section">
-          <h3>선택된 파일:</h3>
-          <div className="selected-file-info">
-            <p>{selectedFile}</p>
+          <div className="file-status-card">
+            <h4 className="file-status-title selected">선택된 파일</h4>
+            <p className="file-status-content file-name">{availableFiles.find(f => f.path === selectedFile)?.name || "선택된 파일"}</p>
           </div>
         </div>
       )}

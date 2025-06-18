@@ -1,14 +1,10 @@
+pub mod kakao_decrypt;
+
 use std::path::Path;
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
 use crate::shared::error::KakaoError;
-use crate::infrastructure::crypto::decrypt_aes_cbc;
-
-// 하드코딩된 pragma 키 (16바이트)
-const PRAGMA_KEY: [u8; 16] = [
-    0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC, 0xDE, 0xF0,
-    0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88
-];
+use kakao_decrypt::decrypt_kakao_edb_full;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct KakaoMessage {
@@ -18,9 +14,9 @@ pub struct KakaoMessage {
     pub sender: String,
 }
 
-/// 카카오톡 EDB 파일 복호화
+/// 카카오톡 EDB 파일 복호화 (새로운 방식)
 #[tauri::command]
-pub fn decrypt_kakao_edb(file_path: String) -> Result<Vec<KakaoMessage>, String> {
+pub fn decrypt_kakao_edb(file_path: String, user_id: String) -> Result<Vec<KakaoMessage>, String> {
     println!("🔓 EDB 파일 복호화 시작: {}", file_path);
     
     // 파일 존재 확인
@@ -28,71 +24,59 @@ pub fn decrypt_kakao_edb(file_path: String) -> Result<Vec<KakaoMessage>, String>
         return Err("파일이 존재하지 않습니다".to_string());
     }
 
-    // pragma 키로 복호화 시도
-    println!("🔑 pragma 키로 복호화 시도");
+    // 새로운 복호화 로직 사용
+    let decrypted_data = decrypt_kakao_edb_full(&file_path, &user_id)
+        .map_err(|e| format!("복호화 실패: {:?}", e))?;
     
-    match try_decrypt_with_key(&file_path, &PRAGMA_KEY) {
-        Ok(messages) => {
-            if !messages.is_empty() {
-                println!("✅ 복호화 성공! {} 개의 메시지 발견", messages.len());
-                return Ok(messages);
-            } else {
-                return Err("복호화는 성공했지만 메시지를 찾을 수 없습니다".to_string());
-            }
-        },
-        Err(e) => {
-            println!("❌ pragma 키로 복호화 실패: {:?}", e);
-            return Err(format!("복호화 실패: {:?}", e));
-        }
-    }
+    // 임시 파일로 저장
+    let temp_file = format!("{}.decrypted.db", file_path);
+    std::fs::write(&temp_file, &decrypted_data)
+        .map_err(|e| format!("복호화된 파일 저장 실패: {}", e))?;
+    
+    // SQLite 데이터베이스로 열기
+    let conn = Connection::open(&temp_file)
+        .map_err(|e| format!("데이터베이스 연결 실패: {}", e))?;
+    
+    // 메시지 추출
+    let messages = extract_messages_from_db(&conn)
+        .map_err(|e| format!("메시지 추출 실패: {:?}", e))?;
+    
+    // 임시 파일 삭제
+    let _ = std::fs::remove_file(&temp_file);
+    
+    println!("✅ 복호화 완료! 메시지 {}개 추출", messages.len());
+    Ok(messages)
 }
 
-/// 특정 키로 복호화 시도
-fn try_decrypt_with_key(file_path: &str, key: &[u8; 16]) -> Result<Vec<KakaoMessage>, KakaoError> {
-    // SQLite 연결
-    let conn = Connection::open(file_path)?;
+/// 데이터베이스에서 메시지 추출
+fn extract_messages_from_db(conn: &Connection) -> Result<Vec<KakaoMessage>, KakaoError> {
+    // 카카오톡 데이터베이스 테이블 구조에 맞게 수정
+    let query = "
+        SELECT 
+            id, 
+            message, 
+            created_at, 
+            user_id 
+        FROM chat_logs 
+        WHERE message IS NOT NULL 
+        ORDER BY created_at ASC
+    ";
     
-    // 메시지 테이블 조회
-    let mut stmt = conn.prepare("SELECT id, message, created_at, user_id FROM chat_logs LIMIT 100")?;
-    let mut messages = Vec::new();
+    let mut stmt = conn.prepare(query)?;
     
-    let rows = stmt.query_map([], |row| {
-        let id: i64 = row.get(0)?;
-        let encrypted_message: Vec<u8> = row.get(1)?;
-        let timestamp: String = row.get(2).unwrap_or_default();
-        let sender: String = row.get(3).unwrap_or_default();
-        
-        // 복호화 시도
-        let iv = vec![0u8; 16]; // 기본 IV
-        
-        match decrypt_aes_cbc(&encrypted_message, key, &iv) {
-            Ok(decrypted) => {
-                let message = String::from_utf8_lossy(&decrypted).to_string();
-                Ok(KakaoMessage {
-                    id,
-                    message,
-                    timestamp,
-                    sender,
-                })
-            },
-            Err(_) => {
-                // 복호화 실패시 원본 그대로
-                let message = String::from_utf8_lossy(&encrypted_message).to_string();
-                Ok(KakaoMessage {
-                    id,
-                    message,
-                    timestamp,
-                    sender,
-                })
-            }
-        }
+    let message_iter = stmt.query_map([], |row| {
+        Ok(KakaoMessage {
+            id: row.get(0)?,
+            message: row.get::<_, String>(1)?,
+            timestamp: row.get::<_, String>(2)?,
+            sender: row.get::<_, String>(3)?,
+        })
     })?;
-    
-    for row in rows {
-        if let Ok(message) = row {
-            messages.push(message);
-        }
+
+    let mut messages = Vec::new();
+    for message_result in message_iter {
+        messages.push(message_result?);
     }
-    
+
     Ok(messages)
 }

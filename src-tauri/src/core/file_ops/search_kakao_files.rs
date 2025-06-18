@@ -64,6 +64,9 @@ pub fn search_kakao_files(user_id: String) -> Result<Vec<KakaoFile>, String> {
 /// chatLogs_{숫자ID}.edb 형태의 파일만 검색
 fn search_chatlog_files(chat_data_dir: &PathBuf, found_files: &mut Vec<KakaoFile>) {
     if let Ok(entries) = fs::read_dir(chat_data_dir) {
+        let mut chat_files = Vec::new();
+        
+        // 먼저 모든 chatLogs 파일을 수집
         for entry in entries.flatten() {
             let path = entry.path();
             if let Some(file_name) = path.file_name().and_then(|n| n.to_str()) {
@@ -72,15 +75,29 @@ fn search_chatlog_files(chat_data_dir: &PathBuf, found_files: &mut Vec<KakaoFile
                     let id_part = &file_name[9..file_name.len()-4]; // "chatLogs_"와 ".edb" 제거
                     if id_part.chars().all(|c| c.is_ascii_digit()) {
                         if let Ok(metadata) = entry.metadata() {
-                            found_files.push(KakaoFile {
-                                path: path.to_string_lossy().to_string(),
-                                name: file_name.to_string(),
-                                size: metadata.len(),
-                            });
+                            if let Ok(id) = id_part.parse::<u64>() {
+                                chat_files.push((id, path, metadata.len()));
+                            }
                         }
                     }
                 }
             }
+        }
+        
+        // ID 순으로 정렬
+        chat_files.sort_by_key(|(id, _, _)| *id);
+        
+        // ID를 요약하여 표시
+        for (id, path, size) in chat_files.into_iter() {
+            // ID를 6자리로 요약 (마지막 6자리 사용)
+            let short_id = format!("{:06}", id % 1000000);
+            let display_name = format!("chatLogs_{}", short_id);
+            
+            found_files.push(KakaoFile {
+                path: path.to_string_lossy().to_string(),
+                name: display_name,
+                size,
+            });
         }
     }
 }

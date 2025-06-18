@@ -101,7 +101,7 @@
   position: absolute;
   right: 8px;
   top: 50%;
-  transform: translateY(-50%);
+  transform: translateY(-52%);
   background: none;
   border: none;
   font-size: 1.2rem;
@@ -113,6 +113,11 @@
   filter: none;
   text-shadow: none;
   box-shadow: none;
+  line-height: 1;
+  vertical-align: middle;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .search-button:hover {
