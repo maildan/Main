@@ -5,6 +5,7 @@ import ErrorMessage from "./shared/components/ErrorMessage";
 import KakaoSection from "./features/kakao/components/KakaoSection";
 import MainScreen from "./features/main/components/MainScreen";
 import SplashScreen from "./shared/components/SplashScreen";
+import { SettingsProvider } from "./shared/contexts/SettingsContext";
 
 // CSS 임포트
 import "./styles/base.css";
@@ -46,40 +47,41 @@ function App() {
   // 스플래시 화면이 아직 표시되는 경우
   if (!isInitialized) {
     return <SplashScreen onComplete={handleSplashComplete} />;
-  }
-  return (
-    <div className="app-layout">
-      {/* 에러 메시지 표시 */}
-      <ErrorMessage 
-        message={errorMessage} 
-        onClose={() => setErrorMessage(null)}
-        isError={false}
-      />
-      
-      <div className="app-content">
-        {/* 조건부 렌더링 - 현재 섹션에 따라 다른 컴포넌트 표시 */}
-        {currentSection === 'main' ? (
-          <MainScreen onNavigateToKakao={handleNavigateToKakao} />
-        ) : (
-          <div className="section-content" role="main">
-            {/* 뒤로 가기 버튼 */}
-            <div className="back-navigation">
-              <button 
-                className="back-button"
-                onClick={handleNavigateToMain}
-                type="button"
-                aria-label="메인 화면으로 돌아가기"
-              >
-                ← 메인으로 돌아가기
-              </button>
+  }  return (
+    <SettingsProvider>
+      <div className="app-layout">
+        {/* 에러 메시지 표시 */}
+        <ErrorMessage 
+          message={errorMessage} 
+          onClose={() => setErrorMessage(null)}
+          isError={false}
+        />
+        
+        <div className="app-content">
+          {/* 조건부 렌더링 - 현재 섹션에 따라 다른 컴포넌트 표시 */}
+          {currentSection === 'main' ? (
+            <MainScreen onNavigateToKakao={handleNavigateToKakao} />
+          ) : (
+            <div className="section-content" role="main">
+              {/* 뒤로 가기 버튼 */}
+              <div className="back-navigation">
+                <button 
+                  className="back-button"
+                  onClick={handleNavigateToMain}
+                  type="button"
+                  aria-label="메인 화면으로 돌아가기"
+                >
+                  ← 메인으로 돌아가기
+                </button>
+              </div>
+              
+              {/* 카카오톡 복호화 섹션 */}
+              <KakaoSection />
             </div>
-            
-            {/* 카카오톡 복호화 섹션 */}
-            <KakaoSection />
-          </div>
-        )}
+          )}
+        </div>
       </div>
-    </div>
+    </SettingsProvider>
   );
 }
 

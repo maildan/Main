@@ -200,51 +200,556 @@
   transform: translateX(0);
 }
 
-/* 반응형 디자인 */
-@media (max-width: 768px) {
-  .app-title {
-    font-size: 4rem;
+/* 상단 헤더 */
+.main-header {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 100%;
+  display: flex;
+  justify-content: flex-end;
+  padding: 20px;
+  z-index: 1000;
+}
+
+/* 설정 컨테이너 */
+.settings-container {
+  position: relative;
+}
+
+/* 설정 버튼 */
+.settings-button {
+  width: 44px;
+  height: 44px;
+  border: none;
+  background: transparent;
+  color: #ffffff;
+  font-size: 30px;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform-origin: 50% 50%;
+  position: relative;
+  box-shadow: none;
+  outline: none;
+}
+
+.settings-button:hover {
+  color: #4fc3f7;
+  filter: drop-shadow(0 0 8px rgba(79, 195, 247, 0.5));
+}
+
+.settings-button:active {
+  transform: scale(0.95);
+  filter: drop-shadow(0 0 4px rgba(79, 195, 247, 0.3));
+}
+
+.settings-button:focus {
+  outline: none;
+  box-shadow: none;
+}
+
+/* 설정 드롭다운 메뉴 */
+.settings-dropdown {
+  position: absolute;
+  top: 55px;
+  right: 0;
+  min-width: 220px;
+  background: rgba(20, 20, 20, 0.95);
+  backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  padding: 8px 0;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+  animation: slideDown 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 1001;
+  overflow: hidden;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-12px) scale(0.95);
   }
-  
-  .main-content {
-    padding: 1rem;
-  }
-  
-  .logo-section {
-    margin-bottom: 3rem;
-  }
-  
-  .kakao-shortcut {
-    min-width: 100px;
-    min-height: 100px;
-    padding: 1rem;
-  }
-  
-  .shortcut-icon {
-    font-size: 2.5rem;
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
   }
 }
 
-@media (max-width: 480px) {
-  .app-title {
-    font-size: 3rem;
+/* 설정 메뉴 아이템 */
+.settings-item {
+  padding: 14px 18px;
+  color: #ffffff;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  font-size: 14px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  position: relative;
+}
+
+.settings-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #4fc3f7;
+  padding-left: 22px;
+}
+
+.settings-item:active {
+  background: rgba(255, 255, 255, 0.12);
+  transform: scale(0.98);
+}
+
+.settings-item .settings-icon {
+  font-size: 16px;
+  width: 20px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.settings-item .settings-label {
+  flex: 1;
+  text-align: left;
+}
+
+/* 구분선 */
+.settings-divider {
+  height: 1px;
+  background: linear-gradient(90deg, 
+    transparent 0%, 
+    rgba(255, 255, 255, 0.15) 20%, 
+    rgba(255, 255, 255, 0.15) 80%, 
+    transparent 100%
+  );
+  margin: 6px 12px;
+}
+
+/* 설정 드롭다운 개선된 스타일 */
+.settings-dropdown .settings-icon {
+  font-size: 16px;
+  width: 20px;
+  text-align: center;
+}
+
+.settings-dropdown .settings-label {
+  flex: 1;
+  text-align: left;
+}
+
+/* 설정 모달 */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(5px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.settings-modal {
+  background: rgba(30, 30, 30, 0.95);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  width: 90%;
+  max-width: 600px;
+  max-height: 80vh;
+  overflow: hidden;
+  animation: slideUp 0.3s ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
   }
-  
-  .logo-section {
-    margin-bottom: 2rem;
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
-  
-  .kakao-shortcut {
-    min-width: 80px;
-    min-height: 80px;
-    padding: 0.75rem;
-  }
-  
-  .shortcut-icon {
-    font-size: 2rem;
-  }
-  
-  .shortcut-label {
-    font-size: 0.75rem;
-  }
+}
+
+.modal-header {
+  display: flex;
+  justify-content: flex-end;
+  padding: 16px 20px 0 20px;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  color: #ffffff;
+  font-size: 20px;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 50%;
+  transition: all 0.2s ease;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal-close:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.modal-body {
+  padding: 0 20px 20px 20px;
+  overflow-y: auto;
+  max-height: calc(80vh - 80px);
+}
+
+/* 설정 콘텐츠 */
+.settings-content h3 {
+  color: #ffffff;
+  font-size: 24px;
+  margin: 0 0 20px 0;
+  font-weight: 600;
+}
+
+.settings-group {
+  margin-bottom: 24px;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.settings-group h4 {
+  color: #b0b0b0;
+  font-size: 14px;
+  margin: 0 0 16px 0;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 600;
+}
+
+.setting-item {
+  margin-bottom: 16px;
+}
+
+.setting-item:last-child {
+  margin-bottom: 0;
+}
+
+.setting-label {
+  color: #ffffff;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  margin-bottom: 4px;
+}
+
+.setting-label input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+}
+
+.setting-label input[type="range"] {
+  flex: 1;
+  margin-left: 12px;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+  outline: none;
+  cursor: pointer;
+}
+
+.setting-description {
+  color: #888;
+  font-size: 13px;
+  margin: 4px 0 0 30px;
+  line-height: 1.4;
+}
+
+.settings-actions {
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.btn-danger {
+  background: #dc3545;
+  color: white;
+  border: none;
+  padding: 10px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.btn-danger:hover {
+  background: #c82333;
+}
+
+/* 정보 페이지 */
+.about-info {
+  text-align: center;
+}
+
+.app-logo h2 {
+  color: #ffffff;
+  font-size: 32px;
+  margin: 0 0 16px 0;
+  font-weight: 300;
+}
+
+.app-details {
+  margin: 20px 0;
+  color: #b0b0b0;
+}
+
+.app-details p {
+  margin: 8px 0;
+  font-size: 14px;
+}
+
+.app-description {
+  margin-top: 24px;
+  color: #ffffff;
+  line-height: 1.6;
+}
+
+.app-description p {
+  margin: 8px 0;
+}
+
+/* 도움말 페이지 */
+.help-content {
+  color: #ffffff;
+}
+
+.help-section {
+  margin-bottom: 24px;
+}
+
+.help-section h4 {
+  color: #4fc3f7;
+  font-size: 18px;
+  margin: 0 0 12px 0;
+  font-weight: 600;
+}
+
+.help-section ul {
+  margin: 0;
+  padding-left: 20px;
+  color: #b0b0b0;
+}
+
+.help-section li {
+  margin: 6px 0;
+  line-height: 1.5;
+}
+
+.help-section p {
+  color: #b0b0b0;
+  line-height: 1.5;
+  margin: 6px 0;
+}
+
+/* 설정 드롭다운의 셀렉트 박스 */
+.setting-select {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 6px;
+  color: #ffffff;
+  padding: 8px 12px;
+  font-size: 14px;
+  width: 100%;
+  margin-top: 6px;
+  appearance: none;
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 16px;
+}
+
+.setting-select:focus {
+  outline: none;
+  border-color: #4fc3f7;
+  box-shadow: 0 0 0 2px rgba(79, 195, 247, 0.2);
+}
+
+.setting-select option {
+  background-color: #2a2a2a;
+  color: #ffffff;
+}
+
+/* 설정 그룹 설명 */
+.settings-group-description {
+  color: #888;
+  font-size: 13px;
+  font-style: italic;
+  margin: -8px 0 12px 0;
+}
+
+/* 실험적 기능 항목 */
+.experimental-feature {
+  background: rgba(79, 195, 247, 0.05);
+  border: 1px dashed rgba(79, 195, 247, 0.3);
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-top: 12px;
+}
+
+.feature-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.feature-header h5 {
+  margin: 0;
+  color: #4fc3f7;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.feature-badge {
+  background: rgba(255, 87, 34, 0.2);
+  color: #ff5722;
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.feature-description {
+  color: #b0b0b0;
+  font-size: 13px;
+  margin: 0;
+  line-height: 1.4;
+}
+
+/* 연락처 정보 */
+.contact-info {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.contact-info p {
+  margin: 8px 0;
+  font-size: 14px;
+}
+
+.contact-info a {
+  color: #4fc3f7;
+  text-decoration: none;
+}
+
+.contact-info a:hover {
+  text-decoration: underline;
+}
+
+/* 지원 링크 */
+.contact-support {
+  margin-top: 24px;
+  text-align: center;
+}
+
+.support-links {
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.support-link {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-decoration: none;
+  color: #ffffff;
+  padding: 12px;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.support-link:hover {
+  background: rgba(255, 255, 255, 0.05);
+  transform: translateY(-2px);
+}
+
+.support-icon {
+  font-size: 24px;
+  margin-bottom: 8px;
+}
+
+.support-text {
+  font-size: 13px;
+  color: #b0b0b0;
+}
+
+/* 테마 옵션 선택 UI */
+.theme-options {
+  display: flex;
+  gap: 10px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+
+.theme-option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 12px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  width: 80px;
+  position: relative;
+  border: 1px solid transparent;
+}
+
+.theme-option:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.theme-option.selected {
+  background: rgba(79, 195, 247, 0.1);
+  border: 1px solid rgba(79, 195, 247, 0.5);
+}
+
+.theme-icon {
+  font-size: 24px;
+  margin-bottom: 6px;
+}
+
+.theme-name {
+  font-size: 12px;
+  color: #b0b0b0;
+}
+
+.theme-selected {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  color: #4fc3f7;
+  font-size: 12px;
 }

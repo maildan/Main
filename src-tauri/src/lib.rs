@@ -1,6 +1,5 @@
 // 모듈 선언
 mod core;
-mod infrastructure;
 mod shared;
 mod components;
 

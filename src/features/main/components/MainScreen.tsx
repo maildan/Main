@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import SettingsDropdown from '../../../shared/components/SettingsDropdown';
+import SettingsModal from '../../../shared/components/SettingsModal';
 
 interface MainScreenProps {
   onNavigateToKakao: () => void;
@@ -11,11 +13,15 @@ interface MainScreenProps {
  * - Google 스타일 자동완성 검색바
  */
 const MainScreen = ({ onNavigateToKakao }: MainScreenProps) => {
-  const [searchQuery, setSearchQuery] = useState('');  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [suggestions, setSuggestions] = useState<string[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [isSearchExpanded, setIsSearchExpanded] = useState(false);
-  const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(-1);
+  const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(-1);  const [showSettings, setShowSettings] = useState(false);
+  // 설정 모달 상태
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [settingsModalType, setSettingsModalType] = useState<'general' | 'about' | 'help' | null>(null);
   // 검색 추천 데이터
   const searchData = [
     '카카오톡 복호화'
@@ -110,6 +116,16 @@ const MainScreen = ({ onNavigateToKakao }: MainScreenProps) => {
     if (!isSearchFocused) {
       setIsSearchExpanded(false);
     }
+  };  // 설정 메뉴 핸들러
+  const handleSettingsToggle = () => {
+    setShowSettings(!showSettings);
+  };
+
+  // 설정 모달 열기 핸들러
+  const handleOpenSettingsModal = (type: 'general' | 'about' | 'help') => {
+    setSettingsModalType(type);
+    setShowSettingsModal(true);
+    setShowSettings(false); // 드롭다운 메뉴는 닫기
   };
 
   // 한글 초성 추출 함수
@@ -121,9 +137,40 @@ const MainScreen = ({ onNavigateToKakao }: MainScreenProps) => {
       return initials[initialIndex] || char;
     });
   };
-
   return (
     <div className="main-screen">
+      {/* 상단 헤더 */}      <header className="main-header">
+        {/* 설정 버튼 */}
+        <div className="settings-container">
+          <button 
+            className="settings-button"
+            onClick={handleSettingsToggle}
+          >
+            ⚙
+          </button>
+            {/* 설정 드롭다운 메뉴 (클릭 이벤트 버블링 방지) */}
+          <div onClick={(e) => e.stopPropagation()}>
+            <SettingsDropdown 
+              isOpen={showSettings}
+              onClose={() => setShowSettings(false)}
+              onOpenModal={handleOpenSettingsModal}
+            />
+          </div>
+          
+          {/* 설정 모달 */}
+          {showSettingsModal && settingsModalType && (
+            <SettingsModal
+              type={settingsModalType}
+              isOpen={showSettingsModal}
+              onClose={() => {
+                setShowSettingsModal(false);
+                setSettingsModalType(null);
+              }}
+            />
+          )}
+        </div>
+      </header>
+
       <div className="main-content">
         {/* 애플리케이션 로고 섹션 */}
         <div className="logo-section">

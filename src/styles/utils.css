@@ -68,29 +68,51 @@
   right: 20px;
   color: white;
   padding: 15px 20px;
-  border-radius: 8px;
+  border-radius: 12px;
   z-index: 1000;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
   min-width: 250px;
   max-width: 80%;
+  backdrop-filter: blur(15px);
+  background-color: rgba(76, 175, 80, 0.85); /* 기본 투명도 85% */
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  font-weight: 500;
+  transition: all 0.3s ease;
 }
 
 .error-message.show {
-  animation: slideIn 0.5s ease forwards;
+  animation: slideInGlass 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 .error-message.hide {
-  animation: fadeOut 0.5s ease forwards;
+  animation: fadeOutGlass 0.4s ease forwards;
+}
+
+/* hover 효과 */
+.error-message:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
+  backdrop-filter: blur(20px);
 }
 
 /* 일반 알림 메시지 (트래킹 상태 등) */
 .error-message.notification {
-  background-color: #4caf50;
+  background-color: rgba(76, 175, 80, 0.85); /* 성공 메시지 - 85% 투명도 */
+  border: 1px solid rgba(129, 199, 132, 0.3);
+}
+
+.error-message.notification:hover {
+  background-color: rgba(76, 175, 80, 0.9);
 }
 
 /* 에러 알림 메시지 */
 .error-message.error {
-  background-color: #f44336;
+  background-color: rgba(244, 67, 54, 0.85); /* 에러 메시지 - 85% 투명도 */
+  border: 1px solid rgba(239, 154, 154, 0.3);
+}
+
+.error-message.error:hover {
+  background-color: rgba(244, 67, 54, 0.9);
 }
 
 .error-message p {
@@ -134,5 +156,32 @@
   to {
     transform: translateX(100%); /* 오른쪽으로 이동하며 사라지도록 수정 */
     opacity: 0;
+  }
+}
+
+/* 글래스모피즘 애니메이션 */
+@keyframes slideInGlass {
+  from {
+    opacity: 0;
+    transform: translateX(100%) scale(0.8);
+    backdrop-filter: blur(0px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+    backdrop-filter: blur(15px);
+  }
+}
+
+@keyframes fadeOutGlass {
+  from {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+    backdrop-filter: blur(15px);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(100%) scale(0.9);
+    backdrop-filter: blur(0px);
   }
 }
