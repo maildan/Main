@@ -7,11 +7,9 @@ export const config = settingsData;
 // 편의 함수들
 export const getAppInfo = () => config.app;
 export const getThemes = () => config.themes;
-export const getLanguages = () => config.languages;
 export const getDefaultSettings = () => config.defaultSettings;
 export const getHelpSections = () => config.help.sections;
 export const getContactInfo = () => config.contact;
 
-// 특정 테마/언어 찾기
+// 특정 테마 찾기
 export const getThemeById = (id: string) => config.themes.find(t => t.value === id);
-export const getLanguageById = (id: string) => config.languages.find(l => l.value === id);

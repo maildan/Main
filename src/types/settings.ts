@@ -1,7 +1,6 @@
 // 간단한 설정 타입 정의
 export interface AppSettings {
   theme: 'dark' | 'light' | 'auto';
-  language: 'ko' | 'en' | 'ja' | 'zh';
   general: {
     autoSave: boolean;
     animationSpeed: string;
@@ -12,7 +11,6 @@ export interface AppSettings {
 // JSON에서 직접 가져온 기본값
 export const DEFAULT_SETTINGS: AppSettings = {
   theme: "dark",
-  language: "ko",
   general: {
     autoSave: true,
     animationSpeed: "normal",
