@@ -1,12 +1,16 @@
 import { useState } from 'react';
 import SettingsDropdown from './SettingsDropdown';
 import SettingsModal from './SettingsModal';
+import GoogleDocsSection from './google/GoogleDocsSection';
+import { AuthProvider } from '../contexts/google/AuthContext';
+import { DocsProvider } from '../contexts/google/DocsContext';
 
 /**
  * 메인 화면 컴포넌트
  * 심플한 검은 테마의 검색 인터페이스를 제공합니다.
  * - 애플리케이션 명: Loop Pro
  * - Google 스타일 자동완성 검색바
+ * - Google Docs 연동 기능
  */
 const MainScreen = () => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -14,20 +18,33 @@ const MainScreen = () => {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [isSearchExpanded, setIsSearchExpanded] = useState(false);
-  const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(-1);  const [showSettings, setShowSettings] = useState(false);
+  const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState(-1);
+  const [showSettings, setShowSettings] = useState(false);
   // 설정 모달 상태
   const [showSettingsModal, setShowSettingsModal] = useState(false);
-  const [settingsModalType, setSettingsModalType] = useState<'general' | 'about' | 'help' | null>(null);  // 검색 추천 데이터
+  const [settingsModalType, setSettingsModalType] = useState<'general' | 'about' | 'help' | null>(null);
+  
+  // 현재 탭 상태 (기본 검색 또는 Google Docs)
+  const [currentTab, setCurrentTab] = useState<'search' | 'google-docs'>('search');  // 검색 추천 데이터
   const searchData = [
     '문서 분석',
     '텍스트 요약',
-    'PDF 처리'
+    'PDF 처리',
+    'Google Docs 연동',
+    'Google 문서 관리',
+    '구글 독스'
   ];
-
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    // TODO: 새로운 문서 분석 기능 구현
-    console.log('검색어:', searchQuery);
+    
+    // 검색어에 따른 섹션 자동 변경
+    const query = searchQuery.toLowerCase();
+    if (query.includes('google') || query.includes('구글') || query.includes('독스') || query.includes('docs')) {
+      setCurrentTab('google-docs');
+    } else {
+      // 기본 검색 기능
+      console.log('검색어:', searchQuery);
+    }
   };
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
@@ -75,12 +92,18 @@ const MainScreen = () => {
         setSelectedSuggestionIndex(-1);
         break;
     }
-  };
-  const handleSuggestionClick = (suggestion: string) => {    setSearchQuery(suggestion);
+  };  const handleSuggestionClick = (suggestion: string) => {
+    setSearchQuery(suggestion);
     setShowSuggestions(false);
     setIsSearchFocused(false);
     setIsSearchExpanded(false);
-    // TODO: 선택된 추천어에 따른 동작 구현
+    
+    // 선택된 추천어에 따른 섹션 변경
+    const query = suggestion.toLowerCase();
+    if (query.includes('google') || query.includes('구글') || query.includes('독스') || query.includes('docs')) {
+      setCurrentTab('google-docs');
+    }
+    
     console.log('선택된 기능:', suggestion);
   };
 
@@ -120,6 +143,11 @@ const MainScreen = () => {
     setSettingsModalType(type);
     setShowSettingsModal(true);
     setShowSettings(false); // 드롭다운 메뉴는 닫기
+  };
+
+  // 탭 변경 핸들러
+  const handleTabChange = (tab: 'search' | 'google-docs') => {
+    setCurrentTab(tab);
   };
 
   // 한글 초성 추출 함수
@@ -203,6 +231,31 @@ const MainScreen = () => {
             )}
           </div>
         </div>
+
+        {/* 탭 메뉴 */}
+        <div className="tab-menu">
+          <button
+            className={`tab-item ${currentTab === 'search' ? 'active' : ''}`}
+            onClick={() => handleTabChange('search')}
+          >
+            기본 검색
+          </button>
+          <button
+            className={`tab-item ${currentTab === 'google-docs' ? 'active' : ''}`}
+            onClick={() => handleTabChange('google-docs')}
+          >
+            Google Docs
+          </button>
+        </div>        {/* Google Docs 섹션 */}
+        {currentTab === 'google-docs' && (
+          <AuthProvider>
+            <DocsProvider>
+              <div className="google-docs-container">
+                <GoogleDocsSection />
+              </div>
+            </DocsProvider>
+          </AuthProvider>
+        )}
       </div>
     </div>
   );

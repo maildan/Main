@@ -11,6 +11,7 @@ import "./styles/base.css";
 import "./styles/layout.css";
 import "./styles/sections.css";
 import "./styles/components.css";
+import "./styles/google-docs.css";
 import "./styles/utils.css";
 import "./styles/main.css";
 
