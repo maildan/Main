@@ -1,26 +1,25 @@
 use oauth2::{
-    AuthUrl, ClientId, ClientSecret, CsrfToken, 
+    AuthUrl, ClientId, ClientSecret, CsrfToken,
     RedirectUrl, Scope, TokenUrl, AuthorizationCode, TokenResponse,
 };
 use oauth2::basic::BasicClient;
 use reqwest::Client as HttpClient;
 use serde_json::Value;
 use crate::database::{Database, GoogleOAuthResponse, GoogleUserInfo, CreateUserRequest};
+use crate::config::GoogleConfig;
 use chrono::{Utc, Duration};
 use std::collections::HashMap;
 
-/// Google OAuth 설정 상수
-const GOOGLE_CLIENT_ID: &str = "YOUR_GOOGLE_CLIENT_ID"; // 실제 구현시 환경변수나 설정파일에서 읽어오기
-const GOOGLE_CLIENT_SECRET: &str = "YOUR_GOOGLE_CLIENT_SECRET";
+/// Google OAuth API 엔드포인트
 const GOOGLE_AUTH_URL: &str = "https://accounts.google.com/o/oauth2/v2/auth";
 const GOOGLE_TOKEN_URL: &str = "https://www.googleapis.com/oauth2/v4/token";
 const GOOGLE_USERINFO_URL: &str = "https://www.googleapis.com/oauth2/v2/userinfo";
-const REDIRECT_URL: &str = "http://localhost:8080/auth/callback";
 
 /// Google OAuth 관리 구조체
 pub struct GoogleOAuth {
     client: BasicClient,
     http_client: HttpClient,
+    config: GoogleConfig,
 }
 
 impl Clone for GoogleOAuth {
@@ -28,6 +27,7 @@ impl Clone for GoogleOAuth {
         Self {
             client: self.client.clone(),
             http_client: self.http_client.clone(),
+            config: self.config.clone(),
         }
     }
 }
@@ -35,19 +35,27 @@ impl Clone for GoogleOAuth {
 impl GoogleOAuth {
     /// 새로운 GoogleOAuth 인스턴스 생성
     pub fn new() -> Result<Self, Box<dyn std::error::Error>> {
+        // # debug: GoogleOAuth 초기화 시작        println!("✓ Google OAuth ready");
+        
+        let config = GoogleConfig::from_env()
+            .map_err(|e| format!("Google OAuth 설정 로드 실패: {}", e))?;
+
         let client = BasicClient::new(
-            ClientId::new(GOOGLE_CLIENT_ID.to_string()),
-            Some(ClientSecret::new(GOOGLE_CLIENT_SECRET.to_string())),
+            ClientId::new(config.client_id.clone()),
+            Some(ClientSecret::new(config.client_secret.clone())),
             AuthUrl::new(GOOGLE_AUTH_URL.to_string())?,
             Some(TokenUrl::new(GOOGLE_TOKEN_URL.to_string())?),
         )
-        .set_redirect_uri(RedirectUrl::new(REDIRECT_URL.to_string())?);        let http_client = HttpClient::new();
+        .set_redirect_uri(RedirectUrl::new(config.redirect_url.clone())?);
+
+        let http_client = HttpClient::new();
 
         Ok(Self {
             client,
             http_client,
+            config,
         })
-    }    /// OAuth 인증 URL 생성
+    }/// OAuth 인증 URL 생성
     pub fn get_auth_url(&self) -> Result<String, Box<dyn std::error::Error>> {
         // OAuth 인증 URL 생성
         let (auth_url, _csrf_token) = self
@@ -100,13 +108,11 @@ impl GoogleOAuth {
 
         let user_info: GoogleUserInfo = response.json().await?;
         Ok(user_info)
-    }
-
-    /// Refresh Token으로 Access Token 갱신
+    }    /// Refresh Token으로 Access Token 갱신
     pub async fn refresh_access_token(&self, refresh_token: &str) -> Result<GoogleOAuthResponse, Box<dyn std::error::Error>> {
         let mut params = HashMap::new();
-        params.insert("client_id", GOOGLE_CLIENT_ID);
-        params.insert("client_secret", GOOGLE_CLIENT_SECRET);
+        params.insert("client_id", self.config.client_id.as_str());
+        params.insert("client_secret", self.config.client_secret.as_str());
         params.insert("refresh_token", refresh_token);
         params.insert("grant_type", "refresh_token");
 
@@ -140,9 +146,7 @@ impl GoogleOAuth {
         let token_response = self.exchange_code(code).await?;
 
         // 2. Access Token으로 사용자 정보 가져오기
-        let user_info = self.get_user_info(&token_response.access_token).await?;
-
-        // 3. 토큰 만료 시간 계산
+        let user_info = self.get_user_info(&token_response.access_token).await?;        // 3. 토큰 만료 시간 계산
         let expires_at = Utc::now() + Duration::seconds(token_response.expires_in);
 
         // 4. 데이터베이스에 사용자 정보 저장
@@ -150,14 +154,13 @@ impl GoogleOAuth {
             google_id: user_info.id,
             email: user_info.email,
             name: user_info.name,
-            profile_picture: user_info.picture,
+            picture_url: user_info.picture,
             access_token: token_response.access_token,
-            refresh_token: token_response.refresh_token
-                .ok_or("refresh_token이 필요합니다")?,
+            refresh_token: token_response.refresh_token,
             token_expires_at: expires_at,
         };
 
-        let user = db.upsert_user(create_request).await
+        let user = db.upsert_user(&create_request).await
             .map_err(|e| format!("사용자 저장 실패: {}", e))?;
 
         Ok(user)
@@ -167,13 +170,13 @@ impl GoogleOAuth {
     pub async fn ensure_valid_token(&self, user: &mut crate::database::User, db: &Database) -> Result<(), Box<dyn std::error::Error>> {
         // 토큰이 5분 이내에 만료되면 갱신
         let now = Utc::now();
-        let expires_soon = user.token_expires_at - Duration::minutes(5);
-
-        if now >= expires_soon {
-            // 토큰 갱신
-            let token_response = self.refresh_access_token(&user.refresh_token).await?;
+        let expires_soon = user.token_expires_at - Duration::minutes(5);        if now >= expires_soon {
+            // refresh_token이 있는지 확인
+            let refresh_token = user.refresh_token.as_ref()
+                .ok_or("refresh_token이 없습니다")?;
             
-            // 새로운 만료 시간 계산
+            // 토큰 갱신
+            let token_response = self.refresh_access_token(refresh_token).await?;            // 새로운 만료 시간 계산
             let new_expires_at = Utc::now() + Duration::seconds(token_response.expires_in);
 
             // 데이터베이스 업데이트
@@ -183,13 +186,13 @@ impl GoogleOAuth {
                 token_expires_at: new_expires_at,
             };
 
-            db.update_user_tokens(&user.google_id, update_request).await
+            db.update_user_tokens(&user.id, &update_request).await
                 .map_err(|e| format!("토큰 업데이트 실패: {}", e))?;
 
             // 메모리의 사용자 정보도 업데이트
             user.access_token = token_response.access_token;
             if let Some(new_refresh_token) = token_response.refresh_token {
-                user.refresh_token = new_refresh_token;
+                user.refresh_token = Some(new_refresh_token);
             }
             user.token_expires_at = new_expires_at;
         }

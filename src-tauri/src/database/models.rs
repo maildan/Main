@@ -9,34 +9,74 @@ pub struct User {
     pub google_id: String,
     pub email: String,
     pub name: String,
-    pub profile_picture: Option<String>,
+    pub picture_url: Option<String>,
     pub access_token: String,
-    pub refresh_token: String,
+    pub refresh_token: Option<String>,
     pub token_expires_at: DateTime<Utc>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+}
+
+/// 사용자 생성 요청
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateUserRequest {
+    pub google_id: String,
+    pub email: String,
+    pub name: String,
+    pub picture_url: Option<String>,
+    pub access_token: String,
+    pub refresh_token: Option<String>,
+    pub token_expires_at: DateTime<Utc>,
 }
 
 /// Google Docs 문서 정보 모델
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct Document {
     pub id: String,
+    pub google_doc_id: String,
+    pub user_id: String,
     pub title: String,
-    pub google_created_time: DateTime<Utc>,
-    pub google_modified_time: DateTime<Utc>,
-    pub last_synced: DateTime<Utc>,
+    pub content: Option<String>,
     pub word_count: Option<i32>,
-    pub content_summary: Option<String>,
+    pub created_time: DateTime<Utc>,
+    pub modified_time: DateTime<Utc>,
+    pub last_synced_at: DateTime<Utc>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+/// 문서 생성 요청
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateDocumentRequest {
+    pub google_doc_id: String,
+    pub user_id: String,
+    pub title: String,
+    pub content: Option<String>,
+    pub word_count: Option<i32>,
+    pub created_time: DateTime<Utc>,
+    pub modified_time: DateTime<Utc>,
 }
 
 /// 문서 요약 정보 모델
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
-pub struct Summary {
+pub struct DocumentSummary {
     pub id: String,
     pub document_id: String,
+    pub user_id: String,
     pub summary_text: String,
-    pub summary_type: String, // "ai_generated", "manual", etc.
+    pub keywords: Option<String>,
+    pub generated_at: DateTime<Utc>,
     pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+/// 요약 생성 요청
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateSummaryRequest {
+    pub document_id: String,
+    pub user_id: String,
+    pub summary_text: String,
+    pub keywords: Option<String>,
 }
 
 /// 문서 편집 기록 모델
@@ -44,24 +84,23 @@ pub struct Summary {
 pub struct EditHistory {
     pub id: String,
     pub document_id: String,
-    pub action_type: String, // "insert", "update", "delete"
-    pub action_description: String,
+    pub user_id: String,
+    pub action_type: String, // "view", "edit", "summarize"
     pub content_before: Option<String>,
     pub content_after: Option<String>,
-    pub position: Option<String>, // JSON 형태로 삽입 위치 정보 저장
+    pub metadata: Option<String>,
     pub created_at: DateTime<Utc>,
 }
 
-/// 사용자 생성 요청 DTO
-#[derive(Debug, Deserialize)]
-pub struct CreateUserRequest {
-    pub google_id: String,
-    pub email: String,
-    pub name: String,
-    pub profile_picture: Option<String>,
-    pub access_token: String,
-    pub refresh_token: String,
-    pub token_expires_at: DateTime<Utc>,
+/// 편집 기록 생성 요청
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateEditHistoryRequest {
+    pub document_id: String,
+    pub user_id: String,
+    pub action_type: String,
+    pub content_before: Option<String>,
+    pub content_after: Option<String>,
+    pub metadata: Option<String>,
 }
 
 /// 토큰 업데이트 요청 DTO

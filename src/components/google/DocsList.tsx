@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useDocs } from '../../contexts/google/DocsContext';
 import { useAuth } from '../../contexts/google/AuthContext';
+import { LoadingSpinner } from '../LoadingSpinner';
 
 /**
  * Google Docs 문서 목록 컴포넌트
@@ -163,14 +164,9 @@ export default function DocsList() {
           <span>{error}</span>
           <button onClick={clearError} className="close-error">×</button>
         </div>
-      )}
-
-      {/* 로딩 상태 */}
+      )}      {/* 로딩 상태 */}
       {isLoading && (
-        <div className="loading-state">
-          <div className="loading-spinner"></div>
-          <span>문서 목록을 불러오는 중...</span>
-        </div>
+        <LoadingSpinner size="medium" message="문서 목록을 불러오는 중..." />
       )}
 
       {/* 문서 목록 */}

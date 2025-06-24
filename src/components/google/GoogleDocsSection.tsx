@@ -1,5 +1,6 @@
 import { useAuth } from '../../contexts/google/AuthContext';
 import { useDocs } from '../../contexts/google/DocsContext';
+import { LoadingSpinner } from '../LoadingSpinner';
 import GoogleLogin from './GoogleLogin';
 import DocsList from './DocsList';
 import DocViewer from './DocViewer';
@@ -27,16 +28,11 @@ export default function GoogleDocsSection() {
         <div className="login-container">
           <GoogleLogin />
         </div>
-      </div>
-
-      {/* 메인 콘텐츠 */}
+      </div>      {/* 메인 콘텐츠 */}
       <div className="docs-main-content">
         {authLoading ? (
           // 인증 상태 확인 중
-          <div className="loading-container">
-            <div className="loading-spinner"></div>
-            <span>인증 상태 확인 중...</span>
-          </div>
+          <LoadingSpinner size="large" message="인증 상태 확인 중..." />
         ) : !isAuthenticated ? (
           // 인증되지 않은 상태
           <div className="unauthenticated-state">

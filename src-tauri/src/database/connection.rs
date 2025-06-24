@@ -1,6 +1,7 @@
 use sqlx::{Pool, Sqlite, SqlitePool};
 use std::path::Path;
 use crate::database::models::*;
+use crate::config::DatabaseConfig;
 use chrono::Utc;
 use uuid::Uuid;
 
@@ -10,267 +11,310 @@ pub struct Database {
     pool: Pool<Sqlite>,
 }
 
-impl Database {
-    /// 새로운 데이터베이스 인스턴스 생성
+impl Database {    /// 새로운 데이터베이스 인스턴스 생성
     pub async fn new() -> Result<Self, sqlx::Error> {
-        let db_path = Self::get_database_path().await?;
+        // # debug: 데이터베이스 초기화 시작
+        println!("✓ Database ready");
         
-        // 데이터베이스 파일이 없으면 생성
-        if !Path::new(&db_path).exists() {
-            if let Some(parent) = Path::new(&db_path).parent() {
+        let config = DatabaseConfig::from_env();
+        let database_url = &config.url;
+        
+        // SQLite 파일 경로 처리
+        let db_path = if database_url.starts_with("sqlite:") {
+            database_url.strip_prefix("sqlite:").unwrap_or(database_url)
+        } else {
+            database_url
+        };        // 현재 작업 디렉토리 기준으로 절대 경로 생성
+        let absolute_path = if db_path.starts_with("./") {
+            // 개발 환경에서는 프로젝트 루트 기준, 배포 환경에서는 실행 파일 기준
+            if cfg!(debug_assertions) {
+                // 개발 환경: 현재 디렉토리 기준
+                std::env::current_dir()
+                    .map_err(|e| sqlx::Error::Io(e))?
+                    .join(db_path.trim_start_matches("./"))
+            } else {
+                // 배포 환경: 실행 파일 디렉토리 기준
+                std::env::current_exe()
+                    .map_err(|e| sqlx::Error::Io(e))?
+                    .parent()
+                    .ok_or_else(|| sqlx::Error::Io(std::io::Error::new(
+                        std::io::ErrorKind::Other,
+                        "실행 파일 디렉토리를 찾을 수 없습니다"
+                    )))?
+                    .join(db_path.trim_start_matches("./"))
+            }
+        } else if db_path.starts_with("../") {
+            std::env::current_dir()
+                .map_err(|e| sqlx::Error::Io(e))?
+                .join(db_path)
+        } else if Path::new(db_path).is_absolute() {
+            Path::new(db_path).to_path_buf()
+        } else {
+            // 상대 경로
+            if cfg!(debug_assertions) {
+                std::env::current_dir()
+                    .map_err(|e| sqlx::Error::Io(e))?
+                    .join(db_path)
+            } else {
+                std::env::current_exe()
+                    .map_err(|e| sqlx::Error::Io(e))?
+                    .parent()
+                    .ok_or_else(|| sqlx::Error::Io(std::io::Error::new(
+                        std::io::ErrorKind::Other,
+                        "실행 파일 디렉토리를 찾을 수 없습니다"
+                    )))?
+                    .join(db_path)
+            }
+        };
+        
+
+          // 데이터베이스 파일이 없으면 생성
+        if !absolute_path.exists() {
+            if let Some(parent) = absolute_path.parent() {
                 std::fs::create_dir_all(parent).map_err(|e| {
                     sqlx::Error::Io(std::io::Error::new(
                         std::io::ErrorKind::Other,
                         format!("디렉토리 생성 실패: {}", e),
                     ))
                 })?;
+                println!("Created directory: {:?}", parent);
             }
+            
+            // 빈 데이터베이스 파일 생성
+            std::fs::File::create(&absolute_path).map_err(|e| {
+                sqlx::Error::Io(std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    format!("데이터베이스 파일 생성 실패: {}", e),
+                ))
+            })?;
+            println!("Created database file: {:?}", absolute_path);
         }
+        
+        // SQLite 연결 URL 생성
+        let sqlite_url = format!("sqlite:{}", absolute_path.to_string_lossy());
+        
 
-        let database_url = format!("sqlite:{}", db_path);
-        let pool = SqlitePool::connect(&database_url).await?;
+        let pool = SqlitePool::connect(&sqlite_url).await?;
 
         let db = Self { pool };
         db.run_migrations().await?;
-
-        Ok(db)
-    }
-
-    /// 데이터베이스 파일 경로 가져오기
-    async fn get_database_path() -> Result<String, sqlx::Error> {
-        // 임시로 현재 디렉토리 사용 (실제 구현에서는 앱 데이터 디렉토리 사용)
-        let db_path = std::env::current_dir()
-            .map_err(|e| sqlx::Error::Io(e))?
-            .join("loop_pro.db");
         
-        Ok(db_path.to_string_lossy().to_string())
+        // # debug: 데이터베이스 초기화 완료
+
+        
+        Ok(db)
     }
 
     /// 데이터베이스 마이그레이션 실행
     async fn run_migrations(&self) -> Result<(), sqlx::Error> {
-        // 사용자 테이블 생성
-        sqlx::query(
-            r#"
-            CREATE TABLE IF NOT EXISTS users (
-                id TEXT PRIMARY KEY,
-                google_id TEXT NOT NULL UNIQUE,
-                email TEXT NOT NULL,
-                name TEXT NOT NULL,
-                profile_picture TEXT,
-                access_token TEXT NOT NULL,
-                refresh_token TEXT NOT NULL,
-                token_expires_at DATETIME NOT NULL,
-                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-            )
-            "#,
-        )
-        .execute(&self.pool)
-        .await?;
+        // # debug: 마이그레이션 시작
 
-        // 문서 테이블 생성
-        sqlx::query(
-            r#"
-            CREATE TABLE IF NOT EXISTS documents (
-                id TEXT PRIMARY KEY,
-                title TEXT NOT NULL,
-                google_created_time DATETIME NOT NULL,
-                google_modified_time DATETIME NOT NULL,
-                last_synced DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                word_count INTEGER,
-                content_summary TEXT
-            )
-            "#,
-        )
-        .execute(&self.pool)
-        .await?;
+        
+        // 기본 스키마 생성
+        let migration_sql = include_str!("../../migrations/001_initial_schema.sql");
+        
+        // SQL 문을 세미콜론으로 분리하여 실행
+        for statement in migration_sql.split(';') {
+            let statement = statement.trim();
+            if !statement.is_empty() {
+                sqlx::query(statement).execute(&self.pool).await?;
+            }
+        }
+        
+        // # debug: 마이그레이션 완료
 
-        // 요약 테이블 생성
-        sqlx::query(
-            r#"
-            CREATE TABLE IF NOT EXISTS summaries (
-                id TEXT PRIMARY KEY,
-                document_id TEXT NOT NULL,
-                summary_text TEXT NOT NULL,
-                summary_type TEXT NOT NULL DEFAULT 'ai_generated',
-                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (document_id) REFERENCES documents (id) ON DELETE CASCADE
-            )
-            "#,
-        )
-        .execute(&self.pool)
-        .await?;
-
-        // 편집 기록 테이블 생성
-        sqlx::query(
-            r#"
-            CREATE TABLE IF NOT EXISTS edit_history (
-                id TEXT PRIMARY KEY,
-                document_id TEXT NOT NULL,
-                action_type TEXT NOT NULL,
-                action_description TEXT NOT NULL,
-                content_before TEXT,
-                content_after TEXT,
-                position TEXT,
-                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (document_id) REFERENCES documents (id) ON DELETE CASCADE
-            )
-            "#,
-        )
-        .execute(&self.pool)
-        .await?;
-
+        
         Ok(())
     }
 
     /// 사용자 생성 또는 업데이트
-    pub async fn upsert_user(&self, request: CreateUserRequest) -> Result<User, sqlx::Error> {
+    pub async fn upsert_user(&self, user: &CreateUserRequest) -> Result<User, sqlx::Error> {
         let user_id = Uuid::new_v4().to_string();
         let now = Utc::now();
 
         let user = sqlx::query_as::<_, User>(
             r#"
-            INSERT INTO users (id, google_id, email, name, profile_picture, access_token, refresh_token, token_expires_at, created_at, updated_at)
+            INSERT INTO users (id, google_id, email, name, picture_url, access_token, refresh_token, token_expires_at, created_at, updated_at)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
             ON CONFLICT(google_id) DO UPDATE SET
-                email = excluded.email,
-                name = excluded.name,
-                profile_picture = excluded.profile_picture,
-                access_token = excluded.access_token,
-                refresh_token = excluded.refresh_token,
-                token_expires_at = excluded.token_expires_at,
-                updated_at = excluded.updated_at
+                email = EXCLUDED.email,
+                name = EXCLUDED.name,
+                picture_url = EXCLUDED.picture_url,
+                access_token = EXCLUDED.access_token,
+                refresh_token = EXCLUDED.refresh_token,
+                token_expires_at = EXCLUDED.token_expires_at,
+                updated_at = EXCLUDED.updated_at
             RETURNING *
-            "#,
+            "#
         )
         .bind(&user_id)
-        .bind(&request.google_id)
-        .bind(&request.email)
-        .bind(&request.name)
-        .bind(&request.profile_picture)
-        .bind(&request.access_token)
-        .bind(&request.refresh_token)
-        .bind(&request.token_expires_at)
+        .bind(&user.google_id)
+        .bind(&user.email)
+        .bind(&user.name)
+        .bind(&user.picture_url)
+        .bind(&user.access_token)
+        .bind(&user.refresh_token)
+        .bind(&user.token_expires_at)
         .bind(&now)
         .bind(&now)
         .fetch_one(&self.pool)
         .await?;
 
         Ok(user)
+    }    /// 사용자 토큰 업데이트
+    pub async fn update_user_tokens(&self, user_id: &str, request: &crate::database::UpdateTokenRequest) -> Result<(), sqlx::Error> {
+        let now = Utc::now();
+        
+        sqlx::query(
+            "UPDATE users SET access_token = $1, refresh_token = COALESCE($2, refresh_token), token_expires_at = $3, updated_at = $4 WHERE id = $5"
+        )
+        .bind(&request.access_token)
+        .bind(request.refresh_token.as_deref())
+        .bind(request.token_expires_at)
+        .bind(now)
+        .bind(user_id)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
     }
 
     /// Google ID로 사용자 조회
     pub async fn get_user_by_google_id(&self, google_id: &str) -> Result<Option<User>, sqlx::Error> {
-        let user = sqlx::query_as::<_, User>("SELECT * FROM users WHERE google_id = $1")
-            .bind(google_id)
-            .fetch_optional(&self.pool)
-            .await?;
+        let user = sqlx::query_as::<_, User>(
+            "SELECT * FROM users WHERE google_id = $1"
+        )
+        .bind(google_id)
+        .fetch_optional(&self.pool)
+        .await?;
 
         Ok(user)
     }
 
-    /// 사용자 토큰 업데이트
-    pub async fn update_user_tokens(&self, google_id: &str, request: UpdateTokenRequest) -> Result<(), sqlx::Error> {
-        let now = Utc::now();
-
-        sqlx::query(
-            r#"
-            UPDATE users 
-            SET access_token = $1, 
-                refresh_token = COALESCE($2, refresh_token),
-                token_expires_at = $3,
-                updated_at = $4
-            WHERE google_id = $5
-            "#,
+    /// 사용자 ID로 사용자 조회
+    pub async fn get_user_by_id(&self, user_id: &str) -> Result<Option<User>, sqlx::Error> {
+        let user = sqlx::query_as::<_, User>(
+            "SELECT * FROM users WHERE id = $1"
         )
-        .bind(&request.access_token)
-        .bind(&request.refresh_token)
-        .bind(&request.token_expires_at)
-        .bind(&now)
-        .bind(google_id)
-        .execute(&self.pool)
+        .bind(user_id)
+        .fetch_optional(&self.pool)
         .await?;
 
-        Ok(())
+        Ok(user)
     }
 
-    /// 문서 저장 또는 업데이트
-    pub async fn upsert_document(&self, doc: &Document) -> Result<(), sqlx::Error> {
+    /// 문서 생성 또는 업데이트
+    pub async fn upsert_document(&self, document: &CreateDocumentRequest) -> Result<Document, sqlx::Error> {
+        let doc_id = Uuid::new_v4().to_string();
         let now = Utc::now();
 
-        sqlx::query(
+        let document = sqlx::query_as::<_, Document>(
             r#"
-            INSERT INTO documents (id, title, google_created_time, google_modified_time, last_synced, word_count, content_summary)
-            VALUES ($1, $2, $3, $4, $5, $6, $7)
-            ON CONFLICT(id) DO UPDATE SET
-                title = excluded.title,
-                google_modified_time = excluded.google_modified_time,
-                last_synced = excluded.last_synced,
-                word_count = excluded.word_count,
-                content_summary = excluded.content_summary
-            "#,
+            INSERT INTO documents (id, google_doc_id, user_id, title, content, word_count, created_time, modified_time, last_synced_at, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+            ON CONFLICT(google_doc_id) DO UPDATE SET
+                title = EXCLUDED.title,
+                content = EXCLUDED.content,
+                word_count = EXCLUDED.word_count,
+                modified_time = EXCLUDED.modified_time,
+                last_synced_at = EXCLUDED.last_synced_at,
+                updated_at = EXCLUDED.updated_at
+            RETURNING *
+            "#
         )
-        .bind(&doc.id)
-        .bind(&doc.title)
-        .bind(&doc.google_created_time)
-        .bind(&doc.google_modified_time)
+        .bind(&doc_id)
+        .bind(&document.google_doc_id)
+        .bind(&document.user_id)
+        .bind(&document.title)
+        .bind(&document.content)
+        .bind(&document.word_count)
+        .bind(&document.created_time)
+        .bind(&document.modified_time)
         .bind(&now)
-        .bind(&doc.word_count)
-        .bind(&doc.content_summary)
-        .execute(&self.pool)
+        .bind(&now)
+        .bind(&now)
+        .fetch_one(&self.pool)
         .await?;
 
-        Ok(())
+        Ok(document)
     }
 
-    /// 모든 문서 조회
-    pub async fn get_all_documents(&self) -> Result<Vec<Document>, sqlx::Error> {
+    /// 사용자의 문서 목록 조회
+    pub async fn get_user_documents(&self, user_id: &str, limit: Option<i32>, offset: Option<i32>) -> Result<Vec<Document>, sqlx::Error> {
+        let limit = limit.unwrap_or(100);
+        let offset = offset.unwrap_or(0);
+
         let documents = sqlx::query_as::<_, Document>(
-            "SELECT * FROM documents ORDER BY google_modified_time DESC"
+            "SELECT * FROM documents WHERE user_id = $1 ORDER BY modified_time DESC LIMIT $2 OFFSET $3"
         )
+        .bind(user_id)
+        .bind(limit)
+        .bind(offset)
         .fetch_all(&self.pool)
         .await?;
 
         Ok(documents)
     }
 
-    /// 문서 ID로 조회
-    pub async fn get_document_by_id(&self, doc_id: &str) -> Result<Option<Document>, sqlx::Error> {
-        let document = sqlx::query_as::<_, Document>("SELECT * FROM documents WHERE id = $1")
-            .bind(doc_id)
-            .fetch_optional(&self.pool)
-            .await?;
+    /// 문서 내용 조회
+    pub async fn get_document_by_id(&self, document_id: &str) -> Result<Option<Document>, sqlx::Error> {
+        let document = sqlx::query_as::<_, Document>(
+            "SELECT * FROM documents WHERE id = $1"
+        )
+        .bind(document_id)
+        .fetch_optional(&self.pool)
+        .await?;
 
         Ok(document)
     }
 
-    /// 요약 저장
-    pub async fn create_summary(&self, document_id: &str, summary_text: &str, summary_type: &str) -> Result<Summary, sqlx::Error> {
+    /// Google 문서 ID로 문서 조회
+    pub async fn get_document_by_google_id(&self, google_doc_id: &str) -> Result<Option<Document>, sqlx::Error> {
+        let document = sqlx::query_as::<_, Document>(
+            "SELECT * FROM documents WHERE google_doc_id = $1"
+        )
+        .bind(google_doc_id)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        Ok(document)
+    }
+
+    /// 문서 요약 생성 또는 업데이트
+    pub async fn upsert_document_summary(&self, summary: &CreateSummaryRequest) -> Result<DocumentSummary, sqlx::Error> {
         let summary_id = Uuid::new_v4().to_string();
         let now = Utc::now();
 
-        let summary = sqlx::query_as::<_, Summary>(
+        let document_summary = sqlx::query_as::<_, DocumentSummary>(
             r#"
-            INSERT INTO summaries (id, document_id, summary_text, summary_type, created_at)
-            VALUES ($1, $2, $3, $4, $5)
+            INSERT INTO document_summaries (id, document_id, user_id, summary_text, keywords, generated_at, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            ON CONFLICT(document_id) DO UPDATE SET
+                summary_text = EXCLUDED.summary_text,
+                keywords = EXCLUDED.keywords,
+                generated_at = EXCLUDED.generated_at,
+                updated_at = EXCLUDED.updated_at
             RETURNING *
-            "#,
+            "#
         )
         .bind(&summary_id)
-        .bind(document_id)
-        .bind(summary_text)
-        .bind(summary_type)
+        .bind(&summary.document_id)
+        .bind(&summary.user_id)
+        .bind(&summary.summary_text)
+        .bind(&summary.keywords)
+        .bind(&now)
+        .bind(&now)
         .bind(&now)
         .fetch_one(&self.pool)
         .await?;
 
-        Ok(summary)
+        Ok(document_summary)
     }
 
-    /// 문서의 최신 요약 조회
-    pub async fn get_latest_summary(&self, document_id: &str) -> Result<Option<Summary>, sqlx::Error> {
-        let summary = sqlx::query_as::<_, Summary>(
-            "SELECT * FROM summaries WHERE document_id = $1 ORDER BY created_at DESC LIMIT 1"
+    /// 문서 요약 조회
+    pub async fn get_document_summary(&self, document_id: &str) -> Result<Option<DocumentSummary>, sqlx::Error> {
+        let summary = sqlx::query_as::<_, DocumentSummary>(
+            "SELECT * FROM document_summaries WHERE document_id = $1"
         )
         .bind(document_id)
         .fetch_optional(&self.pool)
@@ -279,29 +323,30 @@ impl Database {
         Ok(summary)
     }
 
-    /// 편집 기록 저장
-    pub async fn create_edit_history(&self, edit: &EditHistory) -> Result<(), sqlx::Error> {
+    /// 편집 기록 추가
+    pub async fn add_edit_history(&self, edit: &CreateEditHistoryRequest) -> Result<EditHistory, sqlx::Error> {
         let edit_id = Uuid::new_v4().to_string();
         let now = Utc::now();
 
-        sqlx::query(
+        let edit_history = sqlx::query_as::<_, EditHistory>(
             r#"
-            INSERT INTO edit_history (id, document_id, action_type, action_description, content_before, content_after, position, created_at)
+            INSERT INTO edit_history (id, document_id, user_id, action_type, content_before, content_after, metadata, created_at)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-            "#,
+            RETURNING *
+            "#
         )
         .bind(&edit_id)
         .bind(&edit.document_id)
+        .bind(&edit.user_id)
         .bind(&edit.action_type)
-        .bind(&edit.action_description)
         .bind(&edit.content_before)
         .bind(&edit.content_after)
-        .bind(&edit.position)
+        .bind(&edit.metadata)
         .bind(&now)
-        .execute(&self.pool)
+        .fetch_one(&self.pool)
         .await?;
 
-        Ok(())
+        Ok(edit_history)
     }
 
     /// 문서의 편집 기록 조회

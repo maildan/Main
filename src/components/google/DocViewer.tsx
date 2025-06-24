@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useDocs } from '../../contexts/google/DocsContext';
 import { useAuth } from '../../contexts/google/AuthContext';
+import { LoadingSpinner } from '../LoadingSpinner';
 
 /**
  * Google Docs 문서 뷰어 컴포넌트
@@ -175,14 +176,9 @@ export default function DocViewer() {
             {selectedDocument.summary}
           </div>
         </div>
-      )}
-
-      {/* 로딩 상태 */}
+      )}      {/* 로딩 상태 */}
       {isLoading && (
-        <div className="loading-state">
-          <div className="loading-spinner"></div>
-          <span>문서를 불러오는 중...</span>
-        </div>
+        <LoadingSpinner size="medium" message="문서를 불러오는 중..." />
       )}
 
       {/* 문서 내용 */}

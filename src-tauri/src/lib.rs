@@ -3,6 +3,7 @@ use tauri::State;
 
 mod database;
 mod google;
+mod config;
 
 use database::Database;
 use google::{GoogleOAuth, GoogleDocsAPI};
@@ -17,6 +18,9 @@ pub struct AppState {
 
 impl AppState {
     pub async fn new() -> Result<Self, Box<dyn std::error::Error>> {
+        // 환경변수 로드
+        config::load_env()?;
+        
         let db = Database::new().await?;
         let google_oauth = GoogleOAuth::new()?;
         let google_docs = GoogleDocsAPI::new();
@@ -35,11 +39,19 @@ fn greet(name: &str) -> String {
     format!("Hello, {}! You've been greeted from Rust!", name)
 }
 
-/// Google OAuth 인증 URL 생성
+/// Google OAuth 인증 URL 생성 및 브라우저에서 열기
 #[tauri::command]
-async fn get_google_auth_url(state: State<'_, AppState>) -> Result<String, String> {
-    let oauth = state.google_oauth.lock().unwrap();
-    oauth.get_auth_url().map_err(|e| e.to_string())
+async fn start_google_auth(app: tauri::AppHandle, state: State<'_, AppState>) -> Result<String, String> {
+    let auth_url = {
+        let oauth = state.google_oauth.lock().unwrap();
+        oauth.get_auth_url().map_err(|e| e.to_string())?
+    };
+    
+    // 브라우저에서 OAuth URL 열기
+    use tauri_plugin_opener::OpenerExt;
+    app.opener().open_url(&auth_url, None::<&str>).map_err(|e| format!("브라우저 열기 실패: {}", e))?;
+    
+    Ok(auth_url)
 }
 
 /// Google OAuth 코드로 사용자 인증
@@ -108,10 +120,8 @@ async fn fetch_google_docs(state: State<'_, AppState>) -> Result<Vec<database::D
     if let Err(e) = oauth.ensure_valid_token(&mut user, &db).await {
         *state.current_user.lock().unwrap() = Some(user);
         return Err(format!("토큰 갱신 실패: {}", e));
-    }
-
-    // 문서 동기화
-    match docs_api.sync_documents(&user.access_token, &db).await {
+    }    // 문서 동기화
+    match docs_api.sync_documents(&user.access_token, &user.id, &db).await {
         Ok(documents) => {
             // 사용자 정보 다시 저장
             *state.current_user.lock().unwrap() = Some(user);
@@ -204,21 +214,17 @@ async fn insert_text_to_document(
     if let Err(e) = oauth.ensure_valid_token(&mut user, &db).await {
         *state.current_user.lock().unwrap() = Some(user);
         return Err(format!("토큰 갱신 실패: {}", e));
-    }
-
-    // 편집 기록 저장
-    let edit_history = database::EditHistory {
-        id: uuid::Uuid::new_v4().to_string(),
+    }    // 편집 기록 저장
+    let edit_request = database::CreateEditHistoryRequest {
         document_id: document_id.clone(),
+        user_id: user.id.clone(),
         action_type: "insert".to_string(),
-        action_description: format!("텍스트 삽입: {} characters", text.len()),
         content_before: None,
         content_after: Some(text.clone()),
-        position: position.map(|p| p.to_string()),
-        created_at: chrono::Utc::now(),
+        metadata: position.map(|p| format!("{{\"position\": {}}}", p)),
     };
 
-    if let Err(e) = db.create_edit_history(&edit_history).await {
+    if let Err(e) = db.add_edit_history(&edit_request).await {
         eprintln!("편집 기록 저장 실패: {}", e);
     }
 
@@ -235,18 +241,74 @@ async fn insert_text_to_document(
     }
 }
 
-/// AI 요약 생성 (임시 구현)
+/// AI 요약 생성
 #[tauri::command]
 async fn generate_summary(document_id: String, state: State<'_, AppState>) -> Result<String, String> {
-    let db = state.db.lock().unwrap().as_ref().unwrap().clone();
+    let user = {
+        let current_user_guard = state.current_user.lock().unwrap();
+        match current_user_guard.as_ref() {
+            Some(user) => user.clone(),
+            None => return Err("인증되지 않은 사용자입니다".to_string()),
+        }
+    };
+
+    let oauth = {
+        let oauth_guard = state.google_oauth.lock().unwrap();
+        oauth_guard.clone()
+    };
+    let db = {
+        let db_guard = state.db.lock().unwrap();
+        db_guard.as_ref().unwrap().clone()
+    };
+    let docs_api = {
+        let docs_guard = state.google_docs.lock().unwrap();
+        docs_guard.clone()
+    };
+
+    let mut user = user;
+
+    // 토큰 유효성 검사 및 갱신
+    if let Err(e) = oauth.ensure_valid_token(&mut user, &db).await {
+        *state.current_user.lock().unwrap() = Some(user);
+        return Err(format!("토큰 갱신 실패: {}", e));
+    }
+
+    // 1. 문서 내용 가져오기
+    let doc_text = match docs_api.sync_document_content(&user.access_token, &document_id, &db).await {
+        Ok(text) => text,
+        Err(e) => {
+            *state.current_user.lock().unwrap() = Some(user);
+            return Err(format!("문서 내용 조회 실패: {}", e));
+        }
+    };
+
+    // 2. 요약 생성
+    let (summary_text, keywords) = match docs_api.generate_summary(&doc_text) {
+        Ok(result) => result,
+        Err(e) => {
+            *state.current_user.lock().unwrap() = Some(user);
+            return Err(format!("요약 생성 실패: {}", e));
+        }
+    };
     
-    // 실제 구현에서는 AI API를 호출하여 요약 생성
-    let summary_text = "이것은 AI로 생성된 문서 요약입니다. 실제 구현에서는 문서 내용을 분석하여 의미있는 요약을 생성합니다.".to_string();
+    // 3. 요약 요청 생성
+    let summary_request = database::CreateSummaryRequest {
+        document_id: document_id.clone(),
+        user_id: user.id.clone(),
+        summary_text: summary_text.clone(),
+        keywords: Some(keywords.join(",")),
+    };
     
-    // 요약을 데이터베이스에 저장
-    match db.create_summary(&document_id, &summary_text, "ai_generated").await {
-        Ok(_) => Ok(summary_text),
-        Err(e) => Err(format!("요약 저장 실패: {}", e))
+    // 4. 요약을 데이터베이스에 저장
+    match db.upsert_document_summary(&summary_request).await {
+        Ok(_) => {
+            *state.current_user.lock().unwrap() = Some(user);
+            Ok(summary_text)
+        }
+        Err(e) => {
+            *state.current_user.lock().unwrap() = Some(user);
+            Err(format!("요약 저장 실패: {}", e))
+        }
     }
 }
 
@@ -292,10 +354,9 @@ pub fn run() {
             .plugin(tauri_plugin_shell::init())
             .plugin(tauri_plugin_dialog::init())
             .plugin(tauri_plugin_opener::init())
-            .manage(app_state)
-            .invoke_handler(tauri::generate_handler![
+            .manage(app_state)            .invoke_handler(tauri::generate_handler![
                 greet,
-                get_google_auth_url,
+                start_google_auth,
                 authenticate_google_user,
                 check_auth_status,
                 logout,

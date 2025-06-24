@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { invoke } from '@tauri-apps/api/core';
 
 // 사용자 정보 타입 정의
 interface User {
@@ -50,7 +51,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
   useEffect(() => {
     checkAuthStatus();
   }, []);
-
   /**
    * 저장된 인증 상태 확인
    */
@@ -58,17 +58,33 @@ export function AuthProvider({ children }: AuthProviderProps) {
     try {
       setAuthState(prev => ({ ...prev, isLoading: true }));
       
-      // TODO: Tauri 명령어로 백엔드에서 인증 상태 확인
-      // const isAuth = await invoke('check_auth_status');
-      // const userData = await invoke('get_user_data');
+      // # debug: 인증 상태 확인 시작
+      console.log('Checking authentication status...');
       
-      // 임시로 false 설정 (나중에 실제 구현 시 변경)
-      setAuthState(prev => ({
-        ...prev,
-        isAuthenticated: false,
-        user: null,
-        isLoading: false,
-      }));
+      // Tauri 명령어로 백엔드에서 인증 상태 확인
+      const userData = await invoke<User | null>('check_auth_status');
+      
+      if (userData) {
+        // # debug: 사용자 인증됨
+        console.log('User authenticated:', userData.email);
+        
+        setAuthState(prev => ({
+          ...prev,
+          isAuthenticated: true,
+          user: userData,
+          isLoading: false,
+        }));
+      } else {
+        // # debug: 사용자 인증되지 않음
+        console.log('User not authenticated');
+        
+        setAuthState(prev => ({
+          ...prev,
+          isAuthenticated: false,
+          user: null,
+          isLoading: false,
+        }));
+      }
     } catch (error) {
       console.error('인증 상태 확인 오류:', error);
       setAuthState(prev => ({
@@ -80,40 +96,49 @@ export function AuthProvider({ children }: AuthProviderProps) {
       }));
     }
   };
-
   /**
    * Google OAuth 로그인 실행
    */
   const login = async () => {
     try {
-      setAuthState(prev => ({ ...prev, isLoading: true, error: null }));
+      setAuthState(prev => ({ ...prev, isLoading: true, error: null }));      
+      // # debug: OAuth 로그인 시작
+      console.log('Starting Google OAuth login...');
       
-      // TODO: Tauri 명령어로 Google OAuth 로그인 시작
-      // const authResult = await invoke('start_google_oauth');
+      // 1단계: 인증 URL 생성 및 브라우저 열기
+      await invoke<string>('start_google_auth');
       
-      // 임시 구현 (나중에 실제 OAuth 구현 시 변경)
-      console.log('Google OAuth 로그인 시작...');
+      // # debug: 인증 URL 생성되고 브라우저 열림
+      console.log('Auth URL generated and browser opened');
       
-      // 임시 사용자 데이터 (테스트용)
-      const mockUser: User = {
-        id: 'temp_user_123',
-        email: 'test@example.com',
-        name: 'Test User',
-        profilePicture: undefined,
-      };
+      // 2단계: 사용자가 브라우저에서 인증 완료 후 코드 입력
+      const code = prompt(
+        `브라우저에서 Google 인증을 완료한 후, 리다이렉트 URL에서 'code=' 파라미터 값을 복사하여 입력하세요:\n\n인증 코드:`
+      );
+      
+      if (!code) {
+        throw new Error('인증 코드가 입력되지 않았습니다.');
+      }
+      
+      // 3단계: 인증 코드로 사용자 정보 가져오기
+      const userData = await invoke<User>('authenticate_google_user', { code });
+      
+      // # debug: 사용자 인증 완료
+      console.log('User authenticated successfully:', userData.email);
 
       setAuthState(prev => ({
         ...prev,
-        user: mockUser,
+        user: userData,
         isAuthenticated: true,
         isLoading: false,
       }));
     } catch (error) {
       console.error('로그인 오류:', error);
       setAuthState(prev => ({
-        ...prev,
+        ...prev,        isAuthenticated: false,
+        user: null,
         isLoading: false,
-        error: '로그인 중 오류가 발생했습니다.',
+        error: typeof error === 'string' ? error : '로그인 중 오류가 발생했습니다.',
       }));
     }
   };
@@ -125,8 +150,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
     try {
       setAuthState(prev => ({ ...prev, isLoading: true }));
       
-      // TODO: Tauri 명령어로 로그아웃 처리
-      // await invoke('logout');
+      // # debug: 로그아웃 시작
+      console.log('Logging out user...');
+      
+      // Tauri 명령어로 로그아웃 처리
+      await invoke('logout');
       
       setAuthState({
         user: null,
@@ -134,6 +162,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
         isLoading: false,
         error: null,
       });
+      
+      // # debug: 로그아웃 완료
+      console.log('User logged out successfully');
     } catch (error) {
       console.error('로그아웃 오류:', error);
       setAuthState(prev => ({
@@ -149,8 +180,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
    */
   const refreshToken = async () => {
     try {
-      // TODO: Tauri 명령어로 토큰 갱신
-      // await invoke('refresh_auth_token');
+      // # debug: 토큰 갱신 시작
+      console.log('Refreshing auth token...');
+      
+      // Tauri 명령어로 토큰 갱신
+      await invoke('refresh_auth_token');
+      
       console.log('토큰 갱신 완료');
     } catch (error) {
       console.error('토큰 갱신 오류:', error);

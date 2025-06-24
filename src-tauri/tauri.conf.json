@@ -2,11 +2,10 @@
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Loop",
   "version": "0.1.0",
-  "identifier": "com.typing-app.app",
-  "build": {
-    "beforeDevCommand": "npm run frontend",
+  "identifier": "com.typing-app.app",  "build": {
+    "beforeDevCommand": "yarn frontend",
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "npm run build",
+    "beforeBuildCommand": "yarn build",
     "frontendDist": "../dist"
   },
   "app": {

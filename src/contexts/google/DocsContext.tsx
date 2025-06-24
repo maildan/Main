@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { invoke } from '@tauri-apps/api/core';
 import { useAuth } from './AuthContext';
 
 // Google Docs 문서 타입 정의
@@ -107,45 +108,27 @@ export function DocsProvider({ children }: DocsProviderProps) {
     try {
       setDocsState(prev => ({ ...prev, isLoading: true, error: null }));
       
-      // TODO: Tauri 명령어로 Google Drive API 호출
-      // const docs = await invoke('fetch_google_docs');
+      // # debug: 문서 목록 조회 시작
+      console.log('Fetching Google Docs list...');
       
-      // 임시 목 데이터 (나중에 실제 API 구현 시 변경)
-      const mockDocs: GoogleDoc[] = [
-        {
-          id: 'doc1',
-          title: '프로젝트 기획서',
-          createdTime: '2024-01-15T10:00:00Z',
-          modifiedTime: '2024-01-20T15:30:00Z',
-          wordCount: 1250,
-        },
-        {
-          id: 'doc2',
-          title: '회의록 - 2024년 1분기',
-          createdTime: '2024-01-10T09:00:00Z',
-          modifiedTime: '2024-01-18T11:45:00Z',
-          wordCount: 800,
-        },
-        {
-          id: 'doc3',
-          title: '사용자 매뉴얼 초안',
-          createdTime: '2024-01-05T14:00:00Z',
-          modifiedTime: '2024-01-12T16:20:00Z',
-          wordCount: 2100,
-        },
-      ];
+      // Tauri 명령어로 Google Drive API 호출
+      const docs = await invoke<GoogleDoc[]>('fetch_google_docs');
+      
+      // # debug: 문서 목록 조회 완료
+      console.log(`Fetched ${docs.length} documents from Google Drive`);
 
       setDocsState(prev => ({
         ...prev,
-        documents: mockDocs,
+        documents: docs,
         isLoading: false,
       }));
     } catch (error) {
-      console.error('문서 목록 가져오기 오류:', error);
+      console.error('문서 목록 조회 오류:', error);
       setDocsState(prev => ({
         ...prev,
+        documents: [],
         isLoading: false,
-        error: '문서 목록을 가져오는 중 오류가 발생했습니다.',
+        error: typeof error === 'string' ? error : '문서 목록을 가져올 수 없습니다.',
       }));
     }
   };

@@ -1,5 +1,5 @@
 use reqwest::Client as HttpClient;
-use crate::database::{Database, Document};
+use crate::database::{Database, Document, CreateDocumentRequest};
 use chrono::{DateTime, Utc};
 
 /// Google Docs API 관리 구조체
@@ -70,14 +70,20 @@ impl GoogleDocsAPI {
         Self {
             http_client: HttpClient::new(),
         }
-    }
-
-    /// Google Drive에서 Google Docs 문서 목록 가져오기
+    }    /// Google Drive에서 Google Docs 문서 목록 가져오기
     pub async fn fetch_documents(&self, access_token: &str) -> Result<Vec<GoogleDriveFile>, Box<dyn std::error::Error>> {
+        // # debug: Google Drive API 호출 시작
+        println!("Fetching Google Docs from Drive API");
+        
         let mut all_files = Vec::new();
         let mut page_token: Option<String> = None;
+        let mut page_count = 0;
 
         loop {
+            page_count += 1;
+            // # debug: API 페이지 호출
+            println!("Fetching page {} of documents", page_count);
+            
             let mut url = "https://www.googleapis.com/drive/v3/files".to_string();
             let mut query_params = vec![
                 ("q", "mimeType='application/vnd.google-apps.document'"),
@@ -97,20 +103,26 @@ impl GoogleDocsAPI {
                 .collect::<Vec<_>>()
                 .join("&");
             
-            url = format!("{}?{}", url, query_string);
-
-            let response = self
+            url = format!("{}?{}", url, query_string);            let response = self
                 .http_client
                 .get(&url)
                 .bearer_auth(access_token)
                 .send()
                 .await?;
 
-            if !response.status().is_success() {
-                return Err(format!("문서 목록 조회 실패: {}", response.status()).into());
+            let status = response.status();
+            if !status.is_success() {
+                let error_body = response.text().await.unwrap_or_default();
+                println!("API Error: Status {}, Body: {}", status, error_body);
+                return Err(format!("문서 목록 조회 실패: {} - {}", status, error_body).into());
             }
 
             let drive_response: GoogleDriveResponse = response.json().await?;
+            let files_count = drive_response.files.len();
+            
+            // # debug: 페이지 결과
+            println!("Page {} returned {} documents", page_count, files_count);
+            
             all_files.extend(drive_response.files);
 
             page_token = drive_response.next_page_token;
@@ -119,28 +131,37 @@ impl GoogleDocsAPI {
             }
         }
 
-        Ok(all_files)
-    }
+        // # debug: 전체 결과
+        println!("Total {} documents fetched from Google Drive", all_files.len());
 
-    /// 특정 Google Docs 문서 내용 가져오기
+        Ok(all_files)
+    }    /// 특정 Google Docs 문서 내용 가져오기
     pub async fn fetch_document_content(&self, access_token: &str, document_id: &str) -> Result<GoogleDocsContent, Box<dyn std::error::Error>> {
+        // # debug: 문서 내용 조회 시작
+        println!("Fetching content for document: {}", document_id);
+        
         let url = format!(
             "https://docs.googleapis.com/v1/documents/{}",
             document_id
-        );
-
-        let response = self
+        );        let response = self
             .http_client
             .get(&url)
             .bearer_auth(access_token)
             .send()
             .await?;
 
-        if !response.status().is_success() {
-            return Err(format!("문서 내용 조회 실패: {}", response.status()).into());
+        let status = response.status();
+        if !status.is_success() {
+            let error_body = response.text().await.unwrap_or_default();
+            println!("Document fetch error: Status {}, Body: {}", status, error_body);
+            return Err(format!("문서 내용 조회 실패: {} - {}", status, error_body).into());
         }
 
         let content: GoogleDocsContent = response.json().await?;
+        
+        // # debug: 문서 내용 조회 완료
+        println!("Document content fetched successfully: {}", content.title);
+        
         Ok(content)
     }
 
@@ -204,16 +225,14 @@ impl GoogleDocsAPI {
         }
 
         Ok(())
-    }
-
-    /// Google Drive 파일을 Document 모델로 변환
-    pub fn convert_to_document(&self, file: &GoogleDriveFile, content: Option<&str>) -> Result<Document, Box<dyn std::error::Error>> {
+    }    /// Google Drive 파일을 CreateDocumentRequest로 변환
+    pub fn convert_to_document_request(&self, file: &GoogleDriveFile, content: Option<&str>, user_id: &str) -> Result<CreateDocumentRequest, Box<dyn std::error::Error>> {
         let created_time = DateTime::parse_from_rfc3339(&file.created_time)?
             .with_timezone(&Utc);
         let modified_time = DateTime::parse_from_rfc3339(&file.modified_time)?
             .with_timezone(&Utc);
 
-        let (word_count, content_summary) = if let Some(text) = content {
+        let (word_count, content) = if let Some(text) = content {
             let words = self.count_words(text);
             let summary = if text.len() > 200 {
                 format!("{}...", &text[..200])
@@ -225,27 +244,29 @@ impl GoogleDocsAPI {
             (None, None)
         };
 
-        Ok(Document {
-            id: file.id.clone(),
+        // CreateDocumentRequest 생성
+        let doc_request = CreateDocumentRequest {
+            google_doc_id: file.id.clone(),
+            user_id: user_id.to_string(),
             title: file.name.clone(),
-            google_created_time: created_time,
-            google_modified_time: modified_time,
-            last_synced: Utc::now(),
+            content,
             word_count,
-            content_summary,
-        })
+            created_time,
+            modified_time,
+        };
+
+        Ok(doc_request)
     }
 
     /// 문서 목록 동기화 (데이터베이스에 저장)
-    pub async fn sync_documents(&self, access_token: &str, db: &Database) -> Result<Vec<Document>, Box<dyn std::error::Error>> {
+    pub async fn sync_documents(&self, access_token: &str, user_id: &str, db: &Database) -> Result<Vec<Document>, Box<dyn std::error::Error>> {
         // 1. Google Drive에서 문서 목록 가져오기
         let drive_files = self.fetch_documents(access_token).await?;
 
         let mut documents = Vec::new();
 
         // 2. 각 문서를 데이터베이스에 저장
-        for file in &drive_files {
-            // 문서 내용 가져오기 (선택적 - 성능을 위해 필요한 경우만)
+        for file in &drive_files {            // 문서 내용 가져오기 (선택적 - 성능을 위해 필요한 경우만)
             let content = match self.fetch_document_content(access_token, &file.id).await {
                 Ok(doc_content) => {
                     let text = self.extract_text_from_content(&doc_content);
@@ -254,11 +275,11 @@ impl GoogleDocsAPI {
                 Err(_) => None, // 에러 시 내용 없이 저장
             };
 
-            // Document 모델로 변환
-            let document = self.convert_to_document(file, content.as_deref())?;
+            // CreateDocumentRequest 생성
+            let doc_request = self.convert_to_document_request(file, content.as_deref(), user_id)?;
 
             // 데이터베이스에 저장
-            db.upsert_document(&document).await
+            let document = db.upsert_document(&doc_request).await
                 .map_err(|e| format!("문서 저장 실패: {}", e))?;
 
             documents.push(document);
@@ -271,23 +292,117 @@ impl GoogleDocsAPI {
     pub async fn sync_document_content(&self, access_token: &str, document_id: &str, db: &Database) -> Result<String, Box<dyn std::error::Error>> {
         // 1. 문서 내용 가져오기
         let doc_content = self.fetch_document_content(access_token, document_id).await?;
-        let text = self.extract_text_from_content(&doc_content);
-
-        // 2. 데이터베이스에서 기존 문서 정보 가져오기
-        if let Some(mut document) = db.get_document_by_id(document_id).await? {
+        let text = self.extract_text_from_content(&doc_content);        // 2. 데이터베이스에서 기존 문서 정보 가져오기
+        if let Some(document) = db.get_document_by_google_id(document_id).await? {
             // 3. 문서 정보 업데이트
-            document.word_count = Some(self.count_words(&text));
-            document.content_summary = Some(if text.len() > 200 {
+            let word_count = Some(self.count_words(&text));
+            let content = Some(if text.len() > 200 {
                 format!("{}...", &text[..200])
             } else {
                 text.clone()
             });
 
+            // CreateDocumentRequest로 업데이트
+            let update_request = CreateDocumentRequest {
+                google_doc_id: document.google_doc_id.clone(),
+                user_id: document.user_id.clone(),
+                title: document.title.clone(),
+                content,
+                word_count,
+                created_time: document.created_time,
+                modified_time: document.modified_time,
+            };
+
             // 4. 데이터베이스에 업데이트
-            db.upsert_document(&document).await
+            db.upsert_document(&update_request).await
                 .map_err(|e| format!("문서 업데이트 실패: {}", e))?;
         }
 
         Ok(text)
+    }
+
+    /// 텍스트 요약 생성 (간단한 알고리즘)
+    pub fn generate_summary(&self, text: &str) -> Result<(String, Vec<String>), Box<dyn std::error::Error>> {
+        if text.trim().is_empty() {
+            return Ok(("문서가 비어있습니다.".to_string(), vec![]));
+        }
+
+        // 1. 문장 분리
+        let sentences: Vec<&str> = text
+            .split('.')
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty() && s.len() > 10)
+            .collect();
+
+        if sentences.is_empty() {
+            return Ok(("요약할 내용이 없습니다.".to_string(), vec![]));
+        }
+
+        // 2. 키워드 추출 (간단한 빈도 기반)
+        let keywords = self.extract_keywords(text);        // 3. 중요 문장 선택 (키워드를 많이 포함한 문장)
+        let mut sentence_scores: Vec<(usize, &str)> = sentences
+            .iter()
+            .enumerate()
+            .map(|(_, sentence)| {
+                let score = keywords.iter()
+                    .map(|keyword| sentence.to_lowercase().matches(&keyword.to_lowercase()).count())
+                    .sum::<usize>();
+                (score, *sentence)
+            })
+            .collect();
+
+        // 점수 순으로 정렬
+        sentence_scores.sort_by(|a, b| b.0.cmp(&a.0));
+
+        // 상위 3개 문장으로 요약 생성
+        let summary_sentences: Vec<&str> = sentence_scores
+            .iter()
+            .take(3)
+            .map(|(_, sentence)| *sentence)
+            .collect();
+
+        let summary = if summary_sentences.is_empty() {
+            "요약을 생성할 수 없습니다.".to_string()
+        } else {
+            summary_sentences.join(". ") + "."
+        };
+
+        Ok((summary, keywords))
+    }
+
+    /// 키워드 추출 (간단한 빈도 기반)
+    fn extract_keywords(&self, text: &str) -> Vec<String> {
+        use std::collections::HashMap;
+
+        // 불용어 리스트 (간단한 예시)
+        let stop_words = vec![
+            "the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for", "of", "with", "by",
+            "그", "그것", "이", "그리고", "또는", "하지만", "에서", "로", "의", "와", "과", "를", "을", "이", "가"
+        ];
+
+        // 단어별 빈도 계산
+        let mut word_freq: HashMap<String, usize> = HashMap::new();
+        
+        for word in text.split_whitespace() {
+            let clean_word = word
+                .chars()
+                .filter(|c| c.is_alphabetic() || c.is_numeric())
+                .collect::<String>()
+                .to_lowercase();
+
+            if clean_word.len() > 2 && !stop_words.contains(&clean_word.as_str()) {
+                *word_freq.entry(clean_word).or_insert(0) += 1;
+            }
+        }
+
+        // 빈도순으로 정렬하여 상위 키워드 반환
+        let mut keywords: Vec<(String, usize)> = word_freq.into_iter().collect();
+        keywords.sort_by(|a, b| b.1.cmp(&a.1));
+
+        keywords
+            .into_iter()
+            .take(5)
+            .map(|(word, _)| word)
+            .collect()
     }
 }
