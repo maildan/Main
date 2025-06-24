@@ -98,7 +98,7 @@ impl DatabaseConfig {
         Self {
             url: get_env_var_or_default(
                 "DATABASE_URL", 
-                "sqlite:app.db"
+                "sqlite:database/app.db"
             ),
         }
     }

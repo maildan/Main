@@ -32,6 +32,8 @@ dist-ssr
 
 # Database
 data/
+src/database/
+src-tauri/database/
 *.db
 *.sqlite
 
