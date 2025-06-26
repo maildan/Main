@@ -1,0 +1,90 @@
+/* 공통 컴포넌트 스타일 */
+
+/* 로고 */
+.logo {
+  height: 6em;
+  padding: 1.5em;
+  will-change: filter;
+  transition: 0.75s;
+}
+
+.logo.tauri:hover {
+  filter: drop-shadow(0 0 2em #24c8db);
+}
+
+.logo.vite:hover {
+  filter: drop-shadow(0 0 2em #747bff);
+}
+
+.logo.react:hover {
+  filter: drop-shadow(0 0 2em #61dafb);
+}
+
+/* 입력 필드 */
+.typing-area {
+  margin: 20px 0;
+  padding: 15px;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  min-height: 50px;
+  background-color: white;
+}
+
+.typing-input {
+  width: 100%;
+  padding: 10px;
+  font-size: 18px;
+  border: none;
+  outline: none;
+  background-color: transparent;
+  font-family: inherit;
+  color: inherit;
+}
+
+.compact-input {
+  width: 320px;
+  max-width: 90vw;
+  padding: 1.1rem 1.2rem;
+  font-size: 1.25rem;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 10px;
+  outline: none;
+  background: #fff;
+  color: #222;
+  transition: border 0.2s;
+  box-shadow: 0 2px 8px 0 rgba(0, 0, 0, 0.03);
+  margin: 0 auto 0 auto;
+  display: block;
+}
+
+.compact-input:focus {
+  border: 1.5px solid #6366f1;
+  background: #fff;
+}
+
+/* 통계 컴포넌트 */
+.stats {
+  display: flex;
+  justify-content: center;
+  margin: 20px 0;
+  background-color: #f1f1f1;
+  border-radius: 8px;
+  padding: 15px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+.stat-item {
+  margin: 0 20px;
+  font-size: 18px;
+}
+
+/* 제목 */
+.compact-title {
+  font-size: 2.2rem;
+  font-weight: 700;
+  margin-top: 2.2rem;
+  margin-bottom: 1.2rem;
+  letter-spacing: -1px;
+  color: #222;
+  text-align: center;
+}

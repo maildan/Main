@@ -1,0 +1,90 @@
+/* 설정 드롭다운 메뉴 스타일 */
+
+/* 설정 드롭다운 메뉴 */
+.settings-dropdown {
+  position: absolute;
+  top: 55px;
+  right: 0;
+  min-width: 220px;
+  background: rgba(20, 20, 20, 0.95);
+  backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  padding: 8px 0;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+  animation: slideDown 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 1001;
+  overflow: hidden;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-12px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* 설정 메뉴 아이템 */
+.settings-item {
+  padding: 14px 18px;
+  color: #ffffff;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  font-size: 14px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  position: relative;
+}
+
+.settings-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #4fc3f7;
+  padding-left: 22px;
+}
+
+.settings-item:active {
+  background: rgba(255, 255, 255, 0.12);
+  transform: scale(0.98);
+}
+
+.settings-item .settings-icon {
+  font-size: 16px;
+  width: 20px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.settings-item .settings-label {
+  flex: 1;
+  text-align: left;
+}
+
+/* 구분선 */
+.settings-divider {
+  height: 1px;
+  background: linear-gradient(90deg, 
+    transparent 0%, 
+    rgba(255, 255, 255, 0.15) 20%, 
+    rgba(255, 255, 255, 0.15) 80%, 
+    transparent 100%
+  );
+  margin: 6px 12px;
+}
+
+/* 설정 드롭다운 개선된 스타일 */
+.settings-dropdown .settings-icon {
+  font-size: 16px;
+  width: 20px;
+  text-align: center;
+}
+
+.settings-dropdown .settings-label {
+  flex: 1;
+  text-align: left;
+}

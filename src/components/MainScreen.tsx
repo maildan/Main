@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import SettingsDropdown from './SettingsDropdown';
 import SettingsModal from './SettingsModal';
+import AccountSwitcher from './AccountSwitcher';
 import GoogleDocsSection from './google/GoogleDocsSection';
 import { AuthProvider } from '../contexts/google/AuthContext';
 import { DocsProvider } from '../contexts/google/DocsContext';
@@ -23,7 +24,11 @@ const MainScreen = () => {
   // 설정 모달 상태
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [settingsModalType, setSettingsModalType] = useState<'general' | 'about' | 'help' | null>(null);
-    // 현재 페이지 상태 (메인 페이지 또는 Google Docs 페이지)
+  
+  // 계정 전환 모달 상태
+  const [showAccountSwitcher, setShowAccountSwitcher] = useState(false);
+
+  // 현재 페이지 상태 (메인 페이지 또는 Google Docs 페이지)
   const [currentPage, setCurrentPage] = useState<'main' | 'google-docs'>('main');  // 검색 추천 데이터
   const searchData = [
     '문서 분석',
@@ -171,38 +176,49 @@ const MainScreen = () => {
     });
   };
   return (
-    <div className="main-screen">
-      {/* 상단 헤더 */}      <header className="main-header">
-        {/* 설정 버튼 */}
-        <div className="settings-container">
-          <button 
-            className="settings-button"
-            onClick={handleSettingsToggle}
-          >
-            ⚙
-          </button>
-            {/* 설정 드롭다운 메뉴 (클릭 이벤트 버블링 방지) */}
-          <div onClick={(e) => e.stopPropagation()}>
-            <SettingsDropdown 
-              isOpen={showSettings}
-              onClose={() => setShowSettings(false)}
-              onOpenModal={handleOpenSettingsModal}
+    <AuthProvider>
+      <div className="main-screen">
+        {/* 상단 헤더 */}      <header className="main-header">
+          {/* 설정 버튼 */}
+          <div className="settings-container">
+            <button 
+              className="settings-button"
+              onClick={handleSettingsToggle}
+            >
+              ⚙
+            </button>
+              {/* 설정 드롭다운 메뉴 (클릭 이벤트 버블링 방지) */}
+            <div onClick={(e) => e.stopPropagation()}>
+              <SettingsDropdown 
+                isOpen={showSettings}
+                onClose={() => setShowSettings(false)}
+                onOpenModal={handleOpenSettingsModal}
+                onOpenAccountSwitcher={() => {
+                  setShowAccountSwitcher(true);
+                  setShowSettings(false);
+                }}
+              />
+            </div>
+            
+            {/* 설정 모달 */}
+            {showSettingsModal && settingsModalType && (
+              <SettingsModal
+                type={settingsModalType}
+                isOpen={showSettingsModal}
+                onClose={() => {
+                  setShowSettingsModal(false);
+                  setSettingsModalType(null);
+                }}
+              />
+            )}
+
+            {/* 계정 전환 모달 */}
+            <AccountSwitcher
+              isOpen={showAccountSwitcher}
+              onClose={() => setShowAccountSwitcher(false)}
             />
           </div>
-          
-          {/* 설정 모달 */}
-          {showSettingsModal && settingsModalType && (
-            <SettingsModal
-              type={settingsModalType}
-              isOpen={showSettingsModal}
-              onClose={() => {
-                setShowSettingsModal(false);
-                setSettingsModalType(null);
-              }}
-            />
-          )}
-        </div>
-      </header>      <div className="main-content">
+        </header>      <div className="main-content">
         {/* 메인 페이지에서만 로고와 검색바 표시 */}
         {currentPage === 'main' && (
           <>
@@ -256,48 +272,47 @@ const MainScreen = () => {
               {/* 검색을 통해서만 Google Docs에 접근 가능 */}
             </div>
           </>
-        )}{/* Google Docs 페이지 */}
+        )}        {/* Google Docs 페이지 */}
         {currentPage === 'google-docs' && (
-          <AuthProvider>
-            <DocsProvider>
-              <div className="google-docs-page">
-                {/* 페이지 헤더 (제목만) */}
-                <div className="page-header">
-                  <h2 className="page-title">Google Docs 관리</h2>
-                </div>
-                
-                {/* Google Docs 메인 컨텐츠 */}
-                <div className="google-docs-main">
-                  <GoogleDocsSection />
-                </div>
-                
-                {/* 하단 뒤로가기 버튼 */}
-                <div className="page-footer">
-                  <div className="back-button-container">
-                    <button 
-                      type="button" 
-                      className="new-back-button"
-                      onClick={handleBackToMain}
-                      onKeyDown={handleBackKeyDown}
-                      onMouseEnter={handleBackMouseEnter}
-                      onMouseLeave={handleBackMouseLeave}
-                      tabIndex={0}
-                      aria-label="뒤로가기"
-                    >
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" className="back-arrow">
-                        <path d="M19 12H5M12 19l-7-7 7-7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                      </svg>
-                      <span>뒤로가기</span>
-                    </button>
-                  </div>
+          <DocsProvider>
+            <div className="google-docs-page">
+              {/* 페이지 헤더 (제목만) */}
+              <div className="page-header">
+                <h2 className="page-title">Google Docs 관리</h2>
+              </div>
+              
+              {/* Google Docs 메인 컨텐츠 */}
+              <div className="google-docs-main">
+                <GoogleDocsSection />
+              </div>
+              
+              {/* 하단 뒤로가기 버튼 */}
+              <div className="page-footer">
+                <div className="back-button-container">
+                  <button 
+                    type="button" 
+                    className="new-back-button"
+                    onClick={handleBackToMain}
+                    onKeyDown={handleBackKeyDown}
+                    onMouseEnter={handleBackMouseEnter}
+                    onMouseLeave={handleBackMouseLeave}
+                    tabIndex={0}
+                    aria-label="뒤로가기"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" className="back-arrow">
+                      <path d="M19 12H5M12 19l-7-7 7-7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                    <span>뒤로가기</span>
+                  </button>
                 </div>
               </div>
-            </DocsProvider>
-          </AuthProvider>
+            </div>
+          </DocsProvider>
         )}
       </div>
     </div>
-  );
+  </AuthProvider>
+);
 };
 
 export default MainScreen;

@@ -68,7 +68,7 @@ impl GoogleConfig {
             client_secret: get_env_var("GOOGLE_CLIENT_SECRET")?,
             redirect_url: get_env_var_or_default(
                 "GOOGLE_REDIRECT_URL", 
-                "http://localhost:8080/auth/callback"
+                "http://localhost:8080/api/auth/google/callback"
             ),
         };
 

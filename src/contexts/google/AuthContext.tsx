@@ -9,6 +9,18 @@ interface User {
   profilePicture?: string;
 }
 
+// 사용자 프로필 타입 (저장된 계정 목록용)
+interface UserProfile {
+  id: string;
+  google_id: string;
+  email: string;
+  name: string;
+  picture_url?: string;
+  has_valid_token: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 // 인증 상태 타입 정의
 interface AuthState {
   user: User | null;
@@ -21,6 +33,10 @@ interface AuthState {
 interface AuthContextType extends AuthState {
   login: () => Promise<void>;
   logout: () => Promise<void>;
+  smartLogout: () => Promise<void>;
+  switchAccount: () => Promise<void>;
+  getSavedAccounts: () => Promise<UserProfile[]>;
+  syncAccountData: (userId: string) => Promise<void>;
   refreshToken: () => Promise<void>;
   clearError: () => void;
 }
@@ -97,31 +113,17 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   };
   /**
-   * Google OAuth 로그인 실행
+   * Google OAuth 로그인 실행 (로컬 서버 방식)
    */
   const login = async () => {
     try {
       setAuthState(prev => ({ ...prev, isLoading: true, error: null }));      
-      // # debug: OAuth 로그인 시작
-      console.log('Starting Google OAuth login...');
       
-      // 1단계: 인증 URL 생성 및 브라우저 열기
-      await invoke<string>('start_google_auth');
+      // # debug: OAuth 자동 로그인 시작
+      console.log('Starting Google OAuth auto login with local server...');
       
-      // # debug: 인증 URL 생성되고 브라우저 열림
-      console.log('Auth URL generated and browser opened');
-      
-      // 2단계: 사용자가 브라우저에서 인증 완료 후 코드 입력
-      const code = prompt(
-        `브라우저에서 Google 인증을 완료한 후, 리다이렉트 URL에서 'code=' 파라미터 값을 복사하여 입력하세요:\n\n인증 코드:`
-      );
-      
-      if (!code) {
-        throw new Error('인증 코드가 입력되지 않았습니다.');
-      }
-      
-      // 3단계: 인증 코드로 사용자 정보 가져오기
-      const userData = await invoke<User>('authenticate_google_user', { code });
+      // 자동 로그인 실행 (로컬 서버 + 웹뷰 사용)
+      const userData = await invoke<User>('google_login_auto');
       
       // # debug: 사용자 인증 완료
       console.log('User authenticated successfully:', userData.email);
@@ -138,7 +140,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         ...prev,        isAuthenticated: false,
         user: null,
         isLoading: false,
-        error: typeof error === 'string' ? error : '로그인 중 오류가 발생했습니다.',
+        error: typeof error === 'string' ? error : (error as Error).message || '로그인 중 오류가 발생했습니다.',
       }));
     }
   };
@@ -176,6 +178,68 @@ export function AuthProvider({ children }: AuthProviderProps) {
   };
 
   /**
+   * 스마트 로그아웃 (토큰만 제거, 데이터는 보존)
+   */
+  const smartLogout = async () => {
+    try {
+      setAuthState(prev => ({ ...prev, isLoading: true }));
+      
+      console.log('Smart logout - preserving user data...');
+      
+      // Tauri 명령어로 스마트 로그아웃 처리
+      await invoke('smart_logout');
+      
+      setAuthState({
+        user: null,
+        isAuthenticated: false,
+        isLoading: false,
+        error: null,
+      });
+      
+      console.log('Smart logout completed - data preserved');
+    } catch (error) {
+      console.error('스마트 로그아웃 오류:', error);
+      setAuthState(prev => ({
+        ...prev,
+        isLoading: false,
+        error: '로그아웃 중 오류가 발생했습니다.',
+      }));
+    }
+  };
+
+  /**
+   * 계정 전환
+   */
+  const switchAccount = async () => {
+    try {
+      setAuthState(prev => ({ ...prev, isLoading: true, error: null }));
+      
+      console.log('Switching account...');
+      
+      // 계정 전환 실행
+      const userData = await invoke<User>('switch_account');
+      
+      setAuthState(prev => ({
+        ...prev,
+        user: userData,
+        isAuthenticated: true,
+        isLoading: false,
+      }));
+      
+      console.log('Account switched successfully:', userData.email);
+    } catch (error) {
+      console.error('계정 전환 오류:', error);
+      setAuthState(prev => ({
+        ...prev,
+        isAuthenticated: false,
+        user: null,
+        isLoading: false,
+        error: typeof error === 'string' ? error : (error as Error).message || '계정 전환 중 오류가 발생했습니다.',
+      }));
+    }
+  };
+
+  /**
    * 토큰 갱신
    */
   const refreshToken = async () => {
@@ -201,10 +265,43 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setAuthState(prev => ({ ...prev, error: null }));
   };
 
+  /**
+   * 저장된 계정 목록 가져오기
+   */
+  const getSavedAccounts = async (): Promise<UserProfile[]> => {
+    try {
+      console.log('Fetching saved accounts...');
+      const accounts = await invoke<UserProfile[]>('get_saved_accounts');
+      console.log('Found saved accounts:', accounts.length);
+      return accounts;
+    } catch (error) {
+      console.error('저장된 계정 조회 오류:', error);
+      throw error;
+    }
+  };
+
+  /**
+   * 특정 계정의 데이터 동기화
+   */
+  const syncAccountData = async (userId: string) => {
+    try {
+      console.log('Syncing account data for user:', userId);
+      await invoke('sync_account_data', { userId });
+      console.log('Account data synced successfully');
+    } catch (error) {
+      console.error('계정 데이터 동기화 오류:', error);
+      throw error;
+    }
+  };
+
   const contextValue: AuthContextType = {
     ...authState,
     login,
     logout,
+    smartLogout,
+    switchAccount,
+    getSavedAccounts,
+    syncAccountData,
     refreshToken,
     clearError,
   };

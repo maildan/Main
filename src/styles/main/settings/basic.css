@@ -1,0 +1,40 @@
+/* 설정 기본 컨테이너와 버튼 스타일 */
+
+/* 설정 컨테이너 */
+.settings-container {
+  position: relative;
+}
+
+/* 설정 버튼 */
+.settings-button {
+  width: 44px;
+  height: 44px;
+  border: none;
+  background: transparent;
+  color: #ffffff;
+  font-size: 30px;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform-origin: 50% 50%;
+  position: relative;
+  box-shadow: none;
+  outline: none;
+}
+
+.settings-button:hover {
+  color: #4fc3f7;
+  filter: drop-shadow(0 0 8px rgba(79, 195, 247, 0.5));
+}
+
+.settings-button:active {
+  transform: scale(0.95);
+  filter: drop-shadow(0 0 4px rgba(79, 195, 247, 0.3));
+}
+
+.settings-button:focus {
+  outline: none;
+  box-shadow: none;
+}

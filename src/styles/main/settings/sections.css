@@ -1,0 +1,146 @@
+/* 설정 섹션과 카드 스타일 */
+
+/* 새로운 설정 스타일 */
+.settings-header {
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+.settings-header h2 {
+  color: #ffffff;
+  font-size: 1.3rem;
+  font-weight: 500;
+  margin: 0 0 6px 0;
+  letter-spacing: -0.2px;
+}
+
+.settings-subtitle {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 0.85rem;
+  margin: 0;
+  line-height: 1.3;
+}
+
+.settings-section {
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  padding-top: 20px; /* 위쪽 여백 추가 */
+}
+
+.settings-section:first-child {
+  padding-top: 0; /* 첫 번째 섹션은 위쪽 여백 제거 */
+}
+
+.settings-section:last-child {
+  margin-bottom: 0;
+}
+
+.section-header {
+  margin-bottom: 16px; /* 섹션 헤더와 내용 사이 여백 증가 */
+}
+
+.section-header h3 {
+  color: #ffffff;
+  font-size: 1rem;
+  font-weight: 500;
+  margin: 0 0 4px 0;
+}
+
+.section-description {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.8rem;
+  margin: 0;
+  line-height: 1.2;
+}
+
+/* 설정 카드 */
+.setting-card {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 12px 0;
+  margin-bottom: 0;
+  transition: none;
+}
+
+.setting-card:last-child {
+  border-bottom: none;
+}
+
+.setting-card:last-child {
+  margin-bottom: 0;
+}
+
+.setting-info {
+  margin-bottom: 8px;
+}
+
+.setting-title {
+  color: #ffffff;
+  font-size: 0.9rem;
+  font-weight: 400;
+  margin-bottom: 2px;
+}
+
+.setting-desc {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.8rem;
+  line-height: 1.3;
+}
+
+/* 설정 액션 */
+.settings-actions {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.btn-danger:hover {
+  background: #c82333;
+}
+
+/* 설정 그룹 설명 */
+.settings-group-description {
+  color: #888;
+  font-size: 13px;
+  font-style: italic;
+  margin: -8px 0 12px 0;
+}
+
+/* 실험적 기능 항목 */
+.experimental-feature {
+  background: rgba(79, 195, 247, 0.05);
+  border: 1px dashed rgba(79, 195, 247, 0.3);
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-top: 12px;
+}
+
+.feature-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.feature-header h5 {
+  margin: 0;
+  color: #4fc3f7;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.feature-badge {
+  background: rgba(255, 87, 34, 0.2);
+  color: #ff5722;
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.feature-description {
+  color: #b0b0b0;
+  font-size: 13px;
+  margin: 0;
+  line-height: 1.4;
+}

@@ -5,7 +5,8 @@
   display: flex;
   flex-direction: column;
   height: 100%;
-  overflow: hidden;
+  overflow-y: auto; /* 세로 스크롤 허용 */
+  padding-bottom: 100px; /* 뒤로가기 버튼을 위한 하단 여백 */
 }
 
 .docs-list-header {
@@ -143,7 +144,7 @@
 .documents-grid {
   flex: 1;
   overflow-y: auto;
-  padding: 1rem 1.5rem;
+  padding: 1rem 1.5rem 120px 1.5rem; /* 하단 패딩을 120px로 늘려서 뒤로가기 버튼과 겹치지 않게 */
 }
 
 .document-card {

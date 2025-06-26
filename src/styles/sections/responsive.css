@@ -1,0 +1,65 @@
+/* 반응형 디자인 및 미디어 쿼리 */
+
+/* 반응형 디자인 */
+@media (max-width: 768px) {
+  .section-panel {
+    width: 98%;
+    margin: 8px auto;
+  }
+    .document-section {
+    padding: 16px;
+    gap: 20px;
+  }
+  
+  .control-panel, .results-section {
+    padding: 16px;
+  }
+  
+  .button-group {
+    flex-direction: column;
+  }
+  
+  .btn-primary, .btn-secondary, .btn-info {
+    width: 100%;
+    text-align: center;
+  }
+  
+  .input-group {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .user-id-input {
+    min-width: auto;
+    width: 100%;
+  }
+  
+  .results-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+}
+
+@media (max-width: 480px) {
+  .document-section {
+    padding: 12px;
+  }
+  
+  .control-panel, .results-section {
+    padding: 12px;
+  }
+  
+  .section-header h2 {
+    font-size: 1.4rem;
+  }
+  
+  .message-item {
+    padding: 10px;
+  }
+  
+  .message-header {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+}

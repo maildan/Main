@@ -153,8 +153,15 @@ impl GoogleDocsAPI {
         let status = response.status();
         if !status.is_success() {
             let error_body = response.text().await.unwrap_or_default();
-            println!("Document fetch error: Status {}, Body: {}", status, error_body);
-            return Err(format!("문서 내용 조회 실패: {} - {}", status, error_body).into());
+            
+            // 404 에러의 경우 좀 더 친화적인 메시지
+            if status.as_u16() == 404 {
+                println!("Document not found: {} (possibly deleted or access denied)", document_id);
+                return Err(format!("Document not found: {}", document_id).into());
+            } else {
+                println!("Document fetch error: Status {}, Body: {}", status, error_body);
+                return Err(format!("문서 내용 조회 실패: {} - {}", status, error_body).into());
+            }
         }
 
         let content: GoogleDocsContent = response.json().await?;
@@ -234,8 +241,10 @@ impl GoogleDocsAPI {
 
         let (word_count, content) = if let Some(text) = content {
             let words = self.count_words(text);
-            let summary = if text.len() > 200 {
-                format!("{}...", &text[..200])
+            let summary = if text.chars().count() > 200 {
+                // 문자 단위로 안전하게 자르기
+                let truncated: String = text.chars().take(200).collect();
+                format!("{}...", truncated)
             } else {
                 text.to_string()
             };
@@ -272,7 +281,11 @@ impl GoogleDocsAPI {
                     let text = self.extract_text_from_content(&doc_content);
                     Some(text)
                 }
-                Err(_) => None, // 에러 시 내용 없이 저장
+                Err(e) => {
+                    // 404 에러 또는 기타 에러는 로그만 출력하고 계속 진행
+                    println!("Warning: Failed to fetch content for document {}: {}", file.id, e);
+                    None
+                }
             };
 
             // CreateDocumentRequest 생성

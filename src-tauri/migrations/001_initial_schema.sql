@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS users (
     email TEXT NOT NULL,
     name TEXT NOT NULL,
     picture_url TEXT,
-    access_token TEXT NOT NULL,
+    access_token TEXT,
     refresh_token TEXT,
     token_expires_at DATETIME NOT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,

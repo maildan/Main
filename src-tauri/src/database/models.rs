@@ -10,9 +10,22 @@ pub struct User {
     pub email: String,
     pub name: String,
     pub picture_url: Option<String>,
-    pub access_token: String,
+    pub access_token: Option<String>,
     pub refresh_token: Option<String>,
     pub token_expires_at: DateTime<Utc>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+/// 사용자 프로필 (토큰 정보 제외)
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct UserProfile {
+    pub id: String,
+    pub google_id: String,
+    pub email: String,
+    pub name: String,
+    pub picture_url: Option<String>,
+    pub has_valid_token: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -24,7 +37,7 @@ pub struct CreateUserRequest {
     pub email: String,
     pub name: String,
     pub picture_url: Option<String>,
-    pub access_token: String,
+    pub access_token: Option<String>,
     pub refresh_token: Option<String>,
     pub token_expires_at: DateTime<Utc>,
 }
@@ -137,6 +150,18 @@ pub struct GoogleUserInfo {
 pub struct DocumentListResponse {
     pub documents: Vec<Document>,
     pub total_count: i32,
+}
+
+/// 편집 통계 정보
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EditStatistics {
+    pub total_edits: u32,
+    pub documents_edited: u32,
+    pub insertions: u32,
+    pub deletions: u32,
+    pub updates: u32,
+    pub first_edit: Option<DateTime<Utc>>,
+    pub last_edit: Option<DateTime<Utc>>,
 }
 
 /// 에러 응답 DTO

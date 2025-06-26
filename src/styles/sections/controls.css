@@ -1,0 +1,223 @@
+/* 컨트롤 패널 및 버튼 스타일 */
+
+/* 컨트롤 패널 - 디스코드 스타일 */
+.control-panel {
+  background: #2f3136;
+  border: none;
+  border-radius: 8px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.control-panel h3 {
+  margin: 0 0 12px 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #b9bbbe;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* 버튼 그룹 */
+.button-group {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* 버튼 스타일 - 디스코드 스타일 */
+.btn-primary, .btn-secondary, .btn-info {
+  padding: 10px 16px;
+  border: none;
+  border-radius: 4px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  background: #5865f2;
+  color: #ffffff;
+  min-height: 38px;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: #4752c4;
+}
+
+.btn-secondary {
+  background: #4f545c;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: #5d6269;
+}
+
+.btn-info {
+  background: #4f545c;
+}
+
+.btn-info:hover:not(:disabled) {
+  background: #5d6269;
+}
+
+.btn-primary:disabled, .btn-secondary:disabled, .btn-info:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: #4f545c;
+}
+
+/* 입력 그룹 */
+.input-group {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+/* 문서 업로드 입력 */
+.document-input {
+  flex: 1;
+  min-width: 180px;
+  padding: 8px 12px;
+  border: 1px solid #3a3a3a;
+  border-radius: 4px;
+  font-size: 0.875rem;
+  background: #1e1e1e;
+  color: #fff;
+  transition: border-color 0.15s ease;
+}
+
+.user-id-input:focus {
+  outline: none;
+  border-color: #4a9eff;
+}
+
+.user-id-input::placeholder {
+  color: #666;
+}
+
+/* 분석 시작 버튼 */
+.analyze-btn {
+  width: 100%;
+  padding: 12px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  background: #4a9eff;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  margin-top: 8px;
+}
+
+.analyze-btn:hover:not(:disabled) {
+  background: #3d8beb;
+}
+
+.analyze-btn:disabled {
+  background: #3a3a3a;
+  cursor: not-allowed;
+}
+
+/* 에러 메시지 */
+.error-message {
+  padding: 10px 12px;
+  background: #2d1b1b;
+  color: #ff6b6b;
+  border: 1px solid #ff6b6b;
+  border-radius: 4px;
+  font-size: 0.875rem;
+}
+
+/* 토글 스위치 스타일 */
+.mode-toggle-switch {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 12px;
+}
+
+.mode-label {
+  font-size: 0.875rem;
+  color: #b9bbbe;
+  transition: color 0.2s ease;
+  font-weight: 500;
+}
+
+.mode-label.active {
+  color: #ffffff;
+}
+
+/* 스위치 컨테이너 */
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 50px;
+  height: 24px;
+  cursor: pointer;
+}
+
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+/* 슬라이더 */
+.slider {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #4f545c;
+  transition: 0.3s;
+  border-radius: 24px;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  bottom: 3px;
+  background-color: #dcddde;
+  transition: 0.3s;
+  border-radius: 50%;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+/* 체크된 상태 */
+input:checked + .slider {
+  background-color: #5865f2;
+}
+
+input:checked + .slider:before {
+  transform: translateX(26px);
+}
+
+/* 호버 효과 */
+.switch:hover .slider {
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.3), 0 0 0 2px rgba(88, 101, 242, 0.2);
+}
+
+input:checked:hover + .slider {
+  background-color: #4752c4;
+}
+
+/* 포커스 상태 */
+button:focus-visible,
+input:focus-visible {
+  outline: 2px solid #4a9eff;
+  outline-offset: 1px;
+}
+
+/* 로딩 상태 */
+.loading {
+  opacity: 0.6;
+  pointer-events: none;
+}

@@ -140,15 +140,19 @@ export function DocsProvider({ children }: DocsProviderProps) {
     try {
       setDocsState(prev => ({ ...prev, isLoading: true, error: null }));
       
-      // TODO: Tauri 명령어로 Google Docs API 호출
-      // const docContent = await invoke('fetch_document_content', { docId });
+      console.log(`Fetching content for document: ${docId}`);
       
-      // 임시 구현
+      // Tauri 명령어로 실제 문서 내용 가져오기
+      const docContent = await invoke<string>('fetch_document_content', { documentId: docId });
+      
+      console.log(`Document content fetched successfully, length: ${docContent.length}`);
+      
+      // 선택된 문서 정보 가져오기
       const selectedDoc = docsState.documents.find(doc => doc.id === docId);
       if (selectedDoc) {
         const docWithContent: GoogleDoc = {
           ...selectedDoc,
-          content: `이것은 "${selectedDoc.title}" 문서의 내용입니다.\n\n실제 구현에서는 Google Docs API를 통해 실제 문서 내용을 가져옵니다.`,
+          content: docContent, // 실제 문서 내용 사용
         };
 
         setDocsState(prev => ({
@@ -156,13 +160,15 @@ export function DocsProvider({ children }: DocsProviderProps) {
           selectedDocument: docWithContent,
           isLoading: false,
         }));
+      } else {
+        throw new Error('선택된 문서를 찾을 수 없습니다.');
       }
     } catch (error) {
       console.error('문서 선택 오류:', error);
       setDocsState(prev => ({
         ...prev,
         isLoading: false,
-        error: '문서를 불러오는 중 오류가 발생했습니다.',
+        error: typeof error === 'string' ? error : '문서를 불러오는 중 오류가 발생했습니다.',
       }));
     }
   };
@@ -235,11 +241,12 @@ export function DocsProvider({ children }: DocsProviderProps) {
     try {
       setDocsState(prev => ({ ...prev, isLoading: true, error: null }));
       
-      // TODO: Tauri 명령어로 AI 요약 생성
-      // const summary = await invoke('generate_summary', { docId });
+      console.log(`Generating summary for document: ${docId}`);
       
-      // 임시 구현
-      const summary = '이것은 AI로 생성된 문서 요약입니다. 실제 구현에서는 문서 내용을 분석하여 요약을 생성합니다.';
+      // Tauri 명령어로 실제 AI 요약 생성
+      const summary = await invoke<string>('generate_summary', { documentId: docId });
+      
+      console.log('Summary generated successfully');
       
       // 문서 목록에서 해당 문서 업데이트
       setDocsState(prev => ({
@@ -257,7 +264,7 @@ export function DocsProvider({ children }: DocsProviderProps) {
       setDocsState(prev => ({
         ...prev,
         isLoading: false,
-        error: '요약 생성 중 오류가 발생했습니다.',
+        error: typeof error === 'string' ? error : '요약 생성 중 오류가 발생했습니다.',
       }));
     }
   };

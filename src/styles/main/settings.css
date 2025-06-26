@@ -1,0 +1,8 @@
+/* 설정 관련 스타일 - 모듈화된 CSS 파일들을 import */
+@import './settings/basic.css';
+@import './settings/dropdown.css';
+@import './settings/modal.css';
+@import './settings/sections.css';
+@import './settings/controls.css';
+@import './settings/about.css';
+@import './settings/help.css';

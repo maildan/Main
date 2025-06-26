@@ -120,8 +120,14 @@ async fn fetch_google_docs(state: State<'_, AppState>) -> Result<Vec<database::D
     if let Err(e) = oauth.ensure_valid_token(&mut user, &db).await {
         *state.current_user.lock().unwrap() = Some(user);
         return Err(format!("토큰 갱신 실패: {}", e));
-    }    // 문서 동기화
-    match docs_api.sync_documents(&user.access_token, &user.id, &db).await {
+    }
+
+    // 액세스 토큰 확인
+    let access_token = user.access_token.as_ref()
+        .ok_or_else(|| "액세스 토큰이 없습니다".to_string())?;
+
+    // 문서 동기화
+    match docs_api.sync_documents(access_token, &user.id, &db).await {
         Ok(documents) => {
             // 사용자 정보 다시 저장
             *state.current_user.lock().unwrap() = Some(user);
@@ -166,8 +172,12 @@ async fn fetch_document_content(document_id: String, state: State<'_, AppState>)
         return Err(format!("토큰 갱신 실패: {}", e));
     }
 
+    // 액세스 토큰 확인
+    let access_token = user.access_token.as_ref()
+        .ok_or_else(|| "액세스 토큰이 없습니다".to_string())?;
+
     // 문서 내용 동기화
-    match docs_api.sync_document_content(&user.access_token, &document_id, &db).await {
+    match docs_api.sync_document_content(access_token, &document_id, &db).await {
         Ok(content) => {
             *state.current_user.lock().unwrap() = Some(user);
             Ok(content)
@@ -214,7 +224,13 @@ async fn insert_text_to_document(
     if let Err(e) = oauth.ensure_valid_token(&mut user, &db).await {
         *state.current_user.lock().unwrap() = Some(user);
         return Err(format!("토큰 갱신 실패: {}", e));
-    }    // 편집 기록 저장
+    }
+
+    // 액세스 토큰 확인
+    let access_token = user.access_token.as_ref()
+        .ok_or_else(|| "액세스 토큰이 없습니다".to_string())?;
+
+    // 편집 기록 저장
     let edit_request = database::CreateEditHistoryRequest {
         document_id: document_id.clone(),
         user_id: user.id.clone(),
@@ -229,7 +245,7 @@ async fn insert_text_to_document(
     }
 
     // 실제 문서에 텍스트 삽입
-    match docs_api.insert_text(&user.access_token, &document_id, &text, position).await {
+    match docs_api.insert_text(access_token, &document_id, &text, position).await {
         Ok(_) => {
             *state.current_user.lock().unwrap() = Some(user);
             Ok(())
@@ -273,8 +289,12 @@ async fn generate_summary(document_id: String, state: State<'_, AppState>) -> Re
         return Err(format!("토큰 갱신 실패: {}", e));
     }
 
+    // 액세스 토큰 확인
+    let access_token = user.access_token.as_ref()
+        .ok_or_else(|| "액세스 토큰이 없습니다".to_string())?;
+
     // 1. 문서 내용 가져오기
-    let doc_text = match docs_api.sync_document_content(&user.access_token, &document_id, &db).await {
+    let doc_text = match docs_api.sync_document_content(access_token, &document_id, &db).await {
         Ok(text) => text,
         Err(e) => {
             *state.current_user.lock().unwrap() = Some(user);
@@ -346,6 +366,28 @@ async fn refresh_auth_token(state: State<'_, AppState>) -> Result<(), String> {
     }
 }
 
+/// 계정 제거 (사용자와 관련된 모든 데이터 삭제)
+#[tauri::command]
+async fn remove_account(state: State<'_, AppState>, account_id: String) -> Result<(), String> {
+    let db = state.db.lock().unwrap().as_ref().unwrap().clone();
+    
+    // 현재 사용자와 동일한 계정인지 확인
+    let current_user = state.current_user.lock().unwrap().clone();
+    if let Some(user) = current_user {
+        if user.id == account_id {
+            // 현재 사용자를 None으로 설정
+            *state.current_user.lock().unwrap() = None;
+        }
+    }
+    
+    // 데이터베이스에서 계정과 모든 관련 데이터 제거
+    db.remove_account(&account_id).await
+        .map_err(|e| e.to_string())?;
+    
+    println!("Successfully removed account: {}", account_id);
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::async_runtime::block_on(async {
@@ -364,7 +406,8 @@ pub fn run() {
                 fetch_document_content,
                 insert_text_to_document,
                 generate_summary,
-                refresh_auth_token
+                refresh_auth_token,
+                remove_account
             ])
             .run(tauri::generate_context!())
             .expect("error while running tauri application");

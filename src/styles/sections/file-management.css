@@ -1,0 +1,145 @@
+/* 파일 관리 관련 스타일 */
+
+/* 파일 목록 */
+.file-list {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.file-item {
+  padding: 8px 16px;
+  background: #2c2f33;
+  border: 1px solid #202225;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: #b9bbbe;
+  font-size: 0.875rem;
+  font-weight: 500;
+  display: inline-block;
+  width: fit-content;
+  min-width: 100px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.file-item:hover {
+  background: #36393f;
+  border-color: #4f545c;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+
+.file-item.selected {
+  background: #5865f2;
+  border-color: #5865f2;
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(88, 101, 242, 0.4);
+}
+
+.file-item:last-child {
+  border-bottom: 1px solid #202225;
+}
+
+.file-name {
+  font-weight: 500;
+}
+
+.file-size {
+  font-size: 0.8rem;
+  color: #888;
+}
+
+/* 선택된 파일 표시 */
+.selected-file {
+  margin-top: 12px;
+  padding: 10px 12px;
+  background: #1a2e1a;
+  border: 1px solid #28a745;
+  border-radius: 4px;
+  font-size: 0.875rem;
+  color: #28a745;
+}
+
+.selected-file-display {
+  min-width: 200px;
+  padding: 12px 16px;
+  background: #40444b;
+  border: 1px solid #4f545c;
+  border-radius: 6px;
+  color: #dcddde;
+  font-size: 0.875rem;
+}
+
+.selected-file-display h4 {
+  margin: 0 0 8px 0;
+  font-size: 0.875rem;
+  color: #b9bbbe;
+  font-weight: 500;
+}
+
+.selected-file-display p {
+  margin: 0;
+  color: #ffffff;
+  font-weight: 500;
+}
+
+/* 파일 상태 표시 통합 스타일 */
+.file-status-card {
+  background: #40444b;
+  border-radius: 6px;
+  padding: 14px 18px;
+  color: #dcddde;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+  border: 1px solid #4f545c;
+  position: relative;
+}
+
+.file-status-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: #5865f2;
+  border-radius: 6px 6px 0 0;
+}
+
+.file-status-title {
+  font-size: 0.875rem;
+  font-weight: 500;
+  margin: 0 0 6px 0;
+  color: #b9bbbe;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.file-status-title.found::before {
+  content: '📁';
+  font-size: 1rem;
+  margin-right: 2px;
+}
+
+.file-status-title.selected::before {
+  content: '✓';
+  color: #5865f2;
+  font-weight: bold;
+  font-size: 0.875rem;
+}
+
+.file-status-content {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0;
+  color: #ffffff;
+}
+
+.file-status-content.file-name {
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 0.95rem;
+}
