@@ -31,7 +31,7 @@ interface AuthState {
 
 // 인증 컨텍스트 액션 타입 정의
 interface AuthContextType extends AuthState {
-  login: () => Promise<void>;
+  login: () => Promise<boolean>;
   logout: () => Promise<void>;
   smartLogout: () => Promise<void>;
   switchAccount: () => Promise<void>;
@@ -113,35 +113,37 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   };
   /**
-   * Google OAuth 로그인 실행 (로컬 서버 방식)
+   * Google OAuth 로그인 실행 (웹뷰 방식)
    */
-  const login = async () => {
+  const login = async (): Promise<boolean> => {
     try {
       setAuthState(prev => ({ ...prev, isLoading: true, error: null }));      
       
-      // # debug: OAuth 자동 로그인 시작
-      console.log('Starting Google OAuth auto login with local server...');
+      console.log('Starting Google OAuth login with webview...');
       
-      // 자동 로그인 실행 (로컬 서버 + 웹뷰 사용)
-      const userData = await invoke<User>('google_login_auto');
-      
-      // # debug: 사용자 인증 완료
+      // 웹뷰를 사용한 자동화된 로그인
+      const userData = await invoke<User>('google_login_with_webview');
       console.log('User authenticated successfully:', userData.email);
-
+      
       setAuthState(prev => ({
         ...prev,
         user: userData,
         isAuthenticated: true,
         isLoading: false,
       }));
+      
+      return true;
+      
     } catch (error) {
       console.error('로그인 오류:', error);
       setAuthState(prev => ({
-        ...prev,        isAuthenticated: false,
+        ...prev,        
+        isAuthenticated: false,
         user: null,
         isLoading: false,
         error: typeof error === 'string' ? error : (error as Error).message || '로그인 중 오류가 발생했습니다.',
       }));
+      return false;
     }
   };
 

@@ -1,5 +1,6 @@
 use std::sync::Mutex;
 use tauri::State;
+use chrono::{DateTime, Utc};
 
 mod database;
 mod google;
@@ -17,7 +18,7 @@ pub struct AppState {
 }
 
 impl AppState {
-    pub async fn new() -> Result<Self, Box<dyn std::error::Error>> {
+    pub async fn new() -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
         // 환경변수 로드
         config::load_env()?;
         
@@ -25,11 +26,14 @@ impl AppState {
         let google_oauth = GoogleOAuth::new()?;
         let google_docs = GoogleDocsAPI::new();
 
+        // DB에서 current_user 복구
+        let current_user = db.get_current_user().await.ok().flatten();
+
         Ok(Self {
             db: Mutex::new(Some(db)),
             google_oauth: Mutex::new(google_oauth),
             google_docs: Mutex::new(google_docs),
-            current_user: Mutex::new(None),
+            current_user: Mutex::new(current_user),
         })
     }
 }
@@ -388,6 +392,184 @@ async fn remove_account(state: State<'_, AppState>, account_id: String) -> Resul
     Ok(())
 }
 
+/// 계정 전환
+#[tauri::command]
+async fn switch_account(state: State<'_, AppState>, user_id: String) -> Result<serde_json::Value, String> {
+    let db = state.db.lock().unwrap().as_ref().unwrap().clone();
+    let oauth = {
+        let oauth_guard = state.google_oauth.lock().unwrap();
+        oauth_guard.clone()
+    };
+    // 데이터베이스에서 계정 전환
+    let mut switched_user = db.switch_to_account(&user_id).await
+        .map_err(|e| e.to_string())?;
+    // 앱 상태의 현재 사용자 업데이트
+    *state.current_user.lock().unwrap() = Some(switched_user.clone());
+    println!("Successfully switched to account: {} ({})", switched_user.email, switched_user.id);
+    // 토큰 유효성 검사
+    let mut need_reauth = false;
+    if let Err(e) = oauth.ensure_valid_token(&mut switched_user, &db).await {
+        println!("Token validation/refresh failed: {}", e);
+        need_reauth = true;
+    }
+    Ok(serde_json::json!({
+        "user": switched_user,
+        "needReauth": need_reauth
+    }))
+}
+
+/// 저장된 모든 계정 조회
+#[tauri::command]
+async fn get_saved_accounts(state: State<'_, AppState>) -> Result<Vec<database::UserProfile>, String> {
+    let db = state.db.lock().unwrap().as_ref().unwrap().clone();
+    
+    let accounts = db.get_all_saved_accounts().await
+        .map_err(|e| e.to_string())?;
+    
+    println!("Retrieved {} saved accounts", accounts.len());
+    Ok(accounts)
+}
+
+/// URL을 기본 브라우저에서 열기
+#[tauri::command]
+async fn open_url(url: String) -> Result<(), String> {
+    use std::process::Command;
+    
+    let result = if cfg!(target_os = "windows") {
+        Command::new("cmd")
+            .args(["/C", "start", &url])
+            .output()
+    } else if cfg!(target_os = "macos") {
+        Command::new("open")
+            .arg(&url)
+            .output()
+    } else {
+        Command::new("xdg-open")
+            .arg(&url)
+            .output()
+    };
+
+    match result {
+        Ok(_) => {
+            println!("Opened URL in browser: {}", url);
+            Ok(())
+        }
+        Err(e) => Err(format!("Failed to open URL: {}", e))
+    }
+}
+
+/// Google OAuth 웹뷰 로그인 (자동화된 로그인)
+#[tauri::command]
+async fn google_login_with_webview(app: tauri::AppHandle, state: State<'_, AppState>) -> Result<database::User, String> {
+    let oauth = {
+        let oauth_guard = state.google_oauth.lock().unwrap();
+        oauth_guard.clone()
+    };
+    let db = {
+        let db_guard = state.db.lock().unwrap();
+        db_guard.as_ref().unwrap().clone()
+    };
+    
+    // 웹뷰를 사용한 자동화된 로그인
+    let auth_code = oauth.login_with_webview(&app).await
+        .map_err(|e| e.to_string())?;
+    
+    // 인증 코드로 사용자 인증
+    let user = oauth.authenticate_user(&auth_code, &db).await
+        .map_err(|e| e.to_string())?;
+    
+    // 현재 사용자 정보 저장
+    *state.current_user.lock().unwrap() = Some(user.clone());
+    
+    println!("User authenticated via webview: {}", user.email);
+    Ok(user)
+}
+
+/// 자동 문서 동기화 (문서 목록 + 내용 모두 동기화)
+#[tauri::command]
+async fn auto_sync_documents(state: State<'_, AppState>) -> Result<Vec<database::Document>, String> {
+    let db = {
+        let db_guard = state.db.lock().unwrap();
+        db_guard.as_ref().unwrap().clone()
+    };
+
+    // 현재 사용자 가져오기 (is_current = true)
+    let current_user = database::user_operations::get_current_user(db.get_pool()).await
+        .map_err(|e| format!("현재 사용자 조회 실패: {}", e))?
+        .ok_or_else(|| "현재 로그인된 사용자가 없습니다".to_string())?;
+
+    // access_token을 미리 추출
+    let access_token = current_user.access_token.clone().unwrap_or_default();
+
+    let google_docs = {
+        let docs_guard = state.google_docs.lock().unwrap();
+        docs_guard.clone()
+    };
+
+    println!("Starting auto sync for current user: {}", current_user.email);
+
+    // 1. 구글 드라이브에서 문서 목록 가져오기
+    let google_docs_list = google_docs.fetch_documents(&access_token).await
+        .map_err(|e| e.to_string())?;
+
+    let mut synced_documents = Vec::new();
+
+    // 2. 각 문서의 내용도 가져와서 DB에 저장
+    for google_file in google_docs_list {
+        let (text_content, has_content) = {
+            let fetch_result = google_docs.fetch_document_content(&access_token, &google_file.id).await;
+            match fetch_result {
+                Ok(content) => {
+                    // GoogleDocsContent에서 실제 텍스트 추출
+                    let text = google_docs.extract_text_from_content(&content);
+                    (text, true)
+                }
+                Err(e) => {
+                    eprintln!("Failed to fetch content for document {}: {}", google_file.name, e.to_string());
+                    (String::new(), false)
+                }
+            }
+        };
+
+        // 날짜 문자열을 DateTime으로 파싱
+        let created_time = DateTime::parse_from_rfc3339(&google_file.created_time)
+            .map(|dt| dt.with_timezone(&Utc))
+            .unwrap_or_else(|_| Utc::now());
+        let modified_time = DateTime::parse_from_rfc3339(&google_file.modified_time)
+            .map(|dt| dt.with_timezone(&Utc))
+            .unwrap_or_else(|_| Utc::now());
+
+        let doc_request = database::CreateDocumentRequest {
+            google_doc_id: google_file.id.clone(),
+            user_id: current_user.id.clone(),
+            title: google_file.name.clone(),
+            content: if has_content { Some(text_content.clone()) } else { None },
+            word_count: Some(if has_content { text_content.split_whitespace().count() as i32 } else { 0 }),
+            created_time,
+            modified_time,
+        };
+
+        match db.upsert_document(&doc_request).await {
+            Ok(document) => {
+                println!("Synced document: {}", document.title);
+                synced_documents.push(document);
+            }
+            Err(e) => {
+                eprintln!("Failed to save document {}: {}", google_file.name, e);
+            }
+        }
+    }
+
+    println!("Auto sync completed. Synced {} new/updated documents", synced_documents.len());
+    
+    // 현재 사용자의 모든 문서 반환 (새로 동기화된 것 + 기존 것)
+    let all_user_documents = db.get_documents_by_user(&current_user.id).await
+        .map_err(|e| format!("사용자 문서 조회 실패: {}", e))?;
+    
+    println!("Returning {} total documents for user: {}", all_user_documents.len(), current_user.email);
+    Ok(all_user_documents)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::async_runtime::block_on(async {
@@ -407,7 +589,12 @@ pub fn run() {
                 insert_text_to_document,
                 generate_summary,
                 refresh_auth_token,
-                remove_account
+                switch_account,
+                remove_account,
+                get_saved_accounts,
+                open_url,
+                google_login_with_webview,
+                auto_sync_documents
             ])
             .run(tauri::generate_context!())
             .expect("error while running tauri application");

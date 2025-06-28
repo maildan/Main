@@ -32,8 +32,8 @@
   overflow: hidden;
   animation: slideUp 0.3s ease-out;
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
-  scrollbar-width: none; /* Firefox */
-  -ms-overflow-style: none; /* Internet Explorer 10+ */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 
 .settings-modal::-webkit-scrollbar {
@@ -53,8 +53,9 @@
 
 .modal-header {
   display: flex;
-  justify-content: flex-end;
-  padding: 16px 20px 0 20px;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
 }
 
 .modal-close {
@@ -81,8 +82,8 @@
   padding: 0 20px 20px 20px;
   overflow-y: auto;
   max-height: calc(75vh - 70px);
-  scrollbar-width: none; /* Firefox */
-  -ms-overflow-style: none; /* Internet Explorer 10+ */
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 
 /* Webkit 기반 브라우저 (Chrome, Safari, Edge) */

@@ -11,7 +11,7 @@ pub async fn add_edit_history(pool: &Pool<Sqlite>, edit: &CreateEditHistoryReque
     let edit_history = sqlx::query_as::<_, EditHistory>(
         r#"
         INSERT INTO edit_history (id, document_id, user_id, action_type, content_before, content_after, metadata, created_at)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         RETURNING *
         "#
     )
@@ -32,7 +32,7 @@ pub async fn add_edit_history(pool: &Pool<Sqlite>, edit: &CreateEditHistoryReque
 /// 문서의 편집 기록 조회
 pub async fn get_edit_history(pool: &Pool<Sqlite>, document_id: &str, limit: i32) -> Result<Vec<EditHistory>, sqlx::Error> {
     let history = sqlx::query_as::<_, EditHistory>(
-        "SELECT * FROM edit_history WHERE document_id = $1 ORDER BY created_at DESC LIMIT $2"
+        "SELECT * FROM edit_history WHERE document_id = ? ORDER BY created_at DESC LIMIT ?"
     )
     .bind(document_id)
     .bind(limit)

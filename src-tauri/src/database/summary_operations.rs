@@ -11,7 +11,7 @@ pub async fn upsert_document_summary(pool: &Pool<Sqlite>, summary: &CreateSummar
     let document_summary = sqlx::query_as::<_, DocumentSummary>(
         r#"
         INSERT INTO document_summaries (id, document_id, user_id, summary_text, keywords, generated_at, created_at, updated_at)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(document_id) DO UPDATE SET
             summary_text = EXCLUDED.summary_text,
             keywords = EXCLUDED.keywords,
@@ -37,7 +37,7 @@ pub async fn upsert_document_summary(pool: &Pool<Sqlite>, summary: &CreateSummar
 /// 문서 요약 조회
 pub async fn get_document_summary(pool: &Pool<Sqlite>, document_id: &str) -> Result<Option<DocumentSummary>, sqlx::Error> {
     let summary = sqlx::query_as::<_, DocumentSummary>(
-        "SELECT * FROM document_summaries WHERE document_id = $1"
+        "SELECT * FROM document_summaries WHERE document_id = ?"
     )
     .bind(document_id)
     .fetch_optional(pool)

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { invoke } from '@tauri-apps/api/core';
 import { useAuth } from '../contexts/google/AuthContext';
 
 interface UserProfile {
@@ -15,13 +16,13 @@ interface UserProfile {
 interface AccountSwitcherProps {
   isOpen: boolean;
   onClose: () => void;
+  onAccountChanged?: () => void; // 계정 변경 시 호출될 callback
 }
 
-const AccountSwitcher: React.FC<AccountSwitcherProps> = ({ isOpen, onClose }) => {
-  const { user, smartLogout, switchAccount, getSavedAccounts, syncAccountData } = useAuth();
+const AccountSwitcher: React.FC<AccountSwitcherProps> = ({ isOpen, onClose, onAccountChanged }) => {
+  const { user, smartLogout, login, getSavedAccounts } = useAuth();
   const [savedAccounts, setSavedAccounts] = useState<UserProfile[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [isSyncing, setIsSyncing] = useState<string | null>(null);
 
   useEffect(() => {
     if (isOpen) {
@@ -50,38 +51,84 @@ const AccountSwitcher: React.FC<AccountSwitcherProps> = ({ isOpen, onClose }) =>
     }
   };
 
-  const handleSwitchAccount = async () => {
+  const handleAddAccount = async () => {
     try {
-      await switchAccount();
+      setIsLoading(true);
+      console.log('계정 추가 시작...');
+      
+      // 로그인 완료까지 대기 (모달은 닫지 않음)
+      const success = await login();
+      
+      if (success) {
+        console.log('로그인 성공, 계정 목록 새로고침...');
+        await loadSavedAccounts(); // 계정 목록 새로고침
+        
+        // 새로 추가된 계정의 문서 자동 동기화
+        if (onAccountChanged) {
+          try {
+            console.log('계정 추가 후 문서 자동 동기화 시작...');
+            onAccountChanged();
+            console.log('문서 자동 동기화 완료');
+          } catch (syncError) {
+            console.error('문서 동기화 실패:', syncError);
+            // 동기화 실패해도 계정 추가는 완료된 상태로 처리
+          }
+        }
+        
+        onClose(); // 성공 시에만 모달 닫기
+      } else {
+        console.log('로그인 실패 또는 취소됨');
+        alert('로그인이 취소되었거나 실패했습니다.');
+      }
+    } catch (error) {
+      console.error('계정 추가 실패:', error);
+      alert('계정 추가에 실패했습니다. 다시 시도해 주세요.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+
+
+  const handleRemoveAccount = async (accountId: string) => {
+    if (window.confirm('이 계정을 저장된 목록에서 제거하시겠습니까?')) {
+      try {
+        // Tauri API를 통해 계정 제거
+        await invoke('remove_account', { accountId });
+        await loadSavedAccounts(); // 목록 새로고침
+      } catch (error) {
+        console.error('계정 제거 실패:', error);
+        alert('계정 제거에 실패했습니다. 다시 시도해 주세요.');
+      }
+    }
+  };
+
+  const handleSwitchToAccount = async (accountId: string) => {
+    try {
+      // 백엔드의 switch_account 명령어 호출
+      const switchedUser = await invoke('switch_account', { userId: accountId });
+      
+      console.log('계정 전환 완료:', switchedUser);
+      
+      // 계정 목록 새로고침
+      await loadSavedAccounts();
+      
+      // 전환된 계정의 문서 자동 동기화
+      if (onAccountChanged) {
+        try {
+          console.log('계정 전환 후 문서 자동 동기화 시작...');
+          onAccountChanged();
+          console.log('문서 자동 동기화 완료');
+        } catch (syncError) {
+          console.error('문서 동기화 실패:', syncError);
+          // 동기화 실패해도 계정 전환은 완료된 상태로 처리
+        }
+      }
+      
       onClose();
     } catch (error) {
       console.error('계정 전환 실패:', error);
-    }
-  };
-
-  const handleSyncAccount = async (userId: string) => {
-    try {
-      setIsSyncing(userId);
-      await syncAccountData(userId);
-      await loadSavedAccounts(); // 동기화 후 계정 목록 새로고침
-    } catch (error) {
-      console.error('계정 동기화 실패:', error);
-    } finally {
-      setIsSyncing(null);
-    }
-  };
-
-  const handleRemoveAccount = async (accountId: string) => {
-    if (confirm('이 계정을 제거하시겠습니까? 로컬에 저장된 데이터가 삭제됩니다.')) {
-      try {
-        const { invoke } = await import('@tauri-apps/api/core');
-        await invoke('remove_account', { accountId });
-        console.log('계정 제거 완료:', accountId);
-        await loadSavedAccounts(); // 계정 목록 새로고침
-      } catch (error) {
-        console.error('계정 제거 실패:', error);
-        alert('계정 제거에 실패했습니다: ' + error);
-      }
+      alert('계정 전환에 실패했습니다. 다시 시도해 주세요.');
     }
   };
 
@@ -98,136 +145,78 @@ const AccountSwitcher: React.FC<AccountSwitcherProps> = ({ isOpen, onClose }) =>
       <div className="account-switcher-modal">
         <div className="modal-header">
           <h2>계정 관리</h2>
-          <button className="close-button" onClick={onClose}>
-            ×
-          </button>
+          <button className="modal-close" onClick={onClose}>×</button>
         </div>
 
-        <div className="modal-content">
-          {/* 현재 계정 정보 */}
+        <div className="modal-body">
+          {/* 현재 계정 */}
           {user && (
-            <div className="current-account-section">
+            <div className="current-account">
               <h3>현재 계정</h3>
-              <div className="account-card current">
+              <div className="account-card">
+                <img 
+                  className="account-avatar" 
+                  src={user.profilePicture || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=666&color=fff`} 
+                  alt={user.name}
+                />
                 <div className="account-info">
-                  <div className="account-avatar">
-                    {user.profilePicture ? (
-                      <img src={user.profilePicture} alt={user.name} />
-                    ) : (
-                      <div className="avatar-placeholder">
-                        {user.name.charAt(0).toUpperCase()}
-                      </div>
-                    )}
-                  </div>
-                  <div className="account-details">
-                    <div className="account-name">{user.name}</div>
-                    <div className="account-email">{user.email}</div>
-                  </div>
+                  <div className="account-name">{user.name}</div>
+                  <div className="account-email">{user.email}</div>
                 </div>
-                <div className="account-actions">
-                  <button
-                    className="btn-secondary"
-                    onClick={handleSmartLogout}
-                  >
-                    스마트 로그아웃
-                  </button>
-                </div>
+                <button className="logout-button" onClick={handleSmartLogout}>
+                  로그아웃
+                </button>
               </div>
             </div>
           )}
 
-          {/* 저장된 계정 목록 */}
-          <div className="saved-accounts-section">
-            <div className="section-header">
-              <h3>저장된 계정</h3>
-              <button
-                className="btn-primary"
-                onClick={handleSwitchAccount}
-              >
-                {savedAccounts.length === 0 ? '계정 추가' : '다른 계정 추가'}
-              </button>
-            </div>
-
+          {/* 저장된 계정 */}
+          <div className="saved-accounts">
+            <h3>저장된 계정 ({savedAccounts.length})</h3>
+            
             {isLoading ? (
-              <div className="loading-spinner">
-                <div className="spinner"></div>
-                <span>계정 목록을 불러오는 중...</span>
-              </div>
+              <div className="loading">계정 정보를 불러오는 중...</div>
             ) : savedAccounts.length === 0 ? (
-              <div className="empty-accounts">
-                <p>저장된 계정이 없습니다.</p>
-                <p>다른 계정을 추가해 보세요.</p>
-              </div>
+              <div className="empty">저장된 계정이 없습니다.</div>
             ) : (
-              <div className="accounts-list">
+              <div className="account-list">
                 {savedAccounts.map((account) => (
-                  <div
-                    key={account.id}
-                    className={`account-card ${account.id === user?.id ? 'current' : ''}`}
-                  >
+                  <div key={account.id} className="account-card">
+                    <img 
+                      className="account-avatar" 
+                      src={account.picture_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(account.name)}&background=666&color=fff`} 
+                      alt={account.name}
+                    />
                     <div className="account-info">
-                      <div className="account-avatar">
-                        {account.picture_url ? (
-                          <img src={account.picture_url} alt={account.name} />
-                        ) : (
-                          <div className="avatar-placeholder">
-                            {account.name.charAt(0).toUpperCase()}
-                          </div>
-                        )}
-                      </div>
-                      <div className="account-details">
-                        <div className="account-name">{account.name}</div>
-                        <div className="account-email">{account.email}</div>
-                        <div className="account-status">
-                          {account.has_valid_token ? (
-                            <span className="status-active">토큰 유효</span>
-                          ) : (
-                            <span className="status-inactive">토큰 만료</span>
-                          )}
-                        </div>
-                      </div>
+                      <div className="account-name">{account.name}</div>
+                      <div className="account-email">{account.email}</div>
                     </div>
                     <div className="account-actions">
-                      {account.id !== user?.id && (
-                        <>
-                          <button
-                            className="btn-sync"
-                            onClick={() => handleSyncAccount(account.id)}
-                            disabled={isSyncing === account.id}
-                          >
-                            {isSyncing === account.id ? (
-                              <>
-                                <div className="spinner-small"></div>
-                                동기화 중...
-                              </>
-                            ) : (
-                              '동기화'
-                            )}
-                          </button>
-                          <button
-                            className="btn-remove"
-                            onClick={() => handleRemoveAccount(account.id)}
-                            title="계정 제거"
-                          >
-                            ×
-                          </button>
-                        </>
-                      )}
+                      <button
+                        className="remove-button"
+                        onClick={() => handleRemoveAccount(account.id)}
+                      >
+                        제거
+                      </button>
+                      <button
+                        className="switch-button"
+                        onClick={() => handleSwitchToAccount(account.id)}
+                      >
+                        전환
+                      </button>
                     </div>
                   </div>
                 ))}
               </div>
             )}
-          </div>
-
-          {/* 설명 */}
-          <div className="info-section">
-            <h4>스마트 로그아웃이란?</h4>
-            <ul>
-              <li>토큰만 삭제하고 문서 및 프로필 데이터는 보존됩니다</li>
-              <li>다시 로그인하면 기존 데이터와 자동으로 동기화됩니다</li>
-              <li>계정 전환 시 각 계정의 데이터가 분리 관리됩니다</li>
-            </ul>
+            
+            <button 
+              className="add-account-button" 
+              onClick={handleAddAccount}
+              disabled={isLoading}
+            >
+              {isLoading ? '로그인 중...' : '계정 추가'}
+            </button>
           </div>
         </div>
       </div>

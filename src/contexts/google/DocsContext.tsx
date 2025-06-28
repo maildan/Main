@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, ReactNode, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { useAuth } from './AuthContext';
 
@@ -77,10 +77,15 @@ export function DocsProvider({ children }: DocsProviderProps) {
 
   /**
    * 인증 상태 변경 시 문서 목록 가져오기
+   * 최초 로그인/계정 전환 시에만 동기화가 1회만 실행되도록 보장
    */
+  const prevUserIdRef = useRef<string | null>(null);
   useEffect(() => {
     if (isAuthenticated && user) {
-      fetchDocuments();
+      if (prevUserIdRef.current !== user.id) {
+        fetchDocuments();
+        prevUserIdRef.current = user.id;
+      }
     } else {
       // 로그아웃 시 상태 초기화
       setDocsState(prev => ({
@@ -89,6 +94,7 @@ export function DocsProvider({ children }: DocsProviderProps) {
         filteredDocuments: [],
         selectedDocument: null,
       }));
+      prevUserIdRef.current = null;
     }
   }, [isAuthenticated, user]);
 
@@ -100,22 +106,24 @@ export function DocsProvider({ children }: DocsProviderProps) {
   }, [docsState.documents, docsState.filter]);
 
   /**
-   * Google Docs 문서 목록 가져오기
+   * Google Docs 문서 목록 가져오기 (자동 동기화 포함)
    */
   const fetchDocuments = async () => {
+    console.log('DocsContext: fetchDocuments 실행');
     if (!isAuthenticated) return;
 
     try {
       setDocsState(prev => ({ ...prev, isLoading: true, error: null }));
       
-      // # debug: 문서 목록 조회 시작
-      console.log('Fetching Google Docs list...');
+      // # debug: 자동 동기화 시작
+      console.log('Starting auto sync with Google Docs...');
       
-      // Tauri 명령어로 Google Drive API 호출
-      const docs = await invoke<GoogleDoc[]>('fetch_google_docs');
+      // 자동 동기화 실행 (문서 목록 + 내용 모두 동기화)
+      const docs = await invoke<GoogleDoc[]>('auto_sync_documents');
+      console.log('DocsContext: auto_sync_documents 결과', docs);
       
-      // # debug: 문서 목록 조회 완료
-      console.log(`Fetched ${docs.length} documents from Google Drive`);
+      // # debug: 동기화 완료
+      console.log(`Auto sync completed. Synced ${docs.length} documents`);
 
       setDocsState(prev => ({
         ...prev,
@@ -123,12 +131,12 @@ export function DocsProvider({ children }: DocsProviderProps) {
         isLoading: false,
       }));
     } catch (error) {
-      console.error('문서 목록 조회 오류:', error);
+      console.error('자동 동기화 오류:', error);
       setDocsState(prev => ({
         ...prev,
         documents: [],
         isLoading: false,
-        error: typeof error === 'string' ? error : '문서 목록을 가져올 수 없습니다.',
+        error: typeof error === 'string' ? error : '문서 동기화에 실패했습니다.',
       }));
     }
   };

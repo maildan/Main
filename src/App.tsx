@@ -5,6 +5,8 @@ import ErrorMessage from "./components/ErrorMessage";
 import MainScreen from "./components/MainScreen";
 import SplashScreen from "./components/SplashScreen";
 import { SettingsProvider } from "./contexts/SettingsContext";
+import { AuthProvider } from "./contexts/google/AuthContext";
+import { DocsProvider } from "./contexts/google/DocsContext";
 
 // CSS 임포트
 import "./styles/base.css";
@@ -30,25 +32,30 @@ function App() {
   const handleSplashComplete = () => {    setIsInitialized(true);
   };
 
-  // 스플래시 화면이 아직 표시되는 경우
-  if (!isInitialized) {
-    return <SplashScreen onComplete={handleSplashComplete} />;
-  }
-
   return (
     <SettingsProvider>
-      <div className="app-layout">
-        {/* 에러 메시지 표시 */}
-        <ErrorMessage 
-          message={errorMessage} 
-          onClose={() => setErrorMessage(null)}
-          isError={false}
-        />
-          <div className="app-content">
-          {/* 메인 화면 */}
-          <MainScreen />
-        </div>
-      </div>
+      <AuthProvider>
+        <DocsProvider>
+          {!isInitialized ? (
+            <div className="app-layout">
+              <SplashScreen onComplete={handleSplashComplete} />
+            </div>
+          ) : (
+            <div className="app-layout">
+              {/* 에러 메시지 표시 */}
+              <ErrorMessage 
+                message={errorMessage} 
+                onClose={() => setErrorMessage(null)}
+                isError={false}
+              />
+              <div className="app-content">
+                {/* 메인 화면 */}
+                <MainScreen />
+              </div>
+            </div>
+          )}
+        </DocsProvider>
+      </AuthProvider>
     </SettingsProvider>
   );
 }

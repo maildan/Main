@@ -153,6 +153,18 @@ impl Database {
     pub async fn remove_account(&self, user_id: &str) -> Result<(), sqlx::Error> {
         crate::database::user_operations::remove_account(&self.pool, user_id).await
     }
+
+    pub async fn switch_to_account(&self, user_id: &str) -> Result<User, sqlx::Error> {
+        crate::database::user_operations::switch_to_account(&self.pool, user_id).await
+    }
+
+    pub async fn get_current_user(&self) -> Result<Option<User>, sqlx::Error> {
+        crate::database::user_operations::get_current_user(&self.pool).await
+    }
+
+    pub async fn get_all_saved_accounts(&self) -> Result<Vec<UserProfile>, sqlx::Error> {
+        crate::database::user_operations::get_all_saved_accounts(&self.pool).await
+    }
 }
 
 // 문서 관련 작업들을 Database에 위임

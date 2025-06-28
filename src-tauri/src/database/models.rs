@@ -13,6 +13,7 @@ pub struct User {
     pub access_token: Option<String>,
     pub refresh_token: Option<String>,
     pub token_expires_at: DateTime<Utc>,
+    pub is_current: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -26,6 +27,7 @@ pub struct UserProfile {
     pub name: String,
     pub picture_url: Option<String>,
     pub has_valid_token: bool,
+    pub is_current: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

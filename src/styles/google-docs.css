@@ -1,12 +1,14 @@
-/* Google Docs Components Styles */
+/* Google Docs Components Styles - Dark Theme */
 
 /* Docs List Component */
 .docs-list {
   display: flex;
   flex-direction: column;
   height: 100%;
-  overflow-y: auto; /* 세로 스크롤 허용 */
-  padding-bottom: 100px; /* 뒤로가기 버튼을 위한 하단 여백 */
+  overflow-y: auto;
+  padding-bottom: 100px;
+  background: #1a1a1a;
+  color: #ffffff;
 }
 
 .docs-list-header {
@@ -14,17 +16,19 @@
   justify-content: space-between;
   align-items: center;
   padding: 1.5rem 1.5rem 1rem;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid #333333;
+  background: #1a1a1a;
 }
 
 .header-title h2 {
   margin: 0 0 0.25rem 0;
   font-size: 1.25rem;
-  color: #1f2937;
+  color: #ffffff;
+  font-weight: 300;
 }
 
 .doc-count {
-  color: #6b7280;
+  color: #888888;
   font-size: 0.875rem;
 }
 
@@ -34,18 +38,19 @@
 }
 
 .refresh-button, .filter-toggle {
-  background: none;
-  border: 1px solid #e5e7eb;
+  background: #2a2a2a;
+  border: 1px solid #444444;
   padding: 0.5rem;
   border-radius: 6px;
   cursor: pointer;
-  color: #6b7280;
+  color: #cccccc;
   transition: all 0.2s;
 }
 
 .refresh-button:hover, .filter-toggle:hover {
-  background: #f9fafb;
-  color: #1f2937;
+  background: #333333;
+  color: #ffffff;
+  border-color: #555555;
 }
 
 .filter-toggle.active {
@@ -61,7 +66,8 @@
 
 .search-filter-section {
   padding: 1rem 1.5rem;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid #333333;
+  background: #1a1a1a;
 }
 
 .search-box {
@@ -76,26 +82,33 @@
   transform: translateY(-50%);
   width: 16px;
   height: 16px;
-  color: #6b7280;
+  color: #888888;
 }
 
 .search-input {
   width: 100%;
   padding: 0.75rem 0.75rem 0.75rem 2.5rem;
-  border: 1px solid #e5e7eb;
+  border: 1px solid #444444;
   border-radius: 8px;
   font-size: 0.875rem;
   outline: none;
   transition: border-color 0.2s;
+  background: #2a2a2a;
+  color: #ffffff;
 }
 
 .search-input:focus {
   border-color: #3b82f6;
+  background: #333333;
+}
+
+.search-input::placeholder {
+  color: #888888;
 }
 
 .filter-options {
-  background: #f9fafb;
-  border: 1px solid #e5e7eb;
+  background: #2a2a2a;
+  border: 1px solid #444444;
   border-radius: 8px;
   padding: 1rem;
 }
@@ -103,7 +116,7 @@
 .sort-options label {
   font-size: 0.875rem;
   font-weight: 500;
-  color: #1f2937;
+  color: #ffffff;
   margin-bottom: 0.5rem;
   display: block;
 }
@@ -115,8 +128,8 @@
 }
 
 .sort-button {
-  background: white;
-  border: 1px solid #e5e7eb;
+  background: #333333;
+  border: 1px solid #555555;
   padding: 0.5rem 0.75rem;
   border-radius: 6px;
   font-size: 0.875rem;
@@ -125,10 +138,12 @@
   display: flex;
   align-items: center;
   gap: 0.25rem;
+  color: #cccccc;
 }
 
 .sort-button:hover {
-  background: #f3f4f6;
+  background: #444444;
+  color: #ffffff;
 }
 
 .sort-button.active {
@@ -144,30 +159,32 @@
 .documents-grid {
   flex: 1;
   overflow-y: auto;
-  padding: 1rem 1.5rem 120px 1.5rem; /* 하단 패딩을 120px로 늘려서 뒤로가기 버튼과 겹치지 않게 */
+  padding: 1rem 1.5rem 120px 1.5rem;
+  background: #1a1a1a;
 }
 
 .document-card {
   position: relative;
-  background: #ffffff;
-  border: 1px solid #e5e7eb;
+  background: #2a2a2a;
+  border: 1px solid #444444;
   border-radius: 12px;
   padding: 1.5rem;
   cursor: pointer;
   transition: all 0.3s ease;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
 .document-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4);
   border-color: #3b82f6;
+  background: #333333;
 }
 
 .document-card.selected {
   border-color: #3b82f6;
-  background: #f8faff;
-  box-shadow: 0 4px 20px rgba(59, 130, 246, 0.15);
+  background: #2a3441;
+  box-shadow: 0 4px 20px rgba(59, 130, 246, 0.25);
 }
 
 .document-header {
@@ -180,14 +197,15 @@
 .document-title {
   margin: 0;
   font-size: 1rem;
-  font-weight: 600;
-  color: #1f2937;
+  font-weight: 500;
+  color: #ffffff;
   line-height: 1.3;
 }
 
 .summary-badge {
   font-size: 0.875rem;
   opacity: 0.7;
+  color: #cccccc;
 }
 
 .document-meta {
@@ -196,14 +214,14 @@
   gap: 1rem;
   margin-top: 0.75rem;
   padding-top: 0.75rem;
-  border-top: 1px solid #f3f4f6;
+  border-top: 1px solid #444444;
 }
 
 .meta-item {
   display: flex;
   align-items: center;
   gap: 0.25rem;
-  color: #6b7280;
+  color: #888888;
   font-size: 0.75rem;
 }
 
@@ -218,7 +236,8 @@
   justify-content: center;
   padding: 2rem;
   gap: 0.75rem;
-  color: #6b7280;
+  color: #888888;
+  background: #1a1a1a;
 }
 
 /* Doc Viewer Component */
@@ -227,6 +246,7 @@
   flex-direction: column;
   height: 100%;
   overflow: hidden;
+  background: #1a1a1a;
 }
 
 .doc-header {
@@ -234,7 +254,8 @@
   justify-content: space-between;
   align-items: flex-start;
   padding: 1.5rem 2rem 1rem;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid #333333;
+  background: #1a1a1a;
 }
 
 .doc-title-section {
@@ -245,8 +266,8 @@
 .doc-title {
   margin: 0 0 0.5rem 0;
   font-size: 1.5rem;
-  font-weight: 700;
-  color: #1f2937;
+  font-weight: 500;
+  color: #ffffff;
   line-height: 1.3;
   word-wrap: break-word;
 }
@@ -255,6 +276,7 @@
   display: flex;
   gap: 1.5rem;
   flex-wrap: wrap;
+  color: #888888;
 }
 
 .doc-actions {
@@ -293,14 +315,16 @@
 }
 
 .action-button.secondary {
-  background: #f3f4f6;
-  color: #374151;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  background: #333333;
+  color: #cccccc;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  border: 1px solid #555555;
 }
 
 .action-button.secondary:hover {
-  background: #e5e7eb;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+  background: #444444;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+  color: #ffffff;
 }
 
 .summary-button {
@@ -325,8 +349,8 @@
 }
 
 .summary-section {
-  background: #eff6ff;
-  border-bottom: 1px solid #e5e7eb;
+  background: #2a2a2a;
+  border-bottom: 1px solid #333333;
   padding: 1.5rem 2rem;
 }
 
@@ -345,21 +369,21 @@
 
 .summary-title {
   font-size: 1rem;
-  font-weight: 600;
-  color: #1e40af;
+  font-weight: 500;
+  color: #ffffff;
   margin: 0;
 }
 
 .keywords-container {
   margin-top: 1rem;
   padding-top: 1rem;
-  border-top: 1px solid #e0e7ff;
+  border-top: 1px solid #444444;
 }
 
 .keywords-label {
   font-size: 0.875rem;
   font-weight: 500;
-  color: #374151;
+  color: #cccccc;
   margin-bottom: 0.5rem;
 }
 
@@ -370,16 +394,17 @@
 }
 
 .keyword-tag {
-  background: #dbeafe;
-  color: #1e40af;
+  background: #1e3a5f;
+  color: #93c5fd;
   padding: 0.25rem 0.75rem;
   border-radius: 20px;
   font-size: 0.75rem;
   font-weight: 500;
+  border: 1px solid #3b82f6;
 }
 
 .summary-content {
-  color: #374151;
+  color: #cccccc;
   line-height: 1.6;
   font-size: 0.95rem;
 }
@@ -388,17 +413,19 @@
   flex: 1;
   overflow-y: auto;
   padding: 2rem;
+  background: #1a1a1a;
 }
 
 .content-text {
   max-width: none;
   line-height: 1.7;
-  color: #374151;
+  color: #cccccc;
 }
 
 .content-paragraph {
   margin: 0 0 1rem 0;
   font-size: 1rem;
+  color: #cccccc;
 }
 
 .content-placeholder {
@@ -407,28 +434,97 @@
   align-items: center;
   justify-content: center;
   height: 200px;
-  color: #6b7280;
+  color: #888888;
 }
 
 .placeholder-icon {
   width: 48px;
   height: 48px;
-  color: #d1d5db;
+  color: #444444;
   margin-bottom: 1rem;
 }
 
 .doc-footer {
   padding: 1rem 2rem;
-  border-top: 1px solid #e7e7eb;
-  background: #f9fafb;
+  border-top: 1px solid #333333;
+  background: #2a2a2a;
 }
 
 .doc-info {
   display: flex;
   gap: 2rem;
   font-size: 0.75rem;
-  color: #6b7280;
+  color: #888888;
   flex-wrap: wrap;
+}
+
+/* Google Login Component */
+.google-login {
+  background: #1a1a1a;
+  color: #ffffff;
+}
+
+.google-login-button {
+  background: #2a2a2a;
+  border: 1px solid #444444;
+  color: #ffffff;
+  transition: all 0.2s;
+}
+
+.google-login-button:hover {
+  background: #333333;
+  border-color: #555555;
+}
+
+/* Additional dark theme styles for any remaining light elements */
+.google-docs-section {
+  background: #1a1a1a;
+  color: #ffffff;
+}
+
+.google-docs-section * {
+  border-color: #333333;
+}
+
+.google-docs-section input,
+.google-docs-section select,
+.google-docs-section textarea {
+  background: #2a2a2a;
+  color: #ffffff;
+  border-color: #444444;
+}
+
+.google-docs-section input:focus,
+.google-docs-section select:focus,
+.google-docs-section textarea:focus {
+  border-color: #3b82f6;
+  outline: none;
+}
+
+/* Scrollbar styling for dark theme */
+.docs-list::-webkit-scrollbar,
+.documents-grid::-webkit-scrollbar,
+.doc-content::-webkit-scrollbar {
+  width: 8px;
+}
+
+.docs-list::-webkit-scrollbar-track,
+.documents-grid::-webkit-scrollbar-track,
+.doc-content::-webkit-scrollbar-track {
+  background: #1a1a1a;
+}
+
+.docs-list::-webkit-scrollbar-thumb,
+.documents-grid::-webkit-scrollbar-thumb,
+.doc-content::-webkit-scrollbar-thumb {
+  background: #444444;
+  border-radius: 4px;
+}
+
+.docs-list::-webkit-scrollbar-thumb:hover,
+.documents-grid::-webkit-scrollbar-thumb:hover,
+.doc-content::-webkit-scrollbar-thumb:hover {
+  background: #555555;
 }
 
 /* Responsive Design */

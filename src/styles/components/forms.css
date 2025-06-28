@@ -21,12 +21,10 @@
   100% { transform: rotate(360deg); }
 }
 
-/* Current Account Section */
+/* Current Account Section - 설정 카드와 일관된 스타일 */
 .current-account {
   margin-bottom: 16px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  padding-bottom: 16px;
-  padding-top: 20px;
+  padding: 20px 0 16px 0;
 }
 
 .current-account:first-child {
@@ -40,16 +38,13 @@
   font-weight: 500;
 }
 
-/* Saved Accounts Section */
+/* Saved Accounts Section - 설정 카드와 일관된 스타일 */
 .saved-accounts {
   margin-bottom: 16px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  padding-bottom: 16px;
-  padding-top: 20px;
+  padding: 20px 0 16px 0;
 }
 
 .saved-accounts:last-child {
-  border-bottom: none;
   margin-bottom: 0;
 }
 
@@ -60,39 +55,40 @@
   font-weight: 500;
 }
 
-/* Account Cards */
+/* Account Cards - 다크 테마로 통일 */
 .account-card {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  padding: 0.75rem;
-  border: 1px solid #e5e7eb;
+  padding: 12px;
+  background: #2a2a2a;
+  border: 1px solid #444444;
   border-radius: 8px;
-  margin-bottom: 0.75rem;
+  margin-bottom: 8px;
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .account-card:hover {
   border-color: #3b82f6;
-  background: #f8fafc;
+  background: #333333;
 }
 
 .account-card.current {
   border-color: #10b981;
-  background: #f0fdf4;
+  background: #1a3d35;
 }
 
 .account-card.current .account-name {
-  color: #059669;
-  font-weight: 600;
+  color: #10b981;
+  font-weight: 500;
 }
 
 .account-avatar {
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  border: 1px solid #e5e7eb;
+  border: 1px solid #555555;
   flex-shrink: 0;
 }
 
@@ -102,18 +98,18 @@
 }
 
 .account-name {
-  font-weight: 500;
-  color: #1f2937;
-  font-size: 0.875rem;
-  margin-bottom: 0.25rem;
+  font-weight: 400;
+  color: #ffffff;
+  font-size: 0.9rem;
+  margin-bottom: 2px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .account-email {
-  color: #6b7280;
-  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.8rem;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -129,11 +125,12 @@
   background: #3b82f6;
   color: white;
   border: none;
-  padding: 0.375rem 0.75rem;
-  border-radius: 4px;
-  font-size: 0.75rem;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 0.8rem;
   cursor: pointer;
   transition: background-color 0.2s;
+  font-weight: 400;
 }
 
 .switch-button:hover {
@@ -141,67 +138,70 @@
 }
 
 .remove-button {
-  background: #ef4444;
+  background: #dc2626;
   color: white;
   border: none;
-  padding: 0.375rem 0.75rem;
-  border-radius: 4px;
-  font-size: 0.75rem;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 0.8rem;
   cursor: pointer;
   transition: background-color 0.2s;
+  font-weight: 400;
 }
 
 .remove-button:hover {
-  background: #dc2626;
+  background: #b91c1c;
 }
 
-/* Buttons */
+/* Buttons - 다크 테마로 통일 */
 .add-account-button {
   width: 100%;
-  background: #f3f4f6;
-  border: 1px dashed #d1d5db;
-  color: #6b7280;
-  padding: 0.75rem;
+  background: #2a2a2a;
+  border: 1px dashed #555555;
+  color: #cccccc;
+  padding: 12px;
   border-radius: 8px;
   cursor: pointer;
   transition: all 0.2s;
-  font-size: 0.875rem;
+  font-size: 0.9rem;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
+  margin-top: 8px;
 }
 
 .add-account-button:hover {
-  background: #e5e7eb;
-  border-color: #9ca3af;
-  color: #374151;
+  background: #333333;
+  border-color: #666666;
+  color: #ffffff;
 }
 
 .close-modal-button {
   width: 100%;
-  background: #6b7280;
+  background: #555555;
   color: white;
   border: none;
-  padding: 0.75rem;
+  padding: 12px;
   border-radius: 8px;
   cursor: pointer;
   transition: background-color 0.2s;
-  font-size: 0.875rem;
-  margin-top: 1rem;
+  font-size: 0.9rem;
+  margin-top: 16px;
+  font-weight: 400;
 }
 
 .close-modal-button:hover {
-  background: #4b5563;
+  background: #666666;
 }
 
-/* Loading and Empty States */
+/* Loading and Empty States - 다크 테마 */
 .loading {
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 2rem;
-  color: #6b7280;
+  color: #888888;
 }
 
 .empty {
@@ -210,26 +210,41 @@
   align-items: center;
   justify-content: center;
   padding: 2rem;
-  color: #6b7280;
+  color: #888888;
   text-align: center;
+}
+
+.loading-message {
+  color: #888888;
+  font-size: 0.9rem;
+  text-align: center;
+  margin: 0;
+}
+
+.loading-spinner {
+  border: 3px solid #333333;
+  border-top: 3px solid #3b82f6;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  width: 40px;
+  height: 40px;
 }
 
 /* Spinners */
 .spinner {
   width: 20px;
   height: 20px;
-  border: 2px solid #f3f3f3;
+  border: 2px solid #333333;
   border-top: 2px solid #3b82f6;
   border-radius: 50%;
   animation: spin 1s linear infinite;
   margin-right: 0.5rem;
 }
 
-/* Account Switcher Section Styles */
+/* Account Switcher Section Styles - 설정과 통일 */
 .current-account-section {
   margin-bottom: 16px;
-  padding-bottom: 16px;
-  padding-top: 20px;
+  padding: 20px 0 16px 0;
 }
 
 .current-account-section:first-child {
@@ -239,14 +254,13 @@
 .current-account-section h3 {
   margin: 0 0 16px 0;
   color: #ffffff;
-  font-size: 1.1rem;
-  font-weight: 600;
+  font-size: 1rem;
+  font-weight: 500;
 }
 
 .saved-accounts-section {
   margin-bottom: 16px;
-  padding-bottom: 16px;
-  padding-top: 20px;
+  padding: 20px 0 16px 0;
 }
 
 .saved-accounts-section:last-child {
@@ -256,6 +270,6 @@
 .saved-accounts-section h3 {
   margin: 0 0 16px 0;
   color: #ffffff;
-  font-size: 1.1rem;
-  font-weight: 600;
+  font-size: 1rem;
+  font-weight: 500;
 }

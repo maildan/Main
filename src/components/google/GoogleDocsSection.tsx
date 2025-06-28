@@ -1,42 +1,13 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../contexts/google/AuthContext';
 import { useDocs } from '../../contexts/google/DocsContext';
-import { invoke } from '@tauri-apps/api/core';
 
 const GoogleDocsSection: React.FC = () => {
   const { user, isAuthenticated } = useAuth();
-  const { documents, isLoading, error, fetchDocuments } = useDocs();
+  const { documents, isLoading, error } = useDocs();
   const [searchTerm, setSearchTerm] = useState('');
-  const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // 디버그/개발용 함수들 (프로덕션에서는 제거)
-  const handleDebugListDocs = async () => {
-    try {
-      const result = await invoke('debug_list_all_documents');
-      console.log('모든 문서 목록:', result);
-    } catch (error) {
-      console.error('문서 목록 조회 실패:', error);
-    }
-  };
 
-  const handleCleanupInvalidDocs = async () => {
-    try {
-      const result = await invoke('cleanup_invalid_documents');
-      console.log('유효하지 않은 문서 정리 완료:', result);
-      await fetchDocuments(); // 정리 후 문서 목록 새로고침
-    } catch (error) {
-      console.error('문서 정리 실패:', error);
-    }
-  };
-
-  const handleRefresh = async () => {
-    setIsRefreshing(true);
-    try {
-      await fetchDocuments();
-    } finally {
-      setIsRefreshing(false);
-    }
-  };
 
   // 검색어에 따른 문서 필터링
   const filteredDocs = documents.filter((doc: any) =>
@@ -77,7 +48,7 @@ const GoogleDocsSection: React.FC = () => {
         </div>
       </div>
 
-      {/* 검색 및 새로고침 */}
+      {/* 검색 */}
       <div className="docs-controls">
         <div className="search-container">
           <input
@@ -88,34 +59,16 @@ const GoogleDocsSection: React.FC = () => {
             className="search-input"
           />
         </div>
-        <button
-          onClick={handleRefresh}
-          disabled={isRefreshing}
-          className="refresh-button"
-        >
-          {isRefreshing ? '새로고침 중...' : '새로고침'}
-        </button>
       </div>
 
-      {/* 디버그 버튼들 (개발용) */}
-      <div className="debug-controls" style={{ margin: '10px 0', padding: '10px', background: '#f0f0f0', borderRadius: '4px' }}>
-        <p style={{ margin: '0 0 10px 0', fontSize: '14px', color: '#666' }}>개발/디버그 도구:</p>
-        <button onClick={handleDebugListDocs} style={{ marginRight: '10px' }}>
-          DB 문서 목록 확인
-        </button>
-        <button onClick={handleCleanupInvalidDocs}>
-          유효하지 않은 문서 정리
-        </button>
-      </div>
+
 
       {/* 문서 목록 */}
       <div className="docs-content">
         {error && (
           <div className="error-message">
             <p>오류가 발생했습니다: {error}</p>
-            <button onClick={handleRefresh} className="retry-button">
-              다시 시도
-            </button>
+            <p>계정을 다시 로그인하거나 잠시 후 다시 시도해 주세요.</p>
           </div>
         )}
 
@@ -134,7 +87,8 @@ const GoogleDocsSection: React.FC = () => {
             ) : (
               <>
                 <h3>동기화된 문서가 없습니다</h3>
-                <p>Google Docs에서 문서를 가져오려면 새로고침을 클릭하세요.</p>
+                <p>Google Docs에 문서가 없거나 아직 동기화되지 않았습니다.</p>
+                <p>계정을 추가하거나 전환하면 자동으로 문서가 동기화됩니다.</p>
               </>
             )}
           </div>

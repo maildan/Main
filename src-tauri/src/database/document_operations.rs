@@ -100,66 +100,59 @@ pub async fn sync_documents(pool: &Pool<Sqlite>, user_id: &str, fresh_docs: Vec<
 
     for doc in &fresh_docs {
         // 기존 문서가 있는지 확인
-        let existing = sqlx::query!(
-            "SELECT id, modified_time FROM documents WHERE google_doc_id = $1 AND user_id = $2",
-            doc.google_doc_id,
-            user_id
+        let existing = sqlx::query_as::<_, (String, chrono::NaiveDateTime)>(
+            "SELECT id, modified_time FROM documents WHERE google_doc_id = ? AND user_id = ?"
         )
+        .bind(&doc.google_doc_id)
+        .bind(user_id)
         .fetch_optional(&mut *tx)
         .await?;
 
-        if let Some(existing_doc) = existing {
+        if let Some((existing_id, existing_modified_time)) = existing {
             // 웹의 문서가 더 최신인 경우만 업데이트
-            let existing_modified: DateTime<Utc> = DateTime::from_naive_utc_and_offset(existing_doc.modified_time, Utc);
+            let existing_modified: DateTime<Utc> = DateTime::from_naive_utc_and_offset(existing_modified_time, Utc);
             if doc.modified_time > existing_modified {
-                let now1 = now;
-                let now2 = now;
-                let existing_id = existing_doc.id;
-                
-                sqlx::query!(
+                sqlx::query(
                     r#"
                     UPDATE documents 
-                    SET title = $1, content = $2, word_count = $3, 
-                        modified_time = $4, last_synced_at = $5, updated_at = $6
-                    WHERE id = $7
-                    "#,
-                    doc.title,
-                    doc.content,
-                    doc.word_count,
-                    doc.modified_time,
-                    now1,
-                    now2,
-                    existing_id
+                    SET title = ?, content = ?, word_count = ?, 
+                        modified_time = ?, last_synced_at = ?, updated_at = ?
+                    WHERE id = ?
+                    "#
                 )
+                .bind(&doc.title)
+                .bind(&doc.content)
+                .bind(doc.word_count)
+                .bind(&doc.modified_time)
+                .bind(&now)
+                .bind(&now)
+                .bind(&existing_id)
                 .execute(&mut *tx)
                 .await?;
             }
         } else {
             // 새 문서 추가
             let new_id = Uuid::new_v4().to_string();
-            let now1 = now;
-            let now2 = now;
-            let now3 = now;
             
-            sqlx::query!(
+            sqlx::query(
                 r#"
                 INSERT INTO documents (
                     id, google_doc_id, user_id, title, content, word_count,
                     created_time, modified_time, last_synced_at, created_at, updated_at
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-                "#,
-                new_id,
-                doc.google_doc_id,
-                user_id,
-                doc.title,
-                doc.content,
-                doc.word_count,
-                doc.created_time,
-                doc.modified_time,
-                now1,
-                now2,
-                now3
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                "#
             )
+            .bind(&new_id)
+            .bind(&doc.google_doc_id)
+            .bind(user_id)
+            .bind(&doc.title)
+            .bind(&doc.content)
+            .bind(doc.word_count)
+            .bind(&doc.created_time)
+            .bind(&doc.modified_time)
+            .bind(&now)
+            .bind(&now)
+            .bind(&now)
             .execute(&mut *tx)
             .await?;
         }
@@ -176,7 +169,7 @@ pub async fn sync_documents(pool: &Pool<Sqlite>, user_id: &str, fresh_docs: Vec<
 pub async fn cleanup_invalid_documents(pool: &Pool<Sqlite>) -> Result<u64, sqlx::Error> {
     // UUID 패턴과 일치하는 google_doc_id를 가진 문서들 삭제
     // Google Docs ID는 일반적으로 44자의 영숫자와 하이픈/언더스코어 조합
-    let result = sqlx::query!(
+    let result = sqlx::query(
         r#"
         DELETE FROM documents 
         WHERE google_doc_id LIKE '%-%-%-%--%' 
@@ -192,10 +185,10 @@ pub async fn cleanup_invalid_documents(pool: &Pool<Sqlite>) -> Result<u64, sqlx:
 
 /// Google Doc ID로 문서 제거
 pub async fn remove_document_by_google_id(pool: &Pool<Sqlite>, google_doc_id: &str) -> Result<(), sqlx::Error> {
-    sqlx::query!(
-        "DELETE FROM documents WHERE google_doc_id = $1",
-        google_doc_id
+    sqlx::query(
+        "DELETE FROM documents WHERE google_doc_id = ?"
     )
+    .bind(google_doc_id)
     .execute(pool)
     .await?;
 
