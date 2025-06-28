@@ -84,7 +84,19 @@ async fn authenticate_google_user(code: String, state: State<'_, AppState>) -> R
 #[tauri::command]
 async fn check_auth_status(state: State<'_, AppState>) -> Result<Option<database::User>, String> {
     let current_user = state.current_user.lock().unwrap().clone();
-    Ok(current_user)
+    if let Some(mut user) = current_user {
+        let db = state.db.lock().unwrap().as_ref().unwrap().clone();
+        let oauth = state.google_oauth.lock().unwrap().clone();
+        // 토큰 유효성 검사 및 갱신 시도
+        if let Err(e) = oauth.ensure_valid_token(&mut user, &db).await {
+            println!("check_auth_status: 토큰 유효성 검사 실패: {}", e);
+            // 토큰이 만료/실패하면 인증된 사용자로 간주하지 않음
+            return Ok(None);
+        }
+        // 토큰이 유효하면 최신 사용자 정보 반환
+        return Ok(Some(user));
+    }
+    Ok(None)
 }
 
 /// 로그아웃
