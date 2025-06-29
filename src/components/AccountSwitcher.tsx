@@ -23,6 +23,7 @@ const AccountSwitcher: React.FC<AccountSwitcherProps> = ({ isOpen, onClose, onAc
   const { user, smartLogout, login, getSavedAccounts } = useAuth();
   const [savedAccounts, setSavedAccounts] = useState<UserProfile[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   useEffect(() => {
     if (isOpen) {
@@ -52,52 +53,36 @@ const AccountSwitcher: React.FC<AccountSwitcherProps> = ({ isOpen, onClose, onAc
   };
 
   const handleAddAccount = async () => {
+    setIsLoading(true);
     try {
-      setIsLoading(true);
-      console.log('계정 추가 시작...');
-      
-      // 로그인 완료까지 대기 (모달은 닫지 않음)
+      await loadSavedAccounts(); // 계정 추가 시도 전 항상 계정 상태 새로고침
       const success = await login();
-      
       if (success) {
-        console.log('로그인 성공, 계정 목록 새로고침...');
-        await loadSavedAccounts(); // 계정 목록 새로고침
-        
-        // 새로 추가된 계정의 문서 자동 동기화
-        if (onAccountChanged) {
-          try {
-            console.log('계정 추가 후 문서 자동 동기화 시작...');
-            onAccountChanged();
-            console.log('문서 자동 동기화 완료');
-          } catch (syncError) {
-            console.error('문서 동기화 실패:', syncError);
-            // 동기화 실패해도 계정 추가는 완료된 상태로 처리
-          }
-        }
-        
-        onClose(); // 성공 시에만 모달 닫기
+        await loadSavedAccounts();
+        if (onAccountChanged) onAccountChanged();
+        onClose();
       } else {
-        console.log('로그인 실패 또는 취소됨');
-        alert('로그인이 취소되었거나 실패했습니다.');
+        // 로그인 취소 시
+        await loadSavedAccounts();
+        if (onAccountChanged) onAccountChanged();
+        onClose();
       }
     } catch (error) {
-      console.error('계정 추가 실패:', error);
-      alert('계정 추가에 실패했습니다. 다시 시도해 주세요.');
+      alert('계정 추가에 실패했거나 인증 창이 차단되었습니다. 다시 시도해 주세요.');
+      await loadSavedAccounts();
+      if (onAccountChanged) onAccountChanged();
+      onClose();
     } finally {
       setIsLoading(false);
     }
   };
 
-
-
   const handleRemoveAccount = async (accountId: string) => {
     if (window.confirm('이 계정을 저장된 목록에서 제거하시겠습니까?')) {
       try {
-        // Tauri API를 통해 계정 제거
         await invoke('remove_account', { accountId });
-        await loadSavedAccounts(); // 목록 새로고침
+        await loadSavedAccounts();
       } catch (error) {
-        console.error('계정 제거 실패:', error);
         alert('계정 제거에 실패했습니다. 다시 시도해 주세요.');
       }
     }
@@ -105,29 +90,11 @@ const AccountSwitcher: React.FC<AccountSwitcherProps> = ({ isOpen, onClose, onAc
 
   const handleSwitchToAccount = async (accountId: string) => {
     try {
-      // 백엔드의 switch_account 명령어 호출
-      const switchedUser = await invoke('switch_account', { userId: accountId });
-      
-      console.log('계정 전환 완료:', switchedUser);
-      
-      // 계정 목록 새로고침
+      await invoke('switch_account', { userId: accountId });
       await loadSavedAccounts();
-      
-      // 전환된 계정의 문서 자동 동기화
-      if (onAccountChanged) {
-        try {
-          console.log('계정 전환 후 문서 자동 동기화 시작...');
-          onAccountChanged();
-          console.log('문서 자동 동기화 완료');
-        } catch (syncError) {
-          console.error('문서 동기화 실패:', syncError);
-          // 동기화 실패해도 계정 전환은 완료된 상태로 처리
-        }
-      }
-      
+      if (onAccountChanged) onAccountChanged();
       onClose();
     } catch (error) {
-      console.error('계정 전환 실패:', error);
       alert('계정 전환에 실패했습니다. 다시 시도해 주세요.');
     }
   };
@@ -140,6 +107,18 @@ const AccountSwitcher: React.FC<AccountSwitcherProps> = ({ isOpen, onClose, onAc
     }
   };
 
+  // 프로필 이미지 우선순위: 동일 이메일이면 user.profilePicture → picture_url → 이니셜
+  const getProfileImage = (account: UserProfile) => {
+    if (user && user.email === account.email && (user as any).profilePicture) return (user as any).profilePicture;
+    if (account.picture_url) return account.picture_url;
+    return `https://ui-avatars.com/api/?name=${encodeURIComponent(account.name)}&background=666&color=fff`;
+  };
+
+  // 이미지 로딩 실패 시 fallback
+  const handleImgError = (e: React.SyntheticEvent<HTMLImageElement, Event>, name: string) => {
+    e.currentTarget.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=666&color=fff`;
+  };
+
   return (
     <div className="modal-overlay" onClick={handleOverlayClick}>
       <div className="account-switcher-modal">
@@ -147,71 +126,91 @@ const AccountSwitcher: React.FC<AccountSwitcherProps> = ({ isOpen, onClose, onAc
           <h2>계정 관리</h2>
           <button className="modal-close" onClick={onClose}>×</button>
         </div>
-
         <div className="modal-body">
           {/* 현재 계정 */}
-          {user && (
+          {user ? (
             <div className="current-account">
               <h3>현재 계정</h3>
-              <div className="account-card">
-                <img 
-                  className="account-avatar" 
-                  src={user.profilePicture || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=666&color=fff`} 
-                  alt={user.name}
-                />
-                <div className="account-info">
-                  <div className="account-name">{user.name}</div>
-                  <div className="account-email">{user.email}</div>
+              <div className="account-avatar-list">
+                <div
+                  className={`account-avatar-item${expandedId === 'current' ? ' expanded' : ''}`}
+                  onClick={() => setExpandedId(expandedId === 'current' ? null : 'current')}
+                >
+                  <img
+                    className="account-avatar"
+                    src={(user as any).profilePicture || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=666&color=fff`}
+                    alt={user.name}
+                    onError={e => handleImgError(e, user.name)}
+                  />
+                  <div className="account-avatar-name">{user.name}</div>
                 </div>
-                <button className="logout-button" onClick={handleSmartLogout}>
-                  로그아웃
-                </button>
+                {expandedId === 'current' && (
+                  <div className="account-details-panel">
+                    <div className="account-name">{user.name}</div>
+                    <div className="account-email">{user.email}</div>
+                    <button className="logout-button mono outline small" onClick={handleSmartLogout} disabled={isLoading}>
+                      로그아웃
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
+          ) : (
+            <div className="current-account empty">
+              <h3>현재 계정</h3>
+              <div style={{color:'#888',padding:'16px 0'}}>현재 로그인된 계정이 없습니다.</div>
+            </div>
           )}
-
           {/* 저장된 계정 */}
           <div className="saved-accounts">
             <h3>저장된 계정 ({savedAccounts.length})</h3>
-            
             {isLoading ? (
               <div className="loading">계정 정보를 불러오는 중...</div>
             ) : savedAccounts.length === 0 ? (
               <div className="empty">저장된 계정이 없습니다.</div>
             ) : (
-              <div className="account-list">
+              <div className="account-avatar-list">
                 {savedAccounts.map((account) => (
-                  <div key={account.id} className="account-card">
-                    <img 
-                      className="account-avatar" 
-                      src={account.picture_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(account.name)}&background=666&color=fff`} 
+                  <div
+                    key={account.id}
+                    className={`account-avatar-item${expandedId === account.id ? ' expanded' : ''}`}
+                    onClick={() => setExpandedId(expandedId === account.id ? null : account.id)}
+                  >
+                    <img
+                      className="account-avatar"
+                      src={getProfileImage(account)}
                       alt={account.name}
+                      onError={e => handleImgError(e, account.name)}
                     />
-                    <div className="account-info">
-                      <div className="account-name">{account.name}</div>
-                      <div className="account-email">{account.email}</div>
-                    </div>
-                    <div className="account-actions">
-                      <button
-                        className="remove-button"
-                        onClick={() => handleRemoveAccount(account.id)}
-                      >
-                        제거
-                      </button>
-                      <button
-                        className="switch-button"
-                        onClick={() => handleSwitchToAccount(account.id)}
-                      >
-                        전환
-                      </button>
-                    </div>
+                    <div className="account-avatar-name">{account.name}</div>
+                    {expandedId === account.id && (
+                      <div className="account-details-panel">
+                        <div className="account-name">{account.name}</div>
+                        <div className="account-email">{account.email}</div>
+                        <div className="account-actions">
+                          <button
+                            className="remove-button mono outline small"
+                            onClick={e => { e.stopPropagation(); handleRemoveAccount(account.id); }}
+                            disabled={isLoading}
+                          >
+                            제거
+                          </button>
+                          <button
+                            className="switch-button mono outline small"
+                            onClick={e => { e.stopPropagation(); handleSwitchToAccount(account.id); }}
+                            disabled={isLoading}
+                          >
+                            전환
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
             )}
-            
-            <button 
-              className="add-account-button" 
+            <button
+              className="add-account-button"
               onClick={handleAddAccount}
               disabled={isLoading}
             >

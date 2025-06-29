@@ -120,24 +120,41 @@
   cursor: not-allowed;
 }
 
+/* 단색(모노톤) 버튼 스타일 */
+.mono {
+  background: transparent !important;
+  color: #e0e0e0 !important;
+  border: 1.5px solid #888 !important;
+  box-shadow: none !important;
+}
+.mono:hover {
+  background: #222 !important;
+  color: #fff !important;
+  border-color: #fff !important;
+}
+
 .remove-button {
   background: transparent;
-  color: #888888;
-  border: 1px solid #444444;
+  color: #e0e0e0;
+  border: 1.5px solid #888;
 }
 
 .remove-button:hover {
-  background: #333333;
-  color: #cccccc;
+  background: #222;
+  color: #fff;
+  border-color: #fff;
 }
 
 .switch-button {
-  background: #28a745;
-  color: white;
+  background: transparent;
+  color: #e0e0e0;
+  border: 1.5px solid #888;
 }
 
 .switch-button:hover {
-  background: #218838;
+  background: #222;
+  color: #fff;
+  border-color: #fff;
 }
 
 .add-account-button {
@@ -159,4 +176,89 @@
   text-align: center;
   color: #888888;
   font-size: 14px;
+}
+
+.account-avatar-list {
+  display: flex;
+  flex-direction: row;
+  gap: 16px;
+  align-items: center;
+}
+
+.account-avatar-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  border-radius: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  position: relative;
+  min-width: 60px;
+}
+.account-avatar-item:hover .account-avatar,
+.account-avatar-item.expanded .account-avatar {
+  box-shadow: 0 0 0 2px #fff, 0 2px 8px rgba(0,0,0,0.10);
+}
+
+.account-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: #222;
+  object-fit: cover;
+  border: 2px solid #444;
+  transition: box-shadow 0.2s;
+}
+
+.account-avatar-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: #f0f0f0;
+  margin-top: 2px;
+}
+
+.logout-button.mono {
+  background: transparent !important;
+  color: #e0e0e0 !important;
+  border: 1.5px solid #888 !important;
+  box-shadow: none !important;
+}
+.logout-button.mono:hover {
+  background: #222 !important;
+  color: #fff !important;
+  border-color: #fff !important;
+}
+
+/* Account Details Panel */
+.account-details-panel {
+  margin-top: 10px;
+  background: #181818;
+  border-radius: 8px;
+  padding: 14px 16px 10px 16px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.10);
+  border: 1px solid #333;
+  position: absolute;
+  left: 0;
+  top: 54px;
+  min-width: 220px;
+  z-index: 2;
+}
+
+.account-details-panel .account-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: #fff;
+  margin-bottom: 2px;
+}
+.account-details-panel .account-email {
+  font-size: 13px;
+  color: #aaa;
+  margin-bottom: 10px;
+}
+.account-details-panel .account-actions {
+  display: flex;
+  gap: 8px;
 }

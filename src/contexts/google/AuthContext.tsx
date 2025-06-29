@@ -118,30 +118,34 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const login = async (): Promise<boolean> => {
     try {
       setAuthState(prev => ({ ...prev, isLoading: true, error: null }));      
-      
       console.log('Starting Google OAuth login with webview...');
-      
       // 웹뷰를 사용한 자동화된 로그인
       const userData = await invoke<User>('google_login_with_webview');
       console.log('User authenticated successfully:', userData.email);
-      
+      // 로그인 성공 시 바로 상태 반영 (checkAuthStatus를 기다리지 않음)
       setAuthState(prev => ({
         ...prev,
         user: userData,
         isAuthenticated: true,
         isLoading: false,
       }));
-      
       return true;
-      
     } catch (error) {
-      console.error('로그인 오류:', error);
+      let errorMsg = typeof error === 'string' ? error : (error as Error).message || '로그인 중 오류가 발생했습니다.';
+      if (errorMsg.includes('os error 10048')) {
+        errorMsg = '로그인 세션이 정상적으로 종료되지 않았습니다. 앱을 완전히 종료 후 다시 시도해 주세요.';
+        await cancelLogin();
+      }
+      // 사용자가 창을 닫거나 취소한 경우에도 포트 해제 시도
+      if (errorMsg.includes('cancel') || errorMsg.includes('취소') || errorMsg.includes('닫')) {
+        await cancelLogin();
+      }
       setAuthState(prev => ({
         ...prev,        
         isAuthenticated: false,
         user: null,
         isLoading: false,
-        error: typeof error === 'string' ? error : (error as Error).message || '로그인 중 오류가 발생했습니다.',
+        error: errorMsg,
       }));
       return false;
     }
@@ -293,6 +297,18 @@ export function AuthProvider({ children }: AuthProviderProps) {
     } catch (error) {
       console.error('계정 데이터 동기화 오류:', error);
       throw error;
+    }
+  };
+
+  /**
+   * Google OAuth 로그인 취소 (포트 해제)
+   */
+  const cancelLogin = async () => {
+    try {
+      await invoke('cancel_oauth_login');
+      console.log('OAuth 로그인 취소 및 포트 해제 완료');
+    } catch (e) {
+      console.error('OAuth 로그인 취소 실패:', e);
     }
   };
 

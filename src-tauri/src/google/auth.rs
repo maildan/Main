@@ -10,11 +10,17 @@ use crate::database::{Database, GoogleOAuthResponse, GoogleUserInfo, CreateUserR
 use crate::config::GoogleConfig;
 use chrono::{Utc, Duration};
 use std::collections::HashMap;
+use once_cell::sync::Lazy;
+use std::sync::Mutex as StdMutex;
+use futures::future::{AbortHandle, Abortable};
 
 /// Google OAuth API 엔드포인트
 const GOOGLE_AUTH_URL: &str = "https://accounts.google.com/o/oauth2/v2/auth";
 const GOOGLE_TOKEN_URL: &str = "https://www.googleapis.com/oauth2/v4/token";
 const GOOGLE_USERINFO_URL: &str = "https://www.googleapis.com/oauth2/v2/userinfo";
+
+/// 글로벌 AbortHandle
+static OAUTH_ABORT_HANDLE: Lazy<StdMutex<Option<AbortHandle>>> = Lazy::new(|| StdMutex::new(None));
 
 /// Google OAuth 관리 구조체
 pub struct GoogleOAuth {
@@ -248,9 +254,10 @@ impl GoogleOAuth {
         let (tx, rx) = tokio::sync::oneshot::channel::<String>();
         let app_handle_clone = app_handle.clone();
         let webview_window_clone = webview_window.clone();
-        
-        // 콜백 서버 태스크
-        tokio::spawn(async move {
+        let (abort_handle, abort_reg) = AbortHandle::new_pair();
+        *OAUTH_ABORT_HANDLE.lock().unwrap() = Some(abort_handle);
+        // 콜백 서버 태스크 (abortable)
+        let abortable = Abortable::new(async move {
             match listener.accept().await {
                 Ok((mut stream, _)) => {
                     let mut buffer = [0; 1024];
@@ -299,8 +306,8 @@ impl GoogleOAuth {
                     let _ = app_handle_clone.emit_to("main", "oauth-error", format!("서버 오류: {}", e));
                 }
             }
-        });
-
+        }, abort_reg);
+        tokio::spawn(abortable);
         // 타임아웃과 함께 결과 대기
         let code = tokio::time::timeout(
             tokio::time::Duration::from_secs(60), // 60초 타임아웃
@@ -308,7 +315,8 @@ impl GoogleOAuth {
         ).await
         .map_err(|_| "로그인 시간이 초과되었습니다")?
         .map_err(|_| "채널 수신 오류")?;
-        
+        // 로그인 성공/실패 후 AbortHandle 해제
+        *OAUTH_ABORT_HANDLE.lock().unwrap() = None;
         Ok(code)
     }
 
@@ -346,6 +354,13 @@ impl GoogleOAuth {
             data.take()
         } else {
             None
+        }
+    }
+
+    /// OAuth 로그인 취소 (AbortHandle 사용)
+    pub fn cancel_oauth_login() {
+        if let Some(handle) = OAUTH_ABORT_HANDLE.lock().unwrap().take() {
+            handle.abort();
         }
     }
 }
