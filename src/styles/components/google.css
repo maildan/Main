@@ -5,7 +5,7 @@
   display: flex;
   flex-direction: column;
   height: 100vh;
-  background: #fafafa;
+  background: #1e1e1e;
 }
 
 .docs-header {
@@ -13,8 +13,8 @@
   justify-content: space-between;
   align-items: center;
   padding: 1.5rem 2rem;
-  background: white;
-  border-bottom: 1px solid #e5e7eb;
+  background: #1e1e1e;
+  border-bottom: 1px solid #23242a;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
@@ -25,12 +25,12 @@
 .section-title {
   font-size: 1.875rem;
   font-weight: 700;
-  color: #1f2937;
+  color: #f3f4f6;
   margin: 0 0 0.5rem 0;
 }
 
 .section-description {
-  color: #6b7280;
+  color: #a1a1aa;
   margin: 0;
   font-size: 1rem;
 }
@@ -49,12 +49,12 @@
 .google-login.loading {
   padding: 1rem;
   justify-content: center;
-  color: #6b7280;
+  color: #a1a1aa;
 }
 
 .google-login.authenticated {
-  background: white;
-  border: 1px solid #e5e7eb;
+  background: #1e1e1e;
+  border: 1px solid #23242a;
   border-radius: 8px;
   padding: 0.75rem 1rem;
 }
@@ -69,7 +69,7 @@
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  border: 1px solid #e5e7eb;
+  border: 1px solid #23242a;
 }
 
 .user-details {
@@ -79,12 +79,12 @@
 
 .user-name {
   font-weight: 600;
-  color: #1f2937;
+  color: #f3f4f6;
   font-size: 0.875rem;
 }
 
 .user-email {
-  color: #6b7280;
+  color: #a1a1aa;
   font-size: 0.75rem;
 }
 
@@ -113,8 +113,8 @@
 }
 
 .login-section {
-  background: white;
-  border: 1px solid #e7e7eb;
+  background: #1e1e1e;
+  border: 1px solid #23242a;
   border-radius: 12px;
   padding: 2rem;
   text-align: center;
@@ -122,12 +122,12 @@
 
 .login-section h3 {
   margin: 0 0 0.5rem 0;
-  color: #1f2937;
+  color: #f3f4f6;
   font-size: 1.25rem;
 }
 
 .login-section p {
-  color: #6b7280;
+  color: #a1a1aa;
   margin: 0 0 1.5rem 0;
 }
 
@@ -136,8 +136,8 @@
   align-items: center;
   justify-content: center;
   gap: 0.75rem;
-  background: white;
-  border: 1px solid #d1d5db;
+  background: #1e1e1e;
+  border: 1px solid #434343;
   padding: 0.75rem 1.5rem;
   border-radius: 8px;
   font-size: 1rem;
@@ -149,7 +149,7 @@
 }
 
 .google-login-button:hover {
-  background: #f9fafb;
+  background: #2a2a2a;
   border-color: #9ca3af;
 }
 
@@ -164,7 +164,7 @@
 }
 
 .login-info {
-  color: #6b7280;
+  color: #a1a1aa;
   font-size: 0.875rem;
   line-height: 1.4;
 }
@@ -211,9 +211,9 @@
 /* Google Docs Container */
 .google-docs-container {
   border-radius: 12px;
-  overflow-y: auto; /* 세로 스크롤 허용 */
-  background: white;
-  border: 1px solid #e5e7eb;
+  overflow-y: auto;
+  background: #1e1e1e;
+  border: 1px solid #23242a;
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
   height: 100%;
   width: 100%;
@@ -227,7 +227,7 @@
   justify-content: center;
   padding: 3rem 1rem;
   text-align: center;
-  color: #6b7280;
+  color: #a1a1aa;
 }
 
 .empty-icon {
@@ -238,7 +238,7 @@
 }
 
 .empty-state h3 {
-  color: #1f2937;
+  color: #f3f4f6;
   margin: 0 0 0.5rem 0;
   font-size: 1.25rem;
 }
@@ -246,4 +246,201 @@
 .empty-state p {
   margin: 0;
   font-size: 1rem;
+}
+
+/* DocSearchResult(문서 상세) 카드 스타일 */
+.doc-search-result-card {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 80vw;
+  height: auto;
+  aspect-ratio: 1.2/1;
+  max-width: 1200px;
+  min-width: 400px;
+  min-height: 420px;
+  max-height: 92vh;
+  background: #181818;
+  border-radius: 22px;
+  box-shadow: none;
+  padding: 2rem 3vw 6rem 3vw;
+  border: 1.5px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  overflow: hidden;
+  box-sizing: border-box;
+  margin: 0;
+  z-index: 100;
+}
+
+.doc-search-result-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 2vw;
+  min-height: 48px;
+  border-bottom: 1.5px solid rgba(99,102,241,0.65);
+  background: #181818;
+  position: relative;
+  z-index: 1;
+  box-shadow: none !important;
+  outline: none !important;
+}
+
+.doc-back-btn {
+  background: none;
+  border: 1.5px solid #333;
+  color: #a1a1aa;
+  font-size: 1.1rem;
+  cursor: pointer;
+  padding: 0 8px;
+  height: 36px;
+  border-radius: 6px;
+  transition: background 0.15s, border 0.15s;
+  box-shadow: none !important;
+  margin-right: 10px;
+  margin-left: 0px;
+}
+
+.doc-back-btn:hover, .doc-back-btn:focus {
+  border-color: #6366f1;
+  background: #232323;
+}
+
+.doc-title {
+  flex: 1;
+  margin-left: 16px;
+  margin-right: 16px;
+  font-family: 'Pretendard', 'Inter', 'Noto Sans KR', Arial, sans-serif;
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: #f3f4f6;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.doc-divider {
+  width: 96%;
+  margin: 0.5rem auto 1.2rem auto;
+  border: none;
+  border-top: 1px solid rgba(255,255,255,0.10);
+}
+
+.doc-search-result-content {
+  width: 100%;
+  flex: 1;
+  min-height: 120px;
+  padding: 0.5rem 2vw 0 2vw;
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start !important;
+  overflow-y: auto;
+  text-align: left !important;
+}
+
+.doc-content-text {
+  font-family: 'Pretendard', 'Inter', 'Segoe UI', Arial, sans-serif;
+  font-size: 1.15rem;
+  color: #e5e7eb;
+  background: none;
+  border: none;
+  margin: 0;
+  padding: 0;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  word-break: break-word;
+  text-align: left !important;
+  max-width: 100%;
+}
+
+.font-control-group {
+  box-shadow: none !important;
+  border: none !important;
+  outline: none !important;
+}
+
+@media (max-width: 1400px) {
+  .doc-search-result-card {
+    width: 75vw;
+    max-width: 850px;
+    min-width: 320px;
+    min-height: 380px;
+    aspect-ratio: 1/1.2;
+    padding: 4rem 2vw 4rem 2vw;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    margin: 0;
+  }
+}
+
+@media (max-width: 900px) {
+  .doc-search-result-card {
+    width: 96vw;
+    max-width: 600px;
+    min-width: 0;
+    min-height: 340px;
+    aspect-ratio: 1/1.3;
+    padding: 2.5rem 1vw 2.5rem 1vw;
+    border-radius: 12px;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    margin: 0;
+  }
+  .doc-title {
+    font-size: 1.2rem;
+  }
+}
+
+@media (max-width: 700px) {
+  .doc-search-result-card {
+    width: 98vw;
+    max-width: 100vw;
+    min-width: 0;
+    min-height: 260px;
+    aspect-ratio: 1/1.4;
+    padding: 1.5rem 0.5vw 1.5rem 0.5vw;
+    border-radius: 8px;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    margin: 0;
+  }
+  .doc-title {
+    font-size: 1rem;
+  }
+}
+
+/* 카드 헤더 아래 실선 중복 제거: .doc-search-result-card, .doc-content 등 하단 border 제거 */
+.doc-search-result-card {
+  border: none !important;
+  box-shadow: none !important;
+}
+.doc-content, .doc-content-text {
+  border: none !important;
+  box-shadow: none !important;
+}
+
+/* 검색바 드롭다운 스타일 */
+.doc-suggestions-dropdown {
+  max-height: 200px;
+  overflow-y: auto;
+  scrollbar-width: none; /* Firefox */
+}
+.doc-suggestions-dropdown::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Opera */
+}
+.doc-suggestion-item {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 320px;
 }

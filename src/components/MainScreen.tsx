@@ -2,11 +2,9 @@ import { useState } from 'react';
 import SettingsDropdown from './SettingsDropdown';
 import SettingsModal from './SettingsModal';
 import AccountSwitcher from './AccountSwitcher';
-// GoogleDocsSection import 제거
-// import GoogleDocsSection from './google/GoogleDocsSection';
-// import { useDocs } from '../contexts/google/DocsContext';
+import { useDocs } from '../contexts/google/DocsContext';
 import { invoke } from '@tauri-apps/api/core';
-import DocSearchResult from './google/DocSearchResult';
+import DocSearchResult from './google/viewer/DocSearchResult';
 
 /**
  * 메인 화면 컴포넌트
@@ -16,7 +14,7 @@ import DocSearchResult from './google/DocSearchResult';
  * - Google Docs 연동 기능
  */
 const MainScreen = () => {
-  // const { fetchDocuments } = useDocs(); // GoogleDocsSection 제거로 불필요
+  const { documents, selectDocument } = useDocs();
   const [searchQuery, setSearchQuery] = useState('');
   const [showSettings, setShowSettings] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
@@ -69,6 +67,7 @@ const MainScreen = () => {
         setSelectedSuggestionIndex(prev => prev > 0 ? prev - 1 : suggestions.length - 1);
         break;
       case 'Enter':
+        if (searchQuery.trim() === '') return; // 빈 문자열이면 아무 동작도 하지 않음
         if (selectedSuggestionIndex >= 0) {
           e.preventDefault();
           handleSuggestionClick(suggestions[selectedSuggestionIndex]);
@@ -127,6 +126,11 @@ const MainScreen = () => {
   const handleBackToMain = () => {
     setSelectedDoc(null);
   };
+  // 문서 뷰어 내 추천어 클릭 시 문서 전환 핸들러
+  const handleDocSelect = async (doc: any) => {
+    await selectDocument(doc.id);
+    setSelectedDoc(doc);
+  };
   // 한글 초성 추출 함수
   const getKoreanInitials = (text: string): string => {
     const initials = ['ㄱ', 'ㄲ', 'ㄴ', 'ㄷ', 'ㄸ', 'ㄹ', 'ㅁ', 'ㅂ', 'ㅃ', 'ㅅ', 'ㅆ', 'ㅇ', 'ㅈ', 'ㅉ', 'ㅊ', 'ㅋ', 'ㅌ', 'ㅍ', 'ㅎ'];
@@ -179,7 +183,7 @@ const MainScreen = () => {
             </div>
             <div className="search-section">
               <div className="search-container">
-                <form className={`search-form ${isSearchExpanded ? 'expanded' : ''}`}> {/* onSubmit 제거 */}
+                <div className={`search-form ${isSearchExpanded ? 'expanded' : ''}`}> {/* form → div, onSubmit 제거 */}
                   <input
                     type="text"
                     className={`search-input ${isSearchFocused ? 'focused' : ''}`}
@@ -193,7 +197,7 @@ const MainScreen = () => {
                     onMouseLeave={handleInputMouseLeave}
                     autoComplete="off"
                   />
-                </form>
+                </div>
                 {/* 통합 추천 드롭다운 */}
                 {showSuggestions && (
                   <div className="suggestions-dropdown">
@@ -201,10 +205,12 @@ const MainScreen = () => {
                       <div
                         key={suggestion.type + '-' + suggestion.value + (suggestion.docObj?.id || '')}
                         className={`suggestion-item ${index === selectedSuggestionIndex ? 'selected' : ''}`}
-                        onClick={() => handleSuggestionClick(suggestion)}
+                        style={{userSelect: 'none', cursor: 'pointer'}} // maxWidth 제거
+                        title={suggestion.value}
                         onMouseDown={handleSuggestionMouseDown}
+                        onClick={() => handleSuggestionClick(suggestion)}
                       >
-                        {suggestion.value}
+                        <span style={{display:'block',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',maxWidth:320}}>{suggestion.value}</span>
                       </div>
                     ))}
                   </div>
@@ -219,6 +225,8 @@ const MainScreen = () => {
             title={selectedDoc.title}
             content={selectedDoc.content || ''}
             onBack={handleBackToMain}
+            allDocs={documents}
+            onSelectDoc={handleDocSelect}
           />
         )}
       </div>

@@ -2,6 +2,7 @@
 html {
   scrollbar-width: none; /* Firefox */
   -ms-overflow-style: none; /* IE and Edge */
+  background: #1e1e1e;
 }
 
 html::-webkit-scrollbar {
@@ -13,7 +14,7 @@ html, body {
   padding: 0;
   width: 100vw;
   height: 100vh;
-  background: #18181b;
+  background: #1e1e1e;
   color: #f6f6f6;
   transition: background 0.7s ease, color 0.7s ease;
 }
@@ -24,16 +25,16 @@ html, body {
   line-height: 24px;
   font-weight: 400;
   color: #f6f6f6;
-  background-color: #18181b;
+  background-color: #1e1e1e;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   -webkit-text-size-adjust: 100%;
-  --bg-color: #18181b;
+  --bg-color: #111216;
   --text-color: #f6f6f6;
   --header-bg: #27272a;
-  --sidebar-bg: #18181b;
+  --sidebar-bg: #111216;
   --card-bg: #27272a;
   --border-color: #3f3f46;
   --panel-bg: #ffffff;

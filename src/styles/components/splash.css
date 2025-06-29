@@ -18,6 +18,7 @@
 
 .splash-screen.fade-out {
   opacity: 0;
+  background: #1e1e1e;
 }
 
 .splash-content {

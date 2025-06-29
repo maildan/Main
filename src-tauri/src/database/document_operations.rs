@@ -202,7 +202,7 @@ pub async fn get_user_documents_by_keyword(pool: &Pool<Sqlite>, user_id: &str, k
     let offset = offset.unwrap_or(0);
     let like_pattern = format!("%{}%", keyword);
     let documents = sqlx::query_as::<_, Document>(
-        "SELECT * FROM documents WHERE user_id = $1 AND title LIKE $2 ORDER BY modified_time DESC LIMIT $3 OFFSET $4"
+        "SELECT * FROM documents WHERE user_id = $1 AND (title LIKE $2 OR content LIKE $2) ORDER BY modified_time DESC LIMIT $3 OFFSET $4"
     )
     .bind(user_id)
     .bind(&like_pattern)

@@ -610,4 +610,9 @@
   }
 }
 
-/* ...existing code... */
+.docs-list-header,
+.search-filter-section,
+.doc-header,
+.summary-section {
+  border-bottom: none !important;
+}
